@@ -98,7 +98,7 @@
     "fs": "^0.0.1-security",
     "helmet": "^8.1.0",
     "html-pdf-node": "^1.0.8",
-    "iconv-lite": "^0.7.2",
+    "iconv-lite": "^0.7.3",
     "input": "^1.0.1",
     "ioredis": "^5.8.2",
     "joi": "^17.13.3",
