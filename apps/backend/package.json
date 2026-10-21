@@ -101,7 +101,7 @@
     "iconv-lite": "^0.7.2",
     "input": "^1.0.1",
     "ioredis": "^5.8.2",
-    "joi": "^17.13.3",
+    "joi": "^18.2.9",
     "jsonwebtoken": "^9.0.2",
     "libphonenumber-js": "^1.13.10",
     "luxon": "^3.7.2",
