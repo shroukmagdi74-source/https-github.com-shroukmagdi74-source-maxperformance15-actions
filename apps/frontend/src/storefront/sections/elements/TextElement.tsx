@@ -1,4 +1,5 @@
 import React from 'react';
+import { useStorefrontTheme } from '../../engine/ThemeProvider';
 
 export interface TextElementSettings {
   content?: string;
@@ -42,8 +43,22 @@ const TextElement: React.FC<TextElementProps> = ({ section, settings: directSett
     alignClass = 'text-end';
   }
 
+  let themeContext: any = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    themeContext = useStorefrontTheme();
+  } catch {
+    // Safe fallback outside provider
+  }
+
   const customStyle: React.CSSProperties = {
-    fontFamily: 'var(--store-font-family, inherit)',
+    fontFamily: themeContext?.pageStyleVars?.['--store-font-family'] || 'var(--store-font-family, inherit)',
+    fontSize: themeContext?.pageStyleVars?.['--store-font-size-base'] || 'var(--store-font-size-base, inherit)',
+    lineHeight: themeContext?.pageStyleVars?.['--store-line-height'] || 'var(--store-line-height, inherit)',
+    fontWeight: themeContext?.pageStyleVars?.['--store-body-weight']
+      ? Number(themeContext.pageStyleVars['--store-body-weight'])
+      : ('var(--store-body-weight, 400)' as any),
+    letterSpacing: themeContext?.pageStyleVars?.['--store-letter-spacing'] ?? '0',
   };
 
   if (color) {

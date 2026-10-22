@@ -1,0 +1,51 @@
+/* ───────────────────────────────────────────────────────────────
+   MaxP Storefront — Arabic Fonts Library (Ticket TYPO-1)
+   Imports 8 new Arabic fonts + 3 existing core fonts from Google Fonts
+   with display=swap and strictly requested weights (400/600/700/800).
+   ─────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;800&family=Changa:wght@400;600;700;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Noto+Kufi+Arabic:wght@400;600;700;800&family=Noto+Naskh+Arabic:wght@400;600;700&family=Reem+Kufi:wght@400;600;700&family=Rubik:wght@400;600;700;800&family=Tajawal:wght@400;700;800&display=swap');
+
+:root {
+  --store-font-size-base: 16px;
+  --store-line-height: 1.6;
+  --store-heading-weight: 700;
+  --store-body-weight: 400;
+  --store-letter-spacing: 0;
+}
+
+/* 🛡️ Strict Arabic Typography: Letter-spacing must ALWAYS be 0 on Arabic script (prevents glyph disconnection) */
+:root:has([dir="rtl"]),
+[dir="rtl"],
+.storefront-arabic-typography,
+[data-font-arabic="true"],
+[data-storefront-section="true"] {
+  letter-spacing: 0;
+}
+
+/* Storefront sections inherit typography variables */
+[data-storefront-section="true"],
+.storefront-section {
+  font-family: var(--store-font-family, 'IBM Plex Sans Arabic', 'Cairo', system-ui, sans-serif);
+  font-size: var(--store-font-size-base, 16px);
+  line-height: var(--store-line-height, 1.6);
+  font-weight: var(--store-body-weight, 400);
+}
+
+/* Headings inherit heading weight */
+[data-storefront-section="true"] h1,
+[data-storefront-section="true"] h2,
+[data-storefront-section="true"] h3,
+[data-storefront-section="true"] h4,
+[data-storefront-section="true"] h5,
+[data-storefront-section="true"] h6,
+[data-storefront-section="true"] [data-storefront-element="heading"] {
+  font-weight: var(--store-heading-weight, 700);
+}
+
+/* Text elements inherit font size, line height, and body weight */
+[data-storefront-section="true"] [data-storefront-element="text"] {
+  font-size: var(--store-font-size-base, 16px);
+  line-height: var(--store-line-height, 1.6);
+  font-weight: var(--store-body-weight, 400);
+}

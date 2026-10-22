@@ -30,7 +30,7 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
   if (isHidden) {
     return null;
   }
-  const { theme } = useStorefrontTheme();
+  const { theme, pageStyleVars } = useStorefrontTheme();
   const reveal = isRevealEnabledTheme(theme?.id);
   const currentBreakpoint = useCurrentBreakpoint();
 
@@ -86,7 +86,13 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
       data-section-type={typeof sectionEntry === "string" ? sectionEntry : sectionEntry?.type}
       data-device-breakpoint={currentBreakpoint}
       data-has-responsive={hasResponsive ? "true" : undefined}
-      style={sectionStyle}
+      style={{
+        fontFamily: pageStyleVars?.['--store-font-family'] || 'var(--store-font-family, inherit)',
+        fontSize: pageStyleVars?.['--store-font-size-base'] || 'var(--store-font-size-base, inherit)',
+        lineHeight: pageStyleVars?.['--store-line-height'] || 'var(--store-line-height, inherit)',
+        letterSpacing: pageStyleVars?.['--store-letter-spacing'] ?? '0',
+        ...sectionStyle,
+      }}
       className={reveal ? `sf-reveal ${index > 0 ? 'mt-6 sm:mt-12' : ''}` : index > 0 ? 'mt-6 sm:mt-12' : ''}
       data-reveal-delay={reveal ? (index % 5) + 1 : undefined}
     >

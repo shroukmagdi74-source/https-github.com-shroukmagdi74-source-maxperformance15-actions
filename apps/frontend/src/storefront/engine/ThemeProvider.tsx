@@ -8,6 +8,7 @@ import {
 } from './runtimeThemeResolver';
 import { resolvePageStyleVars, resolveActivePageKeyFromPath, extractPageStyles, type ResolvedPageStyleVars } from './themeResolverCore';
 import { getStorefrontLocale } from '../i18n';
+import { ensureDocumentFontAvailable } from '../utils/arabicTypography';
 
 interface ThemeContextType {
   theme: StorefrontTheme;
@@ -80,16 +81,41 @@ const createStorefrontThemeFallback = (
         headingFont:
           initialTheme?.designTokens?.typography?.headingFont ||
           initialTheme?.tokens?.typography?.headingFont ||
+          initialTheme?.designTokens?.typography?.fontFamily ||
+          initialTheme?.tokens?.typography?.fontFamily ||
           '"IBM Plex Sans Arabic", sans-serif',
         bodyFont:
           initialTheme?.designTokens?.typography?.bodyFont ||
           initialTheme?.tokens?.typography?.bodyFont ||
+          initialTheme?.designTokens?.typography?.fontFamily ||
+          initialTheme?.tokens?.typography?.fontFamily ||
           '"IBM Plex Sans Arabic", sans-serif',
         baseSize:
           initialTheme?.designTokens?.typography?.baseSize ||
           initialTheme?.tokens?.typography?.baseSize ||
+          (initialTheme?.designTokens?.typography?.baseFontSize
+            ? `${initialTheme.designTokens.typography.baseFontSize}px`
+            : undefined) ||
           '16px',
         direction: fallbackDirection,
+        fontFamily:
+          initialTheme?.designTokens?.typography?.fontFamily ||
+          initialTheme?.tokens?.typography?.fontFamily,
+        baseFontSize:
+          initialTheme?.designTokens?.typography?.baseFontSize ??
+          initialTheme?.tokens?.typography?.baseFontSize,
+        lineHeight:
+          initialTheme?.designTokens?.typography?.lineHeight ??
+          initialTheme?.tokens?.typography?.lineHeight,
+        headingWeight:
+          initialTheme?.designTokens?.typography?.headingWeight ??
+          initialTheme?.tokens?.typography?.headingWeight,
+        bodyWeight:
+          initialTheme?.designTokens?.typography?.bodyWeight ??
+          initialTheme?.tokens?.typography?.bodyWeight,
+        letterSpacing:
+          initialTheme?.designTokens?.typography?.letterSpacing ??
+          initialTheme?.tokens?.typography?.letterSpacing,
       },
       shape: {
         borderRadius:
@@ -310,6 +336,13 @@ export const StorefrontThemeProvider: React.FC<{
     if (pageVars['--store-bg']) {
       setVar('--store-bg', pageVars['--store-bg']);
     }
+    if (pageVars['--store-font-family']) {
+      setVar('--font-sans', pageVars['--store-font-family']);
+      ensureDocumentFontAvailable(pageVars['--store-font-family']);
+    }
+    if (pageVars['--store-font-size-base']) {
+      setVar('--base-font-size', pageVars['--store-font-size-base']);
+    }
 
   }, [theme, scoped, activePageKey]);
 
@@ -376,7 +409,10 @@ export const StorefrontThemeProvider: React.FC<{
         id="storefront-engine-root" 
         className="storefront-container isolation-auto min-h-screen bg-background text-foreground"
         style={{
-          fontFamily: 'var(--font-sans)',
+          fontFamily: 'var(--store-font-family, var(--font-sans))',
+          fontSize: 'var(--store-font-size-base, 16px)',
+          lineHeight: 'var(--store-line-height, 1.6)',
+          letterSpacing: 'var(--store-letter-spacing, 0)',
           ...resolvedPageVars,
           '--accent': 'var(--store-accent)',
           '--radius': 'var(--store-radius)',

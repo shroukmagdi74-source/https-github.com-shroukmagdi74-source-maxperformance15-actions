@@ -15,6 +15,7 @@ import {
   STUDIO_PAGES,
   type StudioPageDefinition,
 } from "./StudioTypes";
+import { ARABIC_FONT_DEFINITIONS } from "../utils/arabicTypography";
 
 interface StudioPageStylePopoverProps {
   activePageKey: string;
@@ -283,6 +284,55 @@ export const StudioPageStylePopover: React.FC<StudioPageStylePopoverProps> = ({
                   onChange={(e) => onUpdateStyle({ accent: e.target.value, preset: undefined })}
                   className="h-6 w-20 rounded border border-[#2e323b] bg-[#1a1c22] px-1.5 text-[10.5px] font-mono text-white text-center focus:outline-none focus:border-[#2b6cf6]"
                 />
+              </div>
+            </div>
+
+            {/* Arabic Font Selector (Ticket TYPO-1) */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] text-[#a0a6b2]">
+                نوع الخط العربي (Arabic Font):
+              </label>
+              <select
+                data-testid="page-style-font-select"
+                value={pageStyle?.fontFamily || "Cairo"}
+                onChange={(e) => onUpdateStyle({ fontFamily: e.target.value, preset: undefined })}
+                className="w-full rounded-lg border border-[#2e323b] bg-[#1a1c22] px-2 py-1 text-[11px] text-white focus:outline-none focus:border-[#2b6cf6]"
+              >
+                {ARABIC_FONT_DEFINITIONS.map((font) => (
+                  <option key={font.id} value={font.id}>
+                    {font.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Visual preview list with "أبجد هوز — 0123" */}
+              <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-[#262933] bg-[#16181e] p-1">
+                {ARABIC_FONT_DEFINITIONS.map((font) => {
+                  const isSelected = (pageStyle?.fontFamily || "Cairo") === font.id;
+                  return (
+                    <button
+                      key={font.id}
+                      type="button"
+                      data-testid={`page-style-font-option-${font.id}`}
+                      onClick={() => onUpdateStyle({ fontFamily: font.id, preset: undefined })}
+                      className={`w-full flex items-center justify-between rounded px-2 py-1 text-start transition-all ${
+                        isSelected
+                          ? "bg-[#2b6cf6] text-white font-bold"
+                          : "text-[#a8afba] hover:bg-[#20222a] hover:text-white"
+                      }`}
+                    >
+                      <span className="text-[10.5px] truncate max-w-[45%]">
+                        {font.name}
+                      </span>
+                      <span
+                        className="text-[12px] tracking-normal shrink-0"
+                        style={{ fontFamily: font.id }}
+                      >
+                        {font.previewText}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

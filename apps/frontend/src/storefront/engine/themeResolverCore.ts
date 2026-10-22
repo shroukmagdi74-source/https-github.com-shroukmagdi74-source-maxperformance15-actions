@@ -25,6 +25,10 @@ import type {
   PageStylePreset,
 } from '../studio/StudioTypes';
 import { PAGE_STYLE_PRESETS } from '../studio/StudioTypes';
+import {
+  resolveStoreTypographyVars,
+  formatStoreFontFamily,
+} from '../utils/arabicTypography';
 
 export type { PageStyleDensity, PageStyleScope, PageStylesMap, PageStylePreset };
 export { PAGE_STYLE_PRESETS };
@@ -41,6 +45,11 @@ export interface ResolvedPageStyleVars {
   '--store-font-family': string;
   '--store-density-gap': string;
   '--store-radius': string;
+  '--store-font-size-base': string;
+  '--store-line-height': string;
+  '--store-heading-weight': string;
+  '--store-body-weight': string;
+  '--store-letter-spacing': string;
   [key: string]: string;
 }
 
@@ -209,11 +218,24 @@ const pickTypographyTokens = (
       ? source['direction']
       : undefined;
 
+  const fontFamily = typeof source['fontFamily'] === 'string' && source['fontFamily'].trim() ? source['fontFamily'].trim() : undefined;
+  const baseFontSize = source['baseFontSize'] !== undefined && source['baseFontSize'] !== null && source['baseFontSize'] !== '' ? source['baseFontSize'] : undefined;
+  const lineHeight = source['lineHeight'] !== undefined && source['lineHeight'] !== null && source['lineHeight'] !== '' ? source['lineHeight'] : undefined;
+  const headingWeight = source['headingWeight'] !== undefined && source['headingWeight'] !== null && source['headingWeight'] !== '' ? source['headingWeight'] : undefined;
+  const bodyWeight = source['bodyWeight'] !== undefined && source['bodyWeight'] !== null && source['bodyWeight'] !== '' ? source['bodyWeight'] : undefined;
+  const letterSpacing = source['letterSpacing'] !== undefined && source['letterSpacing'] !== null && source['letterSpacing'] !== '' ? source['letterSpacing'] : undefined;
+
   return {
-    ...(headingFont ? { headingFont } : {}),
-    ...(bodyFont ? { bodyFont } : {}),
-    ...(baseSize ? { baseSize } : {}),
+    ...(headingFont ? { headingFont } : fontFamily ? { headingFont: fontFamily } : {}),
+    ...(bodyFont ? { bodyFont } : fontFamily ? { bodyFont: fontFamily } : {}),
+    ...(baseSize ? { baseSize } : baseFontSize ? { baseSize: typeof baseFontSize === 'number' ? `${baseFontSize}px` : String(baseFontSize) } : {}),
     ...(direction ? { direction } : {}),
+    ...(fontFamily ? { fontFamily } : {}),
+    ...(baseFontSize !== undefined ? { baseFontSize } : {}),
+    ...(lineHeight !== undefined ? { lineHeight } : {}),
+    ...(headingWeight !== undefined ? { headingWeight } : {}),
+    ...(bodyWeight !== undefined ? { bodyWeight } : {}),
+    ...(letterSpacing !== undefined ? { letterSpacing } : {}),
   };
 };
 
@@ -479,6 +501,33 @@ export const extractPageStyles = (
         if (typeof item['preset'] === 'string' && item['preset'].trim()) {
           scope.preset = item['preset'].trim();
         }
+        if (typeof item['baseFontSize'] === 'number') {
+          scope.baseFontSize = item['baseFontSize'];
+        } else if (typeof item['baseFontSize'] === 'string' && item['baseFontSize'].trim()) {
+          const parsed = parseFloat(item['baseFontSize']);
+          if (!isNaN(parsed)) scope.baseFontSize = parsed;
+        }
+        if (typeof item['lineHeight'] === 'number') {
+          scope.lineHeight = item['lineHeight'];
+        } else if (typeof item['lineHeight'] === 'string' && item['lineHeight'].trim()) {
+          const parsed = parseFloat(item['lineHeight']);
+          if (!isNaN(parsed)) scope.lineHeight = parsed;
+        }
+        if (typeof item['headingWeight'] === 'number') {
+          scope.headingWeight = item['headingWeight'];
+        } else if (typeof item['headingWeight'] === 'string' && item['headingWeight'].trim()) {
+          const parsed = parseInt(item['headingWeight'], 10);
+          if (!isNaN(parsed)) scope.headingWeight = parsed;
+        }
+        if (typeof item['bodyWeight'] === 'number') {
+          scope.bodyWeight = item['bodyWeight'];
+        } else if (typeof item['bodyWeight'] === 'string' && item['bodyWeight'].trim()) {
+          const parsed = parseInt(item['bodyWeight'], 10);
+          if (!isNaN(parsed)) scope.bodyWeight = parsed;
+        }
+        if (item['letterSpacing'] !== undefined && item['letterSpacing'] !== null) {
+          scope.letterSpacing = item['letterSpacing'];
+        }
         if (Object.keys(scope).length > 0) {
           result[key] = {
             ...(result[key] || {}),
@@ -553,14 +602,31 @@ export const resolvePageStyleVars = (
     background = '#ffffff';
   }
 
-  // 3. Font family fallback: pageStyle.fontFamily > preset.fontFamily > theme bodyFont > theme headingFont > 'inherit'
-  const fontFamily =
+  // 3. Font family & Arabic Typography resolution (Ticket TYPO-1)
+  const rawChosenFont =
     pageStyle?.fontFamily?.trim() ||
     preset?.fontFamily ||
+    (theme?.tokens?.typography as any)?.fontFamily ||
     theme?.tokens?.typography?.bodyFont ||
     theme?.tokens?.typography?.headingFont ||
-    'inherit';
+    'Cairo';
 
+  const typoVars = resolveStoreTypographyVars({
+    fontFamily: rawChosenFont,
+    baseFontSize: (pageStyle as any)?.baseFontSize ?? (theme?.tokens?.typography as any)?.baseFontSize ?? (theme?.tokens?.typography as any)?.baseSize,
+    lineHeight: (pageStyle as any)?.lineHeight ?? (theme?.tokens?.typography as any)?.lineHeight,
+    headingWeight: (pageStyle as any)?.headingWeight ?? (theme?.tokens?.typography as any)?.headingWeight,
+    bodyWeight: (pageStyle as any)?.bodyWeight ?? (theme?.tokens?.typography as any)?.bodyWeight,
+    letterSpacing: (pageStyle as any)?.letterSpacing ?? (theme?.tokens?.typography as any)?.letterSpacing,
+  });
+
+  let resolvedFontFamily = typoVars['--store-font-family'];
+  if (rawChosenFont && rawChosenFont.includes(',')) {
+    resolvedFontFamily = rawChosenFont;
+  } else if (rawChosenFont) {
+    resolvedFontFamily = formatStoreFontFamily(rawChosenFont);
+  }
+
   // 4. Density gap fallback: pageStyle.density > preset.density > 'normal'
   const density = pageStyle?.density || preset?.density || 'normal';
   const densityGap = PAGE_STYLE_DENSITY_GAPS[density] || DEFAULT_PAGE_STYLE_DENSITY_GAP;
@@ -582,9 +648,14 @@ export const resolvePageStyleVars = (
   return {
     '--store-accent': accent,
     '--store-bg': background,
-    '--store-font-family': fontFamily,
+    '--store-font-family': resolvedFontFamily,
     '--store-density-gap': densityGap,
     '--store-radius': radius,
+    '--store-font-size-base': typoVars['--store-font-size-base'],
+    '--store-line-height': typoVars['--store-line-height'],
+    '--store-heading-weight': typoVars['--store-heading-weight'],
+    '--store-body-weight': typoVars['--store-body-weight'],
+    '--store-letter-spacing': typoVars['--store-letter-spacing'],
   };
 };
 

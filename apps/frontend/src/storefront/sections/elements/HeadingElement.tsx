@@ -1,4 +1,5 @@
 import React from 'react';
+import { useStorefrontTheme } from '../../engine/ThemeProvider';
 
 export interface HeadingElementSettings {
   text?: string;
@@ -57,8 +58,20 @@ const HeadingElement: React.FC<HeadingElementProps> = ({ section, settings: dire
     colorClass = 'text-[var(--store-accent,#2563eb)]';
   }
 
+  let themeContext: any = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    themeContext = useStorefrontTheme();
+  } catch {
+    // Safe fallback outside provider
+  }
+
   const customStyle: React.CSSProperties = {
-    fontFamily: 'var(--store-font-family, inherit)',
+    fontFamily: themeContext?.pageStyleVars?.['--store-font-family'] || 'var(--store-font-family, inherit)',
+    fontWeight: themeContext?.pageStyleVars?.['--store-heading-weight']
+      ? Number(themeContext.pageStyleVars['--store-heading-weight'])
+      : ('var(--store-heading-weight, 700)' as any),
+    letterSpacing: themeContext?.pageStyleVars?.['--store-letter-spacing'] ?? '0',
   };
 
   if (color) {

@@ -234,6 +234,11 @@ export interface PageStyleScope {
   density?: PageStyleDensity;
   radius?: number;
   preset?: string;
+  baseFontSize?: number;
+  lineHeight?: number;
+  headingWeight?: number;
+  bodyWeight?: number;
+  letterSpacing?: number | string;
 }
 
 export type PageStylesMap = Record<string, PageStyleScope>;

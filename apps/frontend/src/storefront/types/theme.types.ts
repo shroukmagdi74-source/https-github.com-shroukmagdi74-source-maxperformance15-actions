@@ -5,6 +5,12 @@ export interface StorefrontThemeTypography {
   bodyFont: string;
   baseSize: string;
   direction?: 'ltr' | 'rtl';
+  fontFamily?: string;
+  baseFontSize?: number | string;
+  lineHeight?: number | string;
+  headingWeight?: number | string;
+  bodyWeight?: number | string;
+  letterSpacing?: number | string;
 }
 
 export interface StorefrontSEOConfig {
