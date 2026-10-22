@@ -538,7 +538,7 @@ const checkAppAccess = (appSlug) => {
       // 2. MUST NEVER grant if the user explicitly CANCELLED the app (status === 'CANCELLED').
       //    User cancellation must always be respected!
       if (isCompanyInActiveTrial) {
-        const primaryApp = candidateApps.find((a) => a.slug === primarySlug) || candidateApps[0];
+        const primaryApp = candidateApps.find((a) => a.slug === primarySlug) || candidateApps.find((a) => !STORE_APP_SLUGS.includes(a.slug)) || candidateApps[0];
         if (primaryApp) {
           const primaryRecord = await executeWithRetry(async () => {
             return await getSharedPrismaClient().companyApp.findUnique({
@@ -586,7 +586,7 @@ const checkAppAccess = (appSlug) => {
 
       // 🎁 Free apps auto-activation: ONLY if the primary requested app itself has pricingModel === 'FREE'
       const freeApp = candidateApps.find(
-        (a) => a.slug === primarySlug && String(a.pricingModel || '').toUpperCase() === 'FREE'
+        (a) => (a.slug === primarySlug || (candidateSlugs.includes(a.slug) && !STORE_APP_SLUGS.includes(a.slug))) && String(a.pricingModel || '').toUpperCase() === 'FREE'
       );
       if (freeApp) {
         const existingRecord = await executeWithRetry(async () => {

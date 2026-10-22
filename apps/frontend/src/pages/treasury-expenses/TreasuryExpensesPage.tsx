@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Receipt, Landmark, Loader2, ArrowUpRight, ShieldCheck, Wallet } from "lucide-react";
+import { Receipt, Landmark, Loader2, ArrowUpRight, ShieldCheck, Wallet, Sparkles } from "lucide-react";
+import { apiClient } from "../../services/apiClient";
 import {
   TreasuryAccount,
   ExpenseCategory,
@@ -20,6 +21,8 @@ export default function TreasuryExpensesPage() {
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [totalLiquidity, setTotalLiquidity] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [accessBlocked, setAccessBlocked] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
 
   const loadInitialData = useCallback(async () => {
     try {
@@ -54,7 +57,11 @@ export default function TreasuryExpensesPage() {
       setAccounts(uniqueAccounts);
       setTotalLiquidity(uniqueAccounts.reduce((sum, a) => sum + Number(a.balance || 0), 0));
       setCategories(uniqueCategories);
-    } catch (err) {
+      setAccessBlocked(null);
+    } catch (err: any) {
+      if (err?.response?.status === 403) {
+        setAccessBlocked(err?.response?.data?.message || "هذه الميزة تتطلب تفعيل أداة الخزينة والنفقات");
+      }
       console.error("Failed to load treasury initial data:", err);
     } finally {
       setLoading(false);
@@ -141,6 +148,43 @@ export default function TreasuryExpensesPage() {
           </div>
         </div>
       </div>
+
+      {/* Access Blocked / Re-activation Banner */}
+      {accessBlocked && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-50 dark:bg-amber-950/20 p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <ShieldCheck className="size-5" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground text-sm">{accessBlocked}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                أداة الخزينة والنفقات ورأس المال مجانية بالكامل. يمكنك تفعيلها لحسابك بضغطة زر واحدة.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={activating}
+            onClick={async () => {
+              try {
+                setActivating(true);
+                await apiClient.post("/marketplace/apps/treasury-expenses-pro/install");
+                setAccessBlocked(null);
+                await loadInitialData();
+              } catch (e: any) {
+                console.error("Failed to activate treasury:", e);
+              } finally {
+                setActivating(false);
+              }
+            }}
+            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors shrink-0 disabled:opacity-50 cursor-pointer"
+          >
+            {activating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            <span>تفعيل الأداة مجاناً الآن</span>
+          </button>
+        </div>
+      )}
 
       {/* Main Content Area */}
       {loading ? (

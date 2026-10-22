@@ -7,7 +7,7 @@ const { checkAppAccess } = require('../middleware/checkAppAccess');
 
 // All treasury & expenses routes require authentication and subscription access
 router.use(verifyToken.authenticateToken);
-router.use(checkAppAccess('treasury-expenses'));
+router.use(checkAppAccess('treasury-expenses-pro'));
 
 // 1. Treasury Accounts & Vaults
 router.get('/accounts', controller.getAccounts);
