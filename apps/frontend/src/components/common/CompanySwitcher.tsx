@@ -116,11 +116,11 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
           type="button"
           onClick={() => setIsOpen(true)}
           disabled={isSwitchingCompany}
-          className="flex min-w-0 sm:max-w-[7.75rem] items-center gap-1.5 sm:gap-2 rounded-lg border border-border/70 bg-card px-2 py-1.5 sm:px-2.5 sm:py-2 text-right text-foreground transition-all hover:bg-muted/40 active:scale-[0.98] disabled:opacity-50"
+          className="relative flex items-center justify-center w-9 h-9 sm:w-auto sm:min-w-0 sm:max-w-[7.75rem] sm:gap-2 rounded-xl border border-border/70 bg-card p-0 sm:px-2.5 sm:py-2 text-right text-foreground transition-all hover:bg-muted/40 active:scale-[0.98] disabled:opacity-50"
           title={switcherLabel}
           aria-label={switcherLabel}
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <span className="flex h-7 w-7 sm:h-auto sm:w-auto shrink-0 items-center justify-center rounded-md sm:bg-primary/10 text-primary">
             {isSwitchingCompany ? (
               <Loader2 className="size-3.5 animate-spin text-primary" />
             ) : (
@@ -137,7 +137,7 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
             </span>
           </span>
 
-          <span className="inline-flex min-h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-md bg-muted px-1 text-[10px] font-semibold text-muted-foreground font-mono tabular-nums">
+          <span className="absolute -top-1 -right-1 sm:static sm:top-auto sm:right-auto inline-flex min-h-[16px] min-w-[16px] sm:min-h-[18px] sm:min-w-[18px] shrink-0 items-center justify-center rounded-full sm:rounded-md bg-primary text-primary-foreground sm:bg-muted sm:text-muted-foreground px-1 text-[9px] sm:text-[10px] font-bold sm:font-semibold font-mono tabular-nums shadow-xs">
             {companies.length}
           </span>
         </button>

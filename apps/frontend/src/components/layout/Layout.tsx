@@ -811,11 +811,11 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
             <button
               type="button"
               onClick={toggleMerchantCopilot}
-              className="hidden sm:flex relative group items-center gap-1.5 px-3 py-1.5 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-white bg-slate-100/80 hover:bg-indigo-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-750 rounded-xl border border-slate-200/80 hover:border-indigo-300 dark:border-slate-700/80 dark:hover:border-slate-600 transition-all duration-160 active:scale-95 shadow-2xs cursor-pointer"
+              className="business-icon-button relative group flex items-center justify-center sm:w-auto sm:px-3 sm:py-1.5 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-white bg-slate-100/80 hover:bg-indigo-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-750 rounded-xl border border-slate-200/80 hover:border-indigo-300 dark:border-slate-700/80 dark:hover:border-slate-600 transition-all duration-160 active:scale-95 shadow-2xs cursor-pointer"
               title="المساعد التنفيذي للمتجر (Ctrl + J)"
               aria-label="المساعد التنفيذي للمتجر"
             >
-              <span className="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" />
+              <span className="absolute top-1.5 end-1.5 sm:static h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900 sm:ring-4 sm:ring-emerald-500/20" />
               <Cpu className="h-4 w-4 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform" />
               <span className="hidden md:inline text-xs font-bold text-slate-800 dark:text-slate-100">
                 المساعد التنفيذي

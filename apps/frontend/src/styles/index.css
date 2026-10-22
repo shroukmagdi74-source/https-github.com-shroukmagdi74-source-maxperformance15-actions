@@ -3996,9 +3996,10 @@ select {
   [data-theme="business-os-enterprise"]
     .business-shell-header[data-mobile="true"]
     .business-shell-profile-button--compact {
-    width: auto;
-    min-width: 2.5rem;
-    padding: 0.28rem;
+    width: 2.35rem;
+    height: 2.35rem;
+    min-width: 2.35rem;
+    padding: 0;
     justify-content: center;
   }
 
