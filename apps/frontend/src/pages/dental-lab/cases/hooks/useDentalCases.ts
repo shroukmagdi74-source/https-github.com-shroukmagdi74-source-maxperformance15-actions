@@ -167,13 +167,28 @@ export function useDentalCases() {
   const loadRefs = useCallback(async () => {
     try {
       const [docs, wts, techs] = await Promise.all([
-        fetchDoctors().catch(() => []),
-        fetchWorkTypes().catch(() => []),
-        fetchTechnicians().catch(() => []),
+        fetchDoctors().catch(() => [] as DentalLabDoctor[]),
+        fetchWorkTypes().catch(() => [] as DentalWorkType[]),
+        fetchTechnicians().catch(() => ({ items: [] as DentalTechnician[] })),
       ]);
-      setDoctors(docs);
-      setWorkTypes(wts);
-      setTechnicians(techs);
+      const docList = Array.isArray(docs)
+        ? docs
+        : Array.isArray((docs as any)?.items)
+          ? (docs as any).items
+          : [];
+      const wtList = Array.isArray(wts)
+        ? wts
+        : Array.isArray((wts as any)?.items)
+          ? (wts as any).items
+          : [];
+      const techList = Array.isArray(techs)
+        ? techs
+        : Array.isArray((techs as any)?.items)
+          ? (techs as any).items
+          : [];
+      setDoctors(docList);
+      setWorkTypes(wtList);
+      setTechnicians(techList);
     } catch {
       // Non-critical reference load error
     }

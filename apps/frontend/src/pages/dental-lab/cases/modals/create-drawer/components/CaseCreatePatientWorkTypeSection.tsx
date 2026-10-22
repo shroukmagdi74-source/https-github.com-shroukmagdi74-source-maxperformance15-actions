@@ -39,6 +39,7 @@ export const CaseCreatePatientWorkTypeSection: React.FC<
   labelCls,
 }) => {
   const { t } = useTranslation();
+  const safeTechnicians = Array.isArray(technicians) ? technicians : Array.isArray((technicians as any)?.items) ? (technicians as any).items : [];
 
   return (
     <>
@@ -97,8 +98,8 @@ export const CaseCreatePatientWorkTypeSection: React.FC<
             onChange={(e) => setTechnicianId(e.target.value)}
           >
             <option value="">— بدون إسناد حالياً —</option>
-            {technicians
-              .filter((t) => t.active)
+            {safeTechnicians
+              .filter((t) => t && (t.isActive ?? (t as any).active))
               .map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} ({ROLE_CONFIG[t.role]?.label || t.role})

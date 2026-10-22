@@ -60,6 +60,17 @@ export function DentalCasesBulkBar({
 }: DentalCasesBulkBarProps) {
   if (selectedCaseIds.size === 0) return null;
 
+  const safeTechnicians = Array.isArray(technicians)
+    ? technicians
+    : Array.isArray((technicians as any)?.items)
+      ? (technicians as any).items
+      : [];
+  const safeDoctors = Array.isArray(doctors)
+    ? doctors
+    : Array.isArray((doctors as any)?.items)
+      ? (doctors as any).items
+      : [];
+
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-gray-900/95 dark:bg-gray-800/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl border border-gray-700/80 flex items-center gap-3 flex-wrap max-w-[95vw] animate-in fade-in slide-in-from-bottom-5">
       <div className="flex items-center gap-2 pr-2 border-l border-gray-700">
@@ -116,8 +127,8 @@ export function DentalCasesBulkBar({
               disabled={bulkBusy}
             >
               <option value="">إسناد للفني...</option>
-              {technicians
-                .filter((t) => t.isActive)
+              {safeTechnicians
+                .filter((t) => t && (t.isActive ?? (t as any).active))
                 .map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} (
@@ -178,8 +189,8 @@ export function DentalCasesBulkBar({
               disabled={bulkBusy}
             >
               <option value="">نقل لطبيب / عيادة...</option>
-              {doctors
-                .filter((d) => d.isActive)
+              {safeDoctors
+                .filter((d) => d && d.isActive)
                 .map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.clinicName ? `${d.clinicName} • ${d.name}` : d.name}

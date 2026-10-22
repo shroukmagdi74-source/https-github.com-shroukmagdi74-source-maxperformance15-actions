@@ -30,6 +30,7 @@ export function DentalCaseAdvanceModal({
   const defaultNext = nextStatusOf(caseData.status);
   const [reason, setReason] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const safeTechnicians = Array.isArray(technicians) ? technicians : Array.isArray((technicians as any)?.items) ? (technicians as any).items : [];
 
   const availableTargets = useMemo(() => {
     const list: Array<{ id: string; label: string }> = [];
@@ -150,8 +151,8 @@ export function DentalCaseAdvanceModal({
               onChange={(e) => setAssigneeId(e.target.value)}
             >
               <option value="">— إسناد لفني محدد (اختياري) —</option>
-              {technicians
-                .filter((x) => x.isActive)
+              {safeTechnicians
+                .filter((x) => x && (x.isActive ?? (x as any).active))
                 .map((x) => (
                   <option key={x.id} value={x.id}>
                     {x.name}

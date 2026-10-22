@@ -34,7 +34,12 @@ export function DentalCaseAssignModal({
   const [technicianId, setTechnicianId] = useState("");
   const [role, setRole] = useState("TECHNICIAN");
   const [currentAssignments, setCurrentAssignments] = useState(caseData.assignments || []);
-  const active = technicians.filter((x) => x.isActive);
+  const safeTechnicians = Array.isArray(technicians)
+    ? technicians
+    : Array.isArray((technicians as any)?.items)
+      ? (technicians as any).items
+      : [];
+  const active = safeTechnicians.filter((x) => x && (x.isActive ?? (x as any).active));
 
   const handleAdd = async () => {
     if (saving) return;

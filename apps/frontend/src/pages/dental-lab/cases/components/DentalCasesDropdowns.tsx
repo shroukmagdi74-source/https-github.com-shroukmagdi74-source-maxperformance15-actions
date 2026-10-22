@@ -47,6 +47,22 @@ export function DentalCasesDropdowns({
   setDateRangePreset,
   setPage,
 }: DentalCasesDropdownsProps) {
+  const safeDoctors = Array.isArray(doctors)
+    ? doctors
+    : Array.isArray((doctors as any)?.items)
+      ? (doctors as any).items
+      : [];
+  const safeWorkTypes = Array.isArray(workTypes)
+    ? workTypes
+    : Array.isArray((workTypes as any)?.items)
+      ? (workTypes as any).items
+      : [];
+  const safeTechnicians = Array.isArray(technicians)
+    ? technicians
+    : Array.isArray((technicians as any)?.items)
+      ? (technicians as any).items
+      : [];
+
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 dark:border-gray-700/60 pt-2 text-xs">
       {viewMode !== "TRASH" && (
@@ -72,8 +88,8 @@ export function DentalCasesDropdowns({
         title="فلترة بالطبيب أو العيادة"
       >
         <option value="">كل الدكاترة</option>
-        {doctors
-          .filter((d) => d.isActive)
+        {safeDoctors
+          .filter((d) => d && d.isActive)
           .map((d) => (
             <option key={d.id} value={d.id}>
               {d.name} {d.clinicName ? `(${d.clinicName})` : ""}
@@ -88,7 +104,7 @@ export function DentalCasesDropdowns({
         title="فلترة بنوع الشغل"
       >
         <option value="">كل أنواع الشغل</option>
-        {workTypes.map((w) => (
+        {safeWorkTypes.map((w) => (
           <option key={w.id} value={w.id}>
             {w.name}
           </option>
@@ -114,8 +130,8 @@ export function DentalCasesDropdowns({
         title="فلترة بالفني المسند"
       >
         <option value="">كل الفنيين</option>
-        {technicians
-          .filter((t) => t.isActive)
+        {safeTechnicians
+          .filter((t) => t && (t.isActive ?? (t as any).active))
           .map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}

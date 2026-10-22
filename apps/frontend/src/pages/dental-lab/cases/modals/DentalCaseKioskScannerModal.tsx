@@ -23,6 +23,7 @@ export function DentalCaseKioskScannerModal({
   const [barcode, setBarcode] = useState("");
   const [technicianId, setTechnicianId] = useState("");
   const [scanning, setScanning] = useState(false);
+  const safeTechnicians = Array.isArray(technicians) ? technicians : Array.isArray((technicians as any)?.items) ? (technicians as any).items : [];
   const [lastScanned, setLastScanned] = useState<{
     caseNumber?: string;
     patientName?: string;
@@ -142,8 +143,8 @@ export function DentalCaseKioskScannerModal({
               }}
             >
               <option value="">تلقائي (حسب المرحلة الحالية للحالة)</option>
-              {technicians
-                .filter((t) => t.isActive)
+              {safeTechnicians
+                .filter((t) => t && (t.isActive ?? (t as any).active))
                 .map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} (

@@ -129,12 +129,14 @@ const { mockCases, mockDoctors, mockWorkTypes, mockTechnicians } = vi.hoisted(()
       name: "محمد فني",
       role: "CERAMIST",
       active: true,
+      isActive: true,
     },
     {
       id: "tech-2",
       name: "كريم فني",
       role: "CAD_CAM",
       active: true,
+      isActive: true,
     },
   ];
 
@@ -148,7 +150,7 @@ vi.mock("../../shared", async (importOriginal) => {
     fetchCases: vi.fn().mockResolvedValue({ data: mockCases, total: 2, trashCount: 0 }),
     fetchDoctors: vi.fn().mockResolvedValue(mockDoctors),
     fetchWorkTypes: vi.fn().mockResolvedValue(mockWorkTypes),
-    fetchTechnicians: vi.fn().mockResolvedValue(mockTechnicians),
+    fetchTechnicians: vi.fn().mockResolvedValue({ items: mockTechnicians }),
     fetchDoctorPricing: vi.fn().mockResolvedValue({}),
     createCase: vi.fn().mockResolvedValue({ id: "case-new" }),
     updateCase: vi.fn().mockResolvedValue({ success: true }),
