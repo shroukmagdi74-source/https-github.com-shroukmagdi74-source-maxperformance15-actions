@@ -183,6 +183,18 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
     [searchParams, settings, theme],
   );
 
+  const globalTokens = useMemo(() => {
+    const themeGlobal = (theme as any)?.global || (theme as any)?.designTokens?.global;
+    const settingsGlobal =
+      (settings?.storefront?.designTokens as any)?.global ||
+      (settings?.designTokens as any)?.global ||
+      (settings?.storefront?.settings?.["designTokens"] as any)?.global;
+    return themeGlobal || settingsGlobal || {};
+  }, [theme, settings]);
+
+  const globalHeader = globalTokens?.header;
+  const globalFooter = globalTokens?.footer;
+
   useEffect(() => {
     captureStorefrontAttribution(settings?.companyId);
 
@@ -1485,7 +1497,7 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
         </React.Suspense>
       ) : null}
       {!isProductImageLandingPage ? (
-        <MemoStorefrontHeader isMinimal={isMinimal} search={search} />
+        <MemoStorefrontHeader isMinimal={isMinimal} search={search} globalHeader={globalHeader} />
       ) : null}
       {isProductPreview ? (
         <React.Suspense fallback={null}>
@@ -1520,7 +1532,7 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
         </Routes>
       </main>
 
-      {showFooter ? <StorefrontFooter isMinimal={isMinimal} /> : null}
+      {showFooter ? <StorefrontFooter isMinimal={isMinimal} globalFooter={globalFooter} /> : null}
       {!isProductImageLandingPage && theme.id !== "intruder-nft" && <DeferredCartDrawerHost />}
 
       {showMobileBottomNav && (

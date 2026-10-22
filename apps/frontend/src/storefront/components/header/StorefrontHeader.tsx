@@ -29,6 +29,7 @@ import { useStorefrontSettings } from "../../hooks/useStorefrontSettings";
 import { formatStorefrontCurrency } from "../../utils/currency";
 import { sanitizeStorefrontHtml } from "../../utils/html";
 import { StorefrontHead } from "../../engine/StorefrontHead";
+import type { StorefrontGlobalHeaderConfig } from "../../studio/StudioHeaderFooterPanel";
 import type {
   StorefrontPageConfig,
   StorefrontPageLayout,
@@ -175,9 +176,21 @@ const SearchResults = StorefrontSearchResults;
 const StorefrontHeader: React.FC<{
   isMinimal?: boolean;
   search: UseSearchResult;
-}> = ({ isMinimal, search }) => {
+  globalHeader?: StorefrontGlobalHeaderConfig;
+}> = ({ isMinimal, search, globalHeader: propGlobalHeader }) => {
   const { theme } = useStorefrontTheme();
   const { settings } = useStorefrontSettings();
+  const effectiveGlobalHeader = useMemo<StorefrontGlobalHeaderConfig | undefined>(() => {
+    if (propGlobalHeader) return propGlobalHeader;
+    const fromTheme =
+      (theme as any)?.global?.header ||
+      (theme as any)?.designTokens?.global?.header;
+    const fromSettings =
+      (settings?.storefront?.designTokens as any)?.global?.header ||
+      (settings?.designTokens as any)?.global?.header ||
+      (settings?.storefront?.settings?.["designTokens"] as any)?.global?.header;
+    return fromTheme || fromSettings;
+  }, [propGlobalHeader, theme, settings]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const {
     query,
@@ -245,8 +258,9 @@ const StorefrontHeader: React.FC<{
 
 
 
-  // Resolve display name: storefront settings storeName → company name → theme name (fallback)
+  // Resolve display name: globalHeader logoText → storefront settings storeName → company name → theme name (fallback)
   const displayStoreName =
+    (typeof effectiveGlobalHeader?.logoText === "string" && effectiveGlobalHeader.logoText.trim()) ||
     (isThemePreview && theme.header?.brandName) ||
     settings?.storefront?.settings?.storeName ||
     theme.header?.brandName ||
@@ -327,8 +341,11 @@ const StorefrontHeader: React.FC<{
     (settings?.["designTokens"] as any)?.navigation?.menu ||
     (settings?.storefront?.designTokens as any)?.navigation?.menu;
 
+  const globalMenu = Array.isArray(effectiveGlobalHeader?.menu) ? effectiveGlobalHeader.menu : undefined;
   const resolvedNavItems =
-    Array.isArray(theme.header?.navigation) && theme.header.navigation.length > 0
+    Array.isArray(globalMenu) && globalMenu.length > 0
+      ? globalMenu.slice(0, 8).map((m) => ({ label: m.label || "", to: m.href || "/" }))
+      : Array.isArray(theme.header?.navigation) && theme.header.navigation.length > 0
       ? theme.header.navigation
       : Array.isArray(menuFromDesignTokens) && menuFromDesignTokens.length > 0
       ? menuFromDesignTokens.map((m: any) => ({ label: m.label || "", to: m.url || m.to || "/" }))
@@ -347,6 +364,29 @@ const StorefrontHeader: React.FC<{
       to: buildStorefrontPath(location.pathname, "/shop", location.search),
     },
   ];
+
+  const isSticky = effectiveGlobalHeader?.sticky !== false;
+  const announcementBarElement = useMemo(() => {
+    const ann = effectiveGlobalHeader?.announcement;
+    if (ann && typeof ann.enabled === "boolean") {
+      if (!ann.enabled || !ann.text?.trim()) return null;
+      return (
+        <div
+          data-testid="storefront-announcement-bar"
+          className="w-full text-center py-2 px-4 text-xs font-semibold select-none transition-colors z-50"
+          style={{
+            backgroundColor: ann.bg || "#000000",
+            color: ann.fg || "#ffffff",
+          }}
+        >
+          <div className="container mx-auto flex items-center justify-center">
+            <span>{ann.text}</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }, [effectiveGlobalHeader?.announcement]);
 
   // Soft Graceful — dedicated Texture-style fashion header (utility bar + mega menu)
   if (isGracefulTheme && !isMinimal) {
@@ -434,7 +474,10 @@ const StorefrontHeader: React.FC<{
           candidate.to === link.to && candidate.label === link.label,
       ) === index,
   );
-  const showSearch = theme.header?.showSearch !== false;
+  const showSearch =
+    typeof effectiveGlobalHeader?.showSearch === "boolean"
+      ? effectiveGlobalHeader.showSearch
+      : theme.header?.showSearch !== false;
   const showCart = theme.header?.showCart !== false;
   const showDigitalCommandMobileSearch =
     showSearch && !(isElessiPackTheme && isProductDetailPath);
@@ -3218,6 +3261,10 @@ const StorefrontHeader: React.FC<{
 
   return (
     <>
+      {announcementBarElement}
+      {!isSticky && (
+        <style>{`header.sticky, header[class*="sticky"], .sticky { position: relative !important; top: auto !important; }`}</style>
+      )}
       <header
         dir={theme.direction}
         className={`z-50 w-full ${

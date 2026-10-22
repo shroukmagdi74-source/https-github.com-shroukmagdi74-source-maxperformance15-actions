@@ -17,6 +17,7 @@ import { StudioSortableSection } from "./StudioSortableSection";
 import { StudioStatusBar } from "./StudioStatusBar";
 import { StudioSectionCatalogModal } from "./StudioSectionCatalogModal";
 import { StudioPagesPanel } from "./StudioPagesPanel";
+import { StudioHeaderFooterPanel } from "./StudioHeaderFooterPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { createTemplateSections } from "./utils/studioPageTemplates";
 import { STUDIO_PAGE_PRESETS } from "./StudioPagePresets";
@@ -315,7 +316,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   const [deviceMode, setDeviceMode] = useState<StudioDeviceMode>("desktop");
   const [zoomLevel, setZoomLevel] = useState<StudioZoomLevel>(1);
   const [showSpacingOverlay, setShowSpacingOverlay] = useState<boolean>(true);
-  const [leftRailTab, setLeftRailTab] = useState<StudioLeftRailTab>("elements");
+  const [leftRailTab, setLeftRailTab] = useState<StudioLeftRailTab | "header-footer">("elements");
   const [layersPanelTab, setLayersPanelTab] = useState<StudioLeftPanelTab>("layers");
   const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState<boolean>(false);
   const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(false);
@@ -375,7 +376,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
 
   const handleZoomFit = () => {
     if (typeof window === "undefined") return;
-    const leftPanelWidth = isLeftDrawerOpen ? (leftRailTab === "elements" ? 280 : 288) : 0;
+    const leftPanelWidth = isLeftDrawerOpen ? (leftRailTab === "elements" ? 280 : leftRailTab === "header-footer" ? 340 : 288) : 0;
     const inspectorWidth = isInspectorOpen ? 320 : 0;
     const railWidth = 54;
     const availableWidth = window.innerWidth - railWidth - leftPanelWidth - inspectorWidth - 64;
@@ -1117,6 +1118,14 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                     pageSectionCounts={pageSectionCounts}
                     customPages={customPages}
                     onOpenCreatePageModal={() => setShowCreatePageModal(true)}
+                  />
+                )}
+
+                {leftRailTab === "header-footer" && (
+                  <StudioHeaderFooterPanel
+                    designTokens={currentDesignTokens}
+                    onChange={handleDesignTokensChange}
+                    onClose={() => setIsLeftDrawerOpen(false)}
                   />
                 )}
               </div>

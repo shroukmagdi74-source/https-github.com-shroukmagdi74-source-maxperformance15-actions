@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useStorefrontTheme } from "../../engine/ThemeProvider";
 import { buildStorefrontPath, getStorefrontProductRouteKey } from "../../utils/paths";
@@ -11,11 +11,26 @@ import StorefrontProductImage from "../StorefrontProductImage";
 import { getProductImageCandidates } from "../../utils/productImages";
 import { shouldStorefrontForceDocumentNavigation } from "../../utils/navigationGuards";
 import { footerSettingsService, type FooterSettings } from "../../../services/footerSettingsService";
+import type { StorefrontGlobalFooterConfig } from "../../studio/StudioHeaderFooterPanel";
 import { StorefrontHomeLink } from "../header/StorefrontHeader";
 import type { Product } from "../../hooks/useProducts";
-const StorefrontFooter: React.FC<{ isMinimal?: boolean }> = ({ isMinimal }) => {
+const StorefrontFooter: React.FC<{
+  isMinimal?: boolean;
+  globalFooter?: StorefrontGlobalFooterConfig;
+}> = ({ isMinimal, globalFooter: propGlobalFooter }) => {
   const { theme } = useStorefrontTheme();
   const { settings } = useStorefrontSettings();
+  const effectiveGlobalFooter = useMemo<StorefrontGlobalFooterConfig | undefined>(() => {
+    if (propGlobalFooter) return propGlobalFooter;
+    const fromTheme =
+      (theme as any)?.global?.footer ||
+      (theme as any)?.designTokens?.global?.footer;
+    const fromSettings =
+      (settings?.storefront?.designTokens as any)?.global?.footer ||
+      (settings?.designTokens as any)?.global?.footer ||
+      (settings?.storefront?.settings?.["designTokens"] as any)?.global?.footer;
+    return fromTheme || fromSettings;
+  }, [propGlobalFooter, theme, settings]);
   const location = useLocation();
 
   // Fetch footerSettings from API (user's custom footer data from settings page)
@@ -260,10 +275,29 @@ const StorefrontFooter: React.FC<{ isMinimal?: boolean }> = ({ isMinimal }) => {
       href?: string;
     } => Boolean(row?.value),
   );
-  const footerCopyrightText = mergedFooterCopyright;
+  const footerCopyrightText =
+    typeof effectiveGlobalFooter?.copyright === "string" && effectiveGlobalFooter.copyright.trim()
+      ? replaceThemeBrandText(
+          effectiveGlobalFooter.copyright.replace("{year}", new Date().getFullYear().toString())
+        )
+      : mergedFooterCopyright;
+  const showPaymentBadges = effectiveGlobalFooter?.showPaymentBadges !== false;
   const footerDescriptionText = mergedFooterDescription;
 
-  const footerLinksData = theme.footer?.navigation?.map((group) => ({
+  const globalCols = Array.isArray(effectiveGlobalFooter?.columns)
+    ? effectiveGlobalFooter.columns
+    : undefined;
+
+  const footerLinksData =
+    Array.isArray(globalCols) && globalCols.length > 0
+      ? globalCols.slice(0, 4).map((col) => ({
+          title: col.title,
+          links: (col.links || []).map((link) => ({
+            label: link.label,
+            to: buildStorefrontPath(location.pathname, link.href, location.search),
+          })),
+        }))
+      : theme.footer?.navigation?.map((group) => ({
     title: group.title,
     links: group.links.map((link) => ({
       label: link.label,
@@ -560,7 +594,15 @@ const StorefrontFooter: React.FC<{ isMinimal?: boolean }> = ({ isMinimal }) => {
         <div className="mx-auto flex max-w-[1100px] flex-col items-center gap-3 px-4 py-6 md:flex-row md:justify-between md:px-6">
           <p className="text-sm text-[#666]">{footerCopyrightText}</p>
           <nav className="flex flex-wrap items-center justify-center gap-5">
-            {legalLinks.map((link) => (
+            {showPaymentBadges ? (
+            <div data-testid="storefront-payment-badges" className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex h-6 min-w-[38px] items-center justify-center rounded bg-slate-100 border border-slate-200 px-1.5 text-[8.5px] font-black tracking-tight text-slate-800">VISA</span>
+              <span className="inline-flex h-6 min-w-[38px] items-center justify-center rounded bg-slate-100 border border-slate-200 px-1.5 text-[8.5px] font-black tracking-tight text-slate-800">Mastercard</span>
+              <span className="inline-flex h-6 min-w-[38px] items-center justify-center rounded bg-slate-100 border border-slate-200 px-1.5 text-[8.5px] font-black tracking-tight text-slate-800">ميزة</span>
+              <span className="inline-flex h-6 min-w-[38px] items-center justify-center rounded bg-slate-100 border border-slate-200 px-1.5 text-[8.5px] font-black tracking-tight text-slate-800">InstaPay</span>
+            </div>
+          ) : null}
+          {legalLinks.map((link) => (
               <Link key={link.label} to={link.to} reloadDocument={shouldForceDocumentNavigation} className="text-sm text-[#19212B] hover:underline">
                 {link.label}
               </Link>
@@ -1303,6 +1345,14 @@ const StorefrontFooter: React.FC<{ isMinimal?: boolean }> = ({ isMinimal }) => {
                       : "text-muted-foreground"
             }`}
           >
+            {showPaymentBadges ? (
+              <div data-testid="storefront-payment-badges" className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-flex h-6 min-w-[38px] items-center justify-center rounded bg-slate-100 border border-slate-200 px-1.5 text-[8.5px] font-black tracking-tight text-slate-800">VISA</span>
+                <span className="inline-flex h-6 min-w-[38px] items-center justify-center rounded bg-slate-100 border border-slate-200 px-1.5 text-[8.5px] font-black tracking-tight text-slate-800">Mastercard</span>
+                <span className="inline-flex h-6 min-w-[38px] items-center justify-center rounded bg-slate-100 border border-slate-200 px-1.5 text-[8.5px] font-black tracking-tight text-slate-800">ميزة</span>
+                <span className="inline-flex h-6 min-w-[38px] items-center justify-center rounded bg-slate-100 border border-slate-200 px-1.5 text-[8.5px] font-black tracking-tight text-slate-800">InstaPay</span>
+              </div>
+            ) : null}
             {legalLinks.map((link) => (
               <Link
                 key={link.label}

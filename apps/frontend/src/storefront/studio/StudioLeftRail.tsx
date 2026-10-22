@@ -8,13 +8,16 @@ import {
   CodeBracketIcon,
   SparklesIcon,
   Cog6ToothIcon,
+  WindowIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioLeftRailTab } from "./StudioTypes";
 
+export type StudioLeftRailActiveTab = StudioLeftRailTab | "header-footer";
+
 interface StudioLeftRailProps {
-  activeTab: StudioLeftRailTab;
-  onSelectTab: (tab: StudioLeftRailTab) => void;
-  onToggleTab: (tab: StudioLeftRailTab) => void;
+  activeTab: StudioLeftRailActiveTab;
+  onSelectTab: (tab: StudioLeftRailActiveTab) => void;
+  onToggleTab: (tab: StudioLeftRailActiveTab) => void;
   isPanelOpen: boolean;
   isAiActive?: boolean;
 }
@@ -27,7 +30,7 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
   isAiActive = false,
 }) => {
   const items: Array<{
-    id: StudioLeftRailTab;
+    id: StudioLeftRailActiveTab;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     isAi?: boolean;
@@ -35,11 +38,12 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
     { id: "elements", label: "إضافة", icon: PlusIcon },
     { id: "layers", label: "الهيكل", icon: Squares2X2Icon },
     { id: "pages", label: "صفحات", icon: DocumentDuplicateIcon },
+    { id: "header-footer", label: "الهيدر والفوتر", icon: WindowIcon },
     { id: "media", label: "وسائط", icon: PhotoIcon },
     { id: "styles", label: "أنماط", icon: PaintBrushIcon },
   ];
 
-  const handleClick = (id: StudioLeftRailTab) => {
+  const handleClick = (id: StudioLeftRailActiveTab) => {
     if (id === "media" || id === "ai") {
       onSelectTab(id);
       return;
@@ -74,7 +78,9 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
             }`}
           >
             <Icon className="h-4.5 w-4.5" />
-            <span className="text-[8.5px] font-medium leading-none mt-1">{item.label}</span>
+            <span className="text-[8px] font-medium leading-none mt-1 text-center truncate max-w-[48px]">
+              {item.label}
+            </span>
           </button>
         );
       })}

@@ -10,6 +10,11 @@ import { getMarketplacePreviewCartItems } from "../../preview/marketplacePreview
 import { isStorefrontSectionKnown } from "../../sections/manifest";
 import type { StudioDeviceMode, PageStyleScope, PageStylesMap, SavedStudioSection } from "../StudioTypes";
 import { PAGE_STYLE_PRESETS, STUDIO_PAGES } from "../StudioTypes";
+import type {
+  StorefrontGlobalTokens,
+  StorefrontGlobalHeaderConfig,
+  StorefrontGlobalFooterConfig,
+} from "../StudioHeaderFooterPanel";
 import {
   findNodeByKey,
   findNodeAndParent,
@@ -186,13 +191,75 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
 
   const previewTheme = useMemo(() => {
     const baseTheme = STOREFRONT_THEME_PRESETS[themeId] || STOREFRONT_THEME_PRESETS["modern-minimal"];
-    return resolveStorefrontTheme({
+    const resolved = resolveStorefrontTheme({
       themeId,
       theme: baseTheme,
       designTokens: currentDesignTokens,
       activePageKey,
     });
+    // Ensure global tokens and designTokens are accessible on resolved previewTheme
+    (resolved as any).global = currentDesignTokens?.global;
+    (resolved as any).designTokens = currentDesignTokens;
+    return resolved;
   }, [themeId, currentDesignTokens, activePageKey]);
+
+  const globalTokens = useMemo<StorefrontGlobalTokens>(() => {
+    return (currentDesignTokens?.global as StorefrontGlobalTokens) || {};
+  }, [currentDesignTokens]);
+
+  const handleUpdateGlobalHeader = useCallback(
+    (partial: Partial<StorefrontGlobalHeaderConfig>) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentGlobal = (currentTokens.global as StorefrontGlobalTokens) || {};
+      const currentHeader = currentGlobal.header || { menu: [] };
+      const nextHeader: StorefrontGlobalHeaderConfig = {
+        ...currentHeader,
+        ...partial,
+      };
+      const nextTokens = {
+        ...currentTokens,
+        global: {
+          ...currentGlobal,
+          header: nextHeader,
+        },
+      };
+      handleDesignTokensChange(nextTokens);
+    },
+    [handleDesignTokensChange]
+  );
+
+  const handleUpdateGlobalFooter = useCallback(
+    (partial: Partial<StorefrontGlobalFooterConfig>) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentGlobal = (currentTokens.global as StorefrontGlobalTokens) || {};
+      const currentFooter = currentGlobal.footer || { columns: [], social: [] };
+      const nextFooter: StorefrontGlobalFooterConfig = {
+        ...currentFooter,
+        ...partial,
+      };
+      const nextTokens = {
+        ...currentTokens,
+        global: {
+          ...currentGlobal,
+          footer: nextFooter,
+        },
+      };
+      handleDesignTokensChange(nextTokens);
+    },
+    [handleDesignTokensChange]
+  );
+
+  const handleUpdateGlobalTokens = useCallback(
+    (nextGlobal: StorefrontGlobalTokens) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const nextTokens = {
+        ...currentTokens,
+        global: nextGlobal,
+      };
+      handleDesignTokensChange(nextTokens);
+    },
+    [handleDesignTokensChange]
+  );
 
   const activePageStyle = useMemo<PageStyleScope | undefined>(() => {
     const styles = currentDesignTokens?.pageStyles as PageStylesMap | undefined;
@@ -1291,6 +1358,11 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     handleDeletePage,
     handleDuplicatePage,
     handleRenamePage,
+    // Ticket HF-1 exports
+    globalTokens,
+    handleUpdateGlobalHeader,
+    handleUpdateGlobalFooter,
+    handleUpdateGlobalTokens,
   };
 }
 
