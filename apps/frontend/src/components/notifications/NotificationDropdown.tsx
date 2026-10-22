@@ -172,6 +172,12 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const isRtl =
+    typeof document !== "undefined"
+      ? document.dir === "rtl" ||
+        document.documentElement.dir === "rtl" ||
+        document.documentElement.getAttribute("dir") === "rtl"
+      : true;
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -594,27 +600,27 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       return <XCircleIcon className="w-5 h-5 text-rose-500 animate-pulse" />;
     }
     if (t.includes("automation")) {
-      return <CheckIcon className="w-5 h-5 text-indigo-500" />;
+      return <CheckIcon className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
     }
     if (t.includes("incident") || t.includes("disconnect")) {
       return <XCircleIcon className="w-5 h-5 text-red-600 animate-pulse" />;
     }
     if (t.includes("support") || t.includes("ticket")) {
-      return <InformationCircleIcon className="w-5 h-5 text-indigo-500" />;
+      return <InformationCircleIcon className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />;
     }
     switch (type) {
       case "error":
-        return <XCircleIcon className="w-5 h-5 text-red-500" />;
+        return <XCircleIcon className="w-5 h-5 text-red-500 dark:text-red-400" />;
       case "warning":
-        return <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />;
+        return <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />;
       case "info":
-        return <InformationCircleIcon className="w-5 h-5 text-blue-500" />;
+        return <InformationCircleIcon className="w-5 h-5 text-blue-500 dark:text-blue-400" />;
       case "success":
-        return <CheckIcon className="w-5 h-5 text-green-500" />;
+        return <CheckIcon className="w-5 h-5 text-green-500 dark:text-green-400" />;
       case "invitation":
         return <span className="text-2xl">🎉</span>;
       default:
-        return <BellIcon className="w-5 h-5 text-gray-500" />;
+        return <BellIcon className="w-5 h-5 text-gray-500 dark:text-slate-400" />;
     }
   };
 
@@ -649,12 +655,12 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         {unreadCount > 0 ? (
           <BellSolidIcon className="h-5 w-5 text-orange-500" />
         ) : (
-          <BellIcon className="h-5 w-5" />
+          <BellIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
         )}
 
         {/* Badge للعدد */}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium shadow-sm">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -662,194 +668,214 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute ltr:right-0 rtl:left-0 z-50 mt-2 max-h-96 w-96 max-w-[min(24rem,calc(100vw-1rem))] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">الإشعارات</h3>
-              <div className="flex items-center space-x-2 space-x-reverse">
-                {unreadCount > 0 && (
-                  <button
-                    onClick={markAllAsRead}
-                    className="text-sm text-blue-600 hover:text-blue-800 transition-colors duration-200"
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:hidden"
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
+
+          <div
+            className={`fixed left-1/2 -translate-x-1/2 top-16 z-50 w-[calc(100vw-1.5rem)] max-w-sm sm:max-w-md max-h-[85vh] sm:max-h-96 sm:w-96 sm:absolute sm:top-full sm:mt-2 sm:translate-x-0 ${
+              isRtl ? "sm:left-0 sm:right-auto" : "sm:right-0 sm:left-auto"
+            } flex flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl dark:shadow-slate-950/80 transition-all duration-200`}
+          >
+            {/* Header */}
+            <div className="shrink-0 px-4 py-3 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/90">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-slate-100">
+                  الإشعارات
+                </h3>
+                <div className="flex items-center space-x-2 space-x-reverse">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200"
+                    >
+                      تحديد الكل كمقروء
+                    </button>
+                  )}
+                  <a
+                    href="/notification-settings"
+                    onClick={() => setIsOpen(false)}
+                    className="text-gray-400 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors duration-200"
+                    title="تخصيص وإعدادات الإشعارات"
                   >
-                    تحديد الكل كمقروء
+                    <Cog6ToothIcon className="w-5 h-5" />
+                  </a>
+                  <button
+                    onClick={() => setIsOpen(false)}
+                    className="text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors duration-200"
+                  >
+                    <XMarkIcon className="w-5 h-5" />
                   </button>
-                )}
-                <a
-                  href="/notification-settings"
-                  onClick={() => setIsOpen(false)}
-                  className="text-gray-400 hover:text-blue-600 transition-colors duration-200 p-1"
-                  title="تخصيص وإعدادات الإشعارات"
-                >
-                  <Cog6ToothIcon className="w-5 h-5" />
-                </a>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 transition-colors duration-200 p-1"
-                >
-                  <XMarkIcon className="w-5 h-5" />
-                </button>
+                </div>
               </div>
             </div>
-          </div>
 
+            {/* Notifications List */}
+            <div className="flex-1 max-h-[calc(85vh-7rem)] sm:max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-slate-800/80">
+              {notifications.length === 0 ? (
+                <div className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
+                  <BellIcon className="w-12 h-12 mx-auto mb-2 text-gray-300 dark:text-slate-600" />
+                  <p>لا توجد إشعارات</p>
+                </div>
+              ) : (
+                notifications.map((notification) => {
+                  const targetUrl =
+                    (notification.data as any)?.url ||
+                    (notification.metadata as any)?.url ||
+                    (notification.type === "invitation" ? notification.data?.invitationLink : null);
 
-          {/* Notifications List */}
-          <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-gray-500">
-                <BellIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                <p>لا توجد إشعارات</p>
-              </div>
-            ) : (
-              notifications.map((notification) => {
-                const targetUrl =
-                  (notification.data as any)?.url ||
-                  (notification.metadata as any)?.url ||
-                  (notification.type === "invitation" ? notification.data?.invitationLink : null);
-
-                return (
-                  <div
-                    key={notification.id}
-                    onClick={() => {
-                      if (targetUrl) {
-                        if (!notification.isRead) {
-                          markAsRead(notification.id);
+                  return (
+                    <div
+                      key={notification.id}
+                      onClick={() => {
+                        if (targetUrl) {
+                          if (!notification.isRead) {
+                            markAsRead(notification.id);
+                          }
+                          setIsOpen(false);
+                          if (/^https?:\/\//i.test(targetUrl)) {
+                            try {
+                              const parsed = new URL(targetUrl);
+                              if (parsed.origin === window.location.origin) {
+                                navigate(parsed.pathname + parsed.search + parsed.hash);
+                                return;
+                              }
+                            } catch {}
+                            window.open(targetUrl, "_blank", "noopener,noreferrer");
+                            return;
+                          }
+                          navigate(targetUrl);
                         }
-                        setIsOpen(false);
-                        if (/^https?:\/\//i.test(targetUrl)) {
-                          try {
-                            const parsed = new URL(targetUrl);
-                            if (parsed.origin === window.location.origin) {
-                              navigate(parsed.pathname + parsed.search + parsed.hash);
-                              return;
-                            }
-                          } catch {}
-                          window.open(targetUrl, "_blank", "noopener,noreferrer");
-                          return;
-                        }
-                        navigate(targetUrl);
-                      }
-                    }}
-                    className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200 ${
-                      targetUrl ? "cursor-pointer" : ""
-                    } ${
-                      !notification.isRead ? "bg-blue-50" : ""
-                    }`}
-                  >
-                    <div className="flex items-start space-x-3 space-x-reverse">
-                      <div className="flex-shrink-0 mt-1">
-                        {getIcon(notification.type)}
-                      </div>
+                      }}
+                      className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-800/60 transition-colors duration-200 ${
+                        targetUrl ? "cursor-pointer" : ""
+                      } ${
+                        !notification.isRead
+                          ? "bg-blue-50/70 dark:bg-blue-950/30"
+                          : "bg-white dark:bg-slate-900"
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3 space-x-reverse">
+                        <div className="flex-shrink-0 mt-1">
+                          {getIcon(notification.type)}
+                        </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p
-                              className={`text-sm font-medium ${!notification.isRead ? "text-gray-900" : "text-gray-700"}`}
-                            >
-                              {notification.title}
-                              {notification.silent && (
-                                <span className="mr-2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
-                                  صامت
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                              {notification.message}
-                            </p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p
+                                className={`text-sm font-semibold ${
+                                  !notification.isRead
+                                    ? "text-gray-900 dark:text-slate-100"
+                                    : "text-gray-700 dark:text-slate-300"
+                                }`}
+                              >
+                                {notification.title}
+                                {notification.silent && (
+                                  <span className="mr-2 text-xs bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-slate-400 px-2 py-0.5 rounded">
+                                    صامت
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs sm:text-sm text-gray-600 dark:text-slate-400 mt-1 line-clamp-2">
+                                {notification.message}
+                              </p>
 
-                            {/* Invitation Action Buttons */}
-                            {notification.type === "invitation" &&
-                              notification.data && (
-                                <div className="flex items-center gap-2 mt-3">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAcceptInvitation(notification);
-                                    }}
-                                    className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-sm"
-                                  >
-                                    ✅ قبول الدعوة
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeclineInvitation(notification);
-                                    }}
-                                    className="px-3 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors duration-200"
-                                  >
-                                    ❌ رفض
-                                  </button>
-                                </div>
-                              )}
+                              {/* Invitation Action Buttons */}
+                              {notification.type === "invitation" &&
+                                notification.data && (
+                                  <div className="flex items-center gap-2 mt-3">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAcceptInvitation(notification);
+                                      }}
+                                      className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-200 shadow-sm"
+                                    >
+                                      ✅ قبول الدعوة
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeclineInvitation(notification);
+                                      }}
+                                      className="px-3 py-2 bg-gray-200 dark:bg-slate-800 text-gray-700 dark:text-slate-200 text-sm font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-slate-700 transition-colors duration-200"
+                                    >
+                                      ❌ رفض
+                                    </button>
+                                  </div>
+                                )}
 
-                            <div className="flex items-center justify-between mt-2">
-                              <span className="text-xs text-gray-400">
-                                {formatTimestamp(notification.timestamp)}
-                              </span>
-                              {targetUrl && (
-                                <span className="text-xs text-blue-600 font-medium hover:underline">
-                                  عرض التفاصيل ←
+                              <div className="flex items-center justify-between mt-2">
+                                <span className="text-xs text-gray-400 dark:text-slate-500">
+                                  {formatTimestamp(notification.timestamp)}
                                 </span>
-                              )}
-                              {notification.customerId && !targetUrl && (
-                                <span className="text-xs text-gray-500">
-                                  العميل: {notification.customerId.slice(-8)}
-                                </span>
-                              )}
+                                {targetUrl && (
+                                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">
+                                    عرض التفاصيل ←
+                                  </span>
+                                )}
+                                {notification.customerId && !targetUrl && (
+                                  <span className="text-xs text-gray-500 dark:text-slate-400">
+                                    العميل: {notification.customerId.slice(-8)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="flex items-center space-x-1 space-x-reverse mr-2">
-                            {!notification.isRead && (
+                            <div className="flex items-center space-x-1 space-x-reverse mr-2">
+                              {!notification.isRead && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    markAsRead(notification.id);
+                                  }}
+                                  className="p-1.5 rounded-lg text-gray-400 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors duration-200"
+                                  title="تحديد كمقروء"
+                                >
+                                  <EyeIcon className="w-4 h-4" />
+                                </button>
+                              )}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  markAsRead(notification.id);
+                                  deleteNotification(notification.id);
                                 }}
-                                className="p-1 text-gray-400 hover:text-blue-600 transition-colors duration-200"
-                                title="تحديد كمقروء"
+                                className="p-1.5 rounded-lg text-gray-400 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-slate-800 transition-colors duration-200"
+                                title="حذف"
                               >
-                                <EyeIcon className="w-4 h-4" />
+                                <TrashIcon className="w-4 h-4" />
                               </button>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteNotification(notification.id);
-                              }}
-                              className="p-1 text-gray-400 hover:text-red-600 transition-colors duration-200"
-                              title="حذف"
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <div className="shrink-0 px-4 py-3 border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/90">
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate("/notifications");
+                  }}
+                  className="w-full text-center text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200"
+                >
+                  عرض جميع الإشعارات
+                </button>
+              </div>
             )}
           </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  navigate("/notifications");
-                }}
-                className="w-full text-center text-sm text-blue-600 hover:text-blue-800 transition-colors duration-200"
-              >
-                عرض جميع الإشعارات
-              </button>
-            </div>
-          )}
-        </div>
+        </>
       )}
     </div>
   );

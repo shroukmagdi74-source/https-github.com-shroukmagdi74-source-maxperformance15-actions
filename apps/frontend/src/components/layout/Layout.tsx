@@ -789,11 +789,12 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
                   )}
                 </div>
               )}
-              <ThemeToggle />
               <LanguageSwitcher
                 className="business-shell-language-switcher"
               />
             </div>
+
+            <ThemeToggle />
 
             <AppUpdateIndicator />
             <button

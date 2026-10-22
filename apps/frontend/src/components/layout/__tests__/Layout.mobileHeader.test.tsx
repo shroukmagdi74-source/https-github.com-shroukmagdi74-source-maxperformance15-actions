@@ -40,6 +40,7 @@ jest.mock("../../../config/environment", () => ({
     appUrl: "http://localhost:5173",
     backendUrl: "http://localhost:3000",
   },
+  isCapacitorNative: jest.fn(() => false),
 }));
 
 jest.mock("@/config/environment", () => ({
@@ -49,6 +50,12 @@ jest.mock("@/config/environment", () => ({
     appUrl: "http://localhost:5173",
     backendUrl: "http://localhost:3000",
   },
+  isCapacitorNative: jest.fn(() => false),
+}));
+
+jest.mock("../../common/RouteErrorBoundary", () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 jest.mock("../../../config/sidebar", () => ({
