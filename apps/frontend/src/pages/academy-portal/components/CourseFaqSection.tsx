@@ -1,59 +1,66 @@
 import React, { useState } from "react";
 import { HelpCircle, ChevronDown, ChevronUp, MessageSquareQuote } from "lucide-react";
 
-// FAQ بصياغة ديناميكية — السعر وعدد الدروس من بيانات الكورس الفعلية
-export const buildFaqItems = (price: number, totalLessons: number) => [
-  {
-    q: `غالي — ${price} ج.م؟`,
-    a: "السعر مدفوع مرة واحدة وبتفضل معاك. الفلوس بتتصرف مرة واحدة على مسار كامل بدل ما تجرّب لوحدك شهر ورا شهر. ومقابل التجربة العشوائية بتوفّر وقت وفلوس.",
-  },
-  {
-    q: `معنديش وقت لـ${totalLessons} درس.`,
-    a: "كل درس قصير (بين 5 و11 دقيقة) وفكرة واحدة، فتقدر تسمعه في أي وقت من الموبايل. مش محتاج جلسات طويلة — بتتعلم خطوة وتنفّذها.",
-  },
-  {
-    q: "أنا مش تقني، والإعلانات دي حاجة معقدة.",
-    a: "الكورس مكتوب بالعربي المصري من غير جارجون، والأبواب ماشية بنفس ترتيب شغلك: تعرف عميلك ← عرضك ← سعرك ← محتواك ← إعلانك ← رقمك. كل خطوة على الخطوة اللي قبلها.",
-  },
-  {
-    q: "جربت كورسات قبل كده وكلها كلام نظري فاضي.",
-    a: "الفرق هنا إن الكورس جوه المنصة — كل درس معاه تمرين بيتنفذ على شاشتك، وكوتش يجاوب من محتوى الدرس نفسه. مش سلايدات وخلاص.",
-  },
-  {
-    q: "أنا عندي حد بيعمل لي الإعلانات.",
-    a: "كويس — الكورس بتخلّيك تفهم اللي بيتعمل وتعرف تقيس، فتبقى إنت اللي بتقرر مش اللي بيدفع بس. لو وكالة بتدير غيرك، الكورس ده لصاحب المشروع.",
-  },
-  {
-    q: "شغلي مش زي اللي في الكورس.",
-    a: "المسار مبني على الخطوات الأساسية لأي صاحب مشروع بيعتمد على إعلانات: السوق والعميل، العرض والسعر، المحتوى، الحملة، والقياس. الشاشات من المنصة، والأمثلة على الخطوات نفسها.",
-  },
-  {
-    q: "فيه دروس لسه مش مكتملة؟",
-    a: `السلسلة ${totalLessons} درس، ومعظمها متاح ومرتب على الأكاديمية دلوقتي. لو درس معيّن لسه في التجهيز، بيوصل لحاله بمجرد ما يكتمل، وإنت معاك الكورس كامل.`,
-  },
-  {
-    q: "محتاج أفكر.",
-    a: "تمام. ابدأ بالدرس الأول المجاني وشوف بنفسك — لو حسّيت إن ده مسارك، كمل؛ لو لأ، مش خسرت حاجة.",
-  },
-];
+export interface FaqItem {
+  q: string;
+  a: string;
+}
+
+export const buildFaqItems = (price: number, isFreeCourse: boolean): FaqItem[] => {
+  if (isFreeCourse) {
+    return [
+      {
+        q: "هل الكورس متاح للبدء فوراً؟",
+        a: "نعم، بمجرد تسجيل دخولك للأكاديمية برقم هاتفك، تفتح لك كافة الدروس والتمارين فوراً دون أي قيود.",
+      },
+      {
+        q: "هل أحتاج لتفريغ وقت طويل لمتابعة الدروس؟",
+        a: "كل درس مركز ومدته بين 5 و12 دقيقة ويتناول فكرة عملية واحدة، لتتمكن من التطبيق المباشر دون تعطيل يومك.",
+      },
+      {
+        q: "كيف أستفيد من الكوتش الذكي والتمارين العملية؟",
+        a: "كل درس يرافقه كوتش ذكي متخصص في محتوى الدرس للإجابة على استفساراتك وتوجيهك، مع تمارين عملية تطبقها على المنصة لترسيخ ما تعلمته.",
+      },
+    ];
+  }
+
+  return [
+    {
+      q: "هل الاستثمار في الكورس مناسب لمشروعي؟",
+      a: "الاستثمار لمرة واحدة ويبقى الكورس في حسابك دائماً مع التحديثات. المسار مصمم ليوفر عليك تكلفة التجربة العشوائية وإهدار ميزانيات الإعلانات شهرياً.",
+    },
+    {
+      q: "هل أحتاج لتفريغ وقت طويل لمتابعة الدروس؟",
+      a: "كل درس قصير ومركّز بين 5 و12 دقيقة ويتناول خطوة واحدة محددة، لتتعلم الخطوة وتنفذها مباشرة من هاتفك أو جهازك.",
+    },
+    {
+      q: "كيف أتأكد أن أسلوب الشرح مناسب لي قبل القرار؟",
+      a: "يمكنك مشاهدة الدروس المتاحة للمعاينة مجاناً بالكامل دون الحاجة للدفع، لتتعرف على الأسلوب العملي والشاشات الحقيقية قبل اتخاذ قرارك.",
+    },
+  ];
+};
 
 interface Props {
   price: number;
-  totalLessons: number;
+  totalLessons?: number;
+  isFreeCourse?: boolean;
 }
 
-export const CourseFaqSection: React.FC<Props> = ({ price, totalLessons }) => {
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const faqItems = buildFaqItems(price, totalLessons);
+export const CourseFaqSection: React.FC<Props> = ({ price, isFreeCourse = false }) => {
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const actuallyFree = isFreeCourse || Number(price) <= 0;
+  const faqItems = buildFaqItems(Number(price) || 0, actuallyFree);
 
   return (
-    <section className="bg-card rounded-2xl border border-border/70 p-6 sm:p-7 space-y-5 text-right shadow-xs" dir="rtl">
+    <section className="bg-card rounded-3xl border border-border/80 p-6 sm:p-8 space-y-5 text-right shadow-xs" dir="rtl">
       <div className="space-y-1.5 border-b border-border/60 pb-4">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
           <MessageSquareQuote className="w-3.5 h-3.5" />
           <span>إجابات واضحة ومباشرة</span>
         </div>
-        <h2 className="text-lg sm:text-xl font-bold text-foreground">الأسئلة الشائعة قبل الاشتراك</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-foreground">
+          {actuallyFree ? "الأسئلة الشائعة حول الكورس" : "الأسئلة الشائعة قبل الاشتراك"}
+        </h2>
       </div>
 
       <div className="divide-y divide-border/50 space-y-2">
@@ -65,16 +72,20 @@ export const CourseFaqSection: React.FC<Props> = ({ price, totalLessons }) => {
               <button
                 type="button"
                 onClick={() => setOpenFaq(isOpen ? null : idx)}
-                className="w-full flex items-center justify-between gap-3 text-right py-2 text-xs font-bold text-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-lg"
+                className="w-full flex items-center justify-between gap-3 text-right py-2 text-xs sm:text-sm font-bold text-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-lg"
               >
                 <span className="flex items-center gap-2">
                   <HelpCircle className="w-4 h-4 text-muted-foreground/70 shrink-0" />
                   <span>{faq.q}</span>
                 </span>
-                {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
+                {isOpen ? (
+                  <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                )}
               </button>
               {isOpen && (
-                <p className="p-3.5 text-xs text-muted-foreground leading-relaxed bg-muted/20 border border-border/40 rounded-xl mt-1.5 transition-all">
+                <p className="p-3.5 text-xs text-muted-foreground leading-relaxed bg-muted/20 border border-border/40 rounded-xl mt-1.5 transition-all text-pretty">
                   {faq.a}
                 </p>
               )}

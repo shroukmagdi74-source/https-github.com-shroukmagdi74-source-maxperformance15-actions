@@ -248,7 +248,7 @@ const StudentLessonPlayerPage: React.FC = () => {
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 space-y-2">
                 <PlayCircle className="w-12 h-12 text-slate-600" />
-                <p className="text-xs font-semibold">فيديو الشرح المعتمد قيد المزامنة</p>
+                <p className="text-xs font-semibold">فيديو الشرح قيد التجهيز</p>
               </div>
             )}
 
@@ -378,7 +378,7 @@ const StudentLessonPlayerPage: React.FC = () => {
                 <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line space-y-3 p-2 bg-slate-50/70 rounded-2xl border border-slate-100">
                   {lesson.exerciseText || "لا يوجد تمرين عملي مخصص لهذا الدرس."}
                   <p className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-xl p-2.5">
-                    تسليم التمرين متاح للمشتركين — اشترك في الكورس لتسليم تطبيقك ويصححه الكوتش الذكي.
+                    تسليم التمرين ومراجعته متاح للطلاب المشتركين أو بعد تسجيل الدخول — سجل دخولك أو اشترك في الكورس لتسليم تطبيقك ومراجعته مع الكوتش.
                   </p>
                 </div>
               ))}

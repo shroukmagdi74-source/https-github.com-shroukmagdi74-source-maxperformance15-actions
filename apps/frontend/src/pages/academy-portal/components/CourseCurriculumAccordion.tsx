@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { PlayCircle, Lock, ChevronDown, ChevronUp, Clock } from "lucide-react";
+import { PlayCircle, Lock, ChevronDown, ChevronUp, Clock, CheckCircle2 } from "lucide-react";
+import { formatArabicLessons } from "../utils/arabicPlural";
 
 export interface LessonItem {
   id: string;
@@ -8,6 +9,10 @@ export interface LessonItem {
   durationMin: number;
   isFreePreview: boolean;
   isUnlocked: boolean;
+  progress?: {
+    status?: "NOT_STARTED" | "IN_PROGRESS" | "DONE";
+    quizScore?: number | null;
+  };
 }
 
 export interface ModuleItem {
@@ -21,9 +26,16 @@ export interface ModuleItem {
 interface Props {
   courseId: string;
   modules: ModuleItem[];
+  isFreeCourse?: boolean;
+  isEnrolled?: boolean;
 }
 
-export const CourseCurriculumAccordion: React.FC<Props> = ({ courseId, modules }) => {
+export const CourseCurriculumAccordion: React.FC<Props> = ({
+  courseId,
+  modules,
+  isFreeCourse = false,
+  isEnrolled = false,
+}) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     [modules[0]?.id || ""]: true,
   });
@@ -36,9 +48,13 @@ export const CourseCurriculumAccordion: React.FC<Props> = ({ courseId, modules }
     <div className="space-y-3 text-right" dir="rtl">
       {modules.map((module, mIdx) => {
         const isExp = expanded[module.id] ?? false;
+        const lessonsCount = module.lessons?.length || 0;
 
         return (
-          <div key={module.id} className="border border-border/70 rounded-2xl overflow-hidden bg-card shadow-xs transition-colors">
+          <div
+            key={module.id}
+            className="border border-border/80 rounded-2xl overflow-hidden bg-card shadow-2xs transition-colors"
+          >
             <button
               type="button"
               onClick={() => toggle(module.id)}
@@ -49,48 +65,69 @@ export const CourseCurriculumAccordion: React.FC<Props> = ({ courseId, modules }
                   {mIdx + 1}
                 </span>
                 <div>
-                  <span className="text-xs font-bold text-foreground block">{module.title}</span>
-                  <span className="text-[11px] text-muted-foreground font-mono tabular-nums">{module.lessons?.length || 0} دروس</span>
+                  <span className="text-xs sm:text-sm font-bold text-foreground block">
+                    {module.title}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground font-mono tabular-nums">
+                    {formatArabicLessons(lessonsCount)}
+                  </span>
                 </div>
               </div>
-              {isExp ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              {isExp ? (
+                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              )}
             </button>
 
             {isExp && (
               <div className="p-2 sm:p-3 bg-muted/10 divide-y divide-border/40 border-t border-border/60">
                 {module.lessons?.map((lesson) => {
-                  // 🔗 نفس قاعدة الباكند: isFreePreview جاي من الـoutline محسوب عالمياً
-                  //    (أول N دروس في الكورس كله) وليس لكل وحدة
-                  const canOpen = lesson.isFreePreview || lesson.isUnlocked;
+                  const canOpen = lesson.isFreePreview || lesson.isUnlocked || isEnrolled;
+                  const isDone = lesson.progress?.status === "DONE";
 
                   return (
-                    <div key={lesson.id} className="py-2.5 px-2 flex items-center justify-between gap-3 text-xs">
+                    <div
+                      key={lesson.id}
+                      className="py-2.5 px-2 flex items-center justify-between gap-3 text-xs"
+                    >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {canOpen ? (
-                          <PlayCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        {isDone ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        ) : canOpen ? (
+                          <PlayCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                         ) : (
                           <Lock className="w-4 h-4 text-muted-foreground/60 shrink-0" />
                         )}
-                        <span className="text-foreground font-medium truncate">{lesson.title}</span>
+                        <span className="text-foreground font-medium truncate">
+                          {lesson.title}
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        {lesson.isFreePreview ? (
+                        {canOpen ? (
                           <Link
                             to={`/portal/course/${courseId}/lesson/${lesson.id}`}
-                            className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                              isDone
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                                : lesson.isFreePreview
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
+                                : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+                            }`}
                           >
-                            معاينة مجانية
-                          </Link>
-                        ) : canOpen ? (
-                          <Link
-                            to={`/portal/course/${courseId}/lesson/${lesson.id}`}
-                            className="px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-semibold border border-primary/20 hover:bg-primary/20 transition-colors"
-                          >
-                            متاح لك
+                            {isDone
+                              ? "مكتمل ✓"
+                              : lesson.isFreePreview
+                              ? "معاينة مجانية"
+                              : isEnrolled
+                              ? "مشاهدة"
+                              : "متاح لك"}
                           </Link>
                         ) : (
-                          <span className="text-[11px] text-muted-foreground">متاح بعد الاشتراك</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {isFreeCourse ? "متاح بعد الدخول" : "متاح للمشتركين"}
+                          </span>
                         )}
                         <span className="text-[11px] text-muted-foreground font-mono tabular-nums inline-flex items-center gap-1">
                           <Clock className="w-3 h-3 text-muted-foreground/70" />

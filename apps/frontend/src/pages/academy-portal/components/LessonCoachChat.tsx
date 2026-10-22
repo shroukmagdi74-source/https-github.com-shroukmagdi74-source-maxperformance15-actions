@@ -13,7 +13,7 @@ export const LessonCoachChat: React.FC<Props> = ({ lessonId }) => {
   const [messages, setMessages] = useState<Array<{ sender: "user" | "coach"; text: string; isError?: boolean }>>([
     {
       sender: "coach",
-      text: "أهلاً بك! أنا الكوتش الذكي المساعد لهذا الدرس. يمكنك سؤالي عن أي خطوة أو مفهوم مذكور في سكريبت الدرس وسأجيبك منها مباشرة.",
+      text: "أهلاً بك! أنا الكوتش الذكي المساعد لهذا الدرس. يمكنك سؤالي عن أي خطوة أو مفهوم تم شرحه في هذا الدرس وسأجيبك وأرشدك مباشرة.",
     },
   ]);
   const [input, setInput] = useState("");
