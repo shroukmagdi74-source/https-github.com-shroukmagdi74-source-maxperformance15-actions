@@ -515,6 +515,15 @@ const WhatsAppMetaTemplates: React.FC<{
     return results.filter(r => r.severity === "error").length === 0;
   }, []);
 
+  const closeCreateDialog = useCallback(() => {
+    setCreateOpen(false);
+    setCreateStep(1);
+    setShowCompliance(false);
+    setComplianceResults([]);
+    setForm({ ...initialForm });
+    setVarValues({});
+  }, []);
+
   const handleCreate = useCallback(async () => {
     if (!sanitizedName || (form.category !== "AUTHENTICATION" && !form.bodyText)) {
       tToast.error("WhatsAppMetaTemplates.msg_5d29");
@@ -522,6 +531,10 @@ const WhatsAppMetaTemplates: React.FC<{
     }
     if (!nameValid) {
       tToast.error("WhatsAppMetaTemplates.msg_7367");
+      return;
+    }
+    if (form.headerFormat !== "TEXT" && !form.headerMediaHandle) {
+      tToast.error("ارفع صورة/وسيط الرأس الأول — ميتا مش هتقبل قالب برأس IMAGE من غير صورة.");
       return;
     }
     const checkPassed = handleComplianceCheck(form);
@@ -1784,7 +1797,7 @@ const WhatsAppMetaTemplates: React.FC<{
         <Plus className="size-6" />
       </Button>
 
-      <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { setCreateStep(1); setShowCompliance(false); setComplianceResults([]); } }}>
+      <Dialog open={createOpen} onOpenChange={(open) => { if (open) setCreateOpen(true); else closeCreateDialog(); }}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto max-w-xl sm:rounded-3xl">
           <DialogHeader>
             <DialogTitle>قالب جديد</DialogTitle>
@@ -2089,7 +2102,7 @@ const WhatsAppMetaTemplates: React.FC<{
               </Button>
             )}
             <div className="flex-1" />
-            <Button variant="outline" onClick={() => { setCreateOpen(false); setCreateStep(1); setShowCompliance(false); setComplianceResults([]); }} className="rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95">إلغاء</Button>
+            <Button variant="outline" onClick={closeCreateDialog} className="rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95">إلغاء</Button>
             {createStep < 3 ? (
               <Button onClick={() => setCreateStep((createStep + 1) as 1 | 2 | 3)} className="rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-sm hover:shadow-md">
                 التالي
