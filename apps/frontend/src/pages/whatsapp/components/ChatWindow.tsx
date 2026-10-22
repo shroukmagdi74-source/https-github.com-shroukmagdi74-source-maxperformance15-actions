@@ -210,6 +210,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       }
       return;
     }
+    setNewMessage(content);
     if (onSendMessageText) {
       onSendMessageText(content);
     } else {

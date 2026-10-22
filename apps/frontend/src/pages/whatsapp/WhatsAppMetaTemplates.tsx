@@ -244,10 +244,40 @@ function runComplianceCheck(form: typeof initialForm): ComplianceResult[] {
   return results;
 }
 
+const CREATE_PREFS_KEY = "maxp:whatsapp-meta-templates:create-prefs";
+
+function loadCreatePrefs(): { language: string; category: string } {
+  try {
+    const raw = localStorage.getItem(CREATE_PREFS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        language: ["en", "ar", "fr", "tr", "ur"].includes(parsed.language) ? parsed.language : "ar",
+        category: ["UTILITY", "MARKETING", "AUTHENTICATION"].includes(parsed.category) ? parsed.category : "UTILITY",
+      };
+    }
+  } catch {
+    /* ignore storage errors */
+  }
+  // افتراضي: عربي + UTILITY — القوالب هنا معاملات ورسائل خدمة، وميتا ترفض
+  // تصنيف MARKETING لو المحتوى معاملاتي.
+  return { language: "ar", category: "UTILITY" };
+}
+
+function saveCreatePrefs(patch: { language?: string; category?: string }) {
+  try {
+    localStorage.setItem(CREATE_PREFS_KEY, JSON.stringify({ ...loadCreatePrefs(), ...patch }));
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+const createPrefs = loadCreatePrefs();
+
 const initialForm = {
   name: "",
-  language: "en",
-  category: "MARKETING",
+  language: createPrefs.language,
+  category: createPrefs.category,
   headerFormat: "TEXT" as string,
   headerText: "",
   headerMediaHandle: "",
@@ -1812,7 +1842,7 @@ const WhatsAppMetaTemplates: React.FC<{
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>اللغة</Label>
-                  <Select value={form.language} onValueChange={(v) => setForm((p) => ({ ...p, language: v ?? '' }))}>
+                  <Select value={form.language} onValueChange={(v) => { const lang = v ?? ''; setForm((p) => ({ ...p, language: lang })); saveCreatePrefs({ language: lang }); }}>
                     <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="en">English</SelectItem>
@@ -1825,7 +1855,7 @@ const WhatsAppMetaTemplates: React.FC<{
                 </div>
                 <div className="space-y-2">
                   <Label>التصنيف</Label>
-                  <Select value={form.category} onValueChange={(v) => setForm((p) => ({ ...p, category: v ?? '' }))}>
+                  <Select value={form.category} onValueChange={(v) => { const cat = v ?? ''; setForm((p) => ({ ...p, category: cat })); saveCreatePrefs({ category: cat }); }}>
                     <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
