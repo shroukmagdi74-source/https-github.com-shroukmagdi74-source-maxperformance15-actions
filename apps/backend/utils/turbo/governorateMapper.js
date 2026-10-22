@@ -48,6 +48,10 @@ function isCompoundShippingZone(text) {
     }
   }
 
+  if (normalized === '28') {
+    return true;
+  }
+
   // كشف إضافي بالكلمات الدلالية
   if (normalized.includes('اطراف') && (normalized.includes('قاهره') || normalized.includes('جيزه'))) {
     return true;
@@ -132,17 +136,43 @@ function getTurboGovernorateName(governorate, contextCity = '', fullAddress = ''
   const cleanedGov = cleanLocationName(governorate);
   const trimmed = String(cleanedGov || '').trim();
 
-  // فحص استباقي: إذا كان العنوان أو المدينة يحتوي على مناطق تتبع أطراف القاهرة والجيزة في تربو
-  // (مثل حدائق الأهرام، حدائق أكتوبر، هضبة الأهرام، حدائق المهندسين، حدائق العاصمة)
+  // 1. إذا كانت المحافظة المدخلة هي منطقة مركبة في تربو (مثل أطراف القاهرة والجيزة أو أطراف الجيزة والقاهرة أو 28)
+  if (isCompoundShippingZone(cleanedGov) || trimmed === '28') {
+    const combinedContext = `${contextCity || ''} ${fullAddress || ''}`;
+    // التحقق إذا كان العميل أدخل محافظة أخرى بعيدة صراحة في العنوان (مثل الإسكندرية، الدقهلية، سوهاج)
+    const otherGov = inferGovernorateFromText(combinedContext);
+    if (otherGov && !['القاهرة', 'الجيزة', 'أطراف القاهرة والجيزة'].includes(otherGov)) {
+      return otherGov;
+    }
+    return 'أطراف القاهرة والجيزة';
+  }
+
+  // 2. فحص استباقي: إذا كان العنوان أو المدينة يحتوي على مناطق تتبع أطراف القاهرة والجيزة في تربو
+  // (مثل 6 أكتوبر، الشيخ زايد، حدائق الأهرام، حدائق أكتوبر، العاصمة الإدارية، دريم لاند، القرية الذكية...)
   if (contextCity || fullAddress) {
     const combined = `${contextCity || ''} ${fullAddress || ''}`;
     const compoundDistricts = [
       'حدائق الاهرام', 'حدائق الأهرام', 'هضبة الاهرام', 'هضبة الأهرام',
       'حدائق اكتوبر', 'حدائق أكتوبر', 'حدائق المهندسين', 'حدائق العاصمة',
-      'سكن مصر حدائق اكتوبر', 'كمباوند الواحه حدائق اكتوبر'
+      'سكن مصر حدائق اكتوبر', 'كمباوند الواحه حدائق اكتوبر',
+      '6 اكتوبر', '6 أكتوبر', 'اكتوبر', 'أكتوبر', 'مدينة 6 اكتوبر', 'مدينة 6 أكتوبر', 'أكتوبر الجديدة', 'اكتوبر الجديدة',
+      'اكتوبر الحي الرابع', '6 أكتوبر الحي المتميز', 'اكتوبر حي الاندلس', '6اكتوبر مساكن الشباب',
+      'الشيخ زايد', 'زايد', 'مدينة الشيخ زايد', 'الياسمين الشيخ زايد', 'دار مصر زايد', 'جنه زايد', 'جنة زايد',
+      'بيفرلي هيلز', 'بفيلرى هيلز', 'الربوة', 'بالم هيلز', 'بالم هليز', 'الخمائل', 'سوديك', 'زايد 2000',
+      'العاصمة الادارية', 'العاصمة الإدارية', 'العاصمة الادارية الجديدة', 'العاصمة الإدارية الجديدة',
+      'الحي الحكومي العاصمة', 'حي المال العاصمة', 'حى المال العاصمة', 'الاحياء السكنية العاصمة', 'البرج الايقونى', 'البرج الأيقوني',
+      'القرية الذكية', 'نيو جيزة', 'وصلة دهشور', 'طريق الواحات', 'الحزام الاخضر', 'الحزام الأخضر',
+      'دريم لاند', 'هرم سيتي', 'مدينة الفردوس', 'حي الاشجار', 'حي الأشجار', 'اشجار سيتي', 'أشجار سيتي', 'ابني بيتك',
+      'المناشي', 'المنصورية', 'منشأة القناطر', 'كفر حكيم', 'بهرمس', 'برقاش', 'برطس',
+      'القاهرة الجديدة', 'القاهره الجديده', 'التجمع', 'التجمع الاول', 'التجمع الأول', 'التجمع الثالث', 'التجمع الخامس', 'تجمع اول', 'تجمع ثالث', 'تجمع خامس',
+      'مدينتي', 'مدينتى', 'الرحاب', 'الرحاب 2', 'الرحاب2', 'الشروق', 'مدينة الشروق', 'بدر', 'مدينة بدر',
+      'العبور', 'مدينة العبور', 'سوق العبور', 'المستقبل', 'مدينة المستقبل', 'هليوبوليس الجديدة', 'القطامية', 'القطاميه',
+      'البدرشين', 'الحوامدية', 'الحوامديه', 'العياط', 'الصف', 'اطفيح', 'أطفيح', 'شبرامنت', 'ابو النمرس', 'أبو النمرس', 'دهشور', 'سقارة', 'سقاره', 'المنوات'
     ];
     const nCombined = normalizeArabic(combined);
-    if (compoundDistricts.some(d => nCombined.includes(normalizeArabic(d)))) {
+    // استبعاد كباري القاهرة (مثل كوبري 6 أكتوبر أو كوبري أكتوبر أو السادس من أكتوبر) حتى لا تلتقط خطأ كمدينة
+    const textWithoutBridges = nCombined.replace(/كوبري\s*(?:6\s*|السادس\s*من\s*)?اكتوبر/g, ' ');
+    if (compoundDistricts.some(d => textWithoutBridges.includes(normalizeArabic(d)))) {
       return 'أطراف القاهرة والجيزة';
     }
   }
@@ -152,7 +182,7 @@ function getTurboGovernorateName(governorate, contextCity = '', fullAddress = ''
     return GOVERNORATE_MAP[trimmed];
   }
 
-  // 1. إذا كانت المحافظة فارغة أو غير محددة، نستنتجها من المدينة والعنوان
+  // 3. إذا كانت المحافظة فارغة أو غير محددة، نستنتجها من المدينة والعنوان
   if (!trimmed || isUnspecified(trimmed)) {
     const combinedContext = `${contextCity || ''} ${fullAddress || ''}`;
     const inferred = inferGovernorateFromText(combinedContext);
@@ -161,17 +191,6 @@ function getTurboGovernorateName(governorate, contextCity = '', fullAddress = ''
       return findGovernmentByCity(contextCity, null, fullAddress);
     }
     return null;
-  }
-
-  // 2. إذا كانت المحافظة منطقة مركبة (مثل أطراف القاهرة والجيزة)
-  if (isCompoundShippingZone(cleanedGov)) {
-    const combinedContext = `${contextCity || ''} ${fullAddress || ''}`;
-    // حصر البحث في النطاق الجغرافي المعني (الجيزة، القليوبية، القاهرة) لمنع الخلط مع أسماء محطات بمحافظات أخرى
-    const inferred = inferGovernorateFromText(combinedContext, ['الجيزة', 'القليوبية', 'القاهرة']);
-    if (inferred) {
-      return inferred;
-    }
-    return 'القاهرة';
   }
 
   const nGov = normalizeArabic(cleanedGov);

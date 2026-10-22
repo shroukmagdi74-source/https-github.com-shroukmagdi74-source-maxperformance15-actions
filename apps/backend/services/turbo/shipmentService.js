@@ -64,7 +64,9 @@ function matchBestAreaFromTurboList(areas, candidateArea, fullAddressText, govNa
   // If the customer wrote their specific neighborhood in the address (e.g. "سموحة شارع مصطفى النجار"),
   // this takes precedence over a generic or mismatched candidate area (e.g. "سيدي جابر").
   if (fullAddressText) {
-    const nAddress = normalizeArabic(fullAddressText);
+    let nAddress = normalizeArabic(fullAddressText);
+    // استبعاد كباري ومحاور العبور (مثل كوبري 6 أكتوبر أو كوبري أكتوبر) حتى لا تطابق خطأ كمنطقة شارع 6 اكتوبر في القاهرة
+    nAddress = nAddress.replace(/كوبري\s*(?:6\s*|السادس\s*من\s*)?اكتوبر/g, ' ');
     for (const area of sortedAreas) {
       const na = normalizeArabic(area.name);
       if (na === nGov || govNamesList.includes(na)) continue;
@@ -146,7 +148,9 @@ function matchBestAreaFromTurboList(areas, candidateArea, fullAddressText, govNa
   // 6b. المناطق المركزية الرئيسية المعتمدة لكل محافظة
   const centralNames = [
     'وسط البلد', 'ميدان الجيزة', 'محطة الرمل', 'المنشية', 'التحرير',
-    'الازبكية', 'الرئيسي', 'المركز الرئيسي', 'حدائق الاهرام'
+    'الازبكية', 'الرئيسي', 'المركز الرئيسي', 'حدائق الاهرام',
+    'الشيخ زايد', '6 أكتوبر الحي المتميز', 'اكتوبر الحي الرابع',
+    'التجمع الخامس', 'مدينتي', 'الرحاب', 'الشروق', 'العبور'
   ];
   for (const cName of centralNames) {
     const nCName = normalizeArabic(cName);
@@ -638,5 +642,6 @@ class ShipmentService {
 
 ShipmentService.cleanEgyptianPhone = cleanEgyptianPhone;
 ShipmentService.normalizeDigits = normalizeDigits;
+ShipmentService.matchBestAreaFromTurboList = matchBestAreaFromTurboList;
 
 module.exports = ShipmentService;
