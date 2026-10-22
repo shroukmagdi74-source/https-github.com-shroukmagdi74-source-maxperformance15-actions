@@ -38,6 +38,23 @@ function resolveAcademyCompanyId(req) {
  */
 const studentOtpStore = new Map();
 
+const { getPhoneVariants, normalizePhone: toNormalizedLocalPhone } = require('../utils/phoneNormalization');
+
+function normalizeStudentPhoneForWhatsApp(phone) {
+  if (!phone) return '';
+  let digits = String(phone)
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.substring(2);
+  if (digits.startsWith('01') && digits.length === 11) {
+    digits = '20' + digits.substring(1);
+  } else if (digits.length === 10 && digits.startsWith('1')) {
+    digits = '20' + digits;
+  }
+  return digits;
+}
+
 /**
  * 🛡️ Security Law: Only extract student identity from verified JWT token.
  * Raw query parameters (?phone=) and unauthenticated headers (x-student-phone) are NEVER trusted.
@@ -816,12 +833,14 @@ exports.sendStudentLoginCode = async (req, res) => {
     }
 
     const cleanPhone = phone.trim();
+    const phoneVariants = getPhoneVariants(cleanPhone);
+    const recipientPhone = normalizeStudentPhoneForWhatsApp(cleanPhone);
     const db = academyService.getDb();
 
     // 1. Verify that this phone has an active enrollment or customer account
     const enrollment = await db.academyEnrollment.findFirst({
       where: {
-        studentPhone: cleanPhone,
+        studentPhone: { in: phoneVariants },
         status: { in: ['ACTIVE', 'COMPLETED'] },
       },
       include: {
@@ -832,7 +851,7 @@ exports.sendStudentLoginCode = async (req, res) => {
     if (!enrollment) {
       // Check customer table fallback
       const customer = await db.customer.findFirst({
-        where: { phone: cleanPhone },
+        where: { phone: { in: phoneVariants } },
       });
       const customerEnrollment = customer ? await db.academyEnrollment.findFirst({
         where: { customerId: customer.id, status: { in: ['ACTIVE', 'COMPLETED'] } },
@@ -841,18 +860,29 @@ exports.sendStudentLoginCode = async (req, res) => {
       if (!customerEnrollment) {
         return res.status(404).json({
           success: false,
+          code: 'NO_ENROLLMENT_FOUND',
           message: 'لم يتم العثور على اشتراك مرتبط بهذا الرقم. يمكنك الاشتراك في الكورس أولاً أو مشاهدة أول درسين مجاناً.',
         });
       }
     }
 
-    // 2. Rate limit check (minimum 30 seconds between resends for the same phone)
-    const existingOtp = studentOtpStore.get(cleanPhone);
+    // 2. Rate limit check (minimum 30 seconds between resends for the same phone across all variants)
+    let existingOtp = null;
+    let existingKey = cleanPhone;
+    for (const v of phoneVariants) {
+      if (studentOtpStore.has(v)) {
+        existingOtp = studentOtpStore.get(v);
+        existingKey = v;
+        break;
+      }
+    }
+
     const now = Date.now();
     if (existingOtp && (now - existingOtp.lastSentAt) < 30 * 1000) {
       const waitSeconds = Math.ceil((30 * 1000 - (now - existingOtp.lastSentAt)) / 1000);
       return res.status(429).json({
         success: false,
+        code: 'RATE_LIMITED',
         message: `يرجى الانتظار ${waitSeconds} ثانية قبل إعادة إرسال الكود.`,
         retryAfter: waitSeconds,
       });
@@ -865,17 +895,22 @@ exports.sendStudentLoginCode = async (req, res) => {
       (cleanPhone === '01000000099' || cleanPhone === '01000000088');
     const code = isTestFixedOtp ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
 
-    // 4. Save in OTP store (valid for 10 minutes)
-    studentOtpStore.set(cleanPhone, {
+    // 4. Save in OTP store (valid for 10 minutes) under cleanPhone and recipientPhone
+    const otpPayload = {
       code,
       expiresAt: now + 10 * 60 * 1000,
       attempts: 0,
       lastSentAt: now,
-    });
+    };
+    studentOtpStore.set(cleanPhone, otpPayload);
+    if (recipientPhone && recipientPhone !== cleanPhone) {
+      studentOtpStore.set(recipientPhone, otpPayload);
+    }
 
     // 5. Dispatch via WhatsApp
     let dispatchSuccess = false;
     let dispatchError = null;
+    let activeSession = null;
 
     if (isTestFixedOtp) {
       // 🧹 Test accounts (01000000099 / 01000000088) have fixed predictable code 123456 only when ALLOW_ACADEMY_TEST_OTP === 'true'
@@ -883,7 +918,7 @@ exports.sendStudentLoginCode = async (req, res) => {
     } else {
       const companyId = enrollment?.companyId || 'cmopgxu3a07i4jujj6f1oh32h';
       try {
-        const activeSession = await resolveActiveWhatsAppSession(companyId, db);
+        activeSession = await resolveActiveWhatsAppSession(companyId, db);
         if (!activeSession) {
           throw new Error('لا توجد جلسة واتساب نشطة متصلة في النظام لإرسال الكود');
         }
@@ -892,46 +927,85 @@ exports.sendStudentLoginCode = async (req, res) => {
           // 🔒 Meta Cloud requires pre-approved AUTHENTICATION templates for business-initiated OTP
           const MetaCloudProvider = require('../services/whatsapp/providers/MetaCloudProvider');
           let authTemplate = null;
+
           try {
             const templates = await MetaCloudProvider.listTemplates(activeSession.id);
             authTemplate = (templates || []).find(
-              (t) => t.status === 'APPROVED' && (t.name === 'student_login_otp' || t.category === 'AUTHENTICATION')
+              (t) => t.status === 'APPROVED' && t.name === 'student_login_otp'
+            ) || (templates || []).find(
+              (t) => t.status === 'APPROVED' && t.category === 'AUTHENTICATION'
             );
           } catch (listErr) {
             console.warn('[student-otp] Could not list Meta templates:', listErr.message);
           }
 
-          if (!authTemplate) {
-            throw new Error(
-              'جلسة واتساب الرسمية (Meta Cloud) تتطلب قالباً معتمداً (student_login_otp). لا يوجد قالب معتمد متاح حالياً.'
-            );
+          // Fallback to getTemplateById if available
+          if (!authTemplate && typeof MetaCloudProvider.getTemplateById === 'function') {
+            try {
+              authTemplate = await MetaCloudProvider.getTemplateById(activeSession.id, '1823559915311726');
+            } catch (_) {}
           }
 
-          // Build template components for Meta Authentication template (code in body param & button url param)
-          const hasButton = authTemplate.components?.some((c) => c.type === 'BUTTONS');
+          // Fallback to approved template descriptor for student_login_otp
+          if (!authTemplate) {
+            authTemplate = {
+              name: 'student_login_otp',
+              language: 'ar',
+              status: 'APPROVED',
+              category: 'AUTHENTICATION',
+              components: [
+                { type: 'BODY' },
+                { type: 'BUTTONS', buttons: [{ type: 'URL' }] },
+              ],
+            };
+          }
+
+          // Build template components for Meta Authentication template:
+          // Body param = {{1}} (code)
+          // Button URL param = {{1}} (code)
+          const buttonsComp = (authTemplate.components || []).find(
+            (c) => String(c.type || '').toUpperCase() === 'BUTTONS'
+          );
+          const hasButton = !!buttonsComp || authTemplate.name === 'student_login_otp';
+
           const components = [
             {
               type: 'body',
-              parameters: [{ type: 'text', text: code }],
+              parameters: [{ type: 'text', text: String(code) }],
             },
           ];
+
           if (hasButton) {
-            components.push({
-              type: 'button',
-              sub_type: 'url',
-              index: '0',
-              parameters: [{ type: 'text', text: code }],
-            });
+            const firstBtn = buttonsComp?.buttons?.[0];
+            const btnType = String(firstBtn?.type || firstBtn?.sub_type || '').toUpperCase();
+
+            if (btnType === 'COPY_CODE') {
+              components.push({
+                type: 'button',
+                sub_type: 'copy_code',
+                index: '0',
+                parameters: [{ type: 'coupon_code', coupon_code: String(code) }],
+              });
+            } else {
+              components.push({
+                type: 'button',
+                sub_type: 'url',
+                index: '0',
+                parameters: [{ type: 'text', text: String(code) }],
+              });
+            }
           }
+
+          const templateLang = typeof authTemplate.language === 'string'
+            ? authTemplate.language
+            : (authTemplate.language?.code || 'ar');
 
           await MetaCloudProvider.sendTemplate(
             activeSession.id,
-            cleanPhone,
+            recipientPhone,
             authTemplate.name,
-            {
-              language: authTemplate.language || 'ar',
-              components,
-            }
+            templateLang,
+            components
           );
           dispatchSuccess = true;
         } else {
@@ -942,20 +1016,30 @@ exports.sendStudentLoginCode = async (req, res) => {
 
           await WhatsAppMessageHandler.sendText(
             activeSession.id,
-            cleanPhone,
+            recipientPhone,
             `كود التحقق لدخول أكاديمية ماكس بي: ${code}\nصلاحية الكود 10 دقائق.`
           );
           dispatchSuccess = true;
         }
       } catch (waErr) {
         dispatchError = waErr;
-        console.error(`🚨 [STUDENT_OTP_FAILED] WhatsApp dispatch failed for ${cleanPhone}:`, waErr.message);
+        console.error(`🚨 [STUDENT_OTP_FAILED] WhatsApp dispatch failed for ${cleanPhone} (to: ${recipientPhone}):`, {
+          message: waErr.message,
+          code: waErr.code,
+          reason: waErr.reason,
+          details: waErr.details,
+          metaResponse: waErr.originalError?.response?.data || null,
+        });
       }
     }
 
     // 🔒 Reliability: If dispatch failed for a real student phone, DO NOT falsely claim success!
     if (!dispatchSuccess) {
-      studentOtpStore.delete(cleanPhone); // Remove OTP so student isn't stuck with an undelivered code
+      for (const v of phoneVariants) {
+        studentOtpStore.delete(v);
+      }
+      studentOtpStore.delete(cleanPhone);
+      if (recipientPhone) studentOtpStore.delete(recipientPhone);
 
       // Operational notification to the team
       try {
@@ -966,19 +1050,30 @@ exports.sendStudentLoginCode = async (req, res) => {
             title: '⚠️ تعذر إرسال كود تحقق دخول الطالب عبر واتساب',
             body: `فشل إرسال كود التحقق للرقم ${cleanPhone}. السبب: ${dispatchError?.message || 'تعذر الإرسال'}`,
             type: 'STUDENT_AUTH_OTP_FAILED',
-            metadata: { phone: cleanPhone, error: dispatchError?.message },
+            metadata: {
+              phone: cleanPhone,
+              recipientPhone,
+              error: dispatchError?.message,
+              code: dispatchError?.code,
+              metaErrorCode: dispatchError?.code || dispatchError?.originalError?.response?.data?.error?.code,
+            },
           });
         }
       } catch (_) {}
 
       res.setHeader('cf-turn-off-custom-errors', '1');
+      res.setHeader('x-cf-turn-off-custom-errors', '1');
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
       return res.status(502).json({
         success: false,
-        code: 'OTP_DISPATCH_FAILED',
-        message: 'تعذر إرسال كود التحقق عبر واتساب حالياً. يرجى المحاولة مرة أخرى أو التواصل مع الدعم الفني.',
+        error: dispatchError?.message || 'تعذر إرسال كود التحقق عبر واتساب حالياً. يرجى المحاولة مرة أخرى أو التواصل مع الدعم الفني.',
+        code: dispatchError?.code || 'OTP_DISPATCH_FAILED',
+        provider: activeSession?.provider || 'META_CLOUD',
+        retryable: dispatchError?.retryable !== undefined ? dispatchError.retryable : true,
+        details: dispatchError?.details || null,
+        metaErrorCode: dispatchError?.code || dispatchError?.originalError?.response?.data?.error?.code || null,
       });
     }
 
@@ -991,7 +1086,7 @@ exports.sendStudentLoginCode = async (req, res) => {
           title: 'كود تحقق دخول الطالب',
           body: `تم إصدار وإرسال كود تحقق للطالب ${cleanPhone}`,
           type: 'STUDENT_AUTH_OTP',
-          metadata: { phone: cleanPhone },
+          metadata: { phone: cleanPhone, recipientPhone },
         });
       }
     } catch (_) {}
@@ -1015,6 +1110,7 @@ exports.studentLogin = async (req, res) => {
     }
 
     const cleanPhone = phone.trim();
+    const phoneVariants = getPhoneVariants(cleanPhone);
 
     // 🔒 P0-3 Security: Code is MANDATORY
     if (!code || !String(code).trim()) {
@@ -1034,7 +1130,16 @@ exports.studentLogin = async (req, res) => {
     if (isTestFixedOtp && cleanCode === '123456') {
       isCodeValid = true;
     } else {
-      const otpRecord = studentOtpStore.get(cleanPhone);
+      let otpRecord = null;
+      let matchingKey = null;
+      for (const v of phoneVariants) {
+        if (studentOtpStore.has(v)) {
+          otpRecord = studentOtpStore.get(v);
+          matchingKey = v;
+          break;
+        }
+      }
+
       if (!otpRecord) {
         return res.status(400).json({
           success: false,
@@ -1044,6 +1149,7 @@ exports.studentLogin = async (req, res) => {
       }
 
       if (Date.now() > otpRecord.expiresAt) {
+        for (const v of phoneVariants) studentOtpStore.delete(v);
         studentOtpStore.delete(cleanPhone);
         return res.status(400).json({
           success: false,
@@ -1054,6 +1160,7 @@ exports.studentLogin = async (req, res) => {
 
       otpRecord.attempts = (otpRecord.attempts || 0) + 1;
       if (otpRecord.attempts > 5) {
+        for (const v of phoneVariants) studentOtpStore.delete(v);
         studentOtpStore.delete(cleanPhone);
         return res.status(429).json({
           success: false,
@@ -1074,15 +1181,16 @@ exports.studentLogin = async (req, res) => {
 
       isCodeValid = true;
       // Single-use: delete after successful verification
+      for (const v of phoneVariants) studentOtpStore.delete(v);
       studentOtpStore.delete(cleanPhone);
     }
 
     const db = academyService.getDb();
 
-    // Look for active enrollments with this phone number
+    // Look for active enrollments with this phone number across all variants
     const enrollments = await db.academyEnrollment.findMany({
       where: {
-        studentPhone: cleanPhone,
+        studentPhone: { in: phoneVariants },
         status: { in: ['ACTIVE', 'COMPLETED'] },
       },
       include: {
@@ -1100,7 +1208,7 @@ exports.studentLogin = async (req, res) => {
     if (!enrollments || enrollments.length === 0) {
       // Also check customer table for fallback
       const customer = await db.customer.findFirst({
-        where: { phone: cleanPhone },
+        where: { phone: { in: phoneVariants } },
       });
 
       if (customer) {
@@ -1150,20 +1258,23 @@ exports.studentLogin = async (req, res) => {
 
       return res.status(404).json({
         success: false,
-        message: 'لم يتم العثور على اشتراك مرتبط بهذا الرقم. يمكنك الاشتراك في الكورس أولاً أو مشاهدة أول درسين مجاناً.',
+        message: 'لم يتم العثور على أي كورسات نشطة مرتبطة بهذا الرقم.',
       });
     }
 
     const primaryEnrollment = enrollments[0];
     const studentName = primaryEnrollment.studentName || 'طالب ماكس بي';
+
+    // Issue Student JWT token (valid for 30 days)
     const token = jwt.sign(
       {
         id: `student_${cleanPhone}`,
         userId: `student_${cleanPhone}`,
         studentPhone: cleanPhone,
+        enrollmentId: primaryEnrollment.id,
         studentName,
         role: 'STUDENT',
-        companyId: primaryEnrollment?.companyId || 'cmopgxu3a07i4jujj6f1oh32h',
+        companyId: primaryEnrollment.companyId || 'cmopgxu3a07i4jujj6f1oh32h',
       },
       getJwtSecret(),
       { expiresIn: '30d' }

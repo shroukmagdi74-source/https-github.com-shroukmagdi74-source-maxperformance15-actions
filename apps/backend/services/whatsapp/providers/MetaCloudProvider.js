@@ -36,8 +36,19 @@ function resolveConfig(session) {
 }
 
 function normalizePhone(to) {
-  if (!to) return to;
-  return to.replace(/\D/g, '');
+  if (!to) return '';
+  let cleaned = String(to)
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/\D/g, '');
+  if (cleaned.startsWith('00')) cleaned = cleaned.substring(2);
+  // Egyptian local numbers (01xxxxxxxxx -> 201xxxxxxxxx)
+  if (cleaned.startsWith('01') && cleaned.length === 11) {
+    cleaned = '20' + cleaned.substring(1);
+  } else if (cleaned.length === 10 && cleaned.startsWith('1')) {
+    cleaned = '20' + cleaned;
+  }
+  return cleaned;
 }
 
 async function apiCall(fn) {
@@ -594,10 +605,22 @@ async function sendReaction(sessionId, to, messageId, emoji) {
   return await postMessage(session, payload);
 }
 
-async function sendTemplate(sessionId, to, templateName, languageCode, components = []) {
+async function sendTemplate(sessionId, to, templateName, languageCodeOrOptions, components = []) {
   const session = await getSession(sessionId);
   if (!session) {
     throw new Error('Session not found');
+  }
+
+  let languageCode = 'ar';
+  let finalComponents = components;
+
+  if (typeof languageCodeOrOptions === 'object' && languageCodeOrOptions !== null) {
+    languageCode = languageCodeOrOptions.language || languageCodeOrOptions.languageCode || 'ar';
+    if (Array.isArray(languageCodeOrOptions.components)) {
+      finalComponents = languageCodeOrOptions.components;
+    }
+  } else if (typeof languageCodeOrOptions === 'string' && languageCodeOrOptions.trim()) {
+    languageCode = languageCodeOrOptions.trim();
   }
 
   const payload = {
@@ -608,7 +631,7 @@ async function sendTemplate(sessionId, to, templateName, languageCode, component
     template: {
       name: templateName,
       language: { code: languageCode },
-      components
+      components: finalComponents
     }
   };
 
