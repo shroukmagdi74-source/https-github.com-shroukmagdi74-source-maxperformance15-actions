@@ -182,6 +182,7 @@ const Permissions: React.FC = () => {
     isCompensated: false,
     compensationDate: "",
     compensationNotes: "",
+    attachments: "",
   });
 
   useEffect(() => {
@@ -385,123 +386,123 @@ const Permissions: React.FC = () => {
 
   return (
     <div
-      className="p-6 space-y-6 bg-gray-50/50 dark:bg-gray-950 min-h-screen"
+      className="p-3 sm:p-6 space-y-4 sm:space-y-6 max-w-full overflow-x-hidden"
       dir="rtl"
     >
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-200 dark:shadow-blue-900/20">
-            <Clock className="h-8 w-8 text-white" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="p-2.5 sm:p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-200 dark:shadow-blue-900/20 shrink-0">
+            <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 dark:text-white truncate sm:overflow-visible">
               {t("employee.permissions.title")}
             </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
-              <History className="h-4 w-4" />
-              {t("employee.permissions.totalRecords", { count: pagination.total })}
+            <p className="text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 flex items-center gap-1.5 text-xs sm:text-sm">
+              <History className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+              <span>{t("employee.permissions.totalRecords", { count: pagination.total })}</span>
             </p>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <Button
             variant="outline"
-            className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800"
+            className="flex-1 sm:flex-initial bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4"
           >
-            <Download className="h-4 w-4 ml-2" />
+            <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1.5" />
             {t("employee.permissions.export")}
           </Button>
           <Button
             onClick={() => setShowAddDialog(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 dark:shadow-none"
+            className="flex-1 sm:flex-initial bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 dark:shadow-none text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4"
           >
-            <Plus className="h-4 w-4 ml-2" />
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1.5" />
             {t("employee.permissions.newPermission")}
           </Button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         <Card className="border-none shadow-sm bg-gradient-to-br from-amber-500 to-amber-600 text-white overflow-hidden relative group">
           <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform">
-            <Clock className="h-24 w-24" />
+            <Clock className="h-20 w-20 sm:h-24 sm:w-24" />
           </div>
-          <CardContent className="p-6 relative">
-            <p className="text-amber-100 text-sm font-medium">
+          <CardContent className="p-3.5 sm:p-6 relative">
+            <p className="text-amber-100 text-xs sm:text-sm font-medium">
               {t("employee.permissions.pendingApproval")}
             </p>
-            <div className="flex items-end gap-2 mt-2">
-              <h3 className="text-4xl font-bold">{pendingCount}</h3>
-              <span className="text-amber-100 mb-1">{t("employee.permissions.request")}</span>
+            <div className="flex items-baseline gap-1.5 mt-1 sm:mt-2">
+              <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold">{pendingCount}</h3>
+              <span className="text-amber-100 text-xs sm:text-sm mb-0.5">{t("employee.permissions.request")}</span>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-xs text-amber-100 bg-white/10 w-fit px-2 py-1 rounded-full">
-              <AlertCircle className="h-3 w-3" />
-              {t("employee.permissions.respondQuickly")}
+            <div className="mt-2 sm:mt-4 flex items-center gap-1.5 text-[10px] sm:text-xs text-amber-100 bg-white/10 w-fit px-2 py-0.5 sm:py-1 rounded-full">
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              <span className="truncate">{t("employee.permissions.respondQuickly")}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white dark:bg-gray-900 overflow-hidden relative group">
-          <CardContent className="p-6">
+          <CardContent className="p-3.5 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+                <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium">
                   {t("employee.permissions.totalHours")}
                 </p>
-                <div className="flex items-end gap-2 mt-2">
-                  <h3 className="text-4xl font-bold text-gray-900 dark:text-white">
+                <div className="flex items-baseline gap-1.5 mt-1 sm:mt-2">
+                  <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">
                     {stats?.totalHours || 0}
                   </h3>
-                  <span className="text-gray-500 mb-1">{t("employee.permissions.hour")}</span>
+                  <span className="text-gray-500 text-xs sm:text-sm mb-0.5">{t("employee.permissions.hour")}</span>
                 </div>
               </div>
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl">
-                <Timer className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <div className="p-2.5 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl sm:rounded-2xl shrink-0">
+                <Timer className="h-5 w-5 sm:h-8 sm:w-8 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
-            <div className="mt-4 h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+            <div className="mt-2.5 sm:mt-4 h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
               <div className="h-full bg-blue-500 w-[65%]" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white dark:bg-gray-900">
-          <CardContent className="p-6">
+          <CardContent className="p-3.5 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+                <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium">
                   {t("employee.permissions.deductedPermissions")}
                 </p>
-                <h3 className="text-4xl font-bold mt-2 text-red-600 dark:text-red-400">
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 sm:mt-2 text-red-600 dark:text-red-400">
                   {stats?.byType?.DEDUCTIBLE || 0}
                 </h3>
               </div>
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-2xl">
-                <Receipt className="h-8 w-8 text-red-600 dark:text-red-400" />
+              <div className="p-2.5 sm:p-4 bg-red-50 dark:bg-red-900/20 rounded-xl sm:rounded-2xl shrink-0">
+                <Receipt className="h-5 w-5 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" />
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-4">{t("employee.permissions.deductedFromSalary")}</p>
+            <p className="text-[10px] sm:text-xs text-gray-400 mt-2 sm:mt-4 truncate">{t("employee.permissions.deductedFromSalary")}</p>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm bg-white dark:bg-gray-900">
-          <CardContent className="p-6">
+          <CardContent className="p-3.5 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+                <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium">
                   {t("employee.permissions.officialWorkHours")}
                 </p>
-                <h3 className="text-4xl font-bold mt-2 text-purple-600 dark:text-purple-400">
+                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 sm:mt-2 text-purple-600 dark:text-purple-400">
                   {stats?.byType?.FIXED_HOURS || 0}
                 </h3>
               </div>
-              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-2xl">
-                <Timer className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+              <div className="p-2.5 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl sm:rounded-2xl shrink-0">
+                <Timer className="h-5 w-5 sm:h-8 sm:w-8 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-4">{t("employee.permissions.assignments")}</p>
+            <p className="text-[10px] sm:text-xs text-gray-400 mt-2 sm:mt-4 truncate">{t("employee.permissions.assignments")}</p>
           </CardContent>
         </Card>
       </div>
@@ -509,38 +510,48 @@ const Permissions: React.FC = () => {
       {/* Main Content: Tabs and Table */}
       <Card className="border-none shadow-sm bg-white dark:bg-gray-900 overflow-hidden">
         <CardContent className="p-0">
-          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-3 sm:p-4 border-b border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <Tabs
               value={activeTab}
               onValueChange={setActiveTab}
-              className="w-full md:w-auto"
+              className="w-full sm:w-auto"
             >
-              <TabsList className="bg-gray-100/50 dark:bg-gray-800/50 p-1">
+              <TabsList className="bg-gray-100/50 dark:bg-gray-800/50 p-1 w-full sm:w-auto grid grid-cols-4 sm:flex h-auto">
                 <TabsTrigger
                   value="all"
-                  className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm"
+                  className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm text-xs sm:text-sm py-1.5 px-2 sm:px-3"
                 >
                   {t("employee.permissions.all")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="pending"
-                  className="relative data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm"
+                  className="relative data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm text-xs sm:text-sm py-1.5 px-2 sm:px-3"
                 >
                   {t("employee.permissions.pendingTab")}
                   {pendingCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold ring-2 ring-white dark:ring-gray-900 animate-pulse">
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white font-bold ring-2 ring-white dark:ring-gray-900 animate-pulse">
                       {pendingCount}
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="approved">{t("employee.permissions.approvedTab")}</TabsTrigger>
-                <TabsTrigger value="rejected">{t("employee.permissions.rejectedTab")}</TabsTrigger>
+                <TabsTrigger
+                  value="approved"
+                  className="text-xs sm:text-sm py-1.5 px-2 sm:px-3"
+                >
+                  {t("employee.permissions.approvedTab")}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="rejected"
+                  className="text-xs sm:text-sm py-1.5 px-2 sm:px-3"
+                >
+                  {t("employee.permissions.rejectedTab")}
+                </TabsTrigger>
               </TabsList>
             </Tabs>
 
-            <div className="flex items-center gap-3">
+            <div className="w-full sm:w-auto flex items-center gap-3">
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[180px] bg-gray-50/50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700">
+                <SelectTrigger className="w-full sm:w-[180px] bg-gray-50/50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 h-9 sm:h-10 text-xs sm:text-sm">
                   <SelectValue placeholder={t("employee.permissions.typePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -558,7 +569,7 @@ const Permissions: React.FC = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div>
             {loading ? (
               <div className="flex flex-col items-center justify-center h-80 gap-3">
                 <div className="animate-spin rounded-full h-10 w-10 border-[3px] border-blue-600 border-t-transparent"></div>
@@ -567,45 +578,19 @@ const Permissions: React.FC = () => {
                 </p>
               </div>
             ) : requests.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-80 text-gray-400">
-                <div className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-full mb-4">
-                  <Calendar className="h-12 w-12 opacity-20" />
+              <div className="flex flex-col items-center justify-center h-80 text-gray-400 p-4 text-center">
+                <div className="p-5 sm:p-6 bg-gray-50 dark:bg-gray-800/50 rounded-full mb-3 sm:mb-4">
+                  <Calendar className="h-10 w-10 sm:h-12 sm:w-12 opacity-20" />
                 </div>
-                <p className="text-lg">{t("employee.permissions.noPermissions")}</p>
-                <Button variant="link" onClick={() => setShowAddDialog(true)}>
+                <p className="text-base sm:text-lg">{t("employee.permissions.noPermissions")}</p>
+                <Button variant="link" onClick={() => setShowAddDialog(true)} className="text-sm mt-1">
                   {t("employee.permissions.noPermissionsHint")}
                 </Button>
               </div>
             ) : (
-              <Table>
-                <TableHeader className="bg-gray-50/50 dark:bg-gray-800/20">
-                  <TableRow className="border-none">
-                    {!isMyPermissions && (
-                      <TableHead className="text-right font-bold py-4">
-                        {t("employee.permissions.colEmployee")}
-                      </TableHead>
-                    )}
-                    <TableHead className="text-right font-bold">
-                      {t("employee.permissions.colType")}
-                    </TableHead>
-                    <TableHead className="text-right font-bold">
-                      {t("employee.permissions.colDate")}
-                    </TableHead>
-                    <TableHead className="text-right font-bold">
-                      {t("employee.permissions.colTime")}
-                    </TableHead>
-                    <TableHead className="text-right font-bold">
-                      {t("employee.permissions.colDuration")}
-                    </TableHead>
-                    <TableHead className="text-right font-bold">
-                      {t("employee.permissions.colStatus")}
-                    </TableHead>
-                    <TableHead className="text-left font-bold pl-6">
-                      {t("employee.permissions.colActions")}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Mobile View: Cards */}
+                <div className="block md:hidden divide-y divide-gray-100 dark:divide-gray-800">
                   {requests.map((request) => {
                     const typeConfig =
                       permissionTypeConfig[request.type] ||
@@ -614,159 +599,347 @@ const Permissions: React.FC = () => {
                     const status = statusConfig[request.status];
 
                     return (
-                      <TableRow
+                      <div
                         key={request.id}
-                        className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors border-gray-100 dark:border-gray-800"
+                        className="p-3.5 space-y-2.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors"
                       >
-                        {!isMyPermissions && (
-                          <TableCell className="py-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-10 w-10 border-2 border-white dark:border-gray-800 ring-1 ring-gray-100 dark:ring-gray-800 shadow-sm">
+                        {/* Top row: Employee (if admin) or Type badge + Status badge */}
+                        <div className="flex items-start justify-between gap-2">
+                          {!isMyPermissions && (
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Avatar className="h-9 w-9 border border-gray-100 dark:border-gray-800 shrink-0">
                                 <AvatarImage src={request.employee?.avatar} />
-                                <AvatarFallback className="bg-blue-50 text-blue-600 font-bold">
+                                <AvatarFallback className="bg-blue-50 text-blue-600 font-bold text-xs">
                                   {request.employee?.firstName?.[0]}
                                   {request.employee?.lastName?.[0]}
                                 </AvatarFallback>
                               </Avatar>
-                              <div>
-                                <p className="font-bold text-gray-900 dark:text-white leading-tight">
-                                  {request.employee?.firstName}{" "}
-                                  {request.employee?.lastName}
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm text-gray-900 dark:text-white truncate">
+                                  {request.employee?.firstName} {request.employee?.lastName}
                                 </p>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-[11px] text-gray-500 truncate">
                                   {request.employee?.department?.name ||
                                     t("employee.permissions.noDepartment")}{" "}
                                   • {request.employee?.employeeNumber}
                                 </p>
                               </div>
                             </div>
-                          </TableCell>
-                        )}
-                        <TableCell>
-                          <div
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg w-fit text-xs font-semibold border ${typeConfig.color}`}
+                          )}
+                          <div className="flex items-center gap-1.5 shrink-0 ms-auto">
+                            <span
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold ${status.color}`}
+                            >
+                              <status.icon className="h-3 w-3" />
+                              {t(`employee.permissions.${status.labelKey}`)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Middle row: Type, Urgency, Date */}
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${typeConfig.color}`}
                           >
-                            <TypeIcon className="h-4 w-4" />
+                            <TypeIcon className="h-3.5 w-3.5" />
                             {t(`employee.permissions.${typeConfig.labelKey}`)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {new Date(request.date).toLocaleDateString("ar-EG", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                            <span className="font-bold text-gray-900 dark:text-white">
-                              {request.startTime}
+                          </span>
+                          {request.isUrgent && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                              {t("employee.permissions.urgent")}
                             </span>
-                            <span className="text-xs">{t("employee.permissions.timeDelimiter")}</span>
-                            <span className="font-bold text-gray-900 dark:text-white">
-                              {request.endTime}
+                          )}
+                          <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400 ms-auto text-xs font-medium">
+                            <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                            <span>
+                              {new Date(request.date).toLocaleDateString("ar-EG", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })}
                             </span>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded font-bold">
+                        </div>
+
+                        {/* Time & Duration Box */}
+                        <div className="flex items-center justify-between text-xs bg-gray-50/80 dark:bg-gray-800/40 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800">
+                          <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
+                            <Clock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                            <span className="font-bold">{request.startTime}</span>
+                            <span className="text-[10px] text-gray-400">{t("employee.permissions.timeDelimiter")}</span>
+                            <span className="font-bold">{request.endTime}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-bold">
                               {request.totalHours}
                             </span>
-                            <span className="text-xs text-gray-500">{t("employee.permissions.hour")}</span>
+                            <span className="text-[11px] text-gray-500">{t("employee.permissions.hour")}</span>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full w-fit text-[10px] uppercase tracking-wider font-bold ${status.color}`}
+                        </div>
+
+                        {/* Reason snippet */}
+                        {request.reason && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 bg-white/50 dark:bg-gray-900/50 px-2 py-1 rounded">
+                            {request.reason}
+                          </p>
+                        )}
+
+                        {/* Footer actions */}
+                        <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-gray-100/60 dark:border-gray-800/60">
+                          {request.status === "PENDING" && !isMyPermissions && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-8 px-2.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-1"
+                                onClick={() => handleApprove(request.id)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                <span>{t("employee.permissions.approve")}</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-8 px-2.5 text-xs rounded-lg flex items-center gap-1"
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  setShowRejectDialog(true);
+                                }}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                                <span>{t("employee.permissions.reject")}</span>
+                              </Button>
+                            </>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2.5 text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg flex items-center gap-1"
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setShowDetailsDialog(true);
+                            }}
                           >
-                            <status.icon className="h-3.5 w-3.5" />
-                            {t(`employee.permissions.${status.labelKey}`)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="pl-6">
-                          <div className="flex items-center justify-start gap-2">
-                            {request.status === "PENDING" &&
-                              !isMyPermissions && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 rounded-lg shadow-sm"
-                                    onClick={() => handleApprove(request.id)}
-                                    title={t("employee.permissions.approve")}
-                                  >
-                                    <Check className="h-4 w-4 text-white" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    className="h-8 w-8 p-0 rounded-lg shadow-sm"
-                                    onClick={() => {
-                                      setSelectedRequest(request);
-                                      setShowRejectDialog(true);
-                                    }}
-                                    title={t("employee.permissions.reject")}
-                                  >
-                                    <X className="h-4 w-4 text-white" />
-                                  </Button>
-                                </>
-                              )}
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>{t("employee.permissions.detailsButton", "تفاصيل")}</span>
+                          </Button>
+                          {(!isMyPermissions || request.status === "PENDING") && (
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 rounded-lg"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setShowDetailsDialog(true);
-                              }}
+                              className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 rounded-lg"
+                              onClick={() => handleDelete(request)}
+                              title={t("employee.permissions.delete")}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                            {(!isMyPermissions || request.status === "PENDING") && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 rounded-lg"
-                                onClick={() => handleDelete(request)}
-                                title={t("employee.permissions.delete")}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
-                </TableBody>
-              </Table>
+                </div>
+
+                {/* Desktop View: Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-gray-50/50 dark:bg-gray-800/20">
+                      <TableRow className="border-none">
+                        {!isMyPermissions && (
+                          <TableHead className="text-right font-bold py-4">
+                            {t("employee.permissions.colEmployee")}
+                          </TableHead>
+                        )}
+                        <TableHead className="text-right font-bold">
+                          {t("employee.permissions.colType")}
+                        </TableHead>
+                        <TableHead className="text-right font-bold">
+                          {t("employee.permissions.colDate")}
+                        </TableHead>
+                        <TableHead className="text-right font-bold">
+                          {t("employee.permissions.colTime")}
+                        </TableHead>
+                        <TableHead className="text-right font-bold">
+                          {t("employee.permissions.colDuration")}
+                        </TableHead>
+                        <TableHead className="text-right font-bold">
+                          {t("employee.permissions.colStatus")}
+                        </TableHead>
+                        <TableHead className="text-left font-bold pl-6">
+                          {t("employee.permissions.colActions")}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {requests.map((request) => {
+                        const typeConfig =
+                          permissionTypeConfig[request.type] ||
+                          permissionTypeConfig["DEDUCTIBLE"];
+                        const TypeIcon = typeConfig.icon;
+                        const status = statusConfig[request.status];
+
+                        return (
+                          <TableRow
+                            key={request.id}
+                            className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors border-gray-100 dark:border-gray-800"
+                          >
+                            {!isMyPermissions && (
+                              <TableCell className="py-4">
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-10 w-10 border-2 border-white dark:border-gray-800 ring-1 ring-gray-100 dark:ring-gray-800 shadow-sm">
+                                    <AvatarImage src={request.employee?.avatar} />
+                                    <AvatarFallback className="bg-blue-50 text-blue-600 font-bold">
+                                      {request.employee?.firstName?.[0]}
+                                      {request.employee?.lastName?.[0]}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <p className="font-bold text-gray-900 dark:text-white leading-tight">
+                                      {request.employee?.firstName}{" "}
+                                      {request.employee?.lastName}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {request.employee?.department?.name ||
+                                        t("employee.permissions.noDepartment")}{" "}
+                                      • {request.employee?.employeeNumber}
+                                    </p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            )}
+                            <TableCell>
+                              <div
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg w-fit text-xs font-semibold border ${typeConfig.color}`}
+                              >
+                                <TypeIcon className="h-4 w-4" />
+                                {t(`employee.permissions.${typeConfig.labelKey}`)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {new Date(request.date).toLocaleDateString("ar-EG", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                                <span className="font-bold text-gray-900 dark:text-white">
+                                  {request.startTime}
+                                </span>
+                                <span className="text-xs">{t("employee.permissions.timeDelimiter")}</span>
+                                <span className="font-bold text-gray-900 dark:text-white">
+                                  {request.endTime}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded font-bold">
+                                  {request.totalHours}
+                                </span>
+                                <span className="text-xs text-gray-500">{t("employee.permissions.hour")}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full w-fit text-[10px] uppercase tracking-wider font-bold ${status.color}`}
+                              >
+                                <status.icon className="h-3.5 w-3.5" />
+                                {t(`employee.permissions.${status.labelKey}`)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="pl-6">
+                              <div className="flex items-center justify-start gap-2">
+                                {request.status === "PENDING" &&
+                                  !isMyPermissions && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 rounded-lg shadow-sm"
+                                        onClick={() => handleApprove(request.id)}
+                                        title={t("employee.permissions.approve")}
+                                      >
+                                        <Check className="h-4 w-4 text-white" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        className="h-8 w-8 p-0 rounded-lg shadow-sm"
+                                        onClick={() => {
+                                          setSelectedRequest(request);
+                                          setShowRejectDialog(true);
+                                        }}
+                                        title={t("employee.permissions.reject")}
+                                      >
+                                        <X className="h-4 w-4 text-white" />
+                                      </Button>
+                                    </>
+                                  )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 rounded-lg"
+                                  onClick={() => {
+                                    setSelectedRequest(request);
+                                    setShowDetailsDialog(true);
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                {(!isMyPermissions || request.status === "PENDING") && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 rounded-lg"
+                                    onClick={() => handleDelete(request)}
+                                    title={t("employee.permissions.delete")}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </div>
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between p-6 bg-gray-50/50 dark:bg-gray-800/10 border-t border-gray-100 dark:border-gray-800">
-              <p className="text-sm text-gray-500">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-6 bg-gray-50/50 dark:bg-gray-800/10 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs sm:text-sm text-gray-500 text-center sm:text-right">
                 {t("employee.permissions.showing", {
                   from: (pagination.page - 1) * pagination.limit + 1,
                   to: Math.min(pagination.page * pagination.limit, pagination.total),
                   total: pagination.total,
                 })}
               </p>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-white dark:bg-gray-900 h-9 px-4 rounded-lg"
+                  className="bg-white dark:bg-gray-900 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg text-xs sm:text-sm"
                   disabled={pagination.page === 1}
                   onClick={() =>
                     setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
                   }
                 >
-                  <ChevronRight className="h-4 w-4 ml-1" />
+                  <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1" />
                   {t("employee.permissions.previous")}
                 </Button>
-                <div className="flex items-center gap-1">
+
+                {/* Mobile page count */}
+                <span className="sm:hidden text-xs text-gray-600 dark:text-gray-400 font-medium px-2">
+                  {pagination.page} / {pagination.totalPages}
+                </span>
+
+                {/* Desktop page buttons */}
+                <div className="hidden sm:flex items-center gap-1">
                   {Array.from(
                     { length: pagination.totalPages },
                     (_, i) => i + 1,
@@ -784,17 +957,18 @@ const Permissions: React.FC = () => {
                     </Button>
                   ))}
                 </div>
+
                 <Button
                   variant="outline"
                   size="sm"
-                  className="bg-white dark:bg-gray-900 h-9 px-4 rounded-lg"
+                  className="bg-white dark:bg-gray-900 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg text-xs sm:text-sm"
                   disabled={pagination.page === pagination.totalPages}
                   onClick={() =>
                     setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
                   }
                 >
                   {t("employee.permissions.next")}
-                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                 </Button>
               </div>
             </div>
@@ -806,24 +980,24 @@ const Permissions: React.FC = () => {
 
       {/* Create Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[600px] bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 p-0 overflow-hidden rounded-2xl shadow-2xl">
-          <div className="bg-blue-600 p-6 text-white text-right relative overflow-hidden">
+        <DialogContent className="w-[95vw] sm:max-w-[600px] max-h-[90vh] flex flex-col bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 p-0 overflow-hidden rounded-2xl shadow-2xl">
+          <div className="bg-blue-600 p-4 sm:p-6 text-white text-right relative overflow-hidden shrink-0">
             <div className="relative z-10">
-              <DialogTitle className="text-2xl font-bold flex items-center justify-end gap-2">
-                <Plus className="h-6 w-6" />
+              <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-end gap-2">
+                <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
                 {t("employee.permissions.dialogTitle")}
               </DialogTitle>
-              <DialogDescription className="text-blue-100 mt-1">
+              <DialogDescription className="text-blue-100 mt-1 text-xs sm:text-sm">
                 {t("employee.permissions.dialogDesc")}
               </DialogDescription>
             </div>
-            <Clock className="absolute -left-10 -bottom-10 h-40 w-40 text-blue-500 opacity-20 rotate-12" />
+            <Clock className="absolute -left-10 -bottom-10 h-32 w-32 sm:h-40 sm:w-40 text-blue-500 opacity-20 rotate-12" />
           </div>
 
-          <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+          <div className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto flex-1">
             {!isMyPermissions && (
               <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300">
+                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
                   {t("employee.permissions.employeeLabel")}
                 </Label>
                 <Select
@@ -832,7 +1006,7 @@ const Permissions: React.FC = () => {
                     setFormData({ ...formData, employeeId: v })
                   }
                 >
-                  <SelectTrigger className="bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 h-12 text-right">
+                  <SelectTrigger className="bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 h-11 sm:h-12 text-right text-xs sm:text-sm">
                     <SelectValue placeholder={t("employee.permissions.employeePlaceholder")} />
                   </SelectTrigger>
                   <SelectContent className="max-h-[250px] p-2">
@@ -863,19 +1037,19 @@ const Permissions: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
                   {t("employee.permissions.typeLabel")}
                 </Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                   {Object.entries(permissionTypeConfig).map(([key, config]) => (
                     <div
                       key={key}
                       onClick={() =>
                         setFormData({ ...formData, type: key as any })
                       }
-                      className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-1 text-right ${formData.type === key
+                      className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-1 text-right ${formData.type === key
                         ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 ring-4 ring-blue-500/5"
                         : "border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700"
                         }`}
@@ -887,11 +1061,11 @@ const Permissions: React.FC = () => {
                           <div className="h-4 w-4" />
                         )}
                         <config.icon
-                          className={`h-6 w-6 ${formData.type === key ? "text-blue-600" : "text-gray-400"}`}
+                          className={`h-5 w-5 sm:h-6 sm:w-6 ${formData.type === key ? "text-blue-600" : "text-gray-400"}`}
                         />
                       </div>
                       <p
-                        className={`font-bold text-sm mt-1 ${formData.type === key ? "text-blue-700 dark:text-blue-400" : "text-gray-700 dark:text-gray-300"}`}
+                        className={`font-bold text-xs sm:text-sm mt-0.5 sm:mt-1 ${formData.type === key ? "text-blue-700 dark:text-blue-400" : "text-gray-700 dark:text-gray-300"}`}
                       >
                         {t(`employee.permissions.${config.labelKey}`)}
                       </p>
@@ -904,7 +1078,7 @@ const Permissions: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300">
+                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
                   {t("employee.permissions.dateLabel")}
                 </Label>
                 <Input
@@ -913,19 +1087,19 @@ const Permissions: React.FC = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, date: e.target.value })
                   }
-                  className="h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right"
+                  className="h-11 sm:h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right text-xs sm:text-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300">
+                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
                   {t("employee.permissions.urgencyLabel")}
                 </Label>
-                <div className="flex gap-2 h-12">
+                <div className="flex gap-2 h-11 sm:h-12">
                   <Button
                     type="button"
                     variant={formData.isUrgent ? "default" : "outline"}
-                    className={`flex-1 rounded-xl h-full border-gray-100 dark:border-gray-800 ${formData.isUrgent ? "bg-red-600 hover:bg-red-700" : ""}`}
+                    className={`flex-1 rounded-xl h-full border-gray-100 dark:border-gray-800 text-xs sm:text-sm ${formData.isUrgent ? "bg-red-600 hover:bg-red-700" : ""}`}
                     onClick={() =>
                       setFormData({ ...formData, isUrgent: !formData.isUrgent })
                     }
@@ -936,7 +1110,7 @@ const Permissions: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300">
+                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
                   {t("employee.permissions.exitTime")}
                 </Label>
                 <Input
@@ -945,12 +1119,12 @@ const Permissions: React.FC = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, startTime: e.target.value })
                   }
-                  className="h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right font-bold"
+                  className="h-11 sm:h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right font-bold text-xs sm:text-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300">
+                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
                   {t("employee.permissions.returnTime")}
                 </Label>
                 <Input
@@ -959,24 +1133,24 @@ const Permissions: React.FC = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, endTime: e.target.value })
                   }
-                  className="h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right font-bold"
+                  className="h-11 sm:h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right font-bold text-xs sm:text-sm"
                 />
               </div>
 
-              <div className="col-span-2 p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-gray-800">
+              <div className="col-span-1 sm:col-span-2 p-3 sm:p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-gray-800">
                 <div className="flex items-center gap-3">
-                  <p className="text-3xl font-black text-blue-600">
+                  <p className="text-2xl sm:text-3xl font-black text-blue-600">
                     {calculateHours(formData.startTime, formData.endTime)}
                   </p>
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">
+                  <p className="text-[11px] sm:text-xs text-gray-500 font-bold uppercase tracking-widest">
                     {t("employee.permissions.totalHoursLabel")}
                   </p>
                 </div>
-                <Timer className="h-10 w-10 text-gray-200 dark:text-gray-800" />
+                <Timer className="h-8 w-8 sm:h-10 sm:w-10 text-gray-200 dark:text-gray-800" />
               </div>
 
-              <div className="col-span-2 space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300">
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
                   {t("employee.permissions.reasonLabel")}
                 </Label>
                 <Textarea
@@ -985,12 +1159,12 @@ const Permissions: React.FC = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, reason: e.target.value })
                   }
-                  className="min-h-[100px] bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right resize-none rounded-2xl p-4"
+                  className="min-h-[90px] sm:min-h-[100px] bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right resize-none rounded-2xl p-3 sm:p-4 text-xs sm:text-sm"
                 />
               </div>
 
-              <div className="col-span-2 space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300">
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
                   {t("employee.permissions.documentsLink")}
                 </Label>
                 <Input
@@ -999,7 +1173,7 @@ const Permissions: React.FC = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, attachments: e.target.value })
                   }
-                  className="h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right rounded-2xl p-4"
+                  className="h-11 sm:h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right rounded-2xl p-3 sm:p-4 text-xs sm:text-sm"
                 />
                 <p className="text-[10px] text-gray-400 text-right pr-2">
                   {t("employee.permissions.documentsHint")}
@@ -1008,23 +1182,23 @@ const Permissions: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-8 bg-gray-50 dark:bg-gray-900/50 flex gap-4 border-t border-gray-100 dark:border-gray-800">
+          <div className="p-3.5 sm:p-6 bg-gray-50 dark:bg-gray-900/50 flex gap-2 sm:gap-4 border-t border-gray-100 dark:border-gray-800 shrink-0">
             <Button
               variant="outline"
-              className="flex-1 h-12 rounded-xl text-gray-500"
+              className="flex-1 h-10 sm:h-12 rounded-xl text-gray-500 text-xs sm:text-sm"
               onClick={() => setShowAddDialog(false)}
               disabled={submitting}
             >
               {t("employee.permissions.cancelButton")}
             </Button>
             <Button
-              className={`flex-1 h-12 rounded-xl shadow-xl transition-all ${submitting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200 dark:shadow-none font-bold"}`}
+              className={`flex-1 h-10 sm:h-12 rounded-xl shadow-xl transition-all text-xs sm:text-sm ${submitting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200 dark:shadow-none font-bold"}`}
               onClick={handleCreate}
               disabled={submitting}
             >
               {submitting ? (
                 <div className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
                   <span>{t("employee.permissions.sending")}</span>
                 </div>
               ) : (
@@ -1037,11 +1211,11 @@ const Permissions: React.FC = () => {
 
       {/* Details Dialog */}
       <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="sm:max-w-[500px] bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 p-0 overflow-hidden rounded-2xl shadow-2xl">
+        <DialogContent className="w-[95vw] sm:max-w-[500px] max-h-[90vh] flex flex-col bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 p-0 overflow-hidden rounded-2xl shadow-2xl">
           {selectedRequest && (
             <>
               <div
-                className={`p-6 text-white text-right relative overflow-hidden ${selectedRequest.status === "APPROVED"
+                className={`p-4 sm:p-6 text-white text-right relative overflow-hidden shrink-0 ${selectedRequest.status === "APPROVED"
                   ? "bg-green-600"
                   : selectedRequest.status === "REJECTED"
                     ? "bg-red-600"
@@ -1049,35 +1223,35 @@ const Permissions: React.FC = () => {
                   }`}
               >
                 <div className="relative z-10">
-                  <div className="flex justify-between items-start mb-4">
-                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none">
+                  <div className="flex justify-between items-start mb-3 sm:mb-4">
+                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none text-xs">
                       {t(`employee.permissions.${statusConfig[selectedRequest.status].labelKey}`)}
                     </Badge>
-                    <DialogTitle className="text-2xl font-bold flex items-center justify-end gap-2">
+                    <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-end gap-2">
                       {t("employee.permissions.detailsTitle")}
                     </DialogTitle>
                   </div>
-                  <div className="flex items-center gap-4 justify-end">
+                  <div className="flex items-center gap-3 sm:gap-4 justify-end">
                     <div className="text-right">
-                      <p className="font-bold text-lg">
-                        {selectedRequest.employee.firstName}{" "}
-                        {selectedRequest.employee.lastName}
+                      <p className="font-bold text-base sm:text-lg">
+                        {selectedRequest.employee?.firstName}{" "}
+                        {selectedRequest.employee?.lastName}
                       </p>
-                      <p className="text-blue-100 text-sm">
-                        {selectedRequest.employee.employeeNumber} •{" "}
-                        {selectedRequest.employee.department?.name}
+                      <p className="text-blue-100 text-xs sm:text-sm">
+                        {selectedRequest.employee?.employeeNumber} •{" "}
+                        {selectedRequest.employee?.department?.name}
                       </p>
                     </div>
-                    <Avatar className="h-16 w-16 border-4 border-white/20 shadow-xl">
-                      <AvatarImage src={selectedRequest.employee.avatar} />
-                      <AvatarFallback className="bg-white/10 text-white text-xl">
-                        {selectedRequest.employee.firstName[0]}
-                        {selectedRequest.employee.lastName[0]}
+                    <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 sm:border-4 border-white/20 shadow-xl shrink-0">
+                      <AvatarImage src={selectedRequest.employee?.avatar} />
+                      <AvatarFallback className="bg-white/10 text-white text-base sm:text-xl">
+                        {selectedRequest.employee?.firstName?.[0]}
+                        {selectedRequest.employee?.lastName?.[0]}
                       </AvatarFallback>
                     </Avatar>
                   </div>
                 </div>
-                <div className="absolute -left-10 -bottom-10 h-40 w-40 text-white opacity-10 rotate-12">
+                <div className="absolute -left-10 -bottom-10 h-32 w-32 sm:h-40 sm:w-40 text-white opacity-10 rotate-12">
                   {React.createElement(
                     permissionTypeConfig[selectedRequest.type]?.icon || History,
                     { className: "h-full w-full" },
@@ -1085,87 +1259,91 @@ const Permissions: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-6 space-y-6" dir="rtl">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                    <p className="text-xs text-gray-500 mb-1">{t("employee.permissions.requestDate")}</p>
-                    <p className="font-bold flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-blue-500" />
-                      {new Date(selectedRequest.date).toLocaleDateString(
-                        "ar-EG",
-                        {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        },
-                      )}
+              <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1" dir="rtl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="bg-gray-50 dark:bg-gray-900 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                    <p className="text-[11px] sm:text-xs text-gray-500 mb-1">{t("employee.permissions.requestDate")}</p>
+                    <p className="font-bold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
+                      <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500 shrink-0" />
+                      <span className="truncate">
+                        {new Date(selectedRequest.date).toLocaleDateString(
+                          "ar-EG",
+                          {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          },
+                        )}
+                      </span>
                     </p>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                    <p className="text-xs text-gray-500 mb-1">{t("employee.permissions.permissionType")}</p>
-                    <p className="font-bold flex items-center gap-2">
+                  <div className="bg-gray-50 dark:bg-gray-900 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                    <p className="text-[11px] sm:text-xs text-gray-500 mb-1">{t("employee.permissions.permissionType")}</p>
+                    <p className="font-bold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
                       {React.createElement(
                         permissionTypeConfig[selectedRequest.type]?.icon ||
                         History,
-                        { className: "h-4 w-4 text-purple-500" },
+                        { className: "h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500 shrink-0" },
                       )}
-                      {t(`employee.permissions.${permissionTypeConfig[selectedRequest.type]?.labelKey}`)}
+                      <span className="truncate">
+                        {t(`employee.permissions.${permissionTypeConfig[selectedRequest.type]?.labelKey}`)}
+                      </span>
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-blue-50/50 dark:bg-blue-900/10 p-5 rounded-2xl border border-blue-100 dark:border-blue-900/30">
-                  <div className="flex items-center justify-between mb-4">
-                    <Timer className="h-5 w-5 text-blue-600" />
-                    <p className="font-bold text-blue-900 dark:text-blue-100">
+                <div className="bg-blue-50/50 dark:bg-blue-900/10 p-3.5 sm:p-5 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <Timer className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                    <p className="font-bold text-xs sm:text-sm text-blue-900 dark:text-blue-100">
                       {t("employee.permissions.permissionPeriod")}
                     </p>
                   </div>
-                  <div className="flex items-center justify-center gap-8 py-2">
+                  <div className="flex items-center justify-center gap-4 sm:gap-8 py-1 sm:py-2">
                     <div className="text-center">
-                      <p className="text-xs text-gray-500 mb-1">{t("employee.permissions.exitTimeLabel")}</p>
-                      <p className="text-2xl font-black text-blue-600">
+                      <p className="text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">{t("employee.permissions.exitTimeLabel")}</p>
+                      <p className="text-xl sm:text-2xl font-black text-blue-600">
                         {selectedRequest.startTime}
                       </p>
                     </div>
-                    <ArrowRight className="h-5 w-5 text-gray-300 rotate-180" />
+                    <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 text-gray-300 rotate-180 shrink-0" />
                     <div className="text-center">
-                      <p className="text-xs text-gray-500 mb-1">{t("employee.permissions.returnTimeLabel")}</p>
-                      <p className="text-2xl font-black text-blue-600">
+                      <p className="text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">{t("employee.permissions.returnTimeLabel")}</p>
+                      <p className="text-xl sm:text-2xl font-black text-blue-600">
                         {selectedRequest.endTime}
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-blue-100 dark:border-blue-900/30 flex justify-between items-center">
-                    <span className="text-sm text-gray-600 dark:text-gray-400 font-medium text-right">
-                    {t("employee.permissions.totalHoursLabel")}
+                  <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-blue-100 dark:border-blue-900/30 flex justify-between items-center">
+                    <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium text-right">
+                      {t("employee.permissions.totalHoursLabel")}
                     </span>
-                    <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                    <span className="bg-blue-600 text-white px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold">
                       {selectedRequest.totalHours} {t("employee.permissions.hour")}
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="text-right">
-                    <Label className="text-gray-500 text-xs mb-2 block">
+                    <Label className="text-gray-500 text-[11px] sm:text-xs mb-1.5 sm:mb-2 block">
                       {t("employee.permissions.reasonDetail")}
                     </Label>
-                    <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800 font-medium leading-relaxed">
+                    <div className="bg-gray-50 dark:bg-gray-900 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800 text-xs sm:text-sm font-medium leading-relaxed">
                       {selectedRequest.reason}
                     </div>
                   </div>
 
                   {selectedRequest.attachments && (
                     <div className="text-right">
-                      <Label className="text-gray-500 text-xs mb-2 block">
+                      <Label className="text-gray-500 text-[11px] sm:text-xs mb-1.5 sm:mb-2 block">
                         {t("employee.permissions.attachments")}
                       </Label>
                       <a
                         href={selectedRequest.attachments}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-bold bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800 transition-colors"
+                        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-bold bg-blue-50 dark:bg-blue-900/20 p-2.5 sm:p-3 rounded-xl border border-blue-100 dark:border-blue-800 transition-colors"
                       >
                         <FileText className="h-4 w-4" />
                         {t("employee.permissions.viewFile")}
@@ -1176,17 +1354,17 @@ const Permissions: React.FC = () => {
                   {selectedRequest.status === "REJECTED" &&
                     selectedRequest.rejectionReason && (
                       <div className="text-right">
-                        <Label className="text-red-500 text-xs mb-2 block">
+                        <Label className="text-red-500 text-[11px] sm:text-xs mb-1.5 sm:mb-2 block">
                           {t("employee.permissions.rejectReason")}
                         </Label>
-                        <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-xl border border-red-100 dark:border-red-800 text-red-700 dark:text-red-400 font-bold">
+                        <div className="bg-red-50 dark:bg-red-900/20 p-3 sm:p-4 rounded-xl border border-red-100 dark:border-red-800 text-red-700 dark:text-red-400 text-xs sm:text-sm font-bold">
                           {selectedRequest.rejectionReason}
                         </div>
                       </div>
                     )}
 
                   {selectedRequest.approvedBy && (
-                    <div className="flex items-center justify-end gap-2 text-xs text-gray-500 mt-4">
+                    <div className="flex items-center justify-end gap-1.5 text-xs text-gray-500 mt-3 sm:mt-4">
                       <span>
                         {t("employee.permissions.reviewedBy", { name: `${selectedRequest.approvedBy.firstName} ${selectedRequest.approvedBy.lastName}` })}
                       </span>
@@ -1196,19 +1374,19 @@ const Permissions: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-6 bg-gray-50 dark:bg-gray-900/50 flex gap-4 border-t border-gray-100 dark:border-gray-800">
+              <div className="p-3.5 sm:p-6 bg-gray-50 dark:bg-gray-900/50 flex flex-wrap sm:flex-nowrap gap-2 sm:gap-4 border-t border-gray-100 dark:border-gray-800 shrink-0">
                 <Button
                   variant="outline"
-                  className="flex-1 h-11 rounded-xl"
+                  className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
                   onClick={() => setShowDetailsDialog(false)}
                 >
                   {t("employee.permissions.closeButton")}
                 </Button>
                 {selectedRequest.status === "PENDING" && !isMyPermissions && (
-                  <div className="flex gap-2 flex-[2]">
+                  <div className="flex gap-2 flex-1 sm:flex-[2]">
                     <Button
                       variant="destructive"
-                      className="flex-1 h-11 rounded-xl"
+                      className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
                       onClick={() => {
                         setShowDetailsDialog(false);
                         setShowRejectDialog(true);
@@ -1217,7 +1395,7 @@ const Permissions: React.FC = () => {
                       {t("employee.permissions.rejectButton")}
                     </Button>
                     <Button
-                      className="flex-1 h-11 rounded-xl bg-green-600 hover:bg-green-700 font-bold"
+                      className="flex-1 h-10 sm:h-11 rounded-xl bg-green-600 hover:bg-green-700 font-bold text-xs sm:text-sm"
                       onClick={() => {
                         handleApprove(selectedRequest.id);
                         setShowDetailsDialog(false);
@@ -1234,37 +1412,37 @@ const Permissions: React.FC = () => {
       </Dialog>
 
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent className="sm:max-w-[400px] rounded-2xl bg-white dark:bg-gray-950">
+        <DialogContent className="w-[95vw] sm:max-w-[400px] rounded-2xl bg-white dark:bg-gray-950 p-4 sm:p-6">
           <DialogHeader className="text-right">
-            <div className="mx-auto bg-red-100 p-3 rounded-full w-fit mb-4">
-              <AlertCircle className="h-8 w-8 text-red-600" />
+            <div className="mx-auto bg-red-100 dark:bg-red-900/20 p-2.5 sm:p-3 rounded-full w-fit mb-3 sm:mb-4">
+              <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" />
             </div>
-            <DialogTitle className="text-center font-bold text-xl">
+            <DialogTitle className="text-center font-bold text-lg sm:text-xl">
               {t("employee.permissions.rejectDialogTitle")}
             </DialogTitle>
-            <DialogDescription className="text-center">
+            <DialogDescription className="text-center text-xs sm:text-sm">
               {t("employee.permissions.rejectDialogDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
             <Textarea
               placeholder={t("employee.permissions.rejectPlaceholder")}
-              className="text-right h-32 rounded-xl bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800"
+              className="text-right h-28 sm:h-32 rounded-xl bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-xs sm:text-sm"
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
             />
           </div>
-          <DialogFooter className="flex-row-reverse gap-3 mt-4">
+          <DialogFooter className="flex-row-reverse gap-2 sm:gap-3 mt-3 sm:mt-4">
             <Button
               variant="destructive"
-              className="flex-1 h-11 rounded-xl"
+              className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
               onClick={handleReject}
             >
               {t("employee.permissions.confirmReject")}
             </Button>
             <Button
               variant="outline"
-              className="flex-1 h-11 rounded-xl"
+              className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
               onClick={() => setShowRejectDialog(false)}
             >
               {t("employee.permissions.backButton")}
@@ -1273,22 +1451,22 @@ const Permissions: React.FC = () => {
         </DialogContent>
       </Dialog>
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="sm:max-w-[400px] rounded-2xl bg-white dark:bg-gray-950">
+        <DialogContent className="w-[95vw] sm:max-w-[400px] rounded-2xl bg-white dark:bg-gray-950 p-4 sm:p-6">
           <DialogHeader className="text-right">
-            <div className="mx-auto bg-red-100 p-3 rounded-full w-fit mb-4">
-              <Trash2 className="h-8 w-8 text-red-600" />
+            <div className="mx-auto bg-red-100 dark:bg-red-900/20 p-2.5 sm:p-3 rounded-full w-fit mb-3 sm:mb-4">
+              <Trash2 className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" />
             </div>
-            <DialogTitle className="text-center font-bold text-xl">
+            <DialogTitle className="text-center font-bold text-lg sm:text-xl">
               {t("employee.permissions.deleteTitle")}
             </DialogTitle>
-            <DialogDescription className="text-center">
+            <DialogDescription className="text-center text-xs sm:text-sm">
               {t("employee.permissions.deleteConfirm")}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex-row-reverse gap-3 mt-4">
+          <DialogFooter className="flex-row-reverse gap-2 sm:gap-3 mt-3 sm:mt-4">
             <Button
               variant="destructive"
-              className="flex-1 h-11 rounded-xl font-bold"
+              className="flex-1 h-10 sm:h-11 rounded-xl font-bold text-xs sm:text-sm"
               onClick={confirmDelete}
               disabled={submitting}
             >
@@ -1303,7 +1481,7 @@ const Permissions: React.FC = () => {
             </Button>
             <Button
               variant="outline"
-              className="flex-1 h-11 rounded-xl"
+              className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
               onClick={() => {
                 setShowDeleteDialog(false);
                 setSelectedRequest(null);
