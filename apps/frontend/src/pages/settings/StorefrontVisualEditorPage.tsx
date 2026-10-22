@@ -364,6 +364,7 @@ const StorefrontVisualEditorPage: React.FC = () => {
       onDiscard={handleDiscard}
       onBack={handleBack}
       onOpenPreview={handleOpenPreview}
+      onReload={loadSettings}
       onChange={(nextDesignTokens) => {
         setStorefrontSettings((cur) => {
           const next = cur

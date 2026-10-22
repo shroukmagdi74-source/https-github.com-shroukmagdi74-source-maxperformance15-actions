@@ -648,6 +648,20 @@ model StorefrontSettings {
   @@map("storefront_settings")
 }
 
+model StorefrontSettingsRevision {
+  id             String   @id @default(cuid())
+  companyId      String
+  revisionNumber Int
+  snapshot       Json     // designTokens + themeId
+  createdBy      String?
+  note           String?
+  createdAt      DateTime @default(now())
+
+  @@unique([companyId, revisionNumber])
+  @@index([companyId, createdAt])
+  @@map("storefront_settings_revisions")
+}
+
 model SystemPrompt {
   id        String   @id @default(cuid())
   name      String

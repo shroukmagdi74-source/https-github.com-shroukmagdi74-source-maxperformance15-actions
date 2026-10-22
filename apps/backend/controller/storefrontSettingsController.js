@@ -13,6 +13,7 @@ const FacebookConversionsService = require('../services/facebookConversionsServi
 const { getMetaGraphApiVersion } = require('../config/metaApi');
 const redisCacheService = require('../services/redisCacheService');
 const { isPlaceholderPhone } = require('../utils/placeholderContact');
+const storefrontSettingsRevisionService = require('../services/storefrontSettingsRevisionService');
 
 const DEFAULT_THEME_ID = DEFAULT_STOREFRONT_THEME_ID || 'modern-minimal';
 const DEFAULT_SUPPORTED_LANGUAGES = 'ar,en';
@@ -778,6 +779,25 @@ const updateSettings = async (req, res) => {
       })
     );
 
+    let revision = null;
+    try {
+      const revisionSnapshot = {
+        themeId: settings.designTokens?.themeId || nextDesignTokens.themeId || currentThemeId,
+        designTokens: settings.designTokens || nextDesignTokens,
+      };
+      const revResult = await storefrontSettingsRevisionService.recordRevision({
+        companyId,
+        snapshot: revisionSnapshot,
+        userId: req.user?.id || req.user?.sub || null,
+        note: req.body?.note || req.body?.revisionNote || null,
+      });
+      if (revResult?.created) {
+        revision = revResult.revision;
+      }
+    } catch (revErr) {
+      console.error('⚠️ [STOREFRONT-SETTINGS] Error creating revision on update:', revErr);
+    }
+
     try {
       await redisCacheService.del(`storefront_settings:${companyId}`);
     } catch (err) {
@@ -788,6 +808,7 @@ const updateSettings = async (req, res) => {
       success: true,
       message: 'Storefront settings updated successfully',
       data: serializeStorefrontSettings(settings, company),
+      revision,
     });
   } catch (error) {
     console.error('❌ [STOREFRONT-SETTINGS] Failed to update settings:', error);
@@ -2115,12 +2136,125 @@ const getPublicSettings = async (req, res) => {
   }
 };
 
+
+const getRevisions = async (req, res) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company context is required',
+      });
+    }
+
+    const limit = req.query.limit || 20;
+    const revisions = await storefrontSettingsRevisionService.getRevisions({
+      companyId,
+      limit,
+    });
+
+    return res.json({
+      success: true,
+      data: revisions,
+    });
+  } catch (error) {
+    console.error('❌ [STOREFRONT-SETTINGS] Failed to get revisions:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve revisions',
+      error: error.message,
+    });
+  }
+};
+
+const getRevisionById = async (req, res) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company context is required',
+      });
+    }
+
+    const { id } = req.params;
+    const revision = await storefrontSettingsRevisionService.getRevisionById({
+      companyId,
+      id,
+    });
+
+    if (!revision) {
+      return res.status(404).json({
+        success: false,
+        message: 'Revision not found',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: revision,
+    });
+  } catch (error) {
+    console.error('❌ [STOREFRONT-SETTINGS] Failed to get revision by ID:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve revision',
+      error: error.message,
+    });
+  }
+};
+
+const restoreRevision = async (req, res) => {
+  try {
+    const companyId = resolveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company context is required',
+      });
+    }
+
+    const { id } = req.params;
+    const result = await storefrontSettingsRevisionService.restoreRevision({
+      companyId,
+      id,
+      userId: req.user?.id || req.user?.sub || null,
+    });
+
+    if (!result.ok) {
+      return res.status(result.status || 400).json({
+        success: false,
+        message: result.message || 'Failed to restore revision',
+      });
+    }
+
+    const company = await getCompanyContext(companyId);
+
+    return res.json({
+      success: true,
+      message: `Restored to revision #${result.targetRevision.revisionNumber}`,
+      data: serializeStorefrontSettings(result.restoredSettings, company),
+      revision: result.newRevision,
+    });
+  } catch (error) {
+    console.error('❌ [STOREFRONT-SETTINGS] Failed to restore revision:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to restore revision',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSettings,
   getPublicSettings,
   resolvePublicCompany,
   updateSettings,
   resetSettings,
+  getRevisions,
+  getRevisionById,
+  restoreRevision,
   testFacebookPixel,
   testFacebookCapi,
   sendTestEvent,

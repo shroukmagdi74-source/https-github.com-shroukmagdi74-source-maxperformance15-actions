@@ -8,6 +8,7 @@ import {
 } from "@dnd-kit/sortable";
 
 import { StudioTopBar } from "./StudioTopBar";
+import { StudioHistoryPanel } from "./StudioHistoryPanel";
 import { StudioLeftRail } from "./StudioLeftRail";
 import { StudioElementsPanel } from "./StudioElementsPanel";
 import { StudioLayersDrawer, GripDotsIcon } from "./StudioLayersDrawer";
@@ -304,13 +305,16 @@ interface StorefrontStudioShellProps {
   onOpenPreview: () => void;
   onChange: (nextTokens: Record<string, unknown>) => void;
   companyId?: string;
+  onReload?: () => Promise<void> | void;
 }
 
 export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   themeId, designTokens: externalDesignTokens, storeName = "متجري",
   hasPendingChanges, saving, previewUrl, onSave, onDiscard, onBack, onOpenPreview, onChange,
   companyId: propCompanyId,
+  onReload,
 }) => {
+  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const { user } = useAuth();
   const companyId = propCompanyId || user?.companyId || "";
   const [deviceMode, setDeviceMode] = useState<StudioDeviceMode>("desktop");
@@ -984,6 +988,8 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         onDiscard={onDiscard}
         onSave={onSave}
         onOpenPreview={onOpenPreview}
+        isHistoryOpen={isHistoryOpen}
+        onToggleHistory={() => setIsHistoryOpen((prev) => !prev)}
       />
 
       {/* 2. Main Studio Workspace Chassis with unified DnD */}
@@ -1467,6 +1473,20 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         selectedUrl={
           selectedSectionConfig?.image || selectedSectionConfig?.backgroundImage || ""
         }
+      />
+
+      <StudioHistoryPanel
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        companyId={companyId}
+        onRestoreSuccess={(restoredSettings) => {
+          if (restoredSettings.designTokens) {
+            onChange(restoredSettings.designTokens as Record<string, unknown>);
+          }
+          if (onReload) {
+            void onReload();
+          }
+        }}
       />
 
       {/* Right-click Context Menu */}

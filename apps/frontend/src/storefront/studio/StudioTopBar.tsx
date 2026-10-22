@@ -15,6 +15,7 @@ import {
   PlusIcon,
   ChevronDownIcon,
   CheckIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioDeviceMode, StudioZoomLevel, StudioPageDefinition, PageStyleScope } from "./StudioTypes";
 import { StudioPageSelector } from "./StudioPageSelector";
@@ -53,6 +54,8 @@ interface StudioTopBarProps {
   onDiscard?: () => void;
   onSave: () => void;
   onOpenPreview: () => void;
+  isHistoryOpen?: boolean;
+  onToggleHistory?: () => void;
 }
 
 export const StudioTopBar: React.FC<StudioTopBarProps> = ({
@@ -88,6 +91,8 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
   onDiscard,
   onSave,
   onOpenPreview,
+  isHistoryOpen = false,
+  onToggleHistory,
 }) => {
   const [isZoomMenuOpen, setIsZoomMenuOpen] = useState(false);
 
@@ -391,6 +396,24 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
           >
             <AdjustmentsHorizontalIcon className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">الفاحص</span>
+          </button>
+        )}
+
+        {/* Version History Button */}
+        {onToggleHistory && (
+          <button
+            type="button"
+            data-testid="studio-history-button"
+            onClick={onToggleHistory}
+            className={`flex h-7 sm:h-8 items-center gap-1 rounded-lg px-2 sm:px-2.5 text-xs font-semibold transition-colors ${
+              isHistoryOpen
+                ? "bg-[#2b6cf6]/20 text-[#60a5fa] border border-[#2b6cf6]/40"
+                : "border border-[#32353b] bg-[#202226] text-[#e8eaee] hover:bg-[#282b30] hover:text-white"
+            }`}
+            title="سجل الإصدارات والاسترجاع"
+          >
+            <ClockIcon className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">السجل</span>
           </button>
         )}
 

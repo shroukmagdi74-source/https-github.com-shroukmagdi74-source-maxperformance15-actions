@@ -9,6 +9,10 @@ const publicSettingsLimiter = createRateLimiter({
   endpoint: 'storefront_settings_public',
 });
 
+const revisionsLimiter = createRateLimiter({
+  endpoint: 'storefront_settings_revisions',
+});
+
 // Public storefront settings (no auth required)
 router.get('/public', publicSettingsLimiter, storefrontSettingsController.getPublicSettings);
 
@@ -53,6 +57,30 @@ router.put(
   verifyToken.authenticateToken,
   verifyToken.requireCompanyAccess,
   storefrontSettingsController.updateSettings,
+);
+
+router.get(
+  '/revisions',
+  revisionsLimiter,
+  verifyToken.authenticateToken,
+  verifyToken.requireCompanyAccess,
+  storefrontSettingsController.getRevisions,
+);
+
+router.get(
+  '/revisions/:id',
+  revisionsLimiter,
+  verifyToken.authenticateToken,
+  verifyToken.requireCompanyAccess,
+  storefrontSettingsController.getRevisionById,
+);
+
+router.post(
+  '/revisions/:id/restore',
+  revisionsLimiter,
+  verifyToken.authenticateToken,
+  verifyToken.requireCompanyAccess,
+  storefrontSettingsController.restoreRevision,
 );
 
 router.post(

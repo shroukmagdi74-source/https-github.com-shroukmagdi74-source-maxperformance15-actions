@@ -127,6 +127,25 @@ export interface StorefrontSettings {
   [key: string]: any;
 }
 
+export interface StorefrontSettingsRevisionSummary {
+  id: string;
+  revisionNumber: number;
+  createdAt: string;
+  createdByEmail?: string;
+  createdByName?: string;
+  note?: string | null;
+}
+
+export interface StorefrontSettingsRevision extends StorefrontSettingsRevisionSummary {
+  companyId: string;
+  snapshot: {
+    themeId?: string;
+    designTokens?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  createdBy?: string | null;
+}
+
 export type StorefrontSettingsUpdate = Partial<StorefrontSettings>;
 
 const isRecord = (value: unknown): value is Record<string, any> =>
@@ -542,6 +561,59 @@ export const storefrontSettingsService = {
   getBusinessAccounts: async () => {
     const response = await apiClient.get("/storefront-settings/business-accounts");
     return response.data;
+  },
+
+  getRevisions: async (
+    limit = 20,
+    companyId?: string,
+  ): Promise<{ success: boolean; data: StorefrontSettingsRevisionSummary[] }> => {
+    const response = await apiClient.get("/storefront-settings/revisions", {
+      params: {
+        limit,
+        ...(companyId ? { companyId } : {}),
+      },
+    });
+    return {
+      success: Boolean(response?.data?.success),
+      data: response?.data?.data || [],
+    };
+  },
+
+  getRevisionById: async (
+    id: string,
+    companyId?: string,
+  ): Promise<{ success: boolean; data: StorefrontSettingsRevision }> => {
+    const response = await apiClient.get(`/storefront-settings/revisions/${id}`, {
+      params: companyId ? { companyId } : undefined,
+    });
+    return {
+      success: Boolean(response?.data?.success),
+      data: response?.data?.data,
+    };
+  },
+
+  restoreRevision: async (
+    id: string,
+    companyId?: string,
+  ): Promise<{ success: boolean; data: StorefrontSettings; message?: string }> => {
+    const cacheKey = companyId || "current";
+    delete cachedStorefrontSettings[cacheKey];
+    delete inflightStorefrontPromises[cacheKey];
+    const response = await apiClient.post(
+      `/storefront-settings/revisions/${id}/restore`,
+      {},
+      companyId ? { params: { companyId } } : undefined,
+    );
+    const normalized = normalizeSettings(
+      response?.data?.data || response?.data,
+      companyId,
+    );
+    cachedStorefrontSettings[cacheKey] = normalized;
+    return {
+      success: Boolean(response?.data?.success),
+      data: normalized,
+      message: response?.data?.message,
+    };
   },
 };
 
