@@ -374,6 +374,19 @@ const WhatsAppMetaTemplates: React.FC<{
     return extractVariableNumbers(allText);
   }, [form.headerText, form.bodyText, form.footerText, form.buttonText]);
 
+  // متغيرات الـ BODY فقط — دي اللي ليها قيم تجريبية وبتتحول لقيم وقت الإرسال
+  const bodyVars = useMemo(() => extractVariableNumbers(form.bodyText || ""), [form.bodyText]);
+
+  const insertBodyVariable = useCallback(() => {
+    const numbers = bodyVars.map((v) => parseInt(v.replace(/\D/g, ""), 10));
+    const next = (numbers.length ? Math.max(...numbers) : 0) + 1;
+    setForm((prev) => {
+      const text = (prev.bodyText || "").replace(/\s+$/, "");
+      const separator = !text || text.endsWith("\n") ? "" : " ";
+      return { ...prev, bodyText: `${text}${separator}{{${next}}}` };
+    });
+  }, [bodyVars]);
+
   const previewText = useMemo(() => {
     if (form.category === "AUTHENTICATION") {
       const code = varValues["1"] || "482915";
@@ -401,7 +414,7 @@ const WhatsAppMetaTemplates: React.FC<{
     return text;
   }, [form, extractedVars, varValues]);
 
-  const buildComponents = useCallback((f: typeof initialForm) => {
+  const buildComponents = useCallback((f: typeof initialForm, samples: Record<string, string> = {}) => {
     if (f.category === "AUTHENTICATION") {
       return [
         { type: "BODY", add_security_recommendation: true },
@@ -418,18 +431,41 @@ const WhatsAppMetaTemplates: React.FC<{
         },
       ];
     }
-    const components: any[] = [
-      { type: "BODY", text: f.bodyText },
-    ];
+
+    const sampleFor = (token: string) => {
+      const key = token.replace(/\D/g, "");
+      return samples[key] || `مثال ${key}`;
+    };
+    const fillSamples = (text: string) =>
+      extractVariableNumbers(text).reduce(
+        (acc, token) => acc.replace(new RegExp(`\\{\\{${token.replace(/\D/g, "")}\\}\\}`, "g"), sampleFor(token)),
+        text,
+      );
+
+    const components: any[] = [];
     if (f.headerFormat === "TEXT" && f.headerText) {
-      components.unshift({ type: "HEADER", format: "TEXT", text: f.headerText });
+      const header: any = { type: "HEADER", format: "TEXT", text: f.headerText };
+      // ميتا تطلب example.header_text لو الرأس فيه متغيرات — من غيره القالب يترفض
+      if (extractVariableNumbers(f.headerText).length > 0) {
+        header.example = { header_text: [fillSamples(f.headerText)] };
+      }
+      components.push(header);
     } else if (f.headerFormat !== "TEXT") {
-      const headerComp: any = { type: "HEADER", format: f.headerFormat };
-      if (f.headerMediaHandle) headerComp.headerHandle = f.headerMediaHandle;
-      components.unshift(headerComp);
+      const header: any = { type: "HEADER", format: f.headerFormat };
+      if (f.headerMediaHandle) header.headerHandle = f.headerMediaHandle;
+      components.push(header);
     } else if (f.headerText) {
-      components.unshift({ type: "HEADER", format: "TEXT", text: f.headerText });
+      components.push({ type: "HEADER", format: "TEXT", text: f.headerText });
     }
+
+    // BODY + قيم تجريبية حقيقية بدل example1/example2 اللي بيحطها الباك إند افتراضيًا
+    const bodyComp: any = { type: "BODY", text: f.bodyText };
+    const bodyTokens = extractVariableNumbers(f.bodyText || "");
+    if (bodyTokens.length > 0) {
+      bodyComp.example = { body_text: [bodyTokens.map(sampleFor)] };
+    }
+    components.push(bodyComp);
+
     if (f.footerText) {
       components.push({ type: "FOOTER", text: f.footerText });
     }
@@ -462,7 +498,7 @@ const WhatsAppMetaTemplates: React.FC<{
     if (!checkPassed) return;
     try {
       setSending(true);
-      const components = buildComponents(form);
+      const components = buildComponents(form, varValues);
 
       await apiClient.post(
         "/whatsapp-templates/templates",
@@ -483,7 +519,7 @@ const WhatsAppMetaTemplates: React.FC<{
     } finally {
       setSending(false);
     }
-  }, [form, sanitizedName, nameValid, selectedSessionId, withCompanyConfig, fetchTemplates, buildComponents, handleComplianceCheck]);
+  }, [form, varValues, sanitizedName, nameValid, selectedSessionId, withCompanyConfig, fetchTemplates, buildComponents, handleComplianceCheck]);
 
   const handleEdit = useCallback(async () => {
     if (!editForm || !editForm.name) {
@@ -1713,13 +1749,13 @@ const WhatsAppMetaTemplates: React.FC<{
       <Button
         onClick={() => { setCreateStep(1); setCreateOpen(true); }}
         aria-label="إنشاء قالب جديد"
-        className="fixed bottom-4 left-1/2 z-20 h-14 w-14 -translate-x-1/2 rounded-full bg-gradient-to-br from-[color:var(--color-primary)] to-[color:var(--color-primary)]/70 p-0 text-white shadow-lg shadow-[color:var(--color-primary)]/30 transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95 md:hidden"
+        className="fixed bottom-24 left-1/2 z-20 h-14 w-14 -translate-x-1/2 rounded-full bg-gradient-to-br from-[color:var(--color-primary)] to-[color:var(--color-primary)]/70 p-0 text-white shadow-lg shadow-[color:var(--color-primary)]/30 transition-all duration-200 hover:scale-105 hover:shadow-xl active:scale-95 md:hidden"
       >
         <Plus className="size-6" />
       </Button>
 
       <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { setCreateStep(1); setShowCompliance(false); setComplianceResults([]); } }}>
-        <DialogContent className="max-w-xl sm:rounded-3xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto max-w-xl sm:rounded-3xl">
           <DialogHeader>
             <DialogTitle>قالب جديد</DialogTitle>
             <DialogDescription>
@@ -1734,13 +1770,13 @@ const WhatsAppMetaTemplates: React.FC<{
               { step: 3, label: "المراجعة" },
             ].map((s, i) => (
               <React.Fragment key={s.step}>
-                {i > 0 && <div className={`h-0.5 flex-1 rounded-full transition-all duration-300 ${createStep >= s.step ? 'bg-[var(--shell-ring)]' : 'bg-[color:var(--shell-control-border)]'}`} />}
+                {i > 0 && <div className={`h-0.5 flex-1 rounded-full transition-all duration-300 ${createStep >= s.step ? 'bg-[color:var(--color-primary)]' : 'bg-[color:var(--shell-control-border)]'}`} />}
                 <button
                   type="button"
                   onClick={() => setCreateStep(s.step as 1 | 2 | 3)}
                   className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:scale-[1.03] active:scale-95 ${
                     createStep === s.step
-                      ? "bg-[color:var(--shell-ring)] text-white shadow-sm"
+                      ? "bg-[color:var(--color-primary)] text-[color:var(--color-primary-foreground)] shadow-sm"
                       : "bg-[var(--color-muted)] text-[color:var(--color-muted-foreground)] hover:bg-[var(--shell-overlay-bg)]"
                   }`}
                 >
@@ -1817,7 +1853,7 @@ const WhatsAppMetaTemplates: React.FC<{
                       </Select>
                       {form.headerFormat === "TEXT" && (
                         <Input value={form.headerText} onChange={(e) => setForm((p) => ({ ...p, headerText: e.target.value }))}
-                          placeholder="السلام عليكم يا {{1}}" className="h-11 flex-1" />
+                          placeholder="السلام عليكم يا {{1}}" maxLength={60} className="h-11 flex-1" />
                       )}
                       {form.headerFormat !== "TEXT" && (
                         <HeaderMediaUploadField
@@ -1877,9 +1913,15 @@ const WhatsAppMetaTemplates: React.FC<{
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label>محتوى الرسالة *</Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label>محتوى الرسالة *</Label>
+                      <span className={`text-[11px] tabular-nums ${form.bodyText.length > 1024 ? "text-red-500" : "text-[color:var(--color-muted-foreground)]"}`}>
+                        {form.bodyText.length}/1024
+                      </span>
+                    </div>
                     <Textarea value={form.bodyText} onChange={(e) => setForm((p) => ({ ...p, bodyText: e.target.value }))}
                       placeholder={"مرحباً {{1}}\nطلبك رقم {{2}} جاهز للاستلام."}
+                      maxLength={1024}
                       className="min-h-[140px]" />
                     {form.bodyText && !bodyVarsOk && (
                       <p className="text-[11px] text-red-500 dark:text-red-400">
@@ -1887,16 +1929,71 @@ const WhatsAppMetaTemplates: React.FC<{
                       </p>
                     )}
                   </div>
+
+                  {/* لوحة المتغيرات: إدراج سريع + قيم تجريبية تُرسل لميتا للمراجعة */}
+                  <div className="space-y-2 rounded-2xl border border-[color:var(--shell-control-border)] bg-[var(--color-muted)] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[color:var(--color-foreground)]">المتغيرات</p>
+                        <p className="text-[11px] text-[color:var(--color-muted-foreground)]">
+                          كل {"{{n}}"} بيتحوّل لقيمة العميل وقت الإرسال.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 shrink-0 rounded-full text-xs"
+                        onClick={insertBodyVariable}
+                      >
+                        <Plus className="ml-1 size-3.5" /> إضافة متغير
+                      </Button>
+                    </div>
+
+                    {bodyVars.length === 0 ? (
+                      <p className="text-[11px] text-[color:var(--color-muted-foreground)]">
+                        مفيش متغيرات لحد دلوقتي — اضغط «إضافة متغير» لإدراج {"{{1}}"} ثم {"{{2}}"} … حسب ترتيب الظهور.
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="space-y-1.5">
+                          {bodyVars.map((v) => {
+                            const key = v.replace(/\D/g, "");
+                            return (
+                              <div key={key} className="flex items-center gap-2">
+                                <code className="w-12 shrink-0 rounded-md bg-[var(--shell-overlay-bg)] px-1.5 py-0.5 text-center font-mono text-[11px] text-[color:var(--color-muted-foreground)]">{v}</code>
+                                <Input
+                                  value={varValues[key] || ""}
+                                  onChange={(e) => setVarValues((p) => ({ ...p, [key]: e.target.value }))}
+                                  placeholder="قيمة تجريبية (تظهر لمراجعة ميتا)"
+                                  className="h-8 flex-1 text-xs"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-[color:var(--color-muted-foreground)]">
+                          القيم دي للمراجعة فقط — القيم الحقيقية بتتحدد وقت الإرسال.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-2">
-                    <Label>تذييل الرسالة (اختياري)</Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label>تذييل الرسالة (اختياري)</Label>
+                      <span className={`text-[11px] tabular-nums ${form.footerText.length > 60 ? "text-red-500" : "text-[color:var(--color-muted-foreground)]"}`}>
+                        {form.footerText.length}/60
+                      </span>
+                    </div>
                     <Input value={form.footerText} onChange={(e) => setForm((p) => ({ ...p, footerText: e.target.value }))}
-                      placeholder="شكراً لاختيارك متجرنا" className="h-11" />
+                      placeholder="شكراً لاختيارك متجرنا" maxLength={60} className="h-11" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>نص الزر (اختياري)</Label>
                       <Input value={form.buttonText} onChange={(e) => setForm((p) => ({ ...p, buttonText: e.target.value }))}
-                        placeholder="تتبع الطلب" className="h-11" />
+                        placeholder="تتبع الطلب" maxLength={25} className="h-11" />
                     </div>
                     <div className="space-y-2">
                       <Label>رابط الزر (اختياري)</Label>
@@ -1909,27 +2006,6 @@ const WhatsAppMetaTemplates: React.FC<{
                       )}
                     </div>
                   </div>
-                  {extractedVars.length > 0 && (
-                    <div className="space-y-2 rounded-2xl border border-[color:var(--shell-control-border)] bg-[var(--color-muted)] p-3">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-[color:var(--color-muted-foreground)]">اختبار المتغيرات</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {extractedVars.map((v) => {
-                          const key = v.replace(/\D/g, "");
-                          return (
-                            <div key={key} className="flex items-center gap-2">
-                              <span className="text-xs font-mono text-[color:var(--color-muted-foreground)]">{v}</span>
-                              <Input
-                                value={varValues[key] || ""}
-                                onChange={(e) => setVarValues((p) => ({ ...p, [key]: e.target.value }))}
-                                placeholder={`قيمة ${key}`}
-                                className="h-8 w-28 text-xs"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -2102,7 +2178,7 @@ const WhatsAppMetaTemplates: React.FC<{
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={(o) => { if (!o) { setEditOpen(false); setEditForm(null); } }}>
-        <DialogContent className="max-w-xl sm:rounded-3xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto max-w-xl sm:rounded-3xl">
           <DialogHeader>
             <DialogTitle>تعديل القالب</DialogTitle>
             <DialogDescription>
@@ -2316,7 +2392,7 @@ const WhatsAppMetaTemplates: React.FC<{
               <div className="flex flex-col items-center gap-3 py-12 text-center">
                 <Search className="size-10 text-[color:var(--color-muted-foreground)]" />
                 <p className="text-sm text-[color:var(--color-muted-foreground)]">لا توجد نتائج للبحث</p>
-                <button onClick={() => setLibrarySearch("")} className="text-xs text-[var(--shell-ring)] underline-offset-2 hover:underline">مسح البحث</button>
+                <button onClick={() => setLibrarySearch("")} className="text-xs text-[var(--color-primary)] underline-offset-2 hover:underline">مسح البحث</button>
               </div>
             ) : (
               Object.entries(libraryByCategory).map(([category, templates]) => {
@@ -2338,7 +2414,7 @@ const WhatsAppMetaTemplates: React.FC<{
                           key={libTpl.id}
                           onClick={() => applyLibraryTemplate(libTpl)}
                           style={{ animationDelay: `${idx * 50}ms` }}
-                          className="group w-full rounded-2xl border border-[color:var(--shell-control-border)] bg-[var(--color-muted)] p-4 text-right transition-all duration-200 hover:scale-[1.01] hover:border-[color:var(--shell-ring)] hover:shadow-md hover:bg-[var(--shell-overlay-bg)]"
+                          className="group w-full rounded-2xl border border-[color:var(--shell-control-border)] bg-[var(--color-muted)] p-4 text-right transition-all duration-200 hover:scale-[1.01] hover:border-[color:var(--color-primary)] hover:shadow-md hover:bg-[var(--shell-overlay-bg)]"
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0 flex-1">
@@ -2371,8 +2447,8 @@ const WhatsAppMetaTemplates: React.FC<{
                                 ))}
                               </div>
                             </div>
-                            <div className="shrink-0 self-center rounded-xl border border-[color:var(--shell-control-border)] bg-[var(--shell-overlay-bg)] p-2 transition-all duration-200 group-hover:scale-110 group-hover:border-[color:var(--shell-ring)]">
-                              <Plus className="size-4 text-[color:var(--color-muted-foreground)] transition-colors group-hover:text-[var(--shell-ring)]" />
+                            <div className="shrink-0 self-center rounded-xl border border-[color:var(--shell-control-border)] bg-[var(--shell-overlay-bg)] p-2 transition-all duration-200 group-hover:scale-110 group-hover:border-[color:var(--color-primary)]">
+                              <Plus className="size-4 text-[color:var(--color-muted-foreground)] transition-colors group-hover:text-[var(--color-primary)]" />
                             </div>
                           </div>
                         </button>

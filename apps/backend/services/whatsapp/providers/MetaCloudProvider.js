@@ -694,7 +694,9 @@ async function checkContact(sessionId, phoneNumbers) {
 function generateComponentExamples(components) {
   return components.map(comp => {
     if (comp.type === 'BODY' && comp.text) {
-      const varCount = (comp.text.match(/\{\{\d+\}\}/g) || []).length;
+      // عدد المتغيرات الفريد (مش عدد مرات التكرار) — ميتا تطلب قيمة لكل متغير مرة واحدة،
+      // فلو {{1}} اتكرر مرتين لازم يفضل عنصر واحد في المصفوفة وإلا القالب يترفض.
+      const varCount = new Set(comp.text.match(/\{\{\d+\}\}/g) || []).size;
       if (varCount > 0 && !comp.example) {
         const examples = Array.from({ length: varCount }, (_, i) => `example${i + 1}`);
         return { ...comp, example: { body_text: [examples] } };
