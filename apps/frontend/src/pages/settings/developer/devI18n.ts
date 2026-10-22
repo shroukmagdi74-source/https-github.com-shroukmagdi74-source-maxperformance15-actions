@@ -72,6 +72,7 @@ export interface DevStrings {
     paramType: string;
     paramRequired: string;
     paramDescription: string;
+    requestBodyTitle: string;
     responseTitle: string;
     required: string;
     optional: string;
@@ -195,6 +196,7 @@ const ar: DevStrings = {
     paramType: "النوع",
     paramRequired: "مطلوب",
     paramDescription: "الوصف",
+    requestBodyTitle: "جسم الطلب (Request Body)",
     responseTitle: "مثال الاستجابة",
     required: "مطلوب",
     optional: "اختياري",
@@ -322,6 +324,7 @@ const en: DevStrings = {
     paramType: "Type",
     paramRequired: "Required",
     paramDescription: "Description",
+    requestBodyTitle: "Request Body",
     responseTitle: "Sample response",
     required: "required",
     optional: "optional",

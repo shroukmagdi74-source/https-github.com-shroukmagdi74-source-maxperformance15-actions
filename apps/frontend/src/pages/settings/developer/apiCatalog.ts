@@ -26,6 +26,7 @@ export interface DevApiEndpoint {
   description_ar: string;
   description_en: string;
   params?: DevApiParam[];
+  requestBodyExample?: unknown;
   responseExample: unknown;
 }
 
@@ -358,6 +359,128 @@ export const DEV_API_GROUPS: DevApiGroup[] = [
       },
     ],
   },
+  {
+    id: "agents",
+    name_ar: "وكلاء الذكاء الاصطناعي",
+    name_en: "AI Agents",
+    endpoints: [
+      {
+        id: "agents-list",
+        method: "GET",
+        path: "/agents",
+        scope: "agents:read",
+        summary_ar: "قائمة وكلاء الشركة الذكاء الاصطناعي",
+        summary_en: "List Company AI Agents",
+        description_ar: "قائمة الوكلاء المتاحين للشركة مع الوكيل التنفيذي الافتراضي والصلاحيات والقنوات.",
+        description_en: "Available AI agents with default copilot status and allowed channels.",
+        params: [],
+        responseExample: {
+          success: true,
+          data: {
+            defaultAgentSlug: "executive-assistant-agent",
+            agents: [
+              {
+                id: "executive-assistant-agent",
+                slug: "executive-assistant-agent",
+                name: "سليم — المساعد التنفيذي",
+                role: "EXECUTIVE_ASSISTANT",
+                title: "المساعد التنفيذي للمنصة وإدارة العمليات",
+                description: "المتابعة التنفيذية الشاملة، مؤشرات الأداء، الأوردرات والمخزون، وتفويض المهام.",
+                badge: "المساعد التنفيذي",
+                isDefault: true,
+                allowedChannels: ["DASHBOARD", "WHATSAPP", "EXTERNAL_API"],
+                suggestedPrompts: [
+                  "أعطني ملخصاً تنفيذياً لحالة البيزنس والمبيعات اليوم",
+                  "ما هي أهم النواقص أو العمليات المعلقة التي تحتاج تدخلاً فوري؟",
+                ],
+              },
+              {
+                id: "facebook-media-buyer-agent",
+                slug: "facebook-media-buyer-agent",
+                name: "الميديا باير المحترف",
+                role: "MEDIA_BUYER",
+                title: "خبير إعلانات ميتا وفيسبوك",
+                description: "إدارة الميزانيات، صياغة زوايا البيع، مراقبة الـ CPA وقرارات SCALE و KILL.",
+                badge: "إعلانات وتسويق",
+                isDefault: false,
+                allowedChannels: ["DASHBOARD", "EXTERNAL_API"],
+              },
+            ],
+          },
+        },
+      },
+      {
+        id: "agents-chat",
+        method: "POST",
+        path: "/agents/chat",
+        scope: "agents:chat",
+        summary_ar: "محادثة مباشرة مع وكيل الشركة",
+        summary_en: "Chat with Company Agent",
+        description_ar: "إرسال رسالة مباشرة إلى وكيل الشركة الذكي والحصول على الرد الفوري وتنفيذ الأدوات والاحتفاظ بسياق المحادثة عبر sessionId.",
+        description_en: "Send a direct message to the company AI agent, get immediate response, and maintain multi-turn memory.",
+        params: [
+          { name: "message", type: "string", required: true, description_ar: "نص الرسالة أو الاستفسار أو الطلب", description_en: "User message or inquiry", example: "أعطني ملخصاً تنفيذياً لحالة الطلبات والمخزون اليوم" },
+          { name: "agentId", type: "string", description_ar: "معرّف الوكيل (اختياري، الافتراضي هو وكيل الشركة المعتمد)", description_en: "Target agent id or slug", example: "executive-assistant-agent" },
+          { name: "sessionId", type: "string", description_ar: "معرّف الجلسة لحفظ سياق المحادثة", description_en: "Session ID for multi-turn conversational context", example: "ext_sess_1001" },
+        ],
+        requestBodyExample: {
+          message: "أعطني ملخصاً تنفيذياً لحالة الطلبات والمخزون اليوم",
+          agentId: "executive-assistant-agent",
+          sessionId: "ext_sess_1001",
+          context: {
+            channel: "external_crm",
+            priority: "high",
+          },
+        },
+        responseExample: {
+          success: true,
+          data: {
+            reply: "إليك ملخص اليوم: إجمالي الطلبات 42 طلب، منها 35 تم تأكيدها و 7 قيد المراجعة. المخزون بحالة جيدة باستثناء منتجين أقل من حد الأمان.",
+            agent: {
+              id: "executive-assistant-agent",
+              name: "سليم — المساعد التنفيذي",
+            },
+            sessionId: "ext_sess_1001",
+            toolCalls: [],
+            model: "gemini-2.5-flash",
+          },
+        },
+      },
+      {
+        id: "agents-history",
+        method: "GET",
+        path: "/agents/chat/history",
+        scope: "agents:read",
+        summary_ar: "سجل محادثة الجلسة",
+        summary_en: "Session Message History",
+        description_ar: "استرجاع تاريخ رسائل جلسة محادثة معينة لمعرفة الحوار السابق.",
+        description_en: "Retrieve conversation history for a given sessionId.",
+        params: [
+          { name: "sessionId", type: "string", required: true, description_ar: "معرّف الجلسة المطلوب استرجاعها", description_en: "Session ID to retrieve", example: "ext_sess_1001" },
+        ],
+        responseExample: {
+          success: true,
+          data: {
+            sessionId: "ext_sess_1001",
+            messages: [
+              {
+                id: "msg_1",
+                role: "user",
+                text: "أعطني ملخصاً تنفيذياً لحالة الطلبات اليوم",
+                createdAt: "2026-10-22T14:00:00.000Z",
+              },
+              {
+                id: "msg_2",
+                role: "assistant",
+                text: "إليك ملخص اليوم: إجمالي الطلبات 42 طلب...",
+                createdAt: "2026-10-22T14:00:03.000Z",
+              },
+            ],
+          },
+        },
+      },
+    ],
+  },
 ];
 
 export const ALL_CATALOG_ENDPOINTS = DEV_API_GROUPS.flatMap((group) => group.endpoints);
@@ -382,7 +505,17 @@ export const buildCurl = (endpoint: DevApiEndpoint, baseUrl: string, presentedKe
     .join("&");
   const fullUrl = query ? `${url}?${query}` : url;
   const key = presentedKey || "YOUR_API_KEY";
-  return [`curl -X ${endpoint.method} "${fullUrl}" \\`, `  -H "${PRESENTED_HEADER}: Bearer ${key}"`].join("\n");
+  const lines = [
+    `curl -X ${endpoint.method} "${fullUrl}" \\`,
+    `  -H "${PRESENTED_HEADER}: Bearer ${key}"`,
+  ];
+  if (endpoint.method === "POST") {
+    lines.push(`  -H "Content-Type: application/json"`);
+    if (endpoint.requestBodyExample) {
+      lines.push(`  -d '${JSON.stringify(endpoint.requestBodyExample, null, 2)}'`);
+    }
+  }
+  return lines.join(" \\\n");
 };
 
 // ─── Downloads ──────────────────────────────────────────────────────────────
@@ -402,7 +535,7 @@ export const downloadJsonFile = (filename: string, data: unknown): void => {
 export const buildPostmanCollection = (baseUrl: string) => ({
   info: {
     name: "MaxP Merchant API",
-    description: "Read-only merchant API. Set the maxp_credential variable to a key from Settings → Developer.",
+    description: "Merchant API. Set the maxp_credential variable to a key from Settings → Developer.",
     schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
   },
   variable: [
@@ -415,7 +548,18 @@ export const buildPostmanCollection = (baseUrl: string) => ({
       name: endpoint.summary_en,
       request: {
         method: endpoint.method,
-        header: [{ key: PRESENTED_HEADER, value: "Bearer {{maxp_credential}}" }],
+        header: [
+          { key: PRESENTED_HEADER, value: "Bearer {{maxp_credential}}" },
+          ...(endpoint.method === "POST" ? [{ key: "Content-Type", value: "application/json" }] : []),
+        ],
+        body:
+          endpoint.method === "POST" && endpoint.requestBodyExample
+            ? {
+                mode: "raw",
+                raw: JSON.stringify(endpoint.requestBodyExample, null, 2),
+                options: { raw: { language: "json" } },
+              }
+            : undefined,
         url: {
           raw: `{{base_url}}${API_BASE_PATH}${endpoint.path}?${(endpoint.params || [])
             .filter((param) => !param.required && param.example)
@@ -439,7 +583,7 @@ export const buildOpenApiDocument = (baseUrl: string) => ({
   info: {
     title: "MaxP Merchant API",
     version: "1.0.0",
-    description: "Read-only merchant API exposed by the MaxP Developer Hub.",
+    description: "Merchant API exposed by the MaxP Developer Hub.",
   },
   servers: [{ url: `${baseUrl}${API_BASE_PATH}` }],
   components: {
@@ -460,6 +604,18 @@ export const buildOpenApiDocument = (baseUrl: string) => ({
           required: Boolean(param.required),
           schema: { type: param.type === "date" ? "string" : param.type },
         })),
+        requestBody:
+          endpoint.method === "POST" && endpoint.requestBodyExample
+            ? {
+                required: true,
+                content: {
+                  "application/json": {
+                    schema: { type: "object" },
+                    example: endpoint.requestBodyExample,
+                  },
+                },
+              }
+            : undefined,
         responses: {
           "200": {
             description: "OK",

@@ -164,18 +164,22 @@ const createMerchantApiAuth = ({ credentialType = 'API' } = {}) => async (req, r
 const merchantApiAuth = createMerchantApiAuth();
 
 /**
- * Scope guard factory: requireScope('orders:read')
+ * Scope guard factory: requireScope('orders:read') or requireScope(['agents:read', 'agents:chat'])
  */
 const requireScope = (scope) => (req, res, next) => {
   const credential = req.merchantCredential;
   if (!credential) {
     return res.status(401).json({ success: false, code: 'API_KEY_REQUIRED', message: 'مفتاح API مطلوب' });
   }
-  if (!developerApiService.hasScope(credential.scopes, scope)) {
+  const allowed = Array.isArray(scope)
+    ? scope.some((s) => developerApiService.hasScope(credential.scopes, s))
+    : developerApiService.hasScope(credential.scopes, scope);
+  if (!allowed) {
+    const requiredStr = Array.isArray(scope) ? scope.join(' أو ') : scope;
     return res.status(403).json({
       success: false,
       code: 'SCOPE_REQUIRED',
-      message: `هذا المفتاح لا يملك صلاحية ${scope}`,
+      message: `هذا المفتاح لا يملك صلاحية ${requiredStr}`,
     });
   }
   return next();

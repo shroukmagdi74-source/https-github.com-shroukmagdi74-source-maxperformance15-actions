@@ -92,8 +92,14 @@ const ApiDocsTab: React.FC = () => {
         selected.params?.find((param) => param.required)?.example || "id",
       );
       const queryString = filtersQuery(selected);
+      const isPost = selected.method === "POST";
       const response = await fetch(`${tryBase}${resolvedPath}${queryString ? `?${queryString}` : ""}`, {
-        headers: { authorization: `Bearer ${tryKey.trim()}` },
+        method: selected.method,
+        headers: {
+          authorization: `Bearer ${tryKey.trim()}`,
+          ...(isPost ? { "Content-Type": "application/json" } : {}),
+        },
+        body: isPost && selected.requestBodyExample ? JSON.stringify(selected.requestBodyExample) : undefined,
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
@@ -275,6 +281,17 @@ const ApiDocsTab: React.FC = () => {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {selected.requestBodyExample && (
+            <div className="rounded-md border border-border">
+              <div className="border-b border-border px-2.5 py-2">
+                <p className="text-xs font-medium text-muted-foreground">{s.docs.requestBodyTitle}</p>
+              </div>
+              <pre dir="ltr" className="max-h-72 overflow-auto p-2.5 font-mono text-xs leading-relaxed text-foreground">
+                {JSON.stringify(selected.requestBodyExample, null, 2)}
+              </pre>
             </div>
           )}
 

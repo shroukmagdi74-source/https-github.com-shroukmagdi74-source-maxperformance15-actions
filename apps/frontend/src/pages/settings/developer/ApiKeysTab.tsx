@@ -36,6 +36,8 @@ const DEFAULT_READ_SCOPES = [
   "customers:read",
   "coupons:read",
   "analytics:read",
+  "agents:read",
+  "agents:chat",
 ];
 
 const ApiKeysTab: React.FC = () => {

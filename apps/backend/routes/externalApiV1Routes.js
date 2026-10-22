@@ -401,4 +401,66 @@ router.get('/analytics/summary', requireScope('analytics:read'), async (req, res
   }
 });
 
+// ─── AI Agents ─────────────────────────────────────────────────────────────
+const externalAgentChatService = require('../services/externalAgentChatService');
+
+/**
+ * GET /api/v1/public/ext/agents
+ * List available company AI agents and the active copilot agent.
+ */
+router.get('/agents', requireScope(['agents:read', 'agents:chat']), async (req, res) => {
+  try {
+    const data = await externalAgentChatService.listCompanyAgents(req.merchantCredential.companyId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return degrade(res, 'agents list', error);
+  }
+});
+
+/**
+ * POST /api/v1/public/ext/agents/chat
+ * Send a message directly to the company's AI agent with persistent session memory.
+ */
+router.post('/agents/chat', requireScope('agents:chat'), async (req, res) => {
+  try {
+    const { message, agentId, agentSlug, sessionId, threadId, context, memoryContext, images, attachments } = req.body || {};
+    const result = await externalAgentChatService.sendAgentMessage({
+      companyId: req.merchantCredential.companyId,
+      credential: req.merchantCredential,
+      message,
+      agentId: agentId || agentSlug,
+      sessionId: sessionId || threadId,
+      context: context || memoryContext,
+      attachments,
+      images,
+    });
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    if (error.code === 'MESSAGE_REQUIRED' || error.statusCode === 400) {
+      return res.status(400).json({ success: false, code: 'MESSAGE_REQUIRED', message: error.message });
+    }
+    return degrade(res, 'agent chat', error);
+  }
+});
+
+/**
+ * GET /api/v1/public/ext/agents/chat/history
+ * Retrieve message history for a conversation session.
+ */
+router.get('/agents/chat/history', requireScope(['agents:read', 'agents:chat']), async (req, res) => {
+  try {
+    const sessionId = req.query.sessionId || req.query.threadId;
+    if (!sessionId) {
+      return res.status(400).json({ success: false, code: 'SESSION_ID_REQUIRED', message: 'معرف الجلسة sessionId مطلوب' });
+    }
+    const data = await externalAgentChatService.getSessionHistory({
+      companyId: req.merchantCredential.companyId,
+      sessionId,
+    });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return degrade(res, 'agent session history', error);
+  }
+});
+
 module.exports = router;

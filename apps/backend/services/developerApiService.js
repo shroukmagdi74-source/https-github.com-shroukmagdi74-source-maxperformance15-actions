@@ -26,11 +26,13 @@ const SCOPE_DEFINITIONS = [
   { key: 'analytics:read', group: 'analytics', label_ar: 'قراءة التحليلات', label_en: 'Read analytics' },
   { key: 'video:read', group: 'video', label_ar: 'قراءة مهام الفيديو', label_en: 'Read video tasks' },
   { key: 'video:create', group: 'video', label_ar: 'إنشاء فيديوهات Veo', label_en: 'Create Veo videos' },
+  { key: 'agents:read', group: 'agents', label_ar: 'قراءة وكلاء الشركة', label_en: 'Read company agents' },
+  { key: 'agents:chat', group: 'agents', label_ar: 'المحادثة مع وكلاء الشركة', label_en: 'Chat with company agents' },
 ];
 
 const ALL_SCOPE_KEYS = SCOPE_DEFINITIONS.map((s) => s.key);
 
-// Default scopes for a new credential: read-only. Video creation stays opt-in
+// Default scopes for a new credential: read-only + agents. Video creation stays opt-in
 // (it consumes Veo credits) and must be granted explicitly by the merchant.
 const DEFAULT_SCOPE_KEYS = [
   'products:read',
@@ -39,6 +41,8 @@ const DEFAULT_SCOPE_KEYS = [
   'customers:read',
   'coupons:read',
   'analytics:read',
+  'agents:read',
+  'agents:chat',
 ];
 
 const normalizeScopes = (scopes) => {
