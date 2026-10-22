@@ -28,7 +28,7 @@ const {
 const { formatProductResponse } = require('../utils/productNormalizationUtils');
 const { validateStock } = require('../utils/stockValidation');
 const { MAX_PRODUCT_STOCK } = require('../utils/stockValidation');
-const { INVALID_SLUG_ERROR_MESSAGE, isInvalidProductSlug } = require('../utils/productSlugValidation');
+const { INVALID_SLUG_ERROR_MESSAGE, isInvalidProductSlug, normalizeProductSlugForSave } = require('../utils/productSlugValidation');
 const ragKnowledgeMaintenanceService = require('../services/rag/RagKnowledgeMaintenanceService');
 const aiServiceAdminClient = require('../services/aiServiceAdminClient');
 const productOfferService = require('../services/whatsapp/productOfferService');
@@ -1840,8 +1840,9 @@ const updateSingleProduct = async (req, res) => {
     // Handle slug update
     if (updateData.slug !== undefined) {
       if (updateData.slug && updateData.slug.trim() !== '') {
-        const newSlug = updateData.slug.trim();
-        const existingSlug = existingProduct.slug ? existingProduct.slug.trim() : null;
+        const rawNewSlug = updateData.slug.trim();
+                const existingSlug = existingProduct.slug ? existingProduct.slug.trim() : null;
+                const newSlug = rawNewSlug === existingSlug ? rawNewSlug : normalizeProductSlugForSave(rawNewSlug);
 
         // Reject if the slug is being changed and contains invalid patterns (spaces, encoded chars, digits-only)
         if (newSlug !== existingSlug && isInvalidProductSlug(newSlug)) {
@@ -2314,7 +2315,10 @@ const createProduct = async (req, res) => {
 
     // Generate or validate slug
     let productSlug = req.body.slug ? req.body.slug.trim() : null;
-    if (productSlug && isInvalidProductSlug(productSlug)) {
+        if (productSlug) {
+          productSlug = normalizeProductSlugForSave(productSlug);
+        }
+        if (productSlug && isInvalidProductSlug(productSlug)) {
       return res.status(400).json({
         success: false,
         message: INVALID_SLUG_ERROR_MESSAGE,

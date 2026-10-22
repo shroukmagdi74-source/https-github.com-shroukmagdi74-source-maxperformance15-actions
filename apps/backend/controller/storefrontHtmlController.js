@@ -189,8 +189,25 @@ exports.handleStorefrontShell = async (req, res, next) => {
         routeContext.productKey
           ? safeQuery(() => {
               const key = routeContext.productKey;
-              const spacedKey = key.replace(/-/g, " ");
-              const hyphenatedKey = key.replace(/\s+/g, "-");
+              let decodedKey = key;
+              try {
+                decodedKey = decodeURIComponent(key);
+              } catch {
+                // ignore
+              }
+              const slugCandidates = new Set([
+                key,
+                decodedKey,
+                key.replace(/-/g, " "),
+                decodedKey.replace(/-/g, " "),
+                key.replace(/\s+/g, "-"),
+                decodedKey.replace(/\s+/g, "-"),
+                key.replace(/[-\s]+/g, "_"),
+                decodedKey.replace(/[-\s]+/g, "_"),
+                key.replace(/_+/g, "-"),
+                decodedKey.replace(/_+/g, "-"),
+              ]);
+              slugCandidates.delete("");
               return prisma.product.findFirst({
                 where: {
                   companyId: req.companyId,
@@ -199,9 +216,8 @@ exports.handleStorefrontShell = async (req, res, next) => {
                   isHidden: false,
                   OR: [
                     { id: key },
-                    { slug: key },
-                    ...(spacedKey !== key ? [{ slug: spacedKey }] : []),
-                    ...(hyphenatedKey !== key ? [{ slug: hyphenatedKey }] : []),
+                    ...(decodedKey !== key ? [{ id: decodedKey }] : []),
+                    ...Array.from(slugCandidates).map((s) => ({ slug: s })),
                   ],
                 },
                 select: {
@@ -363,6 +379,26 @@ exports.handleStorefrontShell = async (req, res, next) => {
     // If a single slug was requested (e.g. /car-sunshades) and it didn't match a custom store page,
     // check if it matches an active product or published landing page for this store and redirect seamlessly.
     if (routeContext.storePageSlug && !storePage) {
+      const spKey = routeContext.storePageSlug;
+      let decodedSpKey = spKey;
+      try {
+        decodedSpKey = decodeURIComponent(spKey);
+      } catch {
+        // ignore
+      }
+      const spSlugCandidates = new Set([
+        spKey,
+        decodedSpKey,
+        spKey.replace(/-/g, " "),
+        decodedSpKey.replace(/-/g, " "),
+        spKey.replace(/\s+/g, "-"),
+        decodedSpKey.replace(/\s+/g, "-"),
+        spKey.replace(/[-\s]+/g, "_"),
+        decodedSpKey.replace(/[-\s]+/g, "_"),
+        spKey.replace(/_+/g, "-"),
+        decodedSpKey.replace(/_+/g, "-"),
+      ]);
+      spSlugCandidates.delete("");
       const matchedProduct = await safeQuery(() =>
         prisma.product.findFirst({
           where: {
@@ -371,8 +407,9 @@ exports.handleStorefrontShell = async (req, res, next) => {
             deletedAt: null,
             isHidden: false,
             OR: [
-              { id: routeContext.storePageSlug },
-              { slug: routeContext.storePageSlug },
+              { id: spKey },
+              ...(decodedSpKey !== spKey ? [{ id: decodedSpKey }] : []),
+              ...Array.from(spSlugCandidates).map((s) => ({ slug: s })),
             ],
           },
           select: { slug: true },

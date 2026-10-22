@@ -92,9 +92,32 @@ function getPublicProductSlug(slug) {
   return reachableAliases.has(canonical) ? canonical : stored;
 }
 
+/**
+ * Normalizes a slug on save (create / update).
+ * Replaces underscores with hyphens, collapses duplicate hyphens, and trims hyphens from ends.
+ * Does NOT remove spaces (so invalid slugs with spaces are still caught by isInvalidProductSlug).
+ */
+function normalizeProductSlugForSave(slug) {
+  if (!slug || typeof slug !== "string") {
+    return "";
+  }
+  let decoded = slug;
+  try {
+    decoded = decodeURIComponent(slug);
+  } catch {
+    // ignore
+  }
+  return decoded
+    .trim()
+    .replace(/_+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 module.exports = {
   INVALID_SLUG_ERROR_MESSAGE,
   isInvalidProductSlug,
   getCanonicalProductSlug,
   getPublicProductSlug,
+  normalizeProductSlugForSave,
 };

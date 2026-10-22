@@ -160,19 +160,21 @@ function buildProductLookupOrConditions(rawIdentifier) {
     // ignore
   }
 
-  const conditions = [{ slug: trimmed }];
-  if (decoded !== trimmed) {
-    conditions.push({ slug: decoded });
-  }
+  const slugSet = new Set([
+    trimmed,
+    decoded,
+    trimmed.replace(/-/g, ' '),
+    decoded.replace(/-/g, ' '),
+    trimmed.replace(/\s+/g, '-'),
+    decoded.replace(/\s+/g, '-'),
+    trimmed.replace(/[-\s]+/g, '_'),
+    decoded.replace(/[-\s]+/g, '_'),
+    trimmed.replace(/_+/g, '-'),
+    decoded.replace(/_+/g, '-'),
+  ]);
+  slugSet.delete('');
 
-  const spaced = decoded.replace(/-/g, ' ');
-  if (spaced !== decoded && spaced !== trimmed) {
-    conditions.push({ slug: spaced });
-  }
-  const hyphenated = decoded.replace(/\s+/g, '-');
-  if (hyphenated !== decoded && hyphenated !== trimmed) {
-    conditions.push({ slug: hyphenated });
-  }
+  const conditions = Array.from(slugSet).map((s) => ({ slug: s }));
 
   if (trimmed.length > 20) {
     conditions.unshift({ id: trimmed });

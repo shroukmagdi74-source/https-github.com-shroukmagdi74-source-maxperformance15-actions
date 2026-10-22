@@ -4,6 +4,7 @@ const {
   isInvalidProductSlug,
   getCanonicalProductSlug,
   getPublicProductSlug,
+  normalizeProductSlugForSave,
   INVALID_SLUG_ERROR_MESSAGE,
 } = require("../../utils/productSlugValidation");
 
@@ -61,6 +62,24 @@ describe("Product Slug Validation & Normalization Unit Tests", () => {
   // Regression: SLUG-404 — a stored underscore slug was 301-ed to a hyphenated
   // slug that no storefront lookup can resolve, so the live product page 404ed
   // and the sitemap/canonical tag advertised the dead URL.
+  describe("normalizeProductSlugForSave", () => {
+    it("converts underscores to hyphens and strips duplicate hyphens", () => {
+      expect(normalizeProductSlugForSave("Hagar_Khfaf")).toBe("Hagar-Khfaf");
+      expect(normalizeProductSlugForSave("my__product_name")).toBe("my-product-name");
+      expect(normalizeProductSlugForSave("_leading_and_trailing_")).toBe("leading-and-trailing");
+    });
+
+    it("preserves spaces so isInvalidProductSlug can reject them", () => {
+      expect(normalizeProductSlugForSave("bad slug with spaces")).toBe("bad slug with spaces");
+    });
+
+    it("handles already clean hyphens, empty, or null", () => {
+      expect(normalizeProductSlugForSave("clean-slug")).toBe("clean-slug");
+      expect(normalizeProductSlugForSave("")).toBe("");
+      expect(normalizeProductSlugForSave(null)).toBe("");
+    });
+  });
+
   describe("getPublicProductSlug", () => {
     it("keeps a stored underscore slug (its hyphenated form is NOT reachable)", () => {
       expect(getPublicProductSlug("Hagar_Khfaf")).toBe("Hagar_Khfaf");
@@ -107,6 +126,7 @@ describe("Product Controller Slug Validation (Integration with controller)", () 
       executeWithRetry: jest.fn(async (operation) => operation()),
     }));
 
+    jest.mock("../../utils/imageProcessor", () => ({}));
     jest.mock("../../utils/planLimitPayloads", () => ({
       ensureWithinPlanLimit: jest.fn().mockResolvedValue({ allowed: true }),
     }));
@@ -218,6 +238,39 @@ describe("Product Controller Slug Validation (Integration with controller)", () 
     });
   });
 
+    it("normalizes underscore slug to hyphens when creating a product", async () => {
+      mockPrisma.product.create.mockResolvedValue({
+        id: "prod-new",
+        companyId: "comp-1",
+        name: "Hagar Khfaf",
+        slug: "Hagar-Khfaf",
+        price: 1200,
+      });
+
+      const req = {
+        user: { id: "user-1", companyId: "comp-1" },
+        body: {
+          name: "Hagar Khfaf",
+          price: 1200,
+          slug: "Hagar_Khfaf",
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+
+      await productController.createProduct(req, res);
+
+      expect(mockPrisma.product.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            slug: "Hagar-Khfaf",
+          }),
+        }),
+      );
+    });
+
   describe("updateSingleProduct slug validation", () => {
     it("allows editing an existing product without changing the slug (200), even if existing slug has a space", async () => {
       const existingProduct = {
@@ -290,6 +343,48 @@ describe("Product Controller Slug Validation (Integration with controller)", () 
         expect.objectContaining({
           success: false,
           message: INVALID_SLUG_ERROR_MESSAGE,
+        }),
+      );
+    });
+
+    it("normalizes underscore slug to hyphens when updating a product slug", async () => {
+      const existingProduct = {
+        id: "prod-1",
+        companyId: "comp-1",
+        name: "Existing Product",
+        slug: "existing-product",
+        price: 200,
+        images: "[]",
+        metadata: "{}",
+        isActive: true,
+      };
+
+      mockPrisma.product.findUnique.mockResolvedValue(existingProduct);
+      mockPrisma.product.findFirst.mockResolvedValue(null);
+      mockPrisma.product.update.mockResolvedValue({
+        ...existingProduct,
+        slug: "Hagar-Khfaf",
+      });
+
+      const req = {
+        user: { id: "user-1", companyId: "comp-1" },
+        params: { id: "prod-1" },
+        body: {
+          slug: "Hagar_Khfaf",
+        },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+
+      await productController.updateSingleProduct(req, res);
+
+      expect(mockPrisma.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            slug: "Hagar-Khfaf",
+          }),
         }),
       );
     });

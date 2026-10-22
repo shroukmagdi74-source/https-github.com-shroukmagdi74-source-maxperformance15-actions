@@ -181,4 +181,119 @@ describe("Storefront Slug Auto-Redirect", () => {
 
     expect(res.redirect).toHaveBeenCalledWith(301, "/product/%C5%9E%C4%B1k-Sole?source=ad");
   });
+  it("does NOT redirect when product has underscore slug and is requested by that slug (/product/Hagar_Khfaf -> 200)", async () => {
+    mockPrisma.product.findFirst.mockResolvedValue({
+      id: "cmv45r1uz19oxjup993hrp3ov",
+      slug: "Hagar_Khfaf",
+    });
+
+    const req = {
+      method: "GET",
+      path: "/product/Hagar_Khfaf",
+      url: "/product/Hagar_Khfaf",
+      originalUrl: "/product/Hagar_Khfaf",
+      companyId: "cmttxw3hg1wq4ju430g8muja0",
+      company: { id: "cmttxw3hg1wq4ju430g8muja0", name: "Ahmed Gad" },
+      headers: {
+        host: "ahmedgad.maxp.online",
+        accept: "text/html,application/xhtml+xml",
+      },
+      get: jest.fn((h) => (h === "host" ? "ahmedgad.maxp.online" : null)),
+      protocol: "https",
+    };
+
+    const res = {
+      redirect: jest.fn(),
+      set: jest.fn(),
+      setHeader: jest.fn(),
+      removeHeader: jest.fn(),
+      getHeader: jest.fn().mockReturnValue(null),
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+    };
+
+    const next = jest.fn();
+
+    await handleStorefrontShell(req, res, next);
+
+    // Strict SLUG-404 rule: NO redirect when requested URL matches stored slug
+    expect(res.redirect).not.toHaveBeenCalled();
+    expect(res.send).toHaveBeenCalled();
+  });
+
+  it("redirects hyphenated alias /product/Hagar-Khfaf to stored slug /product/Hagar_Khfaf with 301", async () => {
+    mockPrisma.product.findFirst.mockResolvedValue({
+      id: "cmv45r1uz19oxjup993hrp3ov",
+      slug: "Hagar_Khfaf",
+    });
+
+    const req = {
+      method: "GET",
+      path: "/product/Hagar-Khfaf",
+      url: "/product/Hagar-Khfaf",
+      originalUrl: "/product/Hagar-Khfaf",
+      companyId: "cmttxw3hg1wq4ju430g8muja0",
+      company: { id: "cmttxw3hg1wq4ju430g8muja0", name: "Ahmed Gad" },
+      headers: {
+        host: "ahmedgad.maxp.online",
+        accept: "text/html,application/xhtml+xml",
+      },
+      get: jest.fn((h) => (h === "host" ? "ahmedgad.maxp.online" : null)),
+      protocol: "https",
+    };
+
+    const res = {
+      redirect: jest.fn(),
+      set: jest.fn(),
+      setHeader: jest.fn(),
+      removeHeader: jest.fn(),
+      getHeader: jest.fn().mockReturnValue(null),
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+    };
+
+    const next = jest.fn();
+
+    await handleStorefrontShell(req, res, next);
+
+    expect(res.redirect).toHaveBeenCalledWith(301, "/product/Hagar_Khfaf");
+  });
+
+  it("redirects product URL accessed by ID to stored underscore slug with 301", async () => {
+    mockPrisma.product.findFirst.mockResolvedValue({
+      id: "cmv45r1uz19oxjup993hrp3ov",
+      slug: "Hagar_Khfaf",
+    });
+
+    const req = {
+      method: "GET",
+      path: "/product/cmv45r1uz19oxjup993hrp3ov",
+      url: "/product/cmv45r1uz19oxjup993hrp3ov?ref=fb",
+      originalUrl: "/product/cmv45r1uz19oxjup993hrp3ov?ref=fb",
+      companyId: "cmttxw3hg1wq4ju430g8muja0",
+      company: { id: "cmttxw3hg1wq4ju430g8muja0", name: "Ahmed Gad" },
+      headers: {
+        host: "ahmedgad.maxp.online",
+        accept: "text/html,application/xhtml+xml",
+      },
+      get: jest.fn((h) => (h === "host" ? "ahmedgad.maxp.online" : null)),
+      protocol: "https",
+    };
+
+    const res = {
+      redirect: jest.fn(),
+      set: jest.fn(),
+      setHeader: jest.fn(),
+      removeHeader: jest.fn(),
+      getHeader: jest.fn().mockReturnValue(null),
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+    };
+
+    const next = jest.fn();
+
+    await handleStorefrontShell(req, res, next);
+
+    expect(res.redirect).toHaveBeenCalledWith(301, "/product/Hagar_Khfaf?ref=fb");
+  });
 });
