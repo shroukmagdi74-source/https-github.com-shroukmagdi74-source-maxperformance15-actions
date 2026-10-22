@@ -298,17 +298,50 @@ export const storefrontSettingsService = {
 
     if (!inflightStorefrontPromises[cacheKey] || options?.force) {
       inflightStorefrontPromises[cacheKey] = (async () => {
+        const hasToken =
+          typeof window !== "undefined" &&
+          Boolean(
+            window.localStorage.getItem("accessToken") ||
+            window.localStorage.getItem("token")
+          );
+
+        // If unauthenticated visitor, use public endpoint directly
+        if (!hasToken) {
+          try {
+            const publicRes = await storefrontSettingsService.getPublicSettings(companyId, options?.force);
+            if (publicRes?.success && publicRes.data) {
+              cachedStorefrontSettings[cacheKey] = publicRes.data;
+              return { data: publicRes.data };
+            }
+          } catch {
+            // fallback below
+          }
+        }
+
         try {
           const response = await apiClient.get("/storefront-settings", {
             params: companyId ? { companyId } : undefined,
-          });
+            _skipErrorToast: true,
+          } as any);
           const normalized = normalizeSettings(
             response?.data?.data || response?.data,
             companyId,
           );
           cachedStorefrontSettings[cacheKey] = normalized;
           return { data: normalized };
-        } catch (error) {
+        } catch (error: any) {
+          const status = error?.response?.status || error?.status;
+          if (status === 401 || !hasToken) {
+            try {
+              const publicRes = await storefrontSettingsService.getPublicSettings(companyId, options?.force);
+              if (publicRes?.success && publicRes.data) {
+                cachedStorefrontSettings[cacheKey] = publicRes.data;
+                return { data: publicRes.data };
+              }
+            } catch {
+              // fallback below
+            }
+          }
           if (options?.allowFallback === false) {
             throw error;
           }
@@ -368,28 +401,46 @@ export const storefrontSettingsService = {
   },
 
   getPublicSettings: async (
-    companyId: string,
+    companyId?: string,
     forceRefresh = false,
   ): Promise<{ success: boolean; data: StorefrontSettings }> => {
-    if (!companyId) {
-      return { success: false, data: buildDefaultSettings("") };
+    try {
+      const response = await apiClient.get("/storefront-settings/public", {
+        params: companyId ? { companyId, company: companyId } : undefined,
+        _skipErrorToast: true,
+        _skipAuthRefresh: true,
+      } as any);
+      const payload = response?.data?.data || response?.data;
+      if (payload) {
+        const normalized = normalizePublicSettingsPayload(payload, companyId || "");
+        return {
+          success: true,
+          data: normalized,
+        };
+      }
+    } catch {
+      // Fallback to storefrontFetch
     }
 
-    try {
-      const response = await storefrontFetch("/storefront/settings", {
-        companyId,
-        cache: forceRefresh ? "reload" : "default",
-      });
-      return {
-        success: Boolean(response?.success !== false),
-        data: normalizePublicSettingsPayload(response, companyId),
-      };
-    } catch {
-      return {
-        success: false,
-        data: buildDefaultSettings(companyId),
-      };
+    if (companyId) {
+      try {
+        const response = await storefrontFetch("/storefront/settings", {
+          companyId,
+          cache: forceRefresh ? "reload" : "default",
+        });
+        return {
+          success: Boolean(response?.success !== false),
+          data: normalizePublicSettingsPayload(response, companyId),
+        };
+      } catch {
+        // Fallback below
+      }
     }
+
+    return {
+      success: false,
+      data: buildDefaultSettings(companyId || ""),
+    };
   },
 
   clearCache: (companyId: string) => {

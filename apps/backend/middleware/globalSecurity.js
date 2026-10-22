@@ -505,8 +505,11 @@ const PUBLIC_ROUTES = [
   'GET /api/v1/public/footer-settings/*',
   'POST /api/v1/public/footer-settings/*',
 
-  // Public storefront settings
-  'GET /api/v1/public/storefront-settings/*',
+  // Public storefront settings (Ticket HF-1.1)
+  'GET /api/v1/storefront-settings/public*',
+  'GET /api/v1/storefront/public-settings*',
+  'GET /api/v1/storefront/settings/public*',
+  'GET /api/v1/public/storefront-settings*',
   'POST /api/v1/public/storefront-settings/*',
 
   // Public coupons

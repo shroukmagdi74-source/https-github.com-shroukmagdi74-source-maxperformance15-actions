@@ -3,6 +3,15 @@ const router = express.Router();
 const storefrontSettingsController = require('../controller/storefrontSettingsController');
 const storefrontThemeCatalogController = require('../controller/storefrontThemeCatalogController');
 const verifyToken = require('../utils/verifyToken');
+const { createRateLimiter } = require('../middleware/rateLimiter');
+
+const publicSettingsLimiter = createRateLimiter({
+  endpoint: 'storefront_settings_public',
+});
+
+// Public storefront settings (no auth required)
+router.get('/public', publicSettingsLimiter, storefrontSettingsController.getPublicSettings);
+
 
 router.get(
   '/',

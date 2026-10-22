@@ -972,6 +972,7 @@ app.use("/api/v1/analytics", analyticsRoutes);
 app.use("/api/v1/analytics/order-movement", require("./routes/orderMovementRoutes"));
 app.use("/api/v1/storefront-settings", storefrontSettingsRoutes);
 app.use("/api/v1/storefront/settings", storefrontSettingsRoutes); // Convenient alias
+app.get("/api/v1/storefront/public-settings", (req, res, next) => require("./controller/storefrontSettingsController").getPublicSettings(req, res, next));
 app.use("/api/v1/checkout-form-settings", checkoutFormSettingsRoutes);
 app.use("/api/v1/post-purchase-offer", postPurchaseOfferRoutes);
 app.use("/api/v1/footer-settings", footerSettingsRoutes);

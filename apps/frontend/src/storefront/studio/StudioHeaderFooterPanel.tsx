@@ -340,12 +340,17 @@ export const StudioHeaderFooterPanel: React.FC<StudioHeaderFooterPanelProps> = (
               </label>
             </div>
 
-            {/* Announcement Bar */}
+            {/* Announcement Bar — inputs always visible (HF-1.1), switch controls appearance on storefront */}
             <div className="rounded-xl border border-[#2c2f35] bg-[#1a1b1f] p-3 space-y-2.5">
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-[11.5px] font-bold text-[#cfd3db]">
-                  شريط الإعلان العلوي (Announcement)
-                </span>
+                <div>
+                  <span className="text-[11.5px] font-bold text-[#cfd3db] block">
+                    شريط الإعلان العلوي (Announcement)
+                  </span>
+                  <span className="text-[10px] text-[#8b9199]">
+                    تفعيل ظهور شريط الإعلان أعلى الهيدر في المتجر
+                  </span>
+                </div>
                 <input
                   data-testid="hf-announcement-enabled"
                   type="checkbox"
@@ -364,67 +369,65 @@ export const StudioHeaderFooterPanel: React.FC<StudioHeaderFooterPanelProps> = (
                 />
               </label>
 
-              {header.announcement?.enabled && (
-                <div className="space-y-2 pt-1 border-t border-[#26282e]">
-                  <input
-                    data-testid="hf-announcement-text"
-                    type="text"
-                    value={header.announcement?.text || ""}
-                    onChange={(e) =>
-                      updateHeader({
-                        announcement: {
-                          bg: header.announcement?.bg || "#000000",
-                          fg: header.announcement?.fg || "#ffffff",
-                          enabled: true,
-                          text: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="نص شريط الإعلان..."
-                    className="w-full rounded-lg border border-[#34373e] bg-[#16171a] px-3 py-1.5 text-xs text-white placeholder-[#686d76] focus:border-[#2b6cf6] focus:outline-none"
-                  />
-                  <div className="grid grid-cols-2 gap-2 text-[10.5px]">
-                    <div>
-                      <span className="block text-[#8b9199] mb-1">لون الخلفية:</span>
-                      <input
-                        data-testid="hf-announcement-bg"
-                        type="color"
-                        value={header.announcement?.bg || "#000000"}
-                        onChange={(e) =>
-                          updateHeader({
-                            announcement: {
-                              text: header.announcement?.text || "",
-                              fg: header.announcement?.fg || "#ffffff",
-                              enabled: true,
-                              bg: e.target.value,
-                            },
-                          })
-                        }
-                        className="h-8 w-full cursor-pointer rounded border border-[#34373e] bg-transparent"
-                      />
-                    </div>
-                    <div>
-                      <span className="block text-[#8b9199] mb-1">لون الخط:</span>
-                      <input
-                        data-testid="hf-announcement-fg"
-                        type="color"
-                        value={header.announcement?.fg || "#ffffff"}
-                        onChange={(e) =>
-                          updateHeader({
-                            announcement: {
-                              text: header.announcement?.text || "",
-                              bg: header.announcement?.bg || "#000000",
-                              enabled: true,
-                              fg: e.target.value,
-                            },
-                          })
-                        }
-                        className="h-8 w-full cursor-pointer rounded border border-[#34373e] bg-transparent"
-                      />
-                    </div>
+              <div className="space-y-2 pt-1 border-t border-[#26282e]">
+                <input
+                  data-testid="hf-announcement-text"
+                  type="text"
+                  value={header.announcement?.text || ""}
+                  onChange={(e) =>
+                    updateHeader({
+                      announcement: {
+                        bg: header.announcement?.bg || "#000000",
+                        fg: header.announcement?.fg || "#ffffff",
+                        enabled: header.announcement?.enabled === true,
+                        text: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="نص شريط الإعلان..."
+                  className="w-full rounded-lg border border-[#34373e] bg-[#16171a] px-3 py-1.5 text-xs text-white placeholder-[#686d76] focus:border-[#2b6cf6] focus:outline-none"
+                />
+                <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                  <div>
+                    <span className="block text-[#8b9199] mb-1">لون الخلفية:</span>
+                    <input
+                      data-testid="hf-announcement-bg"
+                      type="color"
+                      value={header.announcement?.bg || "#000000"}
+                      onChange={(e) =>
+                        updateHeader({
+                          announcement: {
+                            text: header.announcement?.text || "",
+                            fg: header.announcement?.fg || "#ffffff",
+                            enabled: header.announcement?.enabled === true,
+                            bg: e.target.value,
+                          },
+                        })
+                      }
+                      className="h-8 w-full cursor-pointer rounded border border-[#34373e] bg-transparent"
+                    />
+                  </div>
+                  <div>
+                    <span className="block text-[#8b9199] mb-1">لون الخط:</span>
+                    <input
+                      data-testid="hf-announcement-fg"
+                      type="color"
+                      value={header.announcement?.fg || "#ffffff"}
+                      onChange={(e) =>
+                        updateHeader({
+                          announcement: {
+                            text: header.announcement?.text || "",
+                            bg: header.announcement?.bg || "#000000",
+                            enabled: header.announcement?.enabled === true,
+                            fg: e.target.value,
+                          },
+                        })
+                      }
+                      className="h-8 w-full cursor-pointer rounded border border-[#34373e] bg-transparent"
+                    />
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Menu Links (Max 8) */}

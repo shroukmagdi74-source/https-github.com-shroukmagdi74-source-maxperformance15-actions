@@ -1970,8 +1970,155 @@ const getClarityAnalytics = async (req, res) => {
   }
 };
 
+const resolvePublicCompany = async (req) => {
+  if (req.company?.id) {
+    return req.company;
+  }
+
+  // 1. Query parameters (?company=slug, ?slug=slug, ?companySlug=slug, ?companyId=id)
+  const queryCompany = req.query?.company || req.query?.slug || req.query?.companySlug;
+  const queryCompanyId = req.query?.companyId;
+
+  if (queryCompanyId && typeof queryCompanyId === 'string') {
+    const byId = await runStorefrontSettingsQuery((prisma) =>
+      prisma.company.findFirst({
+        where: { id: queryCompanyId.trim(), isActive: true },
+        select: { id: true, name: true, slug: true, customDomain: true, currency: true },
+      })
+    );
+    if (byId) return byId;
+  }
+
+  if (queryCompany && typeof queryCompany === 'string') {
+    const cleanSlug = queryCompany.trim().toLowerCase();
+    const bySlug = await runStorefrontSettingsQuery((prisma) =>
+      prisma.company.findFirst({
+        where: { slug: cleanSlug, isActive: true },
+        select: { id: true, name: true, slug: true, customDomain: true, currency: true },
+      })
+    );
+    if (bySlug) return bySlug;
+  }
+
+  // 2. Custom headers (x-company-slug, x-company-subdomain, x-subdomain, x-company-id)
+  const headerSlug =
+    req.headers['x-company-slug'] ||
+    req.headers['x-company-subdomain'] ||
+    req.headers['x-subdomain'];
+  if (headerSlug && typeof headerSlug === 'string') {
+    const cleanHeader = headerSlug.split(':')[0].trim().toLowerCase();
+    const candidateSlug = cleanHeader.includes('.') ? cleanHeader.split('.')[0] : cleanHeader;
+    if (candidateSlug && candidateSlug !== 'www' && candidateSlug !== 'localhost') {
+      const byHeader = await runStorefrontSettingsQuery((prisma) =>
+        prisma.company.findFirst({
+          where: { slug: candidateSlug, isActive: true },
+          select: { id: true, name: true, slug: true, customDomain: true, currency: true },
+        })
+      );
+      if (byHeader) return byHeader;
+    }
+  }
+
+  const headerCompanyId = req.headers['x-company-id'];
+  if (headerCompanyId && typeof headerCompanyId === 'string') {
+    const byHeaderId = await runStorefrontSettingsQuery((prisma) =>
+      prisma.company.findFirst({
+        where: { id: headerCompanyId.trim(), isActive: true },
+        select: { id: true, name: true, slug: true, customDomain: true, currency: true },
+      })
+    );
+    if (byHeaderId) return byHeaderId;
+  }
+
+  // 3. Host header (subdomain or custom domain)
+  const host = req.headers['host'];
+  if (host && typeof host === 'string') {
+    const hostname = host.split(':')[0].trim().toLowerCase();
+    const exactHostname = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+
+    const byCustomDomain = await runStorefrontSettingsQuery((prisma) =>
+      prisma.company.findFirst({
+        where: { customDomain: exactHostname, isActive: true },
+        select: { id: true, name: true, slug: true, customDomain: true, currency: true },
+      })
+    );
+    if (byCustomDomain) return byCustomDomain;
+
+    const parts = hostname.split('.');
+    if (parts.length >= 3 && parts[0] !== 'www') {
+      const subdomain = parts[0];
+      const bySubdomain = await runStorefrontSettingsQuery((prisma) =>
+        prisma.company.findFirst({
+          where: { slug: subdomain, isActive: true },
+          select: { id: true, name: true, slug: true, customDomain: true, currency: true },
+        })
+      );
+      if (bySubdomain) return bySubdomain;
+    }
+  }
+
+  return null;
+};
+
+const getPublicSettings = async (req, res) => {
+  try {
+    const company = await resolvePublicCompany(req);
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found',
+      });
+    }
+
+    const settings = await runStorefrontSettingsQuery((prisma) =>
+      prisma.storefrontSettings.findUnique({
+        where: { companyId: company.id },
+        select: {
+          designTokens: true,
+        },
+      })
+    );
+
+    const rawTokens = isRecord(settings?.designTokens) ? settings.designTokens : {};
+    const safeDesignTokens = {
+      pages: isRecord(rawTokens.pages) ? rawTokens.pages : {},
+      pageOverrides: isRecord(rawTokens.pageOverrides) ? rawTokens.pageOverrides : {},
+      pageStyles: isRecord(rawTokens.pageStyles) ? rawTokens.pageStyles : {},
+      global: isRecord(rawTokens.global) ? rawTokens.global : {},
+      i18n: isRecord(rawTokens.i18n) ? rawTokens.i18n : {},
+      theme: isRecord(rawTokens.theme) ? rawTokens.theme : {},
+    };
+
+    const themeId =
+      (typeof rawTokens.themeId === 'string' && rawTokens.themeId.trim()) ||
+      DEFAULT_THEME_ID;
+
+    res.set('Cache-Control', 'public, max-age=60');
+
+    return res.json({
+      success: true,
+      data: {
+        themeId,
+        companySlug: company.slug || null,
+        storeName: company.name,
+        designTokens: safeDesignTokens,
+      },
+    });
+  } catch (error) {
+    console.error('❌ [STOREFRONT-SETTINGS] Failed to get public settings:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to load public storefront settings',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSettings,
+  getPublicSettings,
+  resolvePublicCompany,
   updateSettings,
   resetSettings,
   testFacebookPixel,

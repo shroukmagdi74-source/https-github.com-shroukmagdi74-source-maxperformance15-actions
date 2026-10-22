@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getStorefrontScope, storefrontFetch } from '../../utils/storefrontApi';
-import type { StorefrontSettings as PublicStorefrontSettings } from '../../services/storefrontSettingsService';
+import { storefrontSettingsService, type StorefrontSettings as PublicStorefrontSettings } from '../../services/storefrontSettingsService';
 import {
   resolvePreviewSource,
   resolvePreviewThemeId,
@@ -196,9 +196,14 @@ export const fetchStorefrontSettings = async (
   }
 
   try {
-    const response = await storefrontFetch('/storefront/settings');
-    if (response.success) {
-      const companyId = response.data?.company?.id;
+    const [storefrontRes, publicSettingsRes] = await Promise.all([
+      storefrontFetch('/storefront/settings').catch((err) => ({ success: false, error: err, message: err?.message })),
+      storefrontSettingsService.getPublicSettings().catch(() => null),
+    ]);
+
+    if (storefrontRes && storefrontRes.success) {
+      const data = storefrontRes.data;
+      const companyId = data?.company?.id;
       if (typeof window !== 'undefined' && typeof companyId === 'string' && companyId.trim()) {
         try {
           window.localStorage.setItem('storefront_companyId', companyId);
@@ -207,7 +212,82 @@ export const fetchStorefrontSettings = async (
         }
       }
 
-      return applyPreviewTheme(response.data, previewThemeId, previewSource);
+      // Merge public designTokens (global, pages, pageStyles, i18n, etc.) from public config (HF-1.1)
+      if (publicSettingsRes?.success && publicSettingsRes.data?.designTokens) {
+        const pubTokens = publicSettingsRes.data.designTokens;
+        const prevSfGlobal = (data.storefront?.designTokens as any)?.global || {};
+        const prevSettingsGlobal = (data.storefrontSettings?.designTokens as any)?.global || {};
+        const pubGlobal = pubTokens.global || {};
+
+        data.storefront = {
+          ...data.storefront,
+          designTokens: {
+            ...(data.storefront?.designTokens || {}),
+            ...pubTokens,
+            global: {
+              ...prevSfGlobal,
+              ...pubGlobal,
+              header: {
+                ...(prevSfGlobal.header || {}),
+                ...(pubGlobal.header || {}),
+              },
+              footer: {
+                ...(prevSfGlobal.footer || {}),
+                ...(pubGlobal.footer || {}),
+              },
+            },
+          },
+        };
+        data.storefrontSettings = {
+          ...(data.storefrontSettings || {}),
+          designTokens: {
+            ...(data.storefrontSettings?.designTokens || {}),
+            ...pubTokens,
+            global: {
+              ...prevSettingsGlobal,
+              ...pubGlobal,
+              header: {
+                ...(prevSettingsGlobal.header || {}),
+                ...(pubGlobal.header || {}),
+              },
+              footer: {
+                ...(prevSettingsGlobal.footer || {}),
+                ...(pubGlobal.footer || {}),
+              },
+            },
+          },
+        };
+      }
+
+      return applyPreviewTheme(data, previewThemeId, previewSource);
+    }
+
+    if (publicSettingsRes?.success && publicSettingsRes.data) {
+      const pubData = publicSettingsRes.data;
+      const fallbackSettings: StorefrontSettings = {
+        company: {
+          id: pubData.companyId || 'company',
+          name: pubData.storeName || 'Storefront',
+          slug: pubData.companySlug || 'store',
+          logo: null,
+          currency: pubData.currency || 'EGP',
+          settings: {},
+        },
+        storefront: {
+          themeId: pubData.themeId || 'modern-minimal',
+          apps: {},
+          designTokens: pubData.designTokens || {},
+          storefrontFeatures: DEFAULT_STOREFRONT_FEATURES,
+          settings: {
+            storeName: pubData.storeName || 'Storefront',
+            currency: pubData.currency || 'EGP',
+          },
+        },
+        storefrontSettings: pubData,
+        templateId: null,
+        lastUpdated: pubData.updatedAt || new Date().toISOString(),
+      };
+      return applyPreviewTheme(fallbackSettings, previewThemeId, previewSource);
     }
 
     const previewFallback = await buildPreviewStorefrontSettingsFallback(
@@ -218,7 +298,7 @@ export const fetchStorefrontSettings = async (
       return previewFallback;
     }
 
-    throw new Error(response.message || 'Failed to fetch settings');
+    throw new Error(storefrontRes?.message || 'Failed to fetch settings');
   } catch (error) {
     const previewFallback = await buildPreviewStorefrontSettingsFallback(
       previewThemeId,
