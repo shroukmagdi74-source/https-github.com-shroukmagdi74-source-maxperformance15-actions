@@ -116,7 +116,7 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
           type="button"
           onClick={() => setIsOpen(true)}
           disabled={isSwitchingCompany}
-          className="flex min-w-0 max-w-[7.75rem] items-center gap-2 rounded-lg border border-border/70 bg-card px-2.5 py-2 text-right text-foreground transition-all hover:bg-muted/40 active:scale-[0.98] disabled:opacity-50"
+          className="flex min-w-0 sm:max-w-[7.75rem] items-center gap-1.5 sm:gap-2 rounded-lg border border-border/70 bg-card px-2 py-1.5 sm:px-2.5 sm:py-2 text-right text-foreground transition-all hover:bg-muted/40 active:scale-[0.98] disabled:opacity-50"
           title={switcherLabel}
           aria-label={switcherLabel}
         >
@@ -128,7 +128,7 @@ const CompanySwitcher: React.FC<CompanySwitcherProps> = ({
             )}
           </span>
 
-          <span className="min-w-0 flex-1 text-right">
+          <span className="sr-only sm:not-sr-only sm:min-w-0 sm:flex-1 text-right">
             <span className="block truncate text-xs font-semibold leading-tight text-foreground">
               {currentCompanyName}
             </span>

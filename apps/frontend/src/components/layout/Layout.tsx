@@ -613,6 +613,17 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
                 <BookOpenIcon className="h-4 w-4 text-gray-500 dark:text-gray-400 shrink-0" />
                 <span>{t("sidebar.platformExplanations", "شرح المنصة")}</span>
               </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsProfileMenuOpen(false);
+                  toggleMerchantCopilot();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-start cursor-pointer"
+              >
+                <Cpu className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>{t("header.merchantCopilot", "المساعد التنفيذي للمتجر")}</span>
+              </button>
               {isSuperAdmin && (
                 <Link
                   to="/super-admin/dashboard"
@@ -698,7 +709,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
                     {currentCompany?.name?.charAt(0) || "M"}
                   </div>
                 </CompanyLogo>
-                <span className="font-extrabold text-xs xs:text-sm tracking-tight text-gray-900 dark:text-white truncate max-w-[100px] xs:max-w-[140px] sm:max-w-[180px]">
+                <span className="font-extrabold text-xs xs:text-sm tracking-tight text-gray-900 dark:text-white truncate max-w-[80px] xs:max-w-[120px] sm:max-w-[180px]">
                   {currentCompany?.name || "MaxP"}
                 </span>
               </Link>
@@ -800,7 +811,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
             <button
               type="button"
               onClick={toggleMerchantCopilot}
-              className="relative group flex items-center gap-1.5 px-3 py-1.5 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-white bg-slate-100/80 hover:bg-indigo-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-750 rounded-xl border border-slate-200/80 hover:border-indigo-300 dark:border-slate-700/80 dark:hover:border-slate-600 transition-all duration-160 active:scale-95 shadow-2xs cursor-pointer"
+              className="hidden sm:flex relative group items-center gap-1.5 px-3 py-1.5 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-white bg-slate-100/80 hover:bg-indigo-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-750 rounded-xl border border-slate-200/80 hover:border-indigo-300 dark:border-slate-700/80 dark:hover:border-slate-600 transition-all duration-160 active:scale-95 shadow-2xs cursor-pointer"
               title="المساعد التنفيذي للمتجر (Ctrl + J)"
               aria-label="المساعد التنفيذي للمتجر"
             >
@@ -827,7 +838,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
               </svg>
             </a>
 
-            <PageExplanations />
+            <div className="hidden sm:inline-flex"><PageExplanations /></div>
 
             {isSuperAdmin && (
               <button

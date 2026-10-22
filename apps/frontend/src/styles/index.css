@@ -3990,7 +3990,7 @@ select {
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    margin-inline-start: auto;
+    margin-inline-start: 0;
   }
 
   [data-theme="business-os-enterprise"]
