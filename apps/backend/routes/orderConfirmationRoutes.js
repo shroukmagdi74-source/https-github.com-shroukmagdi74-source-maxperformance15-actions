@@ -63,6 +63,17 @@ const assignOrderInternal = async ({ companyId, orderId, userId, assignedBy, not
       data: { isActive: false }
     });
 
+    if (order.orderNumber) {
+      await prisma.orderAssignment.updateMany({
+        where: {
+          companyId,
+          isActive: true,
+          guestOrder: { orderNumber: { equals: order.orderNumber, mode: 'insensitive' } }
+        },
+        data: { isActive: false }
+      });
+    }
+
     assignment = await prisma.orderAssignment.create({
       data: {
         companyId,
@@ -95,6 +106,61 @@ const assignOrderInternal = async ({ companyId, orderId, userId, assignedBy, not
     throw new Error('الطلب غير موجود');
   }
 
+  // A.3 التحقق مما إذا كان لطلب الزائر توأم أصلي بنفس الشركة ورقم الطلب
+  let primaryOrderId = null;
+  if (guestOrder.metadata) {
+    try {
+      const meta = typeof guestOrder.metadata === 'string' ? JSON.parse(guestOrder.metadata) : guestOrder.metadata;
+      primaryOrderId = meta?.primaryOrderId || null;
+    } catch (_e) {}
+  }
+
+  const orClauses = [];
+  if (primaryOrderId) orClauses.push({ id: primaryOrderId });
+  if (guestOrder.orderNumber) orClauses.push({ orderNumber: { equals: guestOrder.orderNumber, mode: 'insensitive' } });
+
+  const regularTwin = orClauses.length > 0
+    ? await prisma.order.findFirst({
+        where: { companyId, OR: orClauses }
+      })
+    : null;
+
+  if (regularTwin) {
+    // إسناد الطلب الأصلي بدلاً من طلب الزائر وإلغاء أي إسناد نشط لطلب الزائر
+    await prisma.orderAssignment.updateMany({
+      where: { orderId: regularTwin.id, isActive: true },
+      data: { isActive: false }
+    });
+    await prisma.orderAssignment.updateMany({
+      where: { guestOrderId: guestOrder.id, isActive: true },
+      data: { isActive: false }
+    });
+
+    assignment = await prisma.orderAssignment.create({
+      data: {
+        companyId,
+        orderId: regularTwin.id,
+        assignedTo: userId,
+        assignedBy: assignedBy || null,
+        strategy: strategy || 'manual',
+        metadata: notes ? JSON.stringify({ notes }) : null
+      }
+    });
+
+    await prisma.order.update({
+      where: { id: regularTwin.id },
+      data: {
+        assignedTo: userId,
+        assignedBy: assignedBy || null,
+        assignedAt: new Date(),
+        assignmentStrategy: strategy || 'manual'
+      }
+    });
+
+    return { orderType: 'regular', order: regularTwin, assignment };
+  }
+
+  // طلب زائر حقيقي بدون توأم أصلي
   await prisma.orderAssignment.updateMany({
     where: { guestOrderId: guestOrder.id, isActive: true },
     data: { isActive: false }

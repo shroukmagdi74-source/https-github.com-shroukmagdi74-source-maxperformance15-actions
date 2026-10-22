@@ -1194,6 +1194,34 @@ class OrderConfirmationService {
 
   async autoAssignGuest(companyId, guestOrder, settings, assignedBy = null) {
     if (!settings.distributionEnabled) return null;
+    if (!guestOrder) return null;
+
+    // A.2 استبعاد إسناد طلب الزائر إذا كان له توأم أصلي بنفس الشركة ورقم الطلب
+    let primaryOrderId = null;
+    if (guestOrder.metadata) {
+      try {
+        const meta = typeof guestOrder.metadata === 'string' ? JSON.parse(guestOrder.metadata) : guestOrder.metadata;
+        primaryOrderId = meta?.primaryOrderId || null;
+      } catch (_e) {}
+    }
+
+    const orClauses = [];
+    if (primaryOrderId) orClauses.push({ id: primaryOrderId });
+    if (guestOrder.orderNumber) orClauses.push({ orderNumber: { equals: guestOrder.orderNumber, mode: 'insensitive' } });
+
+    if (orClauses.length > 0) {
+      const regularTwin = await this.prisma.order.findFirst({
+        where: {
+          companyId,
+          OR: orClauses
+        },
+        select: { id: true }
+      });
+      if (regularTwin) {
+        return null;
+      }
+    }
+
     const eligible = await this.getEligibleUsers(companyId, settings);
     if (!eligible.length) return null;
 

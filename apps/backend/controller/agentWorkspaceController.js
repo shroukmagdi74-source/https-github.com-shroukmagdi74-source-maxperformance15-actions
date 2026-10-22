@@ -164,11 +164,19 @@ const buildWorkspaceWhere = (companyId, userId, { requestedStatus = '', followUp
     ...excludedStatuses.map((s) => s.toLowerCase()),
   ];
 
+  // شبكة أمان دفاعية لطلبات الزائر: الحفاظ على طلبات الزائر الحقيقية (metadata=null) واستبعاد الظلية (primaryOrderId)
+  const guestMetadataFilter = {
+    OR: [
+      { metadata: null },
+      { NOT: { metadata: { contains: '"primaryOrderId"' } } }
+    ]
+  };
+
   if (requestedStatus) {
     statusCondition = {
       OR: [
         { order: { status: requestedStatus } },
-        { guestOrder: { status: { in: [requestedStatus.toUpperCase(), requestedStatus.toLowerCase()] } } }
+        { guestOrder: { status: { in: [requestedStatus.toUpperCase(), requestedStatus.toLowerCase()] }, ...guestMetadataFilter } }
       ]
     };
   } else if (followUpOnly) {
@@ -176,14 +184,14 @@ const buildWorkspaceWhere = (companyId, userId, { requestedStatus = '', followUp
     statusCondition = {
       OR: [
         { order: { followUpDate: { not: null }, status: { notIn: [...excludedStatuses, 'CANCELLED'] } } },
-        { guestOrder: { followUpDate: { not: null }, status: { notIn: [...excludedGuestStatuses, 'CANCELLED', 'cancelled'] } } }
+        { guestOrder: { followUpDate: { not: null }, status: { notIn: [...excludedGuestStatuses, 'CANCELLED', 'cancelled'] }, ...guestMetadataFilter } }
       ]
     };
   } else {
     statusCondition = {
       OR: [
         { order: { status: { notIn: excludedStatuses } } },
-        { guestOrder: { status: { notIn: excludedGuestStatuses } } }
+        { guestOrder: { status: { notIn: excludedGuestStatuses }, ...guestMetadataFilter } }
       ]
     };
   }
@@ -344,14 +352,31 @@ const getWorkspaceStats = async (prisma, companyId, userId, { assignedTo = '', i
   if (isManager && assignedTo === 'unassigned') {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const guestMetadataFilter = {
+      OR: [
+        { metadata: null },
+        { NOT: { metadata: { contains: '"primaryOrderId"' } } }
+      ]
+    };
     const [unassignedRegular, unassignedGuest, unassignedTodayRegular, unassignedTodayGuest, incomplete] = await Promise.all([
       prisma.order.count({ where: { companyId, assignedTo: null, confirmedAt: null, status: 'PENDING' } }),
       prisma.guestOrder.count({
-        where: { companyId, status: { in: ['pending', 'PENDING'] }, orderAssignments: { none: { isActive: true } } }
+        where: {
+          companyId,
+          status: { in: ['pending', 'PENDING'] },
+          orderAssignments: { none: { isActive: true } },
+          ...guestMetadataFilter
+        }
       }),
       prisma.order.count({ where: { companyId, assignedTo: null, confirmedAt: null, createdAt: { gte: startOfToday }, status: 'PENDING' } }),
       prisma.guestOrder.count({
-        where: { companyId, createdAt: { gte: startOfToday }, status: { in: ['pending', 'PENDING'] }, orderAssignments: { none: { isActive: true } } }
+        where: {
+          companyId,
+          createdAt: { gte: startOfToday },
+          status: { in: ['pending', 'PENDING'] },
+          orderAssignments: { none: { isActive: true } },
+          ...guestMetadataFilter
+        }
       }),
       countWorkspaceIncompleteCarts(prisma, companyId)
     ]);
@@ -376,11 +401,18 @@ const getWorkspaceStats = async (prisma, companyId, userId, { assignedTo = '', i
     base.assignedTo = userId;
   }
 
+  const guestStatsMetadataFilter = {
+    OR: [
+      { metadata: null },
+      { NOT: { metadata: { contains: '"primaryOrderId"' } } }
+    ]
+  };
+
   const statusWhere = (status) => ({
     ...base,
     OR: [
       { order: { status } },
-      { guestOrder: { status: { in: [status.toUpperCase(), status.toLowerCase()] } } }
+      { guestOrder: { status: { in: [status.toUpperCase(), status.toLowerCase()] }, ...guestStatsMetadataFilter } }
     ]
   });
 
@@ -388,7 +420,7 @@ const getWorkspaceStats = async (prisma, companyId, userId, { assignedTo = '', i
     ...base,
     OR: [
       { order: { status: { notIn: [...WORKSPACE_EXCLUDED_STATUSES] } } },
-      { guestOrder: { status: { notIn: [...WORKSPACE_EXCLUDED_STATUSES, ...Array.from(WORKSPACE_EXCLUDED_STATUSES).map((s) => s.toLowerCase())] } } }
+      { guestOrder: { status: { notIn: [...WORKSPACE_EXCLUDED_STATUSES, ...Array.from(WORKSPACE_EXCLUDED_STATUSES).map((s) => s.toLowerCase())] }, ...guestStatsMetadataFilter } }
     ]
   };
 
@@ -398,7 +430,7 @@ const getWorkspaceStats = async (prisma, companyId, userId, { assignedTo = '', i
     ...base,
     OR: [
       { order: { createdAt: { gte: startOfToday }, status: { notIn: [...WORKSPACE_EXCLUDED_STATUSES] } } },
-      { guestOrder: { createdAt: { gte: startOfToday }, status: { notIn: [...WORKSPACE_EXCLUDED_STATUSES, ...Array.from(WORKSPACE_EXCLUDED_STATUSES).map((s) => s.toLowerCase())] } } }
+      { guestOrder: { createdAt: { gte: startOfToday }, status: { notIn: [...WORKSPACE_EXCLUDED_STATUSES, ...Array.from(WORKSPACE_EXCLUDED_STATUSES).map((s) => s.toLowerCase())] }, ...guestStatsMetadataFilter } }
     ]
   };
 
@@ -421,7 +453,8 @@ const getWorkspaceStats = async (prisma, companyId, userId, { assignedTo = '', i
               'cancelled',
               'CANCELLED'
             ]
-          }
+          },
+          ...guestStatsMetadataFilter
         }
       }
     ]
@@ -735,7 +768,11 @@ const getMyOrders = async (req, res) => {
       const guestWhere = {
         companyId,
         status: { in: requestedStatus ? [requestedStatus.toLowerCase(), requestedStatus.toUpperCase()] : ['pending', 'PENDING'] },
-        orderAssignments: { none: { isActive: true } }
+        orderAssignments: { none: { isActive: true } },
+        OR: [
+          { metadata: null },
+          { NOT: { metadata: { contains: '"primaryOrderId"' } } }
+        ]
       };
 
       if (todayOnly) {
@@ -1339,7 +1376,7 @@ const autoDistributeOrders = async (req, res) => {
 
     const limit = Math.min(100, Math.max(1, parseInt(req.body?.limit) || 50));
 
-    const [unassignedRegular, unassignedGuest] = await Promise.all([
+    const [unassignedRegular, unassignedGuestCandidates] = await Promise.all([
       prisma.order.findMany({
         where: {
           companyId,
@@ -1354,12 +1391,48 @@ const autoDistributeOrders = async (req, res) => {
         where: {
           companyId,
           status: { in: ['pending', 'PENDING'] },
-          orderAssignments: { none: { isActive: true } }
+          orderAssignments: { none: { isActive: true } },
+          OR: [
+            { metadata: null },
+            { NOT: { metadata: { contains: '"primaryOrderId"' } } }
+          ]
         },
-        take: limit,
+        take: limit * 2,
         orderBy: { createdAt: 'asc' }
       })
     ]);
+
+    // استبعاد طلبات الزائر التي لها توأم أصلي (نفس الشركة ورقم الطلب case-insensitive)
+    // لا يتم توزيع طلب الزائر إطلاقاً في حال وجود طلب أصلي، حتى لو كان الأصلي غير مسند
+    const candidateNumbers = unassignedGuestCandidates
+      .map((g) => g.orderNumber)
+      .filter(Boolean);
+
+    let twinOrderNumberSet = new Set();
+    if (candidateNumbers.length > 0) {
+      const regularTwins = await prisma.order.findMany({
+        where: {
+          companyId,
+          orderNumber: { in: candidateNumbers, mode: 'insensitive' }
+        },
+        select: { orderNumber: true }
+      });
+      twinOrderNumberSet = new Set(
+        regularTwins.map((r) => String(r.orderNumber || '').trim().toUpperCase())
+      );
+    }
+
+    const unassignedGuest = [];
+    for (const guest of unassignedGuestCandidates) {
+      const num = String(guest.orderNumber || '').trim().toUpperCase();
+      if (num && twinOrderNumberSet.has(num)) {
+        continue;
+      }
+      unassignedGuest.push(guest);
+      if (unassignedGuest.length >= limit) {
+        break;
+      }
+    }
 
     let assignedCount = 0;
 
@@ -1413,6 +1486,16 @@ const assignOrder = async (req, res) => {
           where: { orderId: regular.id, isActive: true },
           data: { isActive: false }
         });
+        if (regular.orderNumber) {
+          await tx.orderAssignment.updateMany({
+            where: {
+              companyId,
+              isActive: true,
+              guestOrder: { orderNumber: { equals: regular.orderNumber, mode: 'insensitive' } }
+            },
+            data: { isActive: false }
+          });
+        }
         await tx.orderAssignment.create({
           data: {
             companyId,
@@ -1438,6 +1521,60 @@ const assignOrder = async (req, res) => {
 
     const guest = await prisma.guestOrder.findFirst({ where: { id: orderId, companyId } });
     if (guest) {
+      // التحقق مما إذا كان لطلب الزائر توأم أصلي بنفس الشركة ورقم الطلب
+      let primaryOrderId = null;
+      if (guest.metadata) {
+        try {
+          const meta = typeof guest.metadata === 'string' ? JSON.parse(guest.metadata) : guest.metadata;
+          primaryOrderId = meta?.primaryOrderId || null;
+        } catch (_e) {}
+      }
+
+      const orClauses = [];
+      if (primaryOrderId) orClauses.push({ id: primaryOrderId });
+      if (guest.orderNumber) orClauses.push({ orderNumber: { equals: guest.orderNumber, mode: 'insensitive' } });
+
+      const regularTwin = orClauses.length > 0
+        ? await prisma.order.findFirst({
+            where: { companyId, OR: orClauses }
+          })
+        : null;
+
+      if (regularTwin) {
+        // إذا وجد طلب أصلي توأم، يتم إسناد الطلب الأصلي بدلاً من طلب الزائر وإلغاء أي إسناد نشط لطلب الزائر
+        await prisma.$transaction(async (tx) => {
+          await tx.orderAssignment.updateMany({
+            where: { orderId: regularTwin.id, isActive: true },
+            data: { isActive: false }
+          });
+          await tx.orderAssignment.updateMany({
+            where: { guestOrderId: guest.id, isActive: true },
+            data: { isActive: false }
+          });
+          await tx.orderAssignment.create({
+            data: {
+              companyId,
+              orderId: regularTwin.id,
+              assignedTo: targetUserId,
+              assignedBy,
+              strategy: 'manual',
+              isActive: true
+            }
+          });
+          await tx.order.update({
+            where: { id: regularTwin.id },
+            data: {
+              assignedTo: targetUserId,
+              assignedBy,
+              assignedAt: new Date(),
+              assignmentStrategy: 'manual'
+            }
+          });
+        });
+        return res.json({ success: true, message: 'تم تعيين الطلب بنجاح' });
+      }
+
+      // طلب زائر حقيقي بدون توأم أصلي
       await prisma.$transaction(async (tx) => {
         await tx.orderAssignment.updateMany({
           where: { guestOrderId: guest.id, isActive: true },
