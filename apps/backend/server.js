@@ -810,6 +810,8 @@ app.use(
   "/api/v1/public/storefront",
   require("./routes/publicStorefrontRoutes"),
 );
+// Storefront Analytics (AN-1)
+app.use("/api/v1/storefront-analytics", require("./routes/storefrontAnalyticsRoutes"));
 app.use("/api/v1/public/platform", publicPlatformRoutes);
 app.use("/api/v1/public/affiliates", publicAffiliateRoutes);
 app.use("/api/v1/public/merchants", publicMerchantRoutes);

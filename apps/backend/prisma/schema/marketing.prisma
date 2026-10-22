@@ -1367,3 +1367,21 @@ model LpPage {
   @@map("lp_pages")
 }
 
+
+
+/// Storefront Analytics Events (AN-1) - In-editor performance tracking
+model StorefrontAnalyticsEvent {
+  id          String   @id @default(cuid())
+  companyId   String
+  pageKey     String
+  sectionType String?
+  eventType   String
+  sessionId   String?
+  path        String?
+  createdAt   DateTime @default(now())
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([companyId, pageKey])
+  @@map("storefront_analytics_events")
+}

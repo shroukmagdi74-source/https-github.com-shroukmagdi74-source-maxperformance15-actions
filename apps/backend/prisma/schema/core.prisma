@@ -387,6 +387,7 @@ model Company {
     employeeDevices                  EmployeeDevice[]
     overtimeSessions                 OvertimeSession[]
     shiftHandovers                   ShiftHandover[]
+    storefrontAnalyticsEvents        StorefrontAnalyticsEvent[]
 
    @@index([businessSpecialtyId])
   @@map("companies")

@@ -126,6 +126,7 @@ const WhatsAppCtaElement: React.FC<WhatsAppCtaElementProps> = ({ section, settin
       dir="rtl"
     >
       <a
+        data-storefront-cta="true"
         href={waUrl}
         target="_blank"
         rel="noopener noreferrer"

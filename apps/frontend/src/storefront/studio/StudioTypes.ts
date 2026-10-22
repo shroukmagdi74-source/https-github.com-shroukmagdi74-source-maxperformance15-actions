@@ -12,7 +12,15 @@ export type StudioLeftRailTab =
 
 export type StudioLeftPanelTab = "layers" | "theme" | "pages" | "elements";
 
-export type StudioInspectorTab = "design" | "layout" | "content" | "interactions" | "style" | "visibility";
+export type StudioInspectorTab =
+  | "design"
+  | "layout"
+  | "content"
+  | "interactions"
+  | "style"
+  | "visibility"
+  | "i18n"
+  | "analytics";
 
 export type StudioZoomLevel = number;
 

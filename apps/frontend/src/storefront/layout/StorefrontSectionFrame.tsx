@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import type { StorefrontPageConfig, StorefrontPageLayout } from "../types/theme.types";
 import { useStorefrontTheme } from "../engine/ThemeProvider";
 import type { RenderSectionFrameArgs } from "../engine/PageComposer";
 import { buildSectionStyle, hasDeviceOverrides, generateResponsiveCss } from "../studio/utils/studioStyleUtils";
 import { useCurrentBreakpoint } from "../hooks/useCurrentBreakpoint";
+import { observeSectionView, trackClick } from "../analytics/beacon";
 
 export const resolveStorefrontPageLayout = (
   pageConfig: StorefrontPageConfig | undefined,
@@ -51,8 +52,34 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
   const sectionSelector = `[data-section-key="${sectionKey}"]`;
   const responsiveCss = generateResponsiveCss(settings, sectionSelector);
 
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const sectionType = typeof sectionEntry === "string" ? sectionEntry : sectionEntry?.type;
+
+  useEffect(() => {
+    if (!sectionRef.current) return;
+    const pageKey =
+      (typeof window !== "undefined" &&
+        window.location.pathname.replace(/^\/store\/?/, "").replace(/^\//, "").split("/")[0]) ||
+      "home";
+    return observeSectionView(sectionRef.current, pageKey, sectionType);
+  }, [sectionType]);
+
+  const handleFrameClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    const cta = target?.closest("button, a, [data-storefront-cta], [data-cta]");
+    if (cta) {
+      const pageKey =
+        (typeof window !== "undefined" &&
+          window.location.pathname.replace(/^\/store\/?/, "").replace(/^\//, "").split("/")[0]) ||
+        "home";
+      trackClick(pageKey, sectionType);
+    }
+  };
+
   return (
     <div
+      ref={sectionRef}
+      onClick={handleFrameClick}
       data-storefront-section="true"
       data-section-index={index}
       data-section-key={sectionKey}

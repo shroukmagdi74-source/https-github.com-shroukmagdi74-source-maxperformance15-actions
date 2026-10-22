@@ -10,6 +10,7 @@ import {
   PhotoIcon,
   TagIcon,
   GlobeAltIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
 import { getStorefrontSectionLabel } from "../sections/manifest";
 import type { StudioInspectorTab, StudioDeviceMode, StudioSelectedElement } from "./StudioTypes";
@@ -19,6 +20,7 @@ import { StudioContainerControls } from "./inspector/StudioContainerControls";
 import { StudioInspectorContentTab } from "./inspector/StudioInspectorContentTab";
 import { StudioInspectorAiTab } from "./inspector/StudioInspectorAiTab";
 import { StudioI18nTab } from "./StudioI18nTab";
+import { StudioInspectorAnalyticsTab } from "./inspector/StudioInspectorAnalyticsTab";
 import { resolveEffectiveSectionSettings, hasDeviceOverrides, getDeviceOverridesCount } from "./utils/studioStyleUtils";
 
 interface StudioPropertyInspectorProps {
@@ -36,6 +38,8 @@ interface StudioPropertyInspectorProps {
   onOpenImagePicker?: () => void;
   onSwitchDevice?: (device: StudioDeviceMode) => void;
   onSave?: () => void;
+  companyId?: string;
+  activePageKey?: string;
 }
 
 export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = ({
@@ -53,6 +57,8 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
   onOpenImagePicker,
   onSwitchDevice = () => {},
   onSave,
+  companyId,
+  activePageKey,
 }) => {
   const [activeTab, setActiveTab] = useState<StudioInspectorTab>(initialTab);
 
@@ -110,6 +116,7 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
     { id: "content", label: "محتوى", icon: DocumentTextIcon },
     { id: "interactions", label: "تجاوب", icon: SparklesIcon },
     { id: "i18n" as StudioInspectorTab, label: "اللغة", icon: GlobeAltIcon },
+    { id: "analytics" as StudioInspectorTab, label: "الأداء", icon: ChartBarIcon },
   ];
 
   return (
@@ -214,6 +221,7 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
             <button
               key={tab.id}
               type="button"
+              data-testid={tab.id === "analytics" ? "studio-analytics-tab" : undefined}
               onClick={() => {
                 setActiveTab(tab.id);
                 onClearSelectedElement?.();
@@ -546,6 +554,13 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
                 onBatchUpdateFields={onBatchUpdateFields}
                 onResetDeviceOverrides={onResetDeviceOverrides}
                 onSwitchDevice={onSwitchDevice}
+              />
+            )}
+
+            {activeTab === "analytics" && (
+              <StudioInspectorAnalyticsTab
+                companyId={companyId}
+                activePageKey={activePageKey}
               />
             )}
 

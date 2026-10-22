@@ -1341,6 +1341,8 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                   onOpenImagePicker={handleOpenImagePickerModal}
                   onSwitchDevice={setDeviceMode}
                   onSave={onSave}
+                  companyId={companyId}
+                  activePageKey={activePageKey}
                 />
               </div>
             </>

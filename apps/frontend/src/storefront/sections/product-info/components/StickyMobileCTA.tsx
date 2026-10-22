@@ -31,6 +31,8 @@ export const StickyMobileCTA = ({
         </div>
 
         <StaticMotionButton
+          data-storefront-cta="true"
+          data-cta="add-to-cart"
           whileTap={{ scale: 0.95 }}
           animate={{
             boxShadow: [
