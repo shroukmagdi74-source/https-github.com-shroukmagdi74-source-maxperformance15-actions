@@ -114,6 +114,28 @@ const AuthContext =
 
 authContextWindow.__MAXP_AUTH_CONTEXT__ = AuthContext;
 
+const isExplicitAuthFailureResponse = async (res: Response): Promise<boolean> => {
+  try {
+    const errBody = await res.clone().json();
+    const code = (errBody?.code || errBody?.errorCode || errBody?.error?.code || '').toString().toUpperCase();
+    const message = (errBody?.message || errBody?.error?.message || errBody?.error || '').toString().toLowerCase();
+    return (
+      code === 'UNAUTHORIZED' ||
+      code === 'TOKEN_EXPIRED' ||
+      code === 'INVALID_TOKEN' ||
+      code === 'AUTH_REQUIRED' ||
+      code === 'AUTHENTICATION_FAILED' ||
+      message.includes('unauthorized') ||
+      message.includes('token expired') ||
+      message.includes('invalid token') ||
+      message.includes('authentication required') ||
+      message.includes('jwt')
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Initialize user from localStorage to prevent redirect "blips" on refresh
   const [user, setUser] = useState<User | null>(() => {
@@ -240,9 +262,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               
               if (payloadJson?.exp && payloadJson.exp < Date.now() / 1000) {
                 debugLog('🔍 [AuthProvider] Token is expired locally, attempting session refresh');
-                const refreshResult = await attemptSessionRecovery();
+                let refreshResult = await attemptSessionRecovery();
+                if (!refreshResult.ok && !shouldClearSessionOnRefreshFailure(refreshResult)) {
+                  debugLog('⏳ [AuthProvider] Retrying session recovery once after transient failure');
+                  refreshResult = await attemptSessionRecovery();
+                }
                 if (!refreshResult.ok) {
-                  setIsLoading(false);
+                  if (!shouldClearSessionOnRefreshFailure(refreshResult)) {
+                    warnLog('⏳ [AuthProvider] Transient refresh failure, keeping cached user');
+                    finalUser = currentInitialUser;
+                  }
                   return;
                 }
                 token = refreshResult.accessToken;
@@ -296,33 +325,86 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               setUser(null);
               finalUser = null;
             }
-          } else if (response.status === 403 || response.status === 401) {
-            warnLog('⚠️ [AuthProvider] Token still unauthorized after refresh/auth check, clearing tokens');
-            warnLog('⚠️ [AuthProvider] Response status:', response.status);
+          } else if (response.status === 401) {
+            warnLog('⚠️ [AuthProvider] Token unauthorized (401), clearing tokens');
             clearStoredAuth();
             setUser(null);
             finalUser = null;
             debugLog('🔐 [AuthProvider] Token invalid, cleared');
-          } else {
-            warnLog('⚠️ [AuthProvider] Auth check failed with status:', response.status);
-
-            if (response.status >= 400 && response.status < 500) {
-              warnLog('⚠️ [AuthProvider] Client error (4xx), clearing tokens');
+          } else if (response.status === 403) {
+            const isAuthFailure = await isExplicitAuthFailureResponse(response);
+            if (isAuthFailure) {
+              warnLog('⚠️ [AuthProvider] 403 explicitly signals auth failure, clearing tokens');
               clearStoredAuth();
               setUser(null);
               finalUser = null;
             } else {
-              warnLog('⚠️ [AuthProvider] Server error (5xx), keeping existing session if any');
+              warnLog('⏳ [AuthProvider] 403 without explicit auth failure signal, keeping cached user');
               finalUser = currentInitialUser;
             }
+          } else {
+            // 404/400/429/other 4xx and 5xx: keep cached user, do not clear tokens
+            warnLog('⚠️ [AuthProvider] Auth check non-auth error status:', response.status, 'keeping cached user');
+            finalUser = currentInitialUser;
           }
         } else {
-          debugLog('🔐 [AuthProvider] No token found');
-          // If no token, we definitely shouldn't have a user
-          if (currentInitialUser) {
-            localStorage.removeItem('user');
+          debugLog('🔐 [AuthProvider] No token found, attempting cookie-based session refresh...');
+          const refreshResult = await refreshSessionTokens();
+
+          if (refreshResult.ok && refreshResult.accessToken) {
+            debugLog('🔄 [AuthProvider] Session recovered via refresh cookie, hydrating user...');
+            try {
+              let mePath = '/auth/me';
+              try {
+                const parts = refreshResult.accessToken.split('.');
+                if (parts[1]) {
+                  const payload = JSON.parse(atob(parts[1])) as any;
+                  if (payload?.role === 'CUSTOMER') {
+                    mePath = '/public/customers/me';
+                  }
+                }
+              } catch {
+                // ignore JWT decode error
+              }
+
+              const meResponse = await fetch(`${getApiUrl()}${mePath}?t=${Date.now()}`, {
+                headers: {
+                  'Authorization': `Bearer ${refreshResult.accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+              });
+
+              if (meResponse.ok || meResponse.status === 304) {
+                const data = await meResponse.json();
+                if (data.success) {
+                  const userObj = data.data?.user || data.data;
+                  finalUser = userObj;
+                  setUser(userObj);
+                  localStorage.setItem('user', JSON.stringify(userObj));
+                } else {
+                  finalUser = currentInitialUser;
+                }
+              } else if (meResponse.status === 401) {
+                clearStoredAuth();
+                setUser(null);
+                finalUser = null;
+              } else {
+                finalUser = currentInitialUser;
+              }
+            } catch (hydrateErr) {
+              warnLog('⚠️ [AuthProvider] Failed to hydrate user after refresh, keeping cached user', hydrateErr);
+              finalUser = currentInitialUser;
+            }
+          } else if (shouldClearSessionOnRefreshFailure(refreshResult)) {
+            debugLog('🔐 [AuthProvider] Refresh cookie invalid or expired, treating as logged out');
+            clearStoredAuth();
             setUser(null);
             finalUser = null;
+          } else {
+            // Transient failure: keep cached user
+            warnLog('⏳ [AuthProvider] Refresh cookie attempt failed transiently, keeping cached user', refreshResult);
+            finalUser = currentInitialUser;
           }
         }
       } catch (error: unknown) {

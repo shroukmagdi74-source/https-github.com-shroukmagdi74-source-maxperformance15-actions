@@ -133,16 +133,25 @@ interface DashboardCachePayload {
 
 const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
 
+const HR_APP_SLUGS = new Set([
+  "hr-basic",
+  "hr-core",
+  "hr-pro",
+  "hr-attendance-pro",
+  "hr-payroll",
+]);
+
 const MyDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { user } = useAuth();
   const activeApps: string[] = (user as any)?.company?.activeApps ?? [];
-  const hasHrBasic = activeApps.some((a) => a.toLowerCase() === "hr-basic");
+  const hasHrActive = activeApps.some((a) => HR_APP_SLUGS.has(a.toLowerCase()));
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
   const [employee, setEmployee] = useState<EmployeeInfo | null>(null);
+  const [employeeErrorStatus, setEmployeeErrorStatus] = useState<number | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<TodayAttendance | null>(null);
   const [recentLeaves, setRecentLeaves] = useState<RecentLeave[]>([]);
   const [permissions, setPermissions] = useState<PermissionRequest[]>([]);
@@ -175,7 +184,7 @@ const MyDashboard: React.FC = () => {
       }
 
       try {
-        const [empRes, attRes, leavesRes, permissionsRes, advancesRes, warningsRes, rewardsRes, payrollRes] = await Promise.all([
+        const [empRes, attRes, leavesRes, permissionsRes, advancesRes, warningsRes, rewardsRes, payrollRes] = await Promise.allSettled([
           api.get("/hr/employees/me", { signal }),
           api.get("/hr/attendance/my-today", { signal }),
           api.get("/hr/leaves/my-recent", { params: { limit: 5 }, signal }),
@@ -186,19 +195,39 @@ const MyDashboard: React.FC = () => {
           api.get("/hr/payroll/my-last", { signal }),
         ]);
 
+        if (empRes.status === "rejected") {
+          const status = empRes.reason?.response?.status;
+          if (status) {
+            setEmployeeErrorStatus(status);
+          }
+        } else {
+          setEmployeeErrorStatus(null);
+        }
+
+        const empData: any = empRes.status === "fulfilled" ? empRes.value.data : null;
+        const attData: any = attRes.status === "fulfilled" ? attRes.value.data : null;
+        const leavesData: any = leavesRes.status === "fulfilled" ? leavesRes.value.data : null;
+        const permissionsData: any = permissionsRes.status === "fulfilled" ? permissionsRes.value.data : null;
+        const advancesData: any = advancesRes.status === "fulfilled" ? advancesRes.value.data : null;
+        const warningsData: any = warningsRes.status === "fulfilled" ? warningsRes.value.data : null;
+        const rewardsData: any = rewardsRes.status === "fulfilled" ? rewardsRes.value.data : null;
+        const payrollData: any = payrollRes.status === "fulfilled" ? payrollRes.value.data : null;
+
         const payload: DashboardCachePayload = {
-          employee: empRes.data.employee,
-          todayAttendance: attRes.data.attendance,
-          recentLeaves: leavesRes.data.leaves || [],
-          permissions: permissionsRes.data.requests || [],
-          advances: advancesRes.data.data || [],
-          warnings: warningsRes.data.warnings || [],
-          rewards: rewardsRes.data.data || [],
-          lastPayroll: payrollRes.data.payroll,
+          employee: empData?.employee ?? null,
+          todayAttendance: attData?.attendance ?? null,
+          recentLeaves: leavesData?.leaves || [],
+          permissions: permissionsData?.requests || [],
+          advances: advancesData?.data || [],
+          warnings: warningsData?.warnings || [],
+          rewards: rewardsData?.data || [],
+          lastPayroll: payrollData?.payroll ?? null,
         };
 
         applyDashboardPayload(payload);
-        setWithExpiry(cacheKey, payload, DASHBOARD_CACHE_TTL_MS);
+        if (payload.employee) {
+          setWithExpiry(cacheKey, payload, DASHBOARD_CACHE_TTL_MS);
+        }
       } catch (error: any) {
         if (error?.name === "CanceledError" || error?.code === "ERR_CANCELED") {
           return;
@@ -217,6 +246,11 @@ const MyDashboard: React.FC = () => {
   );
 
   useEffect(() => {
+    if (!hasHrActive) {
+      setLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
     const cached = getWithExpiry<DashboardCachePayload>(cacheKey);
 
@@ -229,9 +263,9 @@ const MyDashboard: React.FC = () => {
     }
 
     return () => controller.abort();
-  }, [cacheKey, fetchDashboardData, applyDashboardPayload]);
+  }, [cacheKey, fetchDashboardData, applyDashboardPayload, hasHrActive]);
 
-  if (!hasHrBasic) {
+  if (!hasHrActive || employeeErrorStatus === 403) {
     return (
       <div className="p-4 md:p-8 min-h-screen flex items-center justify-center" dir="rtl">
         <div className="text-center max-w-md">
@@ -258,7 +292,7 @@ const MyDashboard: React.FC = () => {
     );
   }
 
-  if (!employee) {
+  if (!employee || employeeErrorStatus === 401 || employeeErrorStatus === 404) {
     return (
       <div className="p-4 md:p-8 min-h-screen flex items-center justify-center bg-[#f8faff] dark:bg-gray-950" dir="rtl">
         <div className="bg-red-50 dark:bg-red-900/20 p-8 rounded-2xl text-center max-w-md">

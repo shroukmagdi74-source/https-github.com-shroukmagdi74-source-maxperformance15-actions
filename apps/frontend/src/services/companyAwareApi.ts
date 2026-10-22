@@ -23,37 +23,6 @@ class CompanyAwareApiService {
   constructor() {
     this.baseURL = envConfig.apiUrl;
     console.log("🔧 [CompanyAwareApi] Initialized with baseURL:", this.baseURL);
-    this.setupInterceptors();
-  }
-
-  private setupInterceptors() {
-    // Response interceptor to handle 401 errors
-    axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Token is invalid or expired
-          tokenManager.clearTokens();
-          localStorage.removeItem("user");
-
-          // Only redirect if not on public routes
-          const currentPath = window.location.pathname;
-          const isPublicRoute =
-            currentPath.startsWith("/home") ||
-            currentPath.startsWith("/shop") ||
-            currentPath.startsWith("/auth/") ||
-            currentPath.startsWith("/register/") ||
-            currentPath.startsWith("/affiliate-register") ||
-            currentPath.startsWith("/apply/") ||
-            currentPath.startsWith("/payment/");
-
-          if (!isPublicRoute) {
-            window.location.href = "/auth/login";
-          }
-        }
-        return Promise.reject(error);
-      },
-    );
   }
 
   private buildUrl(endpoint: string): string {

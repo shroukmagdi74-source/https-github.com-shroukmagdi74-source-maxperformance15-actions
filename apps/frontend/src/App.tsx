@@ -1884,6 +1884,20 @@ if (typeof window !== "undefined") {
   p["/broadcast"] = () => import("./pages/broadcast/BroadcastDashboard");
 }
 
+const RedirectToLogin: React.FC = () => {
+  const location = useLocation();
+  if (location.pathname.startsWith("/auth/login")) {
+    return null;
+  }
+  return (
+    <Navigate
+      to={`/auth/login?next=${encodeURIComponent(location.pathname + location.search)}`}
+      state={{ from: location }}
+      replace
+    />
+  );
+};
+
 // Create a separate component that uses auth
 const AppContent = () => {
   // Use real authentication state
@@ -8878,175 +8892,175 @@ const AppContent = () => {
               <>
                 <Route
                   path="/admin/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
-                <Route path="/" element={isCapacitorNative() ? <Navigate to="/auth/login" replace /> : <PlatformLandingPage />} />
+                <Route path="/" element={isCapacitorNative() ? <RedirectToLogin /> : <PlatformLandingPage />} />
                 <Route path="/dental-portal/*" element={<DentalPortalRoutes />} />
                 <Route path="/bot-widget/:companyId" element={<BotWidgetPage />} />
                 <Route
                   path="/store-settings"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                   <Route
                     path="/settings/storefront/*"
-                    element={<Navigate to="/auth/login" replace />}
+                    element={<RedirectToLogin />}
                   />
                   <Route
                     path="/settings/storefront-preview/*"
-                    element={<Navigate to="/auth/login" replace />}
+                    element={<RedirectToLogin />}
                   />
                   <Route
                     path="/settings/storefront/editor"
-                    element={<Navigate to="/auth/login" replace />}
+                    element={<RedirectToLogin />}
                   />
                   <Route
                     path="/home-builder"
-                    element={<Navigate to="/auth/login" replace />}
+                    element={<RedirectToLogin />}
                   />
                 <Route
                   path="/settings/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/dashboard"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/products/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/orders/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/customers"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/invoices"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/payments"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/subscription"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/broadcast"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/reminders"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/notifications"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/notification-settings"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
 
                 <Route
                   path="/comments/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/unified-comments/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/posts/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/messenger-chat"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/conversations-improved"
                   element={<Navigate to="/facebook-inbox" replace />}
                 />
-                {/* <Route path="/external-messages-stats" element={<Navigate to="/auth/login" replace />} /> */}
+                {/* <Route path="/external-messages-stats" element={<RedirectToLogin />} /> */}
                 <Route
                   path="/sent-messages-stats"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/facebook-inbox"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                     path="/home-builder"
-                    element={<Navigate to="/auth/login" replace />}
+                    element={<RedirectToLogin />}
                   />
                 <Route
                   path="/facebook/create-post"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/facebook/posts"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/facebook/engagement-stats"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/categories"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/competitors"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/competitors/:id"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/appointments"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/tasks/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/goals/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 {/* Gamification Public Route */}
                 <Route
                   path="/super-admin/dev-leaderboard"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/whatsapp/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/hr/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/support/*"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/admin/support"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
                 <Route
                   path="/super-admin/dev-reports"
-                  element={<Navigate to="/auth/login" replace />}
+                  element={<RedirectToLogin />}
                 />
-                <Route path="*" element={<Navigate to="/auth/login" replace />} />
+                <Route path="*" element={<RedirectToLogin />} />
               </>
             )}
           </Routes>

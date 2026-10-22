@@ -500,7 +500,6 @@ class ApiClient {
 
     // Dispatch auth error event
     window.dispatchEvent(new CustomEvent("auth:unauthorized"));
-    window.location.href = "/auth/login";
   }
 
   private extractErrorText(error: AxiosError<ApiError>): string {

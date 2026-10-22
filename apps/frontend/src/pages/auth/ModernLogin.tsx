@@ -32,7 +32,22 @@ const ModernLogin: React.FC = () => {
   const { login, isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const fromPath = location.state?.from?.pathname || null;
+  const searchParams = new URLSearchParams(location.search);
+  const nextParam = searchParams.get("next");
+  const stateFrom = location.state?.from;
+  const stateFromStr = stateFrom
+    ? typeof stateFrom === "string"
+      ? stateFrom
+      : `${stateFrom.pathname || ""}${stateFrom.search || ""}${stateFrom.hash || ""}`
+    : null;
+  const rawFrom = stateFromStr || nextParam || null;
+  const fromPath =
+    rawFrom &&
+    rawFrom.startsWith("/") &&
+    !rawFrom.startsWith("//") &&
+    !rawFrom.startsWith("/\\")
+      ? rawFrom
+      : null;
   const hasNavigatedRef = useRef(false);
 
   // Single navigation target after login. Guarded by hasNavigatedRef so the
