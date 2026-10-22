@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Check } from "lucide-react";
 import { submitPublicLead } from "../../../services/publicLeadService";
+import { trackPlatformSiteLead } from "../../../utils/platformSiteMetaPixel";
 import { LANDING_SLUG, WHATSAPP_CONSULT_URL } from "./csbData";
 
 interface Props {
@@ -31,6 +32,12 @@ export const CsbLead: React.FC<Props> = ({ utm }) => {
         utm,
         notes: "Lead من لاندنج باقة المتجر الكاملة — مهتم بتجربة/اشتراك الباقة",
       });
+      if (res?.success) {
+        trackPlatformSiteLead("csb_lead_form", {
+          lead_source: "store-complete-bundle",
+          phone: phone.trim(),
+        });
+      }
       setState(res?.success ? "done" : "error");
     } catch {
       setState("error");

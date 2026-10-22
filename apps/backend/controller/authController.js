@@ -347,7 +347,7 @@ const register = async (req, res) => {
     // Integrated landing («باقة متجر الملابس»): auto-install the free tier
     // (store + order workflow) for signups coming from that landing page.
     // (landingBundle also arrives in the outer destructure from req.body.)
-    if (landingBundle === 'clothing-store-bundle') {
+    if (landingBundle === 'clothing-store-bundle' || landingBundle === 'store-complete-bundle' || landingBundle === 'complete-store-bundle') {
       try {
         const { initializeDefaultApps } = require('../utils/initializeCompanyDefaults');
         await initializeDefaultApps(company.id, {

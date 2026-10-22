@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, MessageCircle } from "lucide-react";
 import tokenManager from "../../utils/tokenManager";
+import { trackInitiateCheckout } from "../../utils/facebookPixel";
+import { trackPlatformSiteLead } from "../../utils/platformSiteMetaPixel";
 
 import { CsbNavbar } from "./complete-store/CsbNavbar";
 import { CsbHero } from "./complete-store/CsbHero";
@@ -62,7 +64,7 @@ export const CompleteStoreBundleLanding: React.FC = () => {
 
     const robotsMeta = document.createElement("meta");
     robotsMeta.name = "robots";
-    robotsMeta.content = "noindex, nofollow";
+    robotsMeta.content = "index, follow";
     document.head.appendChild(robotsMeta);
 
     try {
@@ -98,7 +100,7 @@ export const CompleteStoreBundleLanding: React.FC = () => {
 
   const buildRegisterQuery = useCallback(
     (extra: Record<string, string> = {}) => {
-      const parts: string[] = [`landingBundle=clothing-store-bundle`];
+      const parts: string[] = [`landingBundle=${BUNDLE_SLUG}`];
       Object.entries(extra).forEach(([k, v]) => {
         if (v) parts.push(`${k}=${encodeURIComponent(v)}`);
       });
@@ -117,6 +119,22 @@ export const CompleteStoreBundleLanding: React.FC = () => {
    * مش مسجل؟ → تسجيل سريع ورجوع للاندنج يكمّل الدفع.
    */
   const handleSubscribe = useCallback(async () => {
+    try {
+      trackInitiateCheckout({
+        content_ids: [BUNDLE_SLUG],
+        content_type: "product_group",
+        num_items: 17,
+        value: BUNDLE_PRICE,
+        currency: "EGP",
+      });
+      trackPlatformSiteLead("csb_subscribe_cta", {
+        bundle: BUNDLE_SLUG,
+        value: BUNDLE_PRICE,
+        currency: "EGP",
+      });
+    } catch {
+      // ignore tracking errors
+    }
     const token = tokenManager.getAccessToken
       ? tokenManager.getAccessToken()
       : tokenManager.getToken?.();

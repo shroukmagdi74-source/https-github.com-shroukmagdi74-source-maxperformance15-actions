@@ -29,7 +29,7 @@ export const CsbNavbar: React.FC<Props> = ({ onSubscribe }) => {
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Link to="/auth/login" className="csb-btn csb-btn-ghost csb-btn-sm">
+          <Link to="/auth/login?redirect=/lp/store-complete-bundle" className="csb-btn csb-btn-ghost csb-btn-sm">
             دخول
           </Link>
           <button type="button" className="csb-btn csb-btn-primary csb-btn-sm" onClick={onSubscribe}>

@@ -728,10 +728,14 @@ function generateComponentExamples(components) {
     // HEADER وسائط (IMAGE/VIDEO/DOCUMENT): ميتا تتطلب example.header_handle
     // من Resumable Upload API عند إنشاء/تعديل القالب — من غيره يرفض القالب.
     if (comp.type === 'HEADER' && comp.format && comp.format !== 'TEXT') {
-      const mediaHandle = comp.headerHandle || comp.mediaHandle || comp.example?.header_handle?.[0];
-      if (mediaHandle && !comp.example?.header_handle) {
-        return { ...comp, example: { header_handle: [mediaHandle] } };
+      // نشيل الحقول الداخلية (headerHandle/mediaHandle) قبل الإرسال — ميتا ترفض
+      // أي مفتاح غير معروف بـ (#100) Unexpected key "headerHandle".
+      const { headerHandle, mediaHandle, ...rest } = comp;
+      const mediaHandleValue = headerHandle || mediaHandle || rest.example?.header_handle?.[0];
+      if (mediaHandleValue) {
+        return { ...rest, example: { ...(rest.example || {}), header_handle: [mediaHandleValue] } };
       }
+      return rest;
     }
     return comp;
   });

@@ -51,7 +51,7 @@ export const CsbFooter: React.FC<Props> = ({ onSubscribe, annualSaving }) => {
           </span>
           <div className="csb-footer-links">
             <Link to="/">الرئيسية</Link>
-            <Link to="/marketplace">سوق التطبيقات</Link>
+            <a href="#families">محتويات الباقة (17 أداة)</a>
             <a href={WHATSAPP_CONSULT_URL} target="_blank" rel="noopener noreferrer">
               واتساب المبيعات
             </a>

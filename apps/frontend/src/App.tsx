@@ -2495,6 +2495,8 @@ const AppContent = () => {
             <Route path="/lp/fashion-os" element={<ClothingStoreTasteLanding />} />
             <Route path="/lp/store-complete-bundle" element={<StoreCompleteBundleLanding />} />
             <Route path="/bundle/store-complete-bundle" element={<StoreCompleteBundleLanding />} />
+            <Route path="/lp/complete-store-bundle" element={<StoreCompleteBundleLanding />} />
+            <Route path="/bundle/complete-store-bundle" element={<StoreCompleteBundleLanding />} />
             <Route
               path="/preview/platform-home/:variantId"
               element={<PlatformLandingPreviewPage />}

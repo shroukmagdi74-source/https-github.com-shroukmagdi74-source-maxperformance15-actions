@@ -36,7 +36,8 @@ export const WHATSAPP_CONSULT_URL = `https://wa.me/${OFFICIAL_WHATSAPP_NUMBER}?t
 )}`;
 
 export const BUNDLE_SLUG = "store-complete-bundle";
-export const LANDING_SLUG = "complete-store-bundle";
+export const LANDING_SLUG = "store-complete-bundle";
+export const ALT_LANDING_SLUG = "complete-store-bundle";
 export const UTM_KEYS = [
   "utm_source",
   "utm_medium",

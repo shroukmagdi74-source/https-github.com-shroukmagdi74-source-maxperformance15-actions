@@ -345,6 +345,8 @@ const Register: React.FC = () => {
         messaging: "messaging-bundle",
         "ai-inbox": "ai-inbox-bundle",
         clothing: "store-complete-bundle",
+        "store-complete-bundle": "store-complete-bundle",
+        "complete-store-bundle": "store-complete-bundle",
       };
 
       const token = localStorage.getItem("accessToken");
@@ -363,19 +365,27 @@ const Register: React.FC = () => {
         }
       } else if (action === "paid" && source && SOURCE_TO_BUNDLE[source] && token) {
         try {
-          const res = await fetch(`${getApiUrl()}/platform-subscription/lp-checkout`, {
+          const bundleSlug = SOURCE_TO_BUNDLE[source];
+          const checkoutEndpoint = bundleSlug === "store-complete-bundle"
+            ? `${getApiUrl()}/marketplace/bundles/${bundleSlug}/checkout`
+            : `${getApiUrl()}/platform-subscription/lp-checkout`;
+          const res = await fetch(checkoutEndpoint, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
             body: JSON.stringify({ bundleSlug: SOURCE_TO_BUNDLE[source] }),
           });
           const data = await res.json();
-          if (data.success && data.data?.sessionUrl) window.location.href = data.data.sessionUrl;
+          const targetSessionUrl = data.sessionUrl || data.data?.sessionUrl;
+          if (targetSessionUrl) {
+            window.location.href = targetSessionUrl;
+            return;
+          }
           else navigate(postAuthDest || NEW_ACCOUNT_DESTINATION, { replace: true });
         } catch {
           navigate(postAuthDest || NEW_ACCOUNT_DESTINATION, { replace: true });
         }
       } else {
-        const isValidRedirect = redirectParam && redirectParam !== "/" && !redirectParam.startsWith("/lp/");
+        const isValidRedirect = redirectParam && redirectParam !== "/" && (!redirectParam.startsWith("/lp/") || Boolean(landingBundle));
         const sourceRedirect = source === "ai-inbox" ? "/marketplace/bundle/ai-inbox-bundle" : null;
         const redirectPath = (isValidRedirect ? redirectParam : null) || sourceRedirect || postAuthDest || NEW_ACCOUNT_DESTINATION;
         trackPlatformSiteCompleteRegistration("auth_register", { destination: redirectPath, role: userData?.role || "UNKNOWN" });
