@@ -11,7 +11,7 @@ const {
   isHtmlRouteRequest,
   resolveRouteContext,
 } = require("../services/storefrontSeoService");
-const { getCanonicalProductSlug } = require("../utils/productSlugValidation");
+const { getPublicProductSlug } = require("../utils/productSlugValidation");
 
 const INDEX_HTML_CANDIDATES = [
   process.env.STOREFRONT_INDEX_HTML,
@@ -322,7 +322,7 @@ exports.handleStorefrontShell = async (req, res, next) => {
     // If the product was accessed via an unnormalized slug (e.g. spaces, %20, +, raw product id)
     // redirect with 301 to the canonical official slug.
     if (product && routeContext.productKey) {
-      const canonicalSlug = product.slug ? getCanonicalProductSlug(product.slug) : product.id;
+      const canonicalSlug = product.slug ? getPublicProductSlug(product.slug) : product.id;
       if (canonicalSlug) {
         const prefix = req.path.startsWith("/store/products")
           ? "/store/products"
@@ -380,7 +380,7 @@ exports.handleStorefrontShell = async (req, res, next) => {
       );
 
       if (matchedProduct?.slug) {
-        const canonicalSlug = getCanonicalProductSlug(matchedProduct.slug);
+        const canonicalSlug = getPublicProductSlug(matchedProduct.slug);
         const queryIdx = req.url.indexOf("?");
         const queryString = queryIdx !== -1 ? req.url.slice(queryIdx) : "";
         return res.redirect(301, `/product/${encodeURI(canonicalSlug)}${queryString}`);

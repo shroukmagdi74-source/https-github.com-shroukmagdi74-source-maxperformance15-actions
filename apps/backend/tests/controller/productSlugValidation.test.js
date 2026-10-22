@@ -3,6 +3,7 @@
 const {
   isInvalidProductSlug,
   getCanonicalProductSlug,
+  getPublicProductSlug,
   INVALID_SLUG_ERROR_MESSAGE,
 } = require("../../utils/productSlugValidation");
 
@@ -54,6 +55,29 @@ describe("Product Slug Validation & Normalization Unit Tests", () => {
     it("preserves already clean slugs", () => {
       expect(getCanonicalProductSlug("Dash")).toBe("Dash");
       expect(getCanonicalProductSlug("platform-sneakers-12")).toBe("platform-sneakers-12");
+    });
+  });
+
+  // Regression: SLUG-404 — a stored underscore slug was 301-ed to a hyphenated
+  // slug that no storefront lookup can resolve, so the live product page 404ed
+  // and the sitemap/canonical tag advertised the dead URL.
+  describe("getPublicProductSlug", () => {
+    it("keeps a stored underscore slug (its hyphenated form is NOT reachable)", () => {
+      expect(getPublicProductSlug("Hagar_Khfaf")).toBe("Hagar_Khfaf");
+      expect(getPublicProductSlug("hello_world_test")).toBe("hello_world_test");
+    });
+
+    it("still hyphenates space-based slugs (the lookup resolves those)", () => {
+      expect(getPublicProductSlug("swan edge")).toBe("swan-edge");
+      expect(getPublicProductSlug("Şık Sole")).toBe("Şık-Sole");
+    });
+
+    it("keeps clean slugs, decodes encoded input and tolerates empty values", () => {
+      expect(getPublicProductSlug("Dash")).toBe("Dash");
+      expect(getPublicProductSlug("platform-sneakers-12")).toBe("platform-sneakers-12");
+      expect(getPublicProductSlug("%C5%9E%C4%B1k%20Sole")).toBe("Şık-Sole");
+      expect(getPublicProductSlug("")).toBe("");
+      expect(getPublicProductSlug(null)).toBe("");
     });
   });
 });

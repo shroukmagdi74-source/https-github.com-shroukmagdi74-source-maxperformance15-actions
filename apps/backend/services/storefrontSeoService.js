@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const { getCanonicalProductSlug } = require("../utils/productSlugValidation");
+const { getPublicProductSlug } = require("../utils/productSlugValidation");
 
 const DEFAULT_THEME_ID = "modern-minimal";
 
@@ -597,8 +597,8 @@ const buildStorefrontSeoMetadata = ({
       : "https://schema.org/InStock";
 
     const prodSlug = product.slug
-      ? getCanonicalProductSlug(product.slug)
-      : (routeContext.productKey ? getCanonicalProductSlug(routeContext.productKey) : (product.id || ""));
+      ? getPublicProductSlug(product.slug)
+      : (routeContext.productKey ? getPublicProductSlug(routeContext.productKey) : (product.id || ""));
     canonicalUrl = `${baseUrl}/product/${encodeURIComponent(prodSlug)}`;
 
     const offers = {

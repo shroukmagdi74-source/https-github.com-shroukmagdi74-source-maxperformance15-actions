@@ -75,6 +75,52 @@ describe("storefrontSeoService", () => {
     expect(metadata.type).toBe("product");
   });
 
+  // SLUG-404 regression: the canonical/og URL must stay on an address the
+  // storefront can actually resolve. A stored "Hagar_Khfaf" cannot be reached
+  // as "Hagar-Khfaf" (the product lookup never resolves an underscore alias),
+  // so canonicalising it published a dead canonical URL.
+  test("keeps the stored underscore slug in the product canonical URL", () => {
+    const metadata = buildStorefrontSeoMetadata({
+      pathname: "/product/Hagar_Khfaf",
+      currentUrl: "https://ahmedgad.maxp.online/product/Hagar_Khfaf",
+      company: { name: "Ahmed Gad", logo: "", settings: "{}" },
+      storefrontSettings: { designTokens: {} },
+      templateContent: { settings: { seo: { titleTemplate: "%s | {{store}}" } } },
+      product: {
+        name: "كرتونة حجر خفاف – 120 قطعة",
+        slug: "Hagar_Khfaf",
+        description: "<p>حجر خفاف من المصنع.</p>",
+        price: 1200,
+        mainImage: "/uploads/products/product-a11daf6e.png",
+        images: "[]",
+      },
+    });
+
+    expect(metadata.url).toBe(
+      "https://ahmedgad.maxp.online/product/Hagar_Khfaf",
+    );
+  });
+
+  test("still hyphenates a space-based product slug in the canonical URL", () => {
+    const metadata = buildStorefrontSeoMetadata({
+      pathname: "/product/swan%20edge",
+      currentUrl: "https://swan.maxp.online/product/swan%20edge",
+      company: { name: "Swan", logo: "", settings: "{}" },
+      storefrontSettings: { designTokens: {} },
+      templateContent: { settings: { seo: { titleTemplate: "%s | {{store}}" } } },
+      product: {
+        name: "Swan Edge",
+        slug: "swan edge",
+        description: "<p>حذاء.</p>",
+        price: 500,
+        mainImage: "/uploads/products/swan-edge.jpg",
+        images: "[]",
+      },
+    });
+
+    expect(metadata.url).toBe("https://swan.maxp.online/product/swan-edge");
+  });
+
   test("reads product seo overrides from product metadata payloads", () => {
     const product = resolveProductSeoOverrides({
       name: "Boot Swan",
