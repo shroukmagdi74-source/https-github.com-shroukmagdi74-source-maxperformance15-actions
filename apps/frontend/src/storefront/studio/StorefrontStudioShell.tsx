@@ -19,7 +19,10 @@ import { StudioStatusBar } from "./StudioStatusBar";
 import { StudioSectionCatalogModal } from "./StudioSectionCatalogModal";
 import { StudioPagesPanel } from "./StudioPagesPanel";
 import { StudioHeaderFooterPanel } from "./StudioHeaderFooterPanel";
+import { StudioTemplateGalleryPanel } from "./StudioTemplateGalleryPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
+import { buildPresetPage, type IndustryPreset } from "../presets/industryPresets";
+import type { StudioLeftRailActiveTab } from "./StudioLeftRail";
 import { createTemplateSections } from "./utils/studioPageTemplates";
 import { STUDIO_PAGE_PRESETS } from "./StudioPagePresets";
 import { getApiUrl } from "../../config/environment";
@@ -320,12 +323,13 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   const [deviceMode, setDeviceMode] = useState<StudioDeviceMode>("desktop");
   const [zoomLevel, setZoomLevel] = useState<StudioZoomLevel>(1);
   const [showSpacingOverlay, setShowSpacingOverlay] = useState<boolean>(true);
-  const [leftRailTab, setLeftRailTab] = useState<StudioLeftRailTab | "header-footer">("elements");
+  const [leftRailTab, setLeftRailTab] = useState<StudioLeftRailActiveTab>("elements");
   const [layersPanelTab, setLayersPanelTab] = useState<StudioLeftPanelTab>("layers");
   const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState<boolean>(false);
   const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(false);
   const [showCatalogModal, setShowCatalogModal] = useState<boolean>(false);
   const [showImagePickerModal, setShowImagePickerModal] = useState<boolean>(false);
+  const [imagePickerTargetField, setImagePickerTargetField] = useState<string>("image");
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [selectedElement, setSelectedElement] = useState<StudioSelectedElement | null>(null);
   const [showCreatePageModal, setShowCreatePageModal] = useState<boolean>(false);
@@ -380,7 +384,13 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
 
   const handleZoomFit = () => {
     if (typeof window === "undefined") return;
-    const leftPanelWidth = isLeftDrawerOpen ? (leftRailTab === "elements" ? 280 : leftRailTab === "header-footer" ? 340 : 288) : 0;
+    const leftPanelWidth = isLeftDrawerOpen
+      ? leftRailTab === "elements"
+        ? 280
+        : leftRailTab === "header-footer" || leftRailTab === "templates"
+        ? 340
+        : 288
+      : 0;
     const inspectorWidth = isInspectorOpen ? 320 : 0;
     const railWidth = 54;
     const availableWidth = window.innerWidth - railWidth - leftPanelWidth - inspectorWidth - 64;
@@ -397,8 +407,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     setShowCatalogModal(true);
   };
 
-  const handleOpenImagePickerModal = () => {
+  const handleOpenImagePickerModal = (targetField: string = "image") => {
     setShowCatalogModal(false);
+    setImagePickerTargetField(typeof targetField === "string" ? targetField : "image");
     setShowImagePickerModal(true);
   };
 
@@ -800,6 +811,55 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     [companyId, currentDesignTokens, handleDesignTokensChange, onSave, setActivePageKey]
   );
 
+  const handleApplyIndustryPreset = useCallback(
+    (preset: IndustryPreset) => {
+      const presetConfig = buildPresetPage(preset.id);
+      const currentPages = {
+        ...((currentDesignTokens?.pages as Record<string, any>) || {}),
+      };
+      const currentOverrides = {
+        ...((currentDesignTokens?.pageOverrides as Record<string, any>) || {}),
+      };
+      const targetPageKey = activePageKey || "home";
+      const existingPage = currentPages[targetPageKey] || currentOverrides[targetPageKey] || {};
+
+      const updatedPage = {
+        ...existingPage,
+        id: targetPageKey,
+        sections: presetConfig.sections,
+      };
+
+      currentPages[targetPageKey] = updatedPage;
+      currentOverrides[targetPageKey] = updatedPage;
+
+      const existingPageStyles =
+        ((currentDesignTokens?.pageStyles as Record<string, any>) || {});
+      const nextPageStyles = {
+        ...existingPageStyles,
+        [targetPageKey]: {
+          ...(existingPageStyles[targetPageKey] || {}),
+          accent: preset.style.accent,
+          density: preset.style.density,
+          radius: preset.style.radius,
+        },
+      };
+
+      const nextTokens: Record<string, unknown> = {
+        ...currentDesignTokens,
+        pages: currentPages,
+        pageOverrides: currentOverrides,
+        pageStyles: nextPageStyles,
+      };
+
+      handleDesignTokensChange(nextTokens);
+      onSave();
+      setSelectedSectionKey("");
+      toast.success(`تم تطبيق قالب «${preset.label}» على صفحة ${targetPageKey} بنجاح`);
+    },
+    [activePageKey, currentDesignTokens, handleDesignTokensChange, onSave, setSelectedSectionKey]
+  );
+
+
   const pageSectionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     STUDIO_PAGES.forEach((p) => {
@@ -1134,6 +1194,15 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                     onClose={() => setIsLeftDrawerOpen(false)}
                   />
                 )}
+
+                {leftRailTab === "templates" && (
+                  <StudioTemplateGalleryPanel
+                    activePageKey={activePageKey}
+                    onApplyPreset={handleApplyIndustryPreset}
+                    onClose={() => setIsLeftDrawerOpen(false)}
+                  />
+                )}
+
               </div>
             </>
           )}
@@ -1466,12 +1535,18 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         isOpen={showImagePickerModal}
         onClose={() => setShowImagePickerModal(false)}
         onSelectImage={(url) => {
-          handleUpdateSectionField("image", url);
-          handleUpdateSectionField("backgroundImage", url);
+          if (imagePickerTargetField === "panelImage") {
+            handleUpdateSectionField("panelImage", url, deviceMode);
+          } else {
+            handleUpdateSectionField("image", url, deviceMode);
+            handleUpdateSectionField("backgroundImage", url, deviceMode);
+          }
           setShowImagePickerModal(false);
         }}
         selectedUrl={
-          selectedSectionConfig?.image || selectedSectionConfig?.backgroundImage || ""
+          imagePickerTargetField === "panelImage"
+            ? (selectedSectionConfig?.settings?.panelImage || selectedSectionConfig?.panelImage || "")
+            : (selectedSectionConfig?.image || selectedSectionConfig?.backgroundImage || "")
         }
       />
 

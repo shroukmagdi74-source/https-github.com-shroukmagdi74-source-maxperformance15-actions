@@ -9,10 +9,11 @@ import {
   SparklesIcon,
   Cog6ToothIcon,
   WindowIcon,
+  Square3Stack3DIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioLeftRailTab } from "./StudioTypes";
 
-export type StudioLeftRailActiveTab = StudioLeftRailTab | "header-footer";
+export type StudioLeftRailActiveTab = StudioLeftRailTab | "header-footer" | "templates";
 
 interface StudioLeftRailProps {
   activeTab: StudioLeftRailActiveTab;
@@ -36,6 +37,7 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
     isAi?: boolean;
   }> = [
     { id: "elements", label: "إضافة", icon: PlusIcon },
+    { id: "templates", label: "قوالب", icon: Square3Stack3DIcon },
     { id: "layers", label: "الهيكل", icon: Squares2X2Icon },
     { id: "pages", label: "صفحات", icon: DocumentDuplicateIcon },
     { id: "header-footer", label: "الهيدر والفوتر", icon: WindowIcon },
@@ -68,6 +70,7 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
           <button
             key={item.id}
             type="button"
+            data-testid={`studio-left-rail-${item.id}`}
             onClick={() => handleClick(item.id)}
             title={item.label}
             aria-pressed={isActive}

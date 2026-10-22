@@ -35,7 +35,7 @@ interface StudioPropertyInspectorProps {
   onBatchUpdateFields?: (updates: Record<string, any>) => void;
   onResetDeviceOverrides?: (device: "mobile" | "tablet") => void;
   onResetPropertyOverride?: (property: string, device?: StudioDeviceMode) => void;
-  onOpenImagePicker?: () => void;
+  onOpenImagePicker?: (targetField?: string) => void;
   onSwitchDevice?: (device: StudioDeviceMode) => void;
   onSave?: () => void;
   companyId?: string;

@@ -1,11 +1,46 @@
 import React from "react";
 import { PhotoIcon, LinkIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 
-interface StudioInspectorContentTabProps {
+export const HERO_PANEL_VARIANTS = new Set([
+  "drop-board",
+  "layered-parallax-sky",
+  "cinematic-plinth",
+  "speed-banner",
+  "split-panel",
+  "fashion-billboard",
+  "style-ledger",
+  "retail-command",
+  "runway-grid",
+  "modest-cascade",
+  "soft-showcase",
+  "boutique-muse",
+  "retail-direct-banner",
+  "scent-portrait",
+  "elessi-bag-hero",
+  "elessi-spotlight",
+  "elessi-dual-merch",
+  "elessi-promo-cascade",
+  "elessi-utility-stage",
+  "elessi-soft-departments",
+  "elessi-organic-harvest",
+  "butcher-counter",
+  "butcher-atelier",
+  "elessi-plant-slider",
+  "elessi-bike-hero",
+  "elessi-digital-launch",
+  "elessi-beauty-ritual",
+  "elessi-garage-command",
+  "elessi-jewel-salon",
+  "elessi-pet-sunroom",
+  "grooming-hero",
+  "dental-precision-hero",
+]);
+
+export interface StudioInspectorContentTabProps {
   sectionType: string;
   settings: Record<string, any>;
   onUpdateField: (field: string, value: any) => void;
-  onOpenImagePicker?: () => void;
+  onOpenImagePicker?: (targetField?: string) => void;
 }
 
 export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps> = ({
@@ -19,7 +54,38 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
   const eyebrow = settings.eyebrow ?? settings.badge ?? settings.tagline ?? "";
   const ctaText = settings.ctaText ?? settings.primaryButtonText ?? settings.buttonText ?? "";
   const ctaLink = settings.ctaLink ?? settings.primaryButtonUrl ?? settings.buttonUrl ?? "";
+  const secondaryCtaText = settings.secondaryCtaText ?? "";
+  const secondaryCtaLink = settings.secondaryCtaLink ?? "";
   const currentImage = settings.image ?? settings.backgroundImage ?? settings.heroImage ?? "";
+
+  const panelEyebrow = settings.panelEyebrow ?? "";
+  const panelTitle = settings.panelTitle ?? "";
+  const panelSubtitle = settings.panelSubtitle ?? "";
+  const panelNote = settings.panelNote ?? "";
+  const panelMetricLabel = settings.panelMetricLabel ?? "";
+  const panelMetricValue = settings.panelMetricValue ?? "";
+  const panelImage = settings.panelImage ?? "";
+
+  const isHero =
+    sectionType === "hero-banner" ||
+    sectionType === "hero" ||
+    sectionType === "HeroBanner" ||
+    sectionType === "shop-hero" ||
+    (typeof sectionType === "string" && sectionType.toLowerCase().includes("hero"));
+
+  const variant = String(settings.variant || settings.heroVariant || "");
+  const isPanelVariant = HERO_PANEL_VARIANTS.has(variant);
+  const hasPanelValues = Boolean(
+    settings.panelTitle ||
+    settings.panelSubtitle ||
+    settings.panelEyebrow ||
+    settings.panelNote ||
+    settings.panelMetricValue ||
+    settings.panelMetricLabel ||
+    settings.panelImage
+  );
+
+  const showPanelSection = isHero || hasPanelValues;
 
   const itemsKey = Array.isArray(settings.features)
     ? "features"
@@ -74,6 +140,11 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
           placeholder="أدخل عنوان القسم…"
           className="w-full rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2.5 py-1.5 text-[11.5px] text-[#17181c] outline-none focus:border-[#2b6cf6] focus:bg-white"
         />
+        {Boolean(settings.panelTitle && String(settings.panelTitle).trim()) && (
+          <p className="text-[10px] text-amber-600 font-medium pt-0.5" data-testid="panel-title-hint">
+            قالبك بيستخدم عنوان البطاقة — عدّله من مجموعة بطاقة الهيرو أدناه
+          </p>
+        )}
       </div>
 
       {/* 2. Subtitle / Description */}
@@ -134,6 +205,36 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
         </div>
       </div>
 
+      {/* 4b. Secondary Action Button (Hero) */}
+      {(isHero || Boolean(settings.secondaryCtaText || settings.secondaryCtaLink)) && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-[#6f747b]">نص الزر الثانوي</label>
+            <input
+              type="text"
+              value={secondaryCtaText}
+              onChange={(e) => onUpdateField("secondaryCtaText", e.target.value)}
+              placeholder="اكتشف المزيد"
+              className="w-full rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2 py-1.5 text-[11.5px] text-[#17181c] outline-none focus:border-[#2b6cf6] focus:bg-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-[#6f747b]">رابط الزر الثانوي</label>
+            <div className="flex items-center rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2 text-[#8a8f96] focus-within:border-[#2b6cf6] focus-within:bg-white">
+              <LinkIcon className="h-3.5 w-3.5 shrink-0 me-1" />
+              <input
+                type="text"
+                dir="ltr"
+                value={secondaryCtaLink}
+                onChange={(e) => onUpdateField("secondaryCtaLink", e.target.value)}
+                placeholder="/collections"
+                className="w-full bg-transparent py-1.5 text-[11.5px] text-[#17181c] outline-none font-mono"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 5. Image Selector */}
       <div className="space-y-1.5 pt-1">
         <label className="block text-[10px] font-bold text-[#6f747b]">الصورة أو الخلفية</label>
@@ -151,7 +252,7 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
           )}
           <button
             type="button"
-            onClick={onOpenImagePicker}
+            onClick={() => onOpenImagePicker?.("image")}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#ececee] bg-[#f6f7f8] py-2 text-[11px] font-semibold text-[#17181c] hover:bg-[#ececee] transition-colors"
           >
             <PhotoIcon className="h-3.5 w-3.5 text-[#2b6cf6]" />
@@ -159,6 +260,143 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
           </button>
         </div>
       </div>
+
+      {/* 5b. Hero Panel Group */}
+      {showPanelSection && (
+        <div className="space-y-3 pt-3 border-t border-[#ececee]" data-testid="hero-panel-group">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#17181c]">بطاقة الهيرو (Panel)</span>
+            {isPanelVariant ? (
+              <span className="text-[9.5px] font-semibold text-[#2b6cf6] bg-[#2b6cf6]/10 px-1.5 py-0.5 rounded">
+                قالب نشط
+              </span>
+            ) : (
+              <span className="text-[9.5px] text-[#8a8f96]">
+                تظهر في بعض قوالب الهيرو
+              </span>
+            )}
+          </div>
+
+          {/* Panel Eyebrow */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-[#6f747b]">شارة البطاقة (Panel Eyebrow)</label>
+            <input
+              type="text"
+              data-testid="input-panel-eyebrow"
+              value={panelEyebrow}
+              onChange={(e) => onUpdateField("panelEyebrow", e.target.value)}
+              placeholder="مثال: مختارات الموسم • جديد"
+              className="w-full rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2.5 py-1.5 text-[11.5px] text-[#17181c] outline-none focus:border-[#2b6cf6] focus:bg-white"
+            />
+          </div>
+
+          {/* Panel Title */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-[#6f747b]">عنوان البطاقة (Panel Title)</label>
+            <input
+              type="text"
+              data-testid="input-panel-title"
+              value={panelTitle}
+              onChange={(e) => onUpdateField("panelTitle", e.target.value)}
+              placeholder="أدخل عنوان بطاقة الهيرو…"
+              className="w-full rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2.5 py-1.5 text-[11.5px] text-[#17181c] outline-none focus:border-[#2b6cf6] focus:bg-white"
+            />
+          </div>
+
+          {/* Panel Subtitle / Description */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-[#6f747b]">وصف البطاقة (Panel Subtitle)</label>
+            <textarea
+              rows={2}
+              data-testid="input-panel-subtitle"
+              value={panelSubtitle}
+              onChange={(e) => onUpdateField("panelSubtitle", e.target.value)}
+              placeholder="أدخل تفاصيل ومحتوى البطاقة…"
+              className="w-full rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2.5 py-1.5 text-[11.5px] text-[#17181c] outline-none focus:border-[#2b6cf6] focus:bg-white"
+            />
+          </div>
+
+          {/* Panel Note */}
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-[#6f747b]">ملاحظة إضافية (Panel Note)</label>
+            <input
+              type="text"
+              data-testid="input-panel-note"
+              value={panelNote}
+              onChange={(e) => onUpdateField("panelNote", e.target.value)}
+              placeholder="مثال: شحن سريع داخل مصر + استبدال مجاني"
+              className="w-full rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2.5 py-1.5 text-[11.5px] text-[#17181c] outline-none focus:border-[#2b6cf6] focus:bg-white"
+            />
+          </div>
+
+          {/* Panel Metric: Label & Value */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-[#6f747b]">عنوان الإحصائية (Metric Label)</label>
+              <input
+                type="text"
+                data-testid="input-panel-metric-label"
+                value={panelMetricLabel}
+                onChange={(e) => onUpdateField("panelMetricLabel", e.target.value)}
+                placeholder="الأكثر طلباً"
+                className="w-full rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2 py-1.5 text-[11.5px] text-[#17181c] outline-none focus:border-[#2b6cf6] focus:bg-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-[#6f747b]">قيمة الإحصائية (Metric Value)</label>
+              <input
+                type="text"
+                data-testid="input-panel-metric-value"
+                value={panelMetricValue}
+                onChange={(e) => onUpdateField("panelMetricValue", e.target.value)}
+                placeholder="+24% أو 10+"
+                className="w-full rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2 py-1.5 text-[11.5px] text-[#17181c] outline-none focus:border-[#2b6cf6] focus:bg-white font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Panel Image */}
+          <div className="space-y-1.5 pt-1">
+            <label className="block text-[10px] font-bold text-[#6f747b]">صورة البطاقة (Panel Image)</label>
+            <div className="flex items-center gap-2">
+              {panelImage ? (
+                <img
+                  src={panelImage}
+                  alt="معاينة بطاقة الهيرو"
+                  className="h-10 w-14 shrink-0 rounded-md border border-[#ececee] object-cover"
+                />
+              ) : (
+                <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-md border border-dashed border-[#ececee] bg-[#f6f7f8] text-[#8a8f96]">
+                  <PhotoIcon className="h-4 w-4" />
+                </div>
+              )}
+              <div className="flex-1 space-y-1">
+                <button
+                  type="button"
+                  data-testid="btn-panel-image-picker"
+                  onClick={() => onOpenImagePicker?.("panelImage")}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#ececee] bg-[#f6f7f8] py-1.5 text-[11px] font-semibold text-[#17181c] hover:bg-[#ececee] transition-colors"
+                >
+                  <PhotoIcon className="h-3.5 w-3.5 text-[#2b6cf6]" />
+                  <span>اختيار من مكتبة الصور</span>
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2 text-[#8a8f96] focus-within:border-[#2b6cf6] focus-within:bg-white">
+              <LinkIcon className="h-3.5 w-3.5 shrink-0 me-1" />
+              <input
+                type="text"
+                dir="ltr"
+                data-testid="input-panel-image-url"
+                value={panelImage}
+                onChange={(e) => onUpdateField("panelImage", e.target.value)}
+                placeholder="رابط مباشر للصورة (URL)..."
+                className="w-full bg-transparent py-1.5 text-[11px] text-[#17181c] outline-none font-mono"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 6. Repeatable Sub-Items (Features, FAQ, Reviews) */}
       {items.length > 0 && (
