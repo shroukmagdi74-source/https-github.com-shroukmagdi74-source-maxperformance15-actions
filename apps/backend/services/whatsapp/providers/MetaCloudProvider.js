@@ -271,28 +271,178 @@ async function uploadTemplateMedia(sessionId, fileBuffer, mimetype, filename) {
   }
 
   const { apiVersion, accessToken } = resolveBaseConfig(session);
-  const wabaId = session?.metaWabaId;
-  if (!wabaId) {
-    throw new Error('Missing Meta WABA ID for session');
+
+  // 🔧 FIX (2026-10-22): Resumable Upload API بتاعة ميتا بتشتغل على **APP ID**
+  // مش على WABA ID — النداء القديم كان بيرمي `/{wabaId}/uploads` فيرجّع
+  // "Object with ID ... does not exist ... does not support this operation" (500).
+  // كمان الرفع محتاج **خطوتين**: (1) إنشاء upload session، (2) رفع البايتات
+  // على `/upload:<session>` بـ `Authorization: OAuth` + `file_offset`، والرد
+  // فيه الـ handle (h) اللي يتكتب في example.header_handle.
+  const uploadMeta = await prepareTemplateUploadMedia(fileBuffer, mimetype, filename);
+  const { buffer, mimetype: uploadMime, fileName } = uploadMeta;
+
+  const appIdCandidates = await resolveTemplateUploadAppIds(session, accessToken, apiVersion);
+  if (!appIdCandidates.length) {
+    throw new Error('تعذّر تحديد Meta App ID اللازم لرفع وسائط القالب');
   }
 
-  const url = `https://graph.facebook.com/${apiVersion}/${wabaId}/uploads`;
+  let uploadSessionId = null;
+  let lastError = null;
 
-  const response = await apiCall(() => axios.post(url, fileBuffer, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': mimetype,
-      file_offset: '0',
-      file_length: String(fileBuffer.length),
-      file_type: mimetype,
-      file_name: filename
-    },
-    timeout: 60000,
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity
-  }));
+  for (const appId of appIdCandidates) {
+    try {
+      uploadSessionId = await startTemplateUploadSession({
+        appId, accessToken, apiVersion, fileLength: buffer.length, fileType: uploadMime, fileName
+      });
+      if (uploadSessionId) break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
 
-  return response.data?.h || response.data?.id || null;
+  if (!uploadSessionId) {
+    throw lastError || new Error('فشل بدء جلسة رفع الوسائط إلى ميتا');
+  }
+
+  const handle = await finishTemplateUploadSession({
+    uploadSessionId, accessToken, apiVersion, buffer, mimetype: uploadMime
+  });
+
+  return handle || null;
+}
+
+// ميتا بتقبل بس هذه الصيغ في Resumable Upload API — أي صورة تانية (WEBP/BMP/HEIC)
+// لازم تتحوّل لـ JPEG قبل الرفع وإلا الطلب يترفض.
+const TEMPLATE_UPLOAD_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'video/mp4'
+]);
+
+async function prepareTemplateUploadMedia(fileBuffer, mimetype, filename) {
+  const fallbackName = `template_media_${Date.now()}`;
+  let buffer = fileBuffer;
+  let uploadMime = String(mimetype || '').toLowerCase() || 'image/jpeg';
+  let fileName = filename || fallbackName;
+
+  if (uploadMime.startsWith('image/') && !TEMPLATE_UPLOAD_MIME_TYPES.has(uploadMime)) {
+    const { normalizeImageForWhatsApp } = require('../../../utils/whatsAppImageCompat');
+    const normalized = await normalizeImageForWhatsApp(buffer, uploadMime);
+    buffer = normalized.buffer || buffer;
+    uploadMime = String(normalized.mimetype || 'image/jpeg').toLowerCase();
+    fileName = `${String(fileName).replace(/\.[^.]+$/, '') || fallbackName}.jpg`;
+  }
+
+  if (!TEMPLATE_UPLOAD_MIME_TYPES.has(uploadMime)) {
+    throw new Error(`نوع الملف غير مدعوم في قوالب ميتا: ${uploadMime}`);
+  }
+
+  return { buffer, mimetype: uploadMime, fileName };
+}
+
+// ترتيب المرشّحين: الـ app المالك للتوكن (GET /app) ثم الإعدادات ثم الـ session.
+async function resolveTemplateUploadAppIds(session, accessToken, apiVersion) {
+  let { getFacebookOAuthConfig } = {};
+  try {
+    ({ getFacebookOAuthConfig } = require('../../../config/facebookAppConfig'));
+  } catch (_) {
+    // إعدادات فيسبوك غير متاحة — نكمل بالمرشّحين الآخرين
+  }
+
+  const config = typeof getFacebookOAuthConfig === 'function' ? getFacebookOAuthConfig() : {};
+  const now = Date.now();
+  const cached = templateUploadAppIdCache.get(session?.id);
+  const discovered = cached && cached.expiresAt > now ? cached.appId : null;
+
+  const candidates = [
+    discovered,
+    session?.metaAppId,
+    config?.whatsappAppId,
+    config?.appId,
+    process.env.FACEBOOK_APP_ID,
+    process.env.WHATSAPP_APP_ID
+  ];
+
+  if (!discovered) {
+    const resolved = await discoverTemplateUploadAppId(session?.id, accessToken, apiVersion);
+    if (resolved) candidates.unshift(resolved);
+  }
+
+  return [...new Set(
+    candidates
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter((value) => /^\d{6,}$/.test(value))
+  )];
+}
+
+const templateUploadAppIdCache = new Map();
+const TEMPLATE_APP_ID_TTL_MS = 6 * 60 * 60 * 1000;
+
+async function discoverTemplateUploadAppId(sessionId, accessToken, apiVersion) {
+  try {
+    const response = await axios.get(`https://graph.facebook.com/${apiVersion}/app`, {
+      params: { fields: 'id,name', access_token: accessToken },
+      timeout: 15000
+    });
+    const appId = response.data?.id ? String(response.data.id) : '';
+    if (/^\d{6,}$/.test(appId)) {
+      if (sessionId) {
+        templateUploadAppIdCache.set(sessionId, { appId, expiresAt: Date.now() + TEMPLATE_APP_ID_TTL_MS });
+      }
+      return appId;
+    }
+  } catch (error) {
+    // بعض التوكنات (system user) مش بتسمح بـ /app — نرجع للإعدادات
+  }
+  return null;
+}
+
+async function startTemplateUploadSession({ appId, accessToken, apiVersion, fileLength, fileType, fileName }) {
+  const response = await apiCall(() => axios.post(
+    `https://graph.facebook.com/${apiVersion}/${appId}/uploads`,
+    null,
+    {
+      params: {
+        file_name: fileName,
+        file_length: String(fileLength),
+        file_type: fileType,
+        access_token: accessToken
+      },
+      timeout: 60000
+    }
+  ));
+
+  const sessionId = response.data?.id;
+  if (!sessionId) {
+    throw new Error('ميتا لم ترجع upload session id');
+  }
+  return sessionId;
+}
+
+async function finishTemplateUploadSession({ uploadSessionId, accessToken, apiVersion, buffer, mimetype }) {
+  const sessionPath = String(uploadSessionId).startsWith('upload:')
+    ? uploadSessionId
+    : `upload:${uploadSessionId}`;
+
+  const response = await apiCall(() => axios.post(
+    `https://graph.facebook.com/${apiVersion}/${sessionPath}`,
+    buffer,
+    {
+      headers: {
+        // ميتا بتطلب OAuth هنا (مش Bearer) وإلا الطلب يترفض
+        Authorization: `OAuth ${accessToken}`,
+        file_offset: '0',
+        'Content-Type': mimetype || 'application/octet-stream'
+      },
+      timeout: 120000,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
+    }
+  ));
+
+  return response.data?.h || null;
 }
 
 async function sendMedia(sessionId, to, media, kind, options = {}) {
