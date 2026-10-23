@@ -129,7 +129,12 @@ export const ReceiveItemsDialog: React.FC<ReceiveItemsDialogProps> = ({
       setErrorMessage(null);
       return;
     }
-    const initialRows: ItemRowState[] = order.purchaseOrderItems.map((item) => {
+    const rawItems: PurchaseOrderItemData[] = Array.isArray(order.purchaseOrderItems)
+      ? order.purchaseOrderItems
+      : Array.isArray((order as any).items)
+      ? (order as any).items
+      : [];
+    const initialRows: ItemRowState[] = rawItems.map((item) => {
       const ordered = parseFloat(String(item.quantity)) || 0;
       const receivedBefore = parseFloat(String(item.receivedQuantity)) || 0;
       const remaining = Math.max(0, ordered - receivedBefore);

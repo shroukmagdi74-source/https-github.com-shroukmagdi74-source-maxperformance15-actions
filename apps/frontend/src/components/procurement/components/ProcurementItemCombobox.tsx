@@ -24,6 +24,7 @@ interface ProcurementItemComboboxProps {
   className?: string;
   disabled?: boolean;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  inputRef?: React.Ref<HTMLInputElement>;
 }
 
 export const ProcurementItemCombobox: React.FC<ProcurementItemComboboxProps> = ({
@@ -34,6 +35,7 @@ export const ProcurementItemCombobox: React.FC<ProcurementItemComboboxProps> = (
   className = "",
   disabled = false,
   onKeyDown,
+  inputRef,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [catalog, setCatalog] = useState<ProcurementCatalogItem[]>(initialCatalog);
@@ -193,6 +195,7 @@ export const ProcurementItemCombobox: React.FC<ProcurementItemComboboxProps> = (
     >
       <div className="relative">
         <Input
+          ref={inputRef}
           value={value}
           disabled={disabled}
           placeholder={placeholder}

@@ -63,10 +63,10 @@ interface OrderItem {
   variantId?: string | null;
   productName: string;
   description: string;
-  quantity: number;
-  unitPrice: number;
-  taxRate: number;
-  discountRate: number;
+  quantity: number | string;
+  unitPrice: number | string;
+  taxRate: number | string;
+  discountRate: number | string;
   totalPrice: number;
   notes?: string;
 }
@@ -101,7 +101,15 @@ const PurchaseOrderForm: React.FC = () => {
   // Refs for keyboard navigation
   const itemInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    supplierId: string;
+    orderDate: string;
+    expectedDelivery: string;
+    paymentTerms: string;
+    notes: string;
+    shippingCost: number | string;
+    discountAmount: number | string;
+  }>({
     supplierId: "",
     orderDate: new Date().toISOString().split("T")[0] ?? "",
     expectedDelivery: "",
@@ -235,21 +243,21 @@ const PurchaseOrderForm: React.FC = () => {
       if (!currentItem) return prevItems;
       const item: OrderItem = { ...currentItem, ...updates };
 
-      const quantity =
-        parseFloat("quantity" in updates ? (updates.quantity as any) : item.quantity) || 0;
-      const unitPrice =
-        parseFloat("unitPrice" in updates ? (updates.unitPrice as any) : item.unitPrice) || 0;
-      const taxRate =
-        parseFloat("taxRate" in updates ? (updates.taxRate as any) : item.taxRate) || 0;
-      const discountRate =
-        parseFloat("discountRate" in updates ? (updates.discountRate as any) : item.discountRate) ||
-        0;
+      const rawQty = "quantity" in updates ? updates.quantity : item.quantity;
+      const rawPrice = "unitPrice" in updates ? updates.unitPrice : item.unitPrice;
+      const rawTax = "taxRate" in updates ? updates.taxRate : item.taxRate;
+      const rawDisc = "discountRate" in updates ? updates.discountRate : item.discountRate;
+
+      const quantity = Math.max(0, parseFloat(String(rawQty ?? 0)) || 0);
+      const unitPrice = Math.max(0, parseFloat(String(rawPrice ?? 0)) || 0);
+      const taxRate = Math.max(0, Math.min(100, parseFloat(String(rawTax ?? 0)) || 0));
+      const discountRate = Math.max(0, Math.min(100, parseFloat(String(rawDisc ?? 0)) || 0));
 
       const subtotal = quantity * unitPrice;
       const discount = subtotal * (discountRate / 100);
       const tax = (subtotal - discount) * (taxRate / 100);
 
-      item.totalPrice = subtotal - discount + tax;
+      item.totalPrice = Math.max(0, subtotal - discount + tax);
       newItems[index] = item;
       return newItems;
     });
@@ -345,14 +353,18 @@ const PurchaseOrderForm: React.FC = () => {
   };
 
   const calculateTotals = () => {
-    const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const subtotal = items.reduce(
+      (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+      0,
+    );
     const totalTax = items.reduce((sum, item) => {
-      const itemSubtotal = item.quantity * item.unitPrice;
-      const itemDiscount = itemSubtotal * (item.discountRate / 100);
-      return sum + (itemSubtotal - itemDiscount) * (item.taxRate / 100);
+      const itemSubtotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+      const itemDiscount = itemSubtotal * ((Number(item.discountRate) || 0) / 100);
+      return sum + (itemSubtotal - itemDiscount) * ((Number(item.taxRate) || 0) / 100);
     }, 0);
     const itemDiscounts = items.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice * (item.discountRate / 100),
+      (sum, item) =>
+        sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0) * ((Number(item.discountRate) || 0) / 100),
       0,
     );
 
@@ -361,8 +373,8 @@ const PurchaseOrderForm: React.FC = () => {
       subtotal -
         itemDiscounts +
         totalTax +
-        Number(formData.shippingCost) -
-        Number(formData.discountAmount),
+        Number(formData.shippingCost || 0) -
+        Number(formData.discountAmount || 0),
     );
 
     return { subtotal, totalTax, itemDiscounts, grandTotal };
@@ -406,7 +418,7 @@ const PurchaseOrderForm: React.FC = () => {
     }
 
     const invalidItems = items.filter(
-      (item) => !item.productName.trim() || item.quantity <= 0 || item.unitPrice < 0,
+      (item) => !item.productName.trim() || Number(item.quantity) <= 0 || Number(item.unitPrice) < 0,
     );
     if (invalidItems.length > 0) {
       toast.error(
@@ -429,11 +441,11 @@ const PurchaseOrderForm: React.FC = () => {
           variantId: it.variantId || null,
           productName: it.productName.trim(),
           description: it.description || "",
-          quantity: Number(it.quantity),
-          unitPrice: Number(it.unitPrice),
-          taxRate: Number(it.taxRate || 0),
-          discountRate: Number(it.discountRate || 0),
-          totalPrice: Number(it.totalPrice),
+          quantity: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          taxRate: Number(it.taxRate || 0) || 0,
+          discountRate: Number(it.discountRate || 0) || 0,
+          totalPrice: Number(it.totalPrice) || 0,
           notes: it.notes || "",
         })),
       };
@@ -757,6 +769,7 @@ const PurchaseOrderForm: React.FC = () => {
                         <TableRow key={index} className="hover:bg-muted/40 transition-colors">
                           <TableCell className="overflow-visible">
                             <ProcurementItemCombobox
+                              inputRef={(el) => (itemInputRefs.current[index] = el)}
                               value={item.productName}
                               initialCatalog={catalogItems}
                               placeholder={t(
@@ -769,9 +782,9 @@ const PurchaseOrderForm: React.FC = () => {
                                   variantId: selected.variantId || null,
                                   productName: selected.productName,
                                   unitPrice:
-                                    selected.unitPrice !== undefined
+                                    selected.unitPrice !== undefined && selected.unitPrice > 0
                                       ? selected.unitPrice
-                                      : item.unitPrice,
+                                      : (Number(item.unitPrice) || selected.unitPrice || 0),
                                   description: selected.description || item.description,
                                 });
                               }}
@@ -883,9 +896,9 @@ const PurchaseOrderForm: React.FC = () => {
                               variantId: selected.variantId || null,
                               productName: selected.productName,
                               unitPrice:
-                                selected.unitPrice !== undefined
+                                selected.unitPrice !== undefined && selected.unitPrice > 0
                                   ? selected.unitPrice
-                                  : item.unitPrice,
+                                  : (Number(item.unitPrice) || selected.unitPrice || 0),
                               description: selected.description || item.description,
                             });
                           }}
@@ -1065,7 +1078,7 @@ const PurchaseOrderForm: React.FC = () => {
                       className="h-8 w-28 text-right font-mono text-xs rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       value={formData.shippingCost}
                       onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, shippingCost: Number(e.target.value) }))
+                        setFormData((prev) => ({ ...prev, shippingCost: e.target.value }))
                       }
                     />
                   </div>
@@ -1083,7 +1096,7 @@ const PurchaseOrderForm: React.FC = () => {
                       onChange={(e) =>
                         setFormData((prev) => ({
                           ...prev,
-                          discountAmount: Number(e.target.value),
+                          discountAmount: e.target.value,
                         }))
                       }
                     />

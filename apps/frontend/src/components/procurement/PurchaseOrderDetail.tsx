@@ -232,8 +232,16 @@ export const PurchaseOrderDetail: React.FC = () => {
     );
   }
 
-  const items = order.purchaseOrderItems || [];
-  const invoices = order.purchaseInvoices || [];
+  const items = (Array.isArray(order.purchaseOrderItems) && order.purchaseOrderItems.length > 0)
+    ? order.purchaseOrderItems
+    : Array.isArray((order as any).items)
+    ? (order as any).items
+    : [];
+  const invoices = (Array.isArray(order.purchaseInvoices) && order.purchaseInvoices.length > 0)
+    ? order.purchaseInvoices
+    : Array.isArray((order as any).invoices)
+    ? (order as any).invoices
+    : [];
   const canApprove = order.status === "DRAFT" || order.status === "PENDING";
   const canReceive = order.status === "ORDERED" || order.status === "PARTIALLY_RECEIVED";
   const canCancel = order.status !== "RECEIVED" && order.status !== "CANCELLED";

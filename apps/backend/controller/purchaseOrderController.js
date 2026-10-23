@@ -42,25 +42,34 @@ const normalizePurchaseOrderItem = (item) => {
 const normalizePurchaseOrder = (order) => {
   if (!order) return order;
 
-  const { purchaseOrderItems, purchaseInvoices, items, _count, ...rest } = order;
+  const { purchaseOrderItems, purchaseInvoices, items, invoices, _count, ...rest } = order;
   const rawItems = purchaseOrderItems !== undefined ? purchaseOrderItems : items;
+  const normalizedItems = Array.isArray(rawItems)
+    ? rawItems.map(normalizePurchaseOrderItem)
+    : rawItems;
+
+  const rawInvoices = purchaseInvoices !== undefined ? purchaseInvoices : invoices;
 
   return {
     ...rest,
     ...(rawItems !== undefined
       ? {
-          items: Array.isArray(rawItems)
-            ? rawItems.map(normalizePurchaseOrderItem)
-            : rawItems,
+          items: normalizedItems,
+          purchaseOrderItems: normalizedItems,
         }
       : {}),
-    ...(purchaseInvoices !== undefined ? { invoices: purchaseInvoices } : {}),
+    ...(rawInvoices !== undefined
+      ? {
+          invoices: rawInvoices,
+          purchaseInvoices: rawInvoices,
+        }
+      : {}),
     ...(_count
       ? {
           _count: {
             ..._count,
             ...(typeof _count.purchaseOrderItems === "number"
-              ? { items: _count.purchaseOrderItems }
+              ? { items: _count.purchaseOrderItems, purchaseOrderItems: _count.purchaseOrderItems }
               : {}),
           },
         }
@@ -68,7 +77,7 @@ const normalizePurchaseOrder = (order) => {
   };
 };
 
-const generateOrderNumber = async (companyId) => {
+const generateOrderNumber = async (companyId, offset = 0) => {
   const lastOrder = await safeQuery(() =>
     getSharedPrismaClient().purchaseOrder.findFirst({
       where: { companyId },
@@ -76,10 +85,11 @@ const generateOrderNumber = async (companyId) => {
     }),
   );
 
-  const lastNumber = lastOrder
-    ? parseInt(lastOrder.orderNumber.split("-").pop())
-    : 0;
-  return `PO-${String(lastNumber + 1).padStart(6, "0")}`;
+  const match = lastOrder?.orderNumber
+    ? String(lastOrder.orderNumber).match(/\d+$/)
+    : null;
+  const lastNumber = (match && !isNaN(parseInt(match[0], 10))) ? parseInt(match[0], 10) : 0;
+  return `PO-${String(lastNumber + 1 + offset).padStart(6, "0")}`;
 };
 
 exports.getProcurementCatalogItems = async (req, res) => {
@@ -267,12 +277,13 @@ exports.createPurchaseOrder = async (req, res) => {
 
     let subtotal = 0;
     let taxAmount = 0;
+    let totalItemDiscounts = 0;
 
     const orderItems = items.map((item) => {
-      const quantity = parseFloat(item.quantity);
-      const unitPrice = parseFloat(item.unitPrice);
-      const taxRate = parseFloat(item.taxRate || 0);
-      const discountRate = parseFloat(item.discountRate || 0);
+      const quantity = Math.max(0.0001, parseFloat(item.quantity) || 1);
+      const unitPrice = Math.max(0, parseFloat(item.unitPrice) || 0);
+      const taxRate = Math.max(0, Math.min(100, parseFloat(item.taxRate || 0) || 0));
+      const discountRate = Math.max(0, Math.min(100, parseFloat(item.discountRate || 0) || 0));
 
       const itemSubtotal = quantity * unitPrice;
       const itemDiscount = itemSubtotal * (discountRate / 100);
@@ -280,6 +291,7 @@ exports.createPurchaseOrder = async (req, res) => {
       const totalPrice = itemSubtotal - itemDiscount + itemTax;
 
       subtotal += itemSubtotal;
+      totalItemDiscounts += itemDiscount;
       taxAmount += itemTax;
 
       const safeProductId =
@@ -294,7 +306,7 @@ exports.createPurchaseOrder = async (req, res) => {
 
       return {
         productId: safeProductId,
-        productName: item.productName,
+        productName: (item.productName || "صنف بدون اسم").trim(),
         description: item.variantName || item.description || "",
         quantity,
         unitPrice,
@@ -305,16 +317,20 @@ exports.createPurchaseOrder = async (req, res) => {
       };
     });
 
-    const shipping = parseFloat(shippingCost || 0);
-    const discount = parseFloat(discountAmount || 0);
-    const totalAmount = subtotal + taxAmount + shipping - discount;
+    const shipping = Math.max(0, parseFloat(shippingCost || 0) || 0);
+    const globalDiscount = Math.max(0, parseFloat(discountAmount || 0) || 0);
+    // Correct formula matching frontend: subtotal (gross) - totalItemDiscounts + taxAmount + shipping - globalDiscount
+    const totalAmount = Math.max(
+      0,
+      subtotal - totalItemDiscounts + taxAmount + shipping - globalDiscount
+    );
 
     let purchaseOrder = null;
     let lastOrderError = null;
 
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
-        const orderNumber = await generateOrderNumber(companyId);
+        const orderNumber = await generateOrderNumber(companyId, attempt);
         purchaseOrder = await safeQuery(() =>
           getSharedPrismaClient().purchaseOrder.create({
             data: {
@@ -327,7 +343,7 @@ exports.createPurchaseOrder = async (req, res) => {
                 : null,
               subtotal,
               taxAmount,
-              discountAmount: discount,
+              discountAmount: globalDiscount,
               shippingCost: shipping,
               totalAmount,
               paymentTerms,
@@ -484,6 +500,7 @@ exports.updatePurchaseOrder = async (req, res) => {
       notes,
       shippingCost,
       discountAmount,
+      items,
     } = req.body;
 
     const existingOrder = await safeQuery(() =>
@@ -505,27 +522,123 @@ exports.updatePurchaseOrder = async (req, res) => {
         .json({ message: "لا يمكن تعديل أمر شراء مستلم أو مغلق" });
     }
 
+    let subtotal = undefined;
+    let taxAmount = undefined;
+    let totalAmount = undefined;
+    let orderItems = undefined;
+
+    if (Array.isArray(items) && items.length > 0) {
+      const validProductIds = new Set();
+      const candidateProductIds = items
+        .map((item) => item.productId)
+        .filter(Boolean);
+
+      if (candidateProductIds.length > 0) {
+        const existingProducts = await safeQuery(() =>
+          getSharedPrismaClient().product.findMany({
+            where: {
+              id: { in: candidateProductIds },
+              companyId,
+            },
+            select: { id: true },
+          }),
+        );
+        if (Array.isArray(existingProducts)) {
+          existingProducts.forEach((p) => validProductIds.add(p.id));
+        }
+      }
+
+      let sub = 0;
+      let tax = 0;
+      let totalItemDiscounts = 0;
+
+      orderItems = items.map((item) => {
+        const quantity = Math.max(0.0001, parseFloat(item.quantity) || 1);
+        const unitPrice = Math.max(0, parseFloat(item.unitPrice) || 0);
+        const taxRate = Math.max(0, Math.min(100, parseFloat(item.taxRate || 0) || 0));
+        const discountRate = Math.max(0, Math.min(100, parseFloat(item.discountRate || 0) || 0));
+
+        const itemSubtotal = quantity * unitPrice;
+        const itemDiscount = itemSubtotal * (discountRate / 100);
+        const itemTax = (itemSubtotal - itemDiscount) * (taxRate / 100);
+        const totalPrice = itemSubtotal - itemDiscount + itemTax;
+
+        sub += itemSubtotal;
+        totalItemDiscounts += itemDiscount;
+        tax += itemTax;
+
+        const safeProductId =
+          item.productId && validProductIds.has(item.productId)
+            ? item.productId
+            : null;
+
+        const rawNotes = (item.notes || "").replace(/\[variantId:[^\]]+\]\s*/g, "").trim();
+        const itemNotes = item.variantId
+          ? `[variantId:${item.variantId}]${rawNotes ? ` ${rawNotes}` : ""}`
+          : item.notes || null;
+
+        return {
+          productId: safeProductId,
+          productName: (item.productName || "صنف بدون اسم").trim(),
+          description: item.variantName || item.description || "",
+          quantity,
+          unitPrice,
+          taxRate,
+          discountRate,
+          totalPrice,
+          notes: itemNotes,
+        };
+      });
+
+      subtotal = sub;
+      taxAmount = tax;
+      const effectiveShipping = shippingCost !== undefined ? Math.max(0, parseFloat(shippingCost) || 0) : Number(existingOrder.shippingCost || 0);
+      const effectiveGlobalDiscount = discountAmount !== undefined ? Math.max(0, parseFloat(discountAmount) || 0) : Number(existingOrder.discountAmount || 0);
+      totalAmount = Math.max(0, sub - totalItemDiscounts + tax + effectiveShipping - effectiveGlobalDiscount);
+    } else if (shippingCost !== undefined || discountAmount !== undefined) {
+      const currentSubtotal = Number(existingOrder.subtotal || 0);
+      const currentTax = Number(existingOrder.taxAmount || 0);
+      const effectiveShipping = shippingCost !== undefined ? Math.max(0, parseFloat(shippingCost) || 0) : Number(existingOrder.shippingCost || 0);
+      const effectiveGlobalDiscount = discountAmount !== undefined ? Math.max(0, parseFloat(discountAmount) || 0) : Number(existingOrder.discountAmount || 0);
+      totalAmount = Math.max(0, currentSubtotal + currentTax + effectiveShipping - effectiveGlobalDiscount);
+    }
+
     const order = await safeQuery(() =>
-      getSharedPrismaClient().purchaseOrder.update({
-        where: { id },
-        data: {
-          supplierId,
-          orderDate: orderDate ? new Date(orderDate) : undefined,
-          expectedDelivery: expectedDelivery
-            ? new Date(expectedDelivery)
-            : undefined,
-          status,
-          paymentTerms,
-          notes,
-          shippingCost: shippingCost ? parseFloat(shippingCost) : undefined,
-          discountAmount: discountAmount
-            ? parseFloat(discountAmount)
-            : undefined,
-        },
-        include: {
-          purchaseOrderItems: true,
-          supplier: true,
-        },
+      getSharedPrismaClient().$transaction(async (prisma) => {
+        if (orderItems) {
+          await prisma.purchaseOrderItem.deleteMany({
+            where: { purchaseOrderId: id },
+          });
+          await prisma.purchaseOrderItem.createMany({
+            data: orderItems.map((oi) => ({
+              ...oi,
+              purchaseOrderId: id,
+            })),
+          });
+        }
+
+        return prisma.purchaseOrder.update({
+          where: { id },
+          data: {
+            supplierId,
+            orderDate: orderDate ? new Date(orderDate) : undefined,
+            expectedDelivery: expectedDelivery
+              ? new Date(expectedDelivery)
+              : expectedDelivery === "" ? null : undefined,
+            status,
+            paymentTerms,
+            notes,
+            ...(subtotal !== undefined ? { subtotal } : {}),
+            ...(taxAmount !== undefined ? { taxAmount } : {}),
+            ...(shippingCost !== undefined ? { shippingCost: Math.max(0, parseFloat(shippingCost) || 0) } : {}),
+            ...(discountAmount !== undefined ? { discountAmount: Math.max(0, parseFloat(discountAmount) || 0) } : {}),
+            ...(totalAmount !== undefined ? { totalAmount } : {}),
+          },
+          include: {
+            purchaseOrderItems: true,
+            supplier: true,
+          },
+        });
       }),
     );
 

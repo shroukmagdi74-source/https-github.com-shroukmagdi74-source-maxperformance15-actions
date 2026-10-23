@@ -254,14 +254,16 @@ const PurchaseOrders: React.FC = () => {
                   <TableCell className="font-mono text-xs font-medium text-primary text-start">
                     {order.orderNumber}
                   </TableCell>
-                  <TableCell className="text-start">{order.supplier.name}</TableCell>
+                  <TableCell className="text-start">{order.supplier?.name || "—"}</TableCell>
                   <TableCell className="text-xs tabular-nums text-start">
                     {formatShortDate(order.orderDate, i18n.language)}
                   </TableCell>
                   <TableCell className="text-xs tabular-nums text-start">
                     {formatShortDate(order.expectedDelivery, i18n.language)}
                   </TableCell>
-                  <TableCell className="text-center tabular-nums">{order._count.items}</TableCell>
+                  <TableCell className="text-center tabular-nums">
+                    {order._count?.items ?? (order as any).items?.length ?? 0}
+                  </TableCell>
                   <TableCell className="text-end tabular-nums font-medium">
                     {formatCurrency(order.totalAmount, { locale: i18n.language })}
                   </TableCell>
