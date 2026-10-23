@@ -3286,6 +3286,9 @@ const StorefrontHeader: React.FC<{
 
   return (
     <>
+      {/* Unified SEO head (title/description/robots/canonical/OG) for every storefront page.
+          PAGE-1.2 shipped the component but never mounted it — verified missing on live. */}
+      <StorefrontHead />
       {announcementBarElement}
       {!isSticky && (
         <style>{`header.sticky, header[class*="sticky"], .sticky { position: relative !important; top: auto !important; }`}</style>
