@@ -10,10 +10,15 @@ import {
   Cog6ToothIcon,
   WindowIcon,
   Square3Stack3DIcon,
+  SwatchIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioLeftRailTab } from "./StudioTypes";
 
-export type StudioLeftRailActiveTab = StudioLeftRailTab | "header-footer" | "templates";
+export type StudioLeftRailActiveTab =
+  | StudioLeftRailTab
+  | "header-footer"
+  | "templates"
+  | "themes";
 
 interface StudioLeftRailProps {
   activeTab: StudioLeftRailActiveTab;
@@ -38,6 +43,7 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
   }> = [
     { id: "elements", label: "إضافة", icon: PlusIcon },
     { id: "templates", label: "قوالب", icon: Square3Stack3DIcon },
+    { id: "themes", label: "الثيمات", icon: SwatchIcon },
     { id: "layers", label: "الهيكل", icon: Squares2X2Icon },
     { id: "pages", label: "صفحات", icon: DocumentDuplicateIcon },
     { id: "header-footer", label: "الهيدر والفوتر", icon: WindowIcon },

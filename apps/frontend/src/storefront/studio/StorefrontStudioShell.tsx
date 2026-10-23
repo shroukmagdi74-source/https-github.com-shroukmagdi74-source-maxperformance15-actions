@@ -20,6 +20,7 @@ import { StudioSectionCatalogModal } from "./StudioSectionCatalogModal";
 import { StudioPagesPanel } from "./StudioPagesPanel";
 import { StudioHeaderFooterPanel } from "./StudioHeaderFooterPanel";
 import { StudioTemplateGalleryPanel } from "./StudioTemplateGalleryPanel";
+import { StudioThemeGalleryPanel } from "./StudioThemeGalleryPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
 import type { StorefrontPageSEOConfig, StorefrontPageStatus } from "../types/theme.types";
@@ -390,7 +391,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     const leftPanelWidth = isLeftDrawerOpen
       ? leftRailTab === "elements"
         ? 280
-        : leftRailTab === "header-footer" || leftRailTab === "templates"
+        : leftRailTab === "header-footer" || leftRailTab === "templates" || leftRailTab === "themes"
         ? 340
         : 288
       : 0;
@@ -891,6 +892,15 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     [activePageKey, currentDesignTokens, handleDesignTokensChange, onSave, setSelectedSectionKey]
   );
 
+  const handleApplyTheme = useCallback(
+    (newThemeId: string, nextTokens: Record<string, unknown>) => {
+      handleDesignTokensChange(nextTokens);
+      onSave();
+      toast.success(`تم تطبيق ثيم «${newThemeId}» بنجاح ✨`);
+    },
+    [handleDesignTokensChange, onSave]
+  );
+
 
   const pageSectionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1233,6 +1243,15 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                   <StudioTemplateGalleryPanel
                     activePageKey={activePageKey}
                     onApplyPreset={handleApplyIndustryPreset}
+                    onClose={() => setIsLeftDrawerOpen(false)}
+                  />
+                )}
+
+                {leftRailTab === "themes" && (
+                  <StudioThemeGalleryPanel
+                    currentThemeId={(currentDesignTokens as any)?.themeId || themeId}
+                    designTokens={currentDesignTokens}
+                    onApplyTheme={handleApplyTheme}
                     onClose={() => setIsLeftDrawerOpen(false)}
                   />
                 )}
