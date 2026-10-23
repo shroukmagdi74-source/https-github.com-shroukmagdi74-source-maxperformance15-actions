@@ -105,7 +105,8 @@
     "shipping_ticket_create",
     "affiliate_get_link",
     "affiliates_list",
-    "affiliate_settings_read"
+    "affiliate_settings_read",
+    "store_capability"
   ],
   "allowedSkills": [
     "read-company-state",

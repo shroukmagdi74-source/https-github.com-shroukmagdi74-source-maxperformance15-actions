@@ -84,6 +84,9 @@ roles:
     - affiliate_get_link
     - affiliates_list
     - affiliate_settings_read
+    # Capability index (progressive disclosure) — sees only this role's
+    # capabilities on the company's ACTIVE apps (src/tools/capability_policy.py)
+    - store_capability
 
   BROWSER_COPILOT:
     - product_search

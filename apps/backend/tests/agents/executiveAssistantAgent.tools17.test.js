@@ -55,12 +55,23 @@ describe('Executive Assistant Agent (Saleem) — Complete Store Bundle (17 Apps)
     }
   });
 
-  test('agent.json has valid metadata, allowedSkills, and 76 allowedTools', () => {
+  test('agent.json has valid metadata, allowedSkills, and a sane tool allowlist', () => {
     expect(agentManifest.slug).toBe('executive-assistant-agent');
     expect(agentManifest.role).toBe('EXECUTIVE_ASSISTANT');
     expect(agentManifest.name).toContain('سليم');
     expect(Array.isArray(agentManifest.allowedTools)).toBe(true);
-    expect(agentManifest.allowedTools.length).toBe(76);
+    // No magic count: the allowlist grows as apps ship (affiliate, capability
+    // index). Assert shape + baseline instead, and require the two sources
+    // (agent.json ↔ role_tools.yaml) to agree — the count itself is checked
+    // by scripts/validate-agent-skills.js.
+    const tools = agentManifest.allowedTools;
+    expect(tools.length).toBeGreaterThanOrEqual(76);
+    expect(new Set(tools).size).toBe(tools.length);
+    for (const tool of tools) {
+      expect(typeof tool).toBe('string');
+      expect(tool).toMatch(/^[a-z][a-z0-9_.]*$/);
+    }
+    expect(agentManifest.allowedTools).toContain('store_capability');
 
     const requiredSkills = [
       'store-suite-operations',

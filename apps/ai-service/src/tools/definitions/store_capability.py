@@ -10,12 +10,18 @@ tokens for 57 tools already). Instead agents get ONE compact index tool:
 """
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import structlog
-from agent_framework import FunctionTool
+from agent_framework import FunctionInvocationContext, FunctionTool
 from pydantic import BaseModel, Field
 
+from src.tools.capability_policy import (
+    DEFAULT_FORBIDDEN_PREFIXES,
+    active_app_slugs_from,
+    filter_exposed_rows,
+)
 from src.tools.names import canonical_tool_name
 
 logger = structlog.get_logger(__name__)
@@ -24,6 +30,47 @@ logger = structlog.get_logger(__name__)
 # write capabilities must go through their dedicated bridge tool + approval.
 _INDEX_EXECUTABLE_RISKS = {"read", "direct_write"}
 MAX_SEARCH_RESULTS = 15
+
+# Company app activation, cached per tenant. A search/execute pair costs one
+# backend round-trip, not one per call.
+_APPS_TTL_SECONDS = 300.0
+_apps_cache: dict[str, tuple[set[str] | None, float]] = {}
+
+
+async def _company_app_slugs(company_id: str) -> set[str] | None:
+    """Active app slugs for the tenant, or None when the lookup fails."""
+    if not company_id:
+        return None
+    now = time.monotonic()
+    cached = _apps_cache.get(company_id)
+    if cached and cached[1] > now:
+        return cached[0]
+    try:
+        from src.tools.backend_client import get_backend_client
+
+        apps = await get_backend_client().list_company_apps(company_id)
+        slugs = active_app_slugs_from(apps)
+    except Exception as exc:  # noqa: BLE001 — never break chat on a failed lookup
+        logger.warning("store_capability_apps_lookup_failed", company_id=company_id, error=str(exc))
+        return None
+    _apps_cache[company_id] = (slugs, now + _APPS_TTL_SECONDS)
+    return slugs
+
+
+def _role_policy(role: str | None) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(forbidden prefixes, forbidden domains) from roles.manifest.yaml."""
+    if not role:
+        return DEFAULT_FORBIDDEN_PREFIXES, ()
+    try:
+        from src.agents.role_registry import get_role
+
+        spec = get_role(role)
+        prefixes = tuple(spec.approval_policy.get("forbidden_prefixes", DEFAULT_FORBIDDEN_PREFIXES))
+        domains = tuple(spec.approval_policy.get("forbidden_domains", ()) or ())
+        return prefixes, domains
+    except Exception:  # noqa: BLE001 — unknown role keeps the safe default
+        return DEFAULT_FORBIDDEN_PREFIXES, ()
+
 
 
 class StoreCapabilityInput(BaseModel):
@@ -52,9 +99,13 @@ async def _active_rows(session: Any) -> list[Any]:
     return list(result.scalars().all())
 
 
-async def store_capability(input_data: StoreCapabilityInput) -> dict[str, Any]:
+async def store_capability(
+    input_data: StoreCapabilityInput,
+    ctx: FunctionInvocationContext | None = None,
+) -> dict[str, Any]:
     action = (input_data.action or "").lower().strip()
     company_id = input_data.company_id or ""
+    role = getattr(ctx, "agent_role", None) if ctx is not None else None
 
     if action not in ("search", "execute"):
         return {"success": False, "error": f"Unknown action '{action}' — use 'search' or 'execute'"}
@@ -67,17 +118,29 @@ async def store_capability(input_data: StoreCapabilityInput) -> dict[str, Any]:
 
     async with sf() as session:
         rows = await _active_rows(session)
+        # Only the capabilities this role may use on this tenant's active apps.
+        # No company context ⇒ app-bound rows stay hidden (fail-closed).
+        active_apps = await _company_app_slugs(company_id) if company_id else set()
+        forbidden_prefixes, forbidden_domains = _role_policy(role)
+        rows = filter_exposed_rows(
+            rows,
+            role=role,
+            active_app_slugs=active_apps,
+            forbidden_prefixes=forbidden_prefixes,
+            forbidden_domains=forbidden_domains,
+        )
 
         if action == "search":
             query = (input_data.query or "").strip().lower()
             results = []
             for row in rows:
-                haystack = f"{row.name} {row.description_en} {row.domain}".lower()
+                hint = str(getattr(row, "usage_hint_ar", "") or "")
+                haystack = f"{row.name} {row.description_en} {row.domain} {hint}".lower()
                 if not query or query in haystack or any(w in haystack for w in query.split()):
                     results.append({
                         "name": row.name,
                         "domain": row.domain,
-                        "description": row.description_en[:160],
+                        "description": (hint or row.description_en or "")[:160],
                         "risk": row.risk_level,
                         "parameters": list((row.input_schema or {}).get("properties", {}).keys()),
                     })

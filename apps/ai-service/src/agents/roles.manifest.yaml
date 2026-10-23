@@ -18,6 +18,10 @@ roles:
     approval_policy:
       allowed_scopes: ["EXECUTIVE", "STORE_OPS", "ORDERS", "INVENTORY", "ANALYTICS", "DISCOUNTS"]
       forbidden_prefixes: ["hr_", "payroll_", "internal_"]
+      # Deny-list applied by the capability index (store_capability):
+      # staff/payroll stays out of the general executive assistant until the
+      # owner explicitly widens the scope.
+      forbidden_domains: ["staff", "payroll"]
     memory_policy:
       retain_days: 90
       auto_embed: true
