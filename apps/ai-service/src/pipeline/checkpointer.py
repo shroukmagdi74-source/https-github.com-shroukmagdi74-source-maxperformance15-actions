@@ -12,6 +12,18 @@ from src.pipeline.context import PipelineContext
 logger = structlog.get_logger(__name__)
 
 
+_MAXP_NAMESPACE = uuid.UUID("e4b0113c-411a-4d24-912f-6825a0720448")
+
+def _safe_thread_uuid(thread_id: str | uuid.UUID | None) -> uuid.UUID:
+    if not thread_id:
+        return uuid.uuid4()
+    if isinstance(thread_id, uuid.UUID):
+        return thread_id
+    try:
+        return uuid.UUID(str(thread_id))
+    except ValueError:
+        return uuid.uuid5(_MAXP_NAMESPACE, str(thread_id))
+
 class PipelineCheckpointer:
     """Saves pipeline state after each stage for fault tolerance.
 
@@ -31,7 +43,9 @@ class PipelineCheckpointer:
         checkpoint_id = f"pipeline:{ctx.thread_id}:{stage_name}:{int(time.time()*1000)}"
 
         state = {
-            "thread_id": ctx.thread_id,
+            "thread_id": str(ctx.thread_id),
+            "request_id": getattr(ctx, "request_id", None),
+            "prompt_hash": getattr(ctx, "prompt_hash", None),
             "company_id": ctx.company_id,
             "customer_id": ctx.customer_id,
             "message": ctx.message,
@@ -52,7 +66,7 @@ class PipelineCheckpointer:
             "timestamp": time.time(),
         }
 
-        t_id = uuid.UUID(str(ctx.thread_id)) if isinstance(ctx.thread_id, str) else ctx.thread_id
+        t_id = _safe_thread_uuid(ctx.thread_id)
         cp = Checkpoint(
             thread_id=t_id,
             checkpoint_id=checkpoint_id,
@@ -66,11 +80,13 @@ class PipelineCheckpointer:
 
     async def get_latest_checkpoint(
         self,
-        thread_id: str | uuid.UUID,
+        thread_id: str | uuid.UUID | None,
     ) -> PipelineContext | None:
+        if not thread_id:
+            return None
         from sqlalchemy import desc, select
 
-        t_id = uuid.UUID(str(thread_id)) if isinstance(thread_id, str) else thread_id
+        t_id = _safe_thread_uuid(thread_id)
         stmt = (
             select(Checkpoint)
             .where(Checkpoint.thread_id == t_id)

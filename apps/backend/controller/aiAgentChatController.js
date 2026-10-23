@@ -4,6 +4,7 @@
  * Routes: POST /message, GET /history, DELETE /history, GET /sessions, POST /sessions, DELETE /sessions/:id, GET /status
  */
 
+const crypto = require('crypto');
 const aiSdkClient = require('../services/aiSdkClient');
 const aiSessionService = require('../services/aiSessionService');
 const agentStudioSessionService = require('../services/agentStudioSessionService');
@@ -43,7 +44,11 @@ async function sendMessage(req, res) {
 
     const effectiveMessage = trimmedMessage || 'يرجى مراجعة وفحص الصورة المرفقة والإفادة بالتحليل والإجراء المقترح.';
 
-    const activeSessionId = sessionId || `copilot_sess_${Date.now()}`;
+    const requestId = req.headers['x-request-id'] || `req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const promptHash = crypto.createHash('sha256').update(effectiveMessage).digest('hex').slice(0, 12);
+    const activeSessionId = (typeof sessionId === 'string' && sessionId.trim())
+      ? sessionId.trim()
+      : `copilot_sess_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
 
     // SOTA 2026: Strict slash-command rewind interceptor (prevents accidental data wipe from conversational words)
     const isRewindCommand = /^\s*\/(تراجع|undo|rewind)\s*$/i.test(effectiveMessage);
@@ -118,7 +123,14 @@ async function sendMessage(req, res) {
             .slice(0, 5)
             .map(s => {
               const msgCount = (s.messages || []).length;
-              const lastMsgs = (s.messages || []).slice(-2).map(m => `[${m.role === 'user' ? 'التاجر' : 'المساعد'}]: ${m.content ? m.content.slice(0, 100) : ''}`).join(' | ');
+              const lastMsgs = (s.messages || [])
+                .slice(-2)
+                .map(m => {
+                  const roleName = m.role === 'user' ? 'التاجر' : 'المساعد';
+                  const cleanText = (m.content || '').replace(/[{}[\]]/g, ' ').replace(/\s+/g, ' ').slice(0, 80).trim();
+                  return `[${roleName}]: ${cleanText}`;
+                })
+                .join(' | ');
               return `جلسة بعنوان "${s.title || 'جلسة سابقة'}" (${msgCount} رسائل) - آخر حوار: ${lastMsgs}`;
             })
             .filter(Boolean);
@@ -132,6 +144,15 @@ async function sendMessage(req, res) {
 
     let result = null;
     const targetAgentId = agentId || agentSlug || await resolveDefaultCopilotAgent(companyId);
+
+    console.log('[AI-CHAT-REQ]', JSON.stringify({
+      requestId,
+      companyId,
+      sessionId: activeSessionId,
+      promptHash,
+      agentId: targetAgentId,
+      messagePreview: effectiveMessage.slice(0, 80),
+    }));
     const combinedMemoryContext = {
       ...(sessionContext || {}),
       ...(sessionRecentMessages.length > 0 ? { recentMessages: sessionRecentMessages } : {}),
@@ -153,6 +174,7 @@ async function sendMessage(req, res) {
           memoryContext: combinedMemoryContext,
           channel: req.body?.channel || 'dashboard',
           attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined,
+          requestId,
         });
 
         if (agentChatResult && (agentChatResult.reply || agentChatResult.tool_calls || agentChatResult.status === 'ok')) {
@@ -208,6 +230,7 @@ async function sendMessage(req, res) {
         threadId: activeSessionId,
         memoryContext: combinedMemoryContext,
         attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined,
+        requestId,
       });
       result = {
         reply: fallbackResult.reply,
@@ -258,6 +281,8 @@ async function sendMessage(req, res) {
     return res.json({
       success: true,
       reply: result.reply,
+      requestId,
+      promptHash,
       toolCalls: result.toolCalls || [],
       agentInfo: result.agentInfo || null,
       modelSelection: result.modelSelection || null,

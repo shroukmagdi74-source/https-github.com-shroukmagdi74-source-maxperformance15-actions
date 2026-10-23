@@ -576,6 +576,11 @@ You are continuing an existing conversation on Facebook Messenger that was previ
                     "summarize them using this information or invoke 'session_search' for deeper message logs. "
                     "Never say 'ليس لدي وصول للمحادثات السابقة'!"
                 )
+                working_memory_lines.append(
+                    "    CRITICAL ISOLATION DIRECTIVE: The user's current message MUST be answered based ONLY on the current query. "
+                    "DO NOT execute tools or repeat actions from these past sessions unless the user explicitly requests to review or resume them. "
+                    "Never confuse past session topics with the current user message."
+                )
                 working_memory_lines.append("  </merchant_past_sessions>")
 
             working_memory_lines.append("</session_working_memory>")

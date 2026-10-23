@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import hashlib
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -859,6 +860,8 @@ async def list_agents(
 @router.post("/agents/chat", response_model=AgentChatResponse)
 async def chat_with_agent(body: AgentChatRequest, session: SessionDep) -> AgentChatResponse:
     """Run a message through the selected runtime agent, not the generic CEO chat."""
+    prompt_hash = hashlib.sha256((body.message or "").encode("utf-8")).hexdigest()[:12]
+    req_id = body.request_id or f"req_{uuid.uuid4().hex[:12]}"
     try:
         agent = await _load_chat_agent(body, session)
     except HTTPException:
@@ -874,6 +877,13 @@ async def chat_with_agent(body: AgentChatRequest, session: SessionDep) -> AgentC
         raise HTTPException(status_code=502, detail=f"LLM client error: {e}") from e
 
     thread_id = body.thread_id or f"agent-chat-{uuid.uuid4()}"
+    logger.info(
+        "agent_chat_received",
+        request_id=req_id,
+        session_id=thread_id,
+        prompt_hash=prompt_hash,
+        message=(body.message or "")[:80],
+    )
     requested_provider = getattr(getattr(agent, "config", None), "provider", None)
     if not requested_provider:
         requested_provider = _first_present(dict(body.agent_config or {}), "provider")
@@ -897,6 +907,8 @@ async def chat_with_agent(body: AgentChatRequest, session: SessionDep) -> AgentC
                 "attachments": [item.model_dump(exclude_none=True) for item in body.attachments],
                 "_db_session": session,
                 "force_pipeline": True,
+                "request_id": req_id,
+                "prompt_hash": prompt_hash,
             }
         )
     except Exception as e:

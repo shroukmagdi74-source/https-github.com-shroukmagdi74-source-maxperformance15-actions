@@ -57,6 +57,8 @@ class PipelineWorkflowSnapshot:
     last_checkpoint_id: str | None = None
     resumed_from_checkpoint: bool = False
     response_attachments: list[dict[str, Any]] = field(default_factory=list)
+    request_id: str | None = None
+    prompt_hash: str | None = None
 
     @classmethod
     def from_context(cls, ctx: PipelineContext) -> PipelineWorkflowSnapshot:
@@ -92,6 +94,8 @@ class PipelineWorkflowSnapshot:
             last_checkpoint_id=ctx.last_checkpoint_id,
             resumed_from_checkpoint=ctx.resumed_from_checkpoint,
             response_attachments=list(ctx.response_attachments or []),
+            request_id=getattr(ctx, "request_id", None),
+            prompt_hash=getattr(ctx, "prompt_hash", None),
         )
 
     def to_context(
@@ -137,6 +141,8 @@ class PipelineWorkflowSnapshot:
         ctx.last_checkpoint_id = self.last_checkpoint_id
         ctx.resumed_from_checkpoint = self.resumed_from_checkpoint
         ctx.response_attachments = list(self.response_attachments or [])
+        ctx.request_id = self.request_id
+        ctx.prompt_hash = self.prompt_hash
         return ctx
 
 

@@ -100,7 +100,7 @@ function normalizeDreamerResponse(payload = {}, conversations = []) {
  * @param {Object|null} [params.memoryContext=null] - Serialized working memory from Redis
  * @returns {Promise<{status: string, threadId: string, reply: string|null, draftId: string|null}>}
  */
-async function sendChatMessage({ companyId, customerId, message, threadId, channel = "chat", agentId = null, memoryContext = null, attachments = null }) {
+async function sendChatMessage({ companyId, customerId, message, threadId, channel = "chat", agentId = null, memoryContext = null, attachments = null, requestId = null }) {
   const { enrichMemoryContextWithPostProduct } = require('../utils/postProductMappingHelper');
   const enrichedContext = await enrichMemoryContextWithPostProduct(companyId, threadId, memoryContext);
 
@@ -111,7 +111,8 @@ async function sendChatMessage({ companyId, customerId, message, threadId, chann
     channel,
     agent_id: agentId || null,
     memory_context: enrichedContext,
-    attachments
+    attachments,
+    request_id: requestId || null,
   });
   const token = getAiServiceToken();
 
@@ -122,6 +123,7 @@ async function sendChatMessage({ companyId, customerId, message, threadId, chann
       'X-Company-Id': companyId,
       'X-Customer-Id': customerId,
       'Authorization': `Bearer ${token}`,
+      ...(requestId ? { 'X-Request-Id': requestId } : {}),
     },
     body,
   });

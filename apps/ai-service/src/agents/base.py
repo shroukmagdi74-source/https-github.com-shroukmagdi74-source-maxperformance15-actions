@@ -987,6 +987,8 @@ class BaseAgent:
             conversation_id=str(task.get("conversation_id") or thread_id),
             attachments=attachments,
             external_memory_context=self._build_external_memory_context(task),
+            request_id=task.get("request_id"),
+            prompt_hash=task.get("prompt_hash"),
         )
         ctx.model_selection = getattr(task_llm_client, "model_selection", None) or ({"model": self.model, "source": "primary"} if self.model else None)
         # Pre-populate native_tools from _resolve_tools so the pipeline
@@ -1401,6 +1403,8 @@ class BaseAgent:
                 "status": (ctx.early_return or {}).get("status", "ok"),
                 "thread_id": ctx.thread_id,
                 "draft_id": (ctx.early_return or {}).get("draft_id"),
+                "request_id": getattr(ctx, "request_id", None) or task.get("request_id"),
+                "prompt_hash": getattr(ctx, "prompt_hash", None) or task.get("prompt_hash"),
             },
             "model_selection": effective_model_selection,
             "task": task,

@@ -13,7 +13,7 @@ _MAXP_NAMESPACE = uuid.UUID("e4b0113c-411a-4d24-912f-6825a0720448")
 
 def _safe_thread_uuid(thread_id: str | uuid.UUID | None) -> uuid.UUID:
     if not thread_id:
-        return uuid.UUID(int=0)
+        return uuid.uuid4()
     if isinstance(thread_id, uuid.UUID):
         return thread_id
     try:
@@ -50,8 +50,10 @@ class RunStateManager:
         await self.session.commit()
         return state_id
 
-    async def load_state(self, thread_id: str | uuid.UUID, state_id: str) -> dict[str, Any] | None:
+    async def load_state(self, thread_id: str | uuid.UUID | None, state_id: str) -> dict[str, Any] | None:
         """Loads a specific state by its ID."""
+        if not thread_id:
+            return None
         t_id = _safe_thread_uuid(thread_id)
 
         stmt = select(Checkpoint).where(
@@ -63,8 +65,10 @@ class RunStateManager:
 
         return checkpoint.state if checkpoint else None
 
-    async def get_latest_state(self, thread_id: str | uuid.UUID) -> tuple[str, dict[str, Any]] | None:
+    async def get_latest_state(self, thread_id: str | uuid.UUID | None) -> tuple[str, dict[str, Any]] | None:
         """Retrieves the most recent checkpoint for the given thread."""
+        if not thread_id:
+            return None
         t_id = _safe_thread_uuid(thread_id)
 
         stmt = select(Checkpoint).where(

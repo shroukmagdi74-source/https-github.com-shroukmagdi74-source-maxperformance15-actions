@@ -14,7 +14,7 @@ function getToken() {
   return process.env.AI_SERVICE_TOKEN || process.env.MAXP_SERVICE_TOKEN || '';
 }
 
-async function request(method, path, body) {
+async function request(method, path, body, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const base = getBaseUrl();
     const url = new URL(`${base}${path}`);
@@ -31,6 +31,7 @@ async function request(method, path, body) {
         'Authorization': `Bearer ${getToken()}`,
         'Content-Type': 'application/json',
         ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {}),
+        ...(extraHeaders || {}),
       },
     };
 
@@ -123,13 +124,14 @@ function sanitizeAgentChatAttachments(attachments) {
  * regression suite can assert that attachments pass through the sanitizer at
  * the actual call-site, not just in isolation.
  */
-function buildAgentChatRequestBody({ companyId, agentId, message, threadId, conversationId, customerId, channel, agentConfig, memoryContext, attachments }) {
+function buildAgentChatRequestBody({ companyId, agentId, message, threadId, conversationId, customerId, channel, agentConfig, memoryContext, attachments, requestId }) {
   const body = {
     company_id: companyId,
     agent_id: agentId,
     message,
     thread_id: threadId,
   };
+  if (requestId) body.request_id = requestId;
   if (conversationId) body.conversation_id = conversationId;
   if (customerId) body.customer_id = customerId;
   body.channel = channel || 'dashboard';
@@ -140,15 +142,15 @@ function buildAgentChatRequestBody({ companyId, agentId, message, threadId, conv
   return body;
 }
 
-async function chatWithAgent({ companyId, agentId, message, threadId, conversationId, customerId, channel, agentConfig, memoryContext, memory_context, attachments }) {
+async function chatWithAgent({ companyId, agentId, message, threadId, conversationId, customerId, channel, agentConfig, memoryContext, memory_context, attachments, requestId }) {
   const incomingMemoryContext = memoryContext || memory_context || null;
   const { enrichMemoryContextWithPostProduct } = require('../utils/postProductMappingHelper');
   const enrichedContext = await enrichMemoryContextWithPostProduct(companyId, threadId || conversationId, incomingMemoryContext);
   const body = buildAgentChatRequestBody({
     companyId, agentId, message, threadId, conversationId, customerId,
-    channel, agentConfig, memoryContext: enrichedContext, attachments,
+    channel, agentConfig, memoryContext: enrichedContext, attachments, requestId,
   });
-  return request('POST', '/admin/agents/chat', body);
+  return request('POST', '/admin/agents/chat', body, requestId ? { 'X-Request-Id': requestId } : undefined);
 }
 
 async function evaluateSandboxResponse({ companyId, message, response, toolCalls, criteria, provider, model, keyId }) {

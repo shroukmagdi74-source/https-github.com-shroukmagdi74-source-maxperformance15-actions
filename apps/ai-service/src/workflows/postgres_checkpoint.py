@@ -20,7 +20,7 @@ _MAXP_NAMESPACE = uuid.UUID("e4b0113c-411a-4d24-912f-6825a0720448")
 
 def _safe_thread_uuid(thread_id: str | uuid.UUID | None) -> uuid.UUID:
     if not thread_id:
-        return uuid.UUID(int=0)
+        return uuid.uuid4()
     if isinstance(thread_id, uuid.UUID):
         return thread_id
     try:

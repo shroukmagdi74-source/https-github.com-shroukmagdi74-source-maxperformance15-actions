@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import re
+import uuid
 from contextlib import suppress
 from typing import Any, Literal
 
@@ -18,6 +20,18 @@ from src.services.approval_service import ApprovalService
 from src.workflows.orchestration_flow import run_orchestration
 
 logger = structlog.get_logger(__name__)
+_MAXP_NAMESPACE = uuid.UUID("e4b0113c-411a-4d24-912f-6825a0720448")
+
+def _safe_thread_uuid(tid: str | uuid.UUID | None) -> uuid.UUID:
+    if not tid:
+        return uuid.uuid4()
+    if isinstance(tid, uuid.UUID):
+        return tid
+    try:
+        return uuid.UUID(str(tid))
+    except ValueError:
+        return uuid.uuid5(_MAXP_NAMESPACE, str(tid))
+
 router = APIRouter()
 
 SAFE_FALLBACK_REPLY = ""
@@ -34,6 +48,7 @@ class ChatRequest(BaseModel):
     agent_id: str | None = None
     memory_context: dict[str, Any] | None = None
     attachments: list[dict[str, Any]] | None = None
+    request_id: str | None = None
 
 
 class MerchantChatRequest(ChatRequest):
@@ -48,6 +63,8 @@ class ChatResponse(BaseModel):
     tool_calls: list[dict[str, Any]] = []
     response_attachments: list[dict[str, Any]] = []  # Media attachments (e.g. branch landmark images)
     escalation: dict[str, Any] | None = None  # Silent escalation metadata
+    request_id: str | None = None
+    prompt_hash: str | None = None
 
 
 def sanitize_model_reply(reply: Any) -> str:
@@ -124,26 +141,35 @@ async def chat(
     session: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> ChatResponse:
     """Handle a customer chat message."""
-    import uuid
-
     company_id = get_company_id(request)
     customer_id = get_customer_id(request)
     channel = body.channel or "chat"
+    prompt_hash = hashlib.sha256((body.message or "").encode("utf-8")).hexdigest()[:12]
+    req_id = body.request_id or request.headers.get("x-request-id") or f"req_{uuid.uuid4().hex[:12]}"
 
     thread = None
     if body.thread_id:
         try:
-            thread_uuid = uuid.UUID(body.thread_id)
+            thread_uuid = _safe_thread_uuid(body.thread_id)
             stmt = select(Thread).where(
                 Thread.id == thread_uuid,
                 Thread.company_id == company_id,
-                Thread.customer_id == customer_id,
-                Thread.channel == channel,
             )
             result = await session.execute(stmt)
             thread = result.scalar_one_or_none()
-        except ValueError:
-            pass
+            if not thread:
+                thread = Thread(
+                    id=thread_uuid,
+                    company_id=company_id,
+                    customer_id=customer_id,
+                    channel=channel,
+                    status="active",
+                )
+                session.add(thread)
+                await session.commit()
+                await session.refresh(thread)
+        except Exception as exc:
+            logger.warning("thread_lookup_or_create_failed", error=str(exc))
 
     if not thread:
         stmt = select(Thread).where(
@@ -155,12 +181,8 @@ async def chat(
         thread = result.scalar_one_or_none()
 
     if not thread:
-        new_id = uuid.uuid4()
-        if body.thread_id:
-            with suppress(ValueError):
-                new_id = uuid.UUID(body.thread_id)
         thread = Thread(
-            id=new_id,
+            id=uuid.uuid4(),
             company_id=company_id,
             customer_id=customer_id,
             channel=channel,
@@ -171,6 +193,13 @@ async def chat(
         await session.refresh(thread)
 
     thread_id = str(thread.id)
+    logger.info(
+        "chat_request_received",
+        request_id=req_id,
+        session_id=thread_id,
+        prompt_hash=prompt_hash,
+        message=(body.message or "")[:80],
+    )
 
     try:
         outcome = await run_orchestration(
@@ -200,6 +229,8 @@ async def chat(
                 reply=pause_msg,
                 tool_calls=[],
                 response_attachments=[],
+                request_id=req_id,
+                prompt_hash=prompt_hash,
             )
 
         reply = sanitize_model_reply(outcome.get("reply", ""))
@@ -218,6 +249,8 @@ async def chat(
                 thread_id=thread_id,
                 reply=None,
                 escalation=outcome.get("escalation_meta"),
+                request_id=req_id,
+                prompt_hash=prompt_hash,
             )
 
         # Build tool_calls summary for the response
@@ -262,6 +295,8 @@ async def chat(
             reply=reply,
             tool_calls=tool_calls,
             response_attachments=response_attachments,
+            request_id=req_id,
+            prompt_hash=prompt_hash,
         )
     except Exception as e:
         logger.error("chat failed", error=str(e), thread_id=thread_id)
@@ -271,6 +306,8 @@ async def chat(
             thread_id=thread_id,
             reply=None,
             escalation={"reason": f"unhandled_exception: {str(e)}", "channel": channel},
+            request_id=req_id,
+            prompt_hash=prompt_hash,
         )
 
 

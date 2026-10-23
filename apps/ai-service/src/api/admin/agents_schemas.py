@@ -159,6 +159,7 @@ class AgentChatRequest(BaseModel):
     agent_config: dict[str, Any] | None = None
     memory_context: dict[str, Any] | None = None
     attachments: list[AgentChatAttachment] = Field(default_factory=list)
+    request_id: str | None = Field(default=None, description="Correlation ID linking incoming request to execution")
 
 
 class AgentChatResponse(BaseModel):
@@ -175,6 +176,8 @@ class AgentChatResponse(BaseModel):
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     pipeline_trace: dict[str, Any] | None = None
     compiled_system_prompt: str | None = None
+    request_id: str | None = Field(default=None, description="Correlation ID echoed back for 1-to-1 verification")
+    prompt_hash: str | None = Field(default=None, description="Prefix hash of incoming user prompt")
 
 
 class SandboxEvaluateRequest(BaseModel):

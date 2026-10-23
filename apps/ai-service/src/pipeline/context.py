@@ -13,6 +13,8 @@ class PipelineContext:
     thread_id: str
     company_id: str
     customer_id: str
+    request_id: str | None = None
+    prompt_hash: str | None = None
 
     # Agent/Session
     agent: Any = None
