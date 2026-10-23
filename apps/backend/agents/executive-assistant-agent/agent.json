@@ -125,7 +125,8 @@
   ],
   "budget": {
     "dailyUsd": 3.0,
-    "maxToolCallsPerRun": 8
+    "maxToolCallsPerRun": 16,
+    "maxRounds": 6
   },
   "isActive": true
 }

@@ -1,0 +1,61 @@
+name: AI Service Fast Tests
+
+permissions:
+  contents: read
+
+"on":
+  pull_request:
+    paths:
+      - "apps/ai-service/**"
+      - "apps/backend/agents/**"
+      - "scripts/validate-agent-skills.js"
+  push:
+    branches: [main]
+    paths:
+      - "apps/ai-service/**"
+      - "apps/backend/agents/**"
+      - "scripts/validate-agent-skills.js"
+  workflow_dispatch:
+
+concurrency:
+  group: ai-service-tests-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Standalone Tests & Agent Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Capability Policy Tests
+        run: python apps/ai-service/tests/tools/test_capability_policy.py
+
+      - name: Capability Descriptions Tests
+        run: python apps/ai-service/tests/tools/test_capability_descriptions.py
+
+      - name: Agent Budget & Limits Tests
+        run: python apps/ai-service/tests/tools/test_agent_budget.py
+
+      - name: App Cards Tests (COV-4 if present)
+        run: |
+          if [ -f "apps/ai-service/tests/tools/test_app_cards.py" ]; then
+            python apps/ai-service/tests/tools/test_app_cards.py
+          else
+            echo "test_app_cards.py not present yet — skipped"
+          fi
+
+      - name: Validate Agent Skills & Tools
+        run: node scripts/validate-agent-skills.js

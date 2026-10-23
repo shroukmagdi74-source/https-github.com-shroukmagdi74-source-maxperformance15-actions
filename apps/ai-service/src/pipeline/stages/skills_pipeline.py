@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from src.guardrails.input import INPUT_GUARDRAILS
 from src.llm.client import LLMClient, ProviderResponse
+from src.tools.agent_budget import resolve_max_rounds, resolve_max_tool_calls
 from src.pipeline.context import PipelineContext
 from src.pipeline.provider_errors import provider_error_result
 from src.skills.integration import _iter_allowed_skills_meta as _iter_skill_meta, get_skills_block
@@ -225,12 +226,17 @@ def _max_tool_calls(ctx: PipelineContext) -> int:
     """Per-run tool call budget from the agent manifest (default 10)."""
     agent = getattr(ctx, "agent", None)
     budget = getattr(getattr(agent, "config", None), "budget", None)
-    if isinstance(budget, dict):
-        try:
-            return max(1, int(budget.get("maxToolCallsPerRun", 10)))
-        except (TypeError, ValueError):
-            pass
-    return 10
+    return resolve_max_tool_calls(budget)
+
+
+def _max_rounds(ctx: PipelineContext) -> int:
+    """Per-run tool loop rounds budget from the agent manifest (default 4, safe cap 8)."""
+    agent = getattr(ctx, "agent", None)
+    cfg = getattr(agent, "config", None)
+    budget = getattr(cfg, "budget", None) if cfg is not None else None
+    if budget is None and isinstance(agent, dict):
+        budget = agent.get("budget") or (agent.get("config", {}).get("budget") if isinstance(agent.get("config"), dict) else None)
+    return resolve_max_rounds(budget)
 
 
 def _compact_history_for_budget(
@@ -692,7 +698,7 @@ async def process_with_skills(ctx: PipelineContext) -> PipelineContext:
 
             tool_dicts = _build_skill_tool_dicts(skills, ctx)
             followup_messages = await _build_followup_messages(ctx, provider_response, executed)
-            max_rounds = 4
+            max_rounds = _max_rounds(ctx)
             current_round = 0
             final_response = provider_response
             call_cap = _max_tool_calls(ctx)
