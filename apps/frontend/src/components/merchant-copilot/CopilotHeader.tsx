@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { History, RotateCcw, X, Cpu, Check, Link2, ExternalLink } from 'lucide-react';
 import { SpecialistAgent } from './specialists';
 import { copyCopilotSessionLink, openCopilotSessionInNewTab } from './copilotLinkUtils';
