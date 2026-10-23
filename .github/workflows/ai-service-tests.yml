@@ -49,6 +49,9 @@ jobs:
       - name: Agent Budget & Limits Tests
         run: python apps/ai-service/tests/tools/test_agent_budget.py
 
+      - name: Reply Sanitizer Tests (AGENT-FIX-0c)
+        run: python apps/ai-service/tests/tools/test_reply_sanitizer.py
+
       - name: App Cards Tests (COV-4 if present)
         run: |
           if [ -f "apps/ai-service/tests/tools/test_app_cards.py" ]; then

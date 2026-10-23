@@ -917,6 +917,57 @@ def _scrub_output_risks(text: str) -> tuple[str, list[str]]:
     return scrubbed, detected
 
 
+def _collect_known_tool_names(ctx: PipelineContext) -> set[str]:
+    """Collect registered tool names from registry and role configs for reply sanitization."""
+    names: set[str] = set()
+    try:
+        from src.tools.registry import (
+            _registry,
+            ROLE_TOOLS,
+            CORE_TOOL_NAMES,
+            ADVANCED_TOOL_NAMES,
+            READ_TOOL_NAMES,
+            WRITE_TOOL_NAMES,
+            get_tool_names_for_role,
+        )
+
+        names.update(CORE_TOOL_NAMES)
+        names.update(ADVANCED_TOOL_NAMES)
+        names.update(READ_TOOL_NAMES)
+        names.update(WRITE_TOOL_NAMES)
+
+        try:
+            names.update(_registry.get_names())
+        except Exception:
+            pass
+
+        if isinstance(ROLE_TOOLS, dict):
+            for r_tools in ROLE_TOOLS.values():
+                if isinstance(r_tools, (list, set, tuple)):
+                    names.update(r_tools)
+
+        role = str(
+            getattr(ctx.agent, "role", "")
+            or getattr(ctx.agent, "template_slug", "")
+            or getattr(ctx.agent, "slug", "")
+            or ""
+        )
+        if role:
+            try:
+                names.update(get_tool_names_for_role(role))
+            except Exception:
+                pass
+    except Exception as exc:
+        logger.warning("collect_known_tool_names_failed", error=str(exc))
+
+    if getattr(ctx, "executed_tools", None):
+        for item in ctx.executed_tools:
+            if isinstance(item, dict) and item.get("tool"):
+                names.add(item["tool"])
+
+    return names
+
+
 async def validate_reply(ctx: PipelineContext) -> PipelineContext:
     reply = ctx.llm_response or ""
     reply = _strip_internal_tags(reply)
@@ -1218,6 +1269,18 @@ async def validate_reply(ctx: PipelineContext) -> PipelineContext:
         txt, scrubbed_risks = _scrub_output_risks(txt)
         if scrubbed_risks:
             logger.warning("output_risks_scrubbed", risks=scrubbed_risks)
+
+        # AGENT-FIX-0c: Prevent tool names and technical identifiers from leaking in merchant/customer replies
+        try:
+            from src.pipeline.reply_sanitizer import scrub_tool_names
+
+            known_tools = _collect_known_tool_names(ctx)
+            txt, scrubbed_tools = scrub_tool_names(txt, known_tools)
+            if scrubbed_tools:
+                logger.info("reply_tool_names_scrubbed", names=scrubbed_tools)
+        except Exception as scrub_err:
+            logger.warning("reply_tool_names_scrub_failed", error=str(scrub_err))
+
 
         ctx.final_reply = txt.strip()
 
