@@ -44,7 +44,7 @@ async function sendMessage(req, res) {
 
     const effectiveMessage = trimmedMessage || 'يرجى مراجعة وفحص الصورة المرفقة والإفادة بالتحليل والإجراء المقترح.';
 
-    const requestId = req.headers['x-request-id'] || `req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const requestId = (req.headers && (req.headers['x-request-id'] || req.headers['X-Request-Id'])) || `req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
     const promptHash = crypto.createHash('sha256').update(effectiveMessage).digest('hex').slice(0, 12);
     const activeSessionId = (typeof sessionId === 'string' && sessionId.trim())
       ? sessionId.trim()

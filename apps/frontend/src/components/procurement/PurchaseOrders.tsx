@@ -1,3 +1,7 @@
+/**
+ * PurchaseOrders Management Component
+ * SOTA 2026: Enhanced with clickable table rows, direct PO navigation, and responsive mobile cards.
+ */
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Plus,
