@@ -1,7 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, History, RotateCcw, X, Cpu, Check, Link2, ExternalLink, SlidersHorizontal, Bot } from 'lucide-react';
-import { SPECIALIST_AGENTS, SpecialistAgent } from './specialists';
+import React, { useState } from 'react';
+import { History, RotateCcw, X, Cpu, Check, Link2, ExternalLink } from 'lucide-react';
+import { SpecialistAgent } from './specialists';
 import { copyCopilotSessionLink, openCopilotSessionInNewTab } from './copilotLinkUtils';
 import { apiClient } from '../../services/apiClient';
 import { cn } from '@/lib/utils';
@@ -45,7 +44,7 @@ const PendingApprovalsBadge: React.FC = () => {
 
 interface CopilotHeaderProps {
   selectedAgent: SpecialistAgent;
-  onSelectAgent: (agent: SpecialistAgent) => void;
+  onSelectAgent?: (agent: SpecialistAgent) => void;
   specialists?: SpecialistAgent[];
   contextReason?: string | null;
   pageContextLabel: string;
@@ -58,8 +57,6 @@ interface CopilotHeaderProps {
 
 export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
   selectedAgent,
-  onSelectAgent,
-  specialists,
   contextReason,
   pageContextLabel,
   showSessionsList,
@@ -68,10 +65,7 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
   onClose,
   activeSessionId,
 }) => {
-  const navigate = useNavigate();
-  const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const handleCopyCurrentSession = async () => {
     if (!activeSessionId) return;
@@ -82,35 +76,16 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
     }
   };
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsAgentMenuOpen(false);
-      }
-    };
-    if (isAgentMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isAgentMenuOpen]);
-
   return (
     <header className="relative flex items-center justify-between px-4 sm:px-5 py-3 border-b border-border/60 bg-card/95 text-foreground backdrop-blur-md select-none">
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setIsAgentMenuOpen((prev) => !prev)}
-          className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-muted/40 transition-colors group text-right focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-          aria-label="تبديل تخصص الوكيل"
-        >
-          <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary group-hover:bg-primary/20 transition-colors shadow-2xs text-sm shrink-0">
+        <div className="flex items-center gap-2.5 p-1 rounded-xl text-right">
+          <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary shadow-2xs text-sm shrink-0">
             {selectedAgent.icon || <Cpu className="size-4" />}
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h3 className="text-xs sm:text-sm font-semibold text-foreground group-hover:text-primary transition-colors tracking-tight">
+              <h3 className="text-xs sm:text-sm font-semibold text-foreground tracking-tight">
                 {selectedAgent.name}
               </h3>
               <PendingApprovalsBadge />
@@ -119,12 +94,6 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
                   لوحة التحكم
                 </span>
               )}
-              <ChevronDown
-                className={cn(
-                  "size-3.5 text-muted-foreground transition-transform duration-150",
-                  isAgentMenuOpen && "rotate-180 text-foreground",
-                )}
-              />
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
               <span className="size-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
@@ -137,77 +106,8 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
               )}
             </div>
           </div>
-        </button>
-      </div>
-
-      {/* Specialist Dropdown Menu */}
-      {isAgentMenuOpen && (
-        <div
-          ref={menuRef}
-          className="absolute top-14 right-4 z-50 w-80 rounded-2xl border border-border/70 bg-card p-1.5 shadow-xl text-foreground backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
-        >
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 mb-1 flex items-center justify-between">
-            <span>فريق وكلاء المتجر المتاحين</span>
-            <span className="text-[10px] text-muted-foreground font-sans font-normal">اختر للتحدث معه</span>
-          </div>
-          <div className="space-y-0.5 max-h-72 overflow-y-auto no-scrollbar">
-            {(specialists || SPECIALIST_AGENTS).map((agent) => {
-              const isSelected = selectedAgent.id === agent.id;
-              return (
-                <button
-                  key={agent.id}
-                  type="button"
-                  onClick={() => {
-                    onSelectAgent(agent);
-                    setIsAgentMenuOpen(false);
-                  }}
-                  className={cn(
-                    "w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-right transition-all",
-                    isSelected
-                      ? "bg-primary/10 text-primary border border-primary/20 font-semibold"
-                      : "hover:bg-muted/40 text-foreground border border-transparent",
-                  )}
-                >
-                  <div className="min-w-0 pr-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="size-4 shrink-0 flex items-center justify-center">
-                        {agent.icon || <Bot className="size-3.5" />}
-                      </span>
-                      <span className="text-xs truncate">{agent.name}</span>
-                      {agent.isDefault && (
-                        <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-mono">
-                          لوحة التحكم
-                        </span>
-                      )}
-                      {isSelected && <Check className="size-3.5 text-primary shrink-0" />}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground truncate mt-0.5 font-normal">
-                      {agent.title}
-                    </div>
-                  </div>
-                  <span className="rounded-md bg-muted border border-border/60 px-1.5 py-0.5 text-[9px] font-mono tabular-nums text-muted-foreground shrink-0">
-                    {agent.badge}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="pt-1.5 mt-1 border-t border-border/60">
-            <button
-              type="button"
-              onClick={() => {
-                setIsAgentMenuOpen(false);
-                navigate('/admin/ai-hub?tab=routing');
-              }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
-            >
-              <SlidersHorizontal className="size-3" />
-              <span>إعدادات وتوجيه الوكلاء والقنوات</span>
-            </button>
-          </div>
         </div>
-      )}
+      </div>
 
       {/* Action Controls */}
       <div className="flex items-center gap-1">
