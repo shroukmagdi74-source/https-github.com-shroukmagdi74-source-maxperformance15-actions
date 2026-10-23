@@ -1667,7 +1667,7 @@ const StorefrontShell: React.FC<StorefrontShellProps> = ({
       blockUntilResolved
       activePageKey={activePageKey}
     >
-      <StorefrontHead />
+      <StorefrontHead settings={settings} activePageKey={activePageKey} />
       <StorefrontLayout
         previewThemeId={previewThemeId}
         activePageKey={activePageKey}

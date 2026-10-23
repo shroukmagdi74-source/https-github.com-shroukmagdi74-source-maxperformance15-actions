@@ -111,43 +111,96 @@ const setLinkTag = (
   return el;
 };
 
-export const StorefrontHead: React.FC = () => {
-  const { theme } = useStorefrontTheme();
-  const { settings: storefrontSettings } = useStorefrontSettings();
+let activeStorefrontHeadInstances = 0;
+let originalTitleSnapshot: string | null = null;
+let originalRobotsSnapshot: { exists: boolean; content: string | null } | null = null;
+let originalDescSnapshot: { exists: boolean; content: string | null } | null = null;
+let originalCanonicalSnapshot: { exists: boolean; href: string | null } | null = null;
+let originalOgTitleSnapshot: { exists: boolean; content: string | null } | null = null;
+let originalOgDescSnapshot: { exists: boolean; content: string | null } | null = null;
+let originalOgImageSnapshot: { exists: boolean; content: string | null } | null = null;
+
+export const __resetStorefrontHeadStateForTests__ = () => {
+  activeStorefrontHeadInstances = 0;
+  originalTitleSnapshot = null;
+  originalRobotsSnapshot = null;
+  originalDescSnapshot = null;
+  originalCanonicalSnapshot = null;
+  originalOgTitleSnapshot = null;
+  originalOgDescSnapshot = null;
+  originalOgImageSnapshot = null;
+};
+
+export interface StorefrontHeadProps {
+  settings?: any;
+  theme?: any;
+  activePageKey?: string;
+}
+
+export const StorefrontHead: React.FC<StorefrontHeadProps> = ({
+  settings: propSettings,
+  theme: propTheme,
+  activePageKey: propActivePageKey,
+}) => {
+  const themeContext = useStorefrontTheme();
+  const settingsContext = useStorefrontSettings();
   const location = useLocation();
 
+  const theme = propTheme ?? themeContext?.theme ?? null;
+  const storefrontSettings = propSettings ?? settingsContext?.settings ?? null;
+
   useEffect(() => {
-    if (!theme) return;
+    if (typeof document === 'undefined') return;
+    if (!theme && !storefrontSettings) return;
 
-    // PAGE-1.2: Capture original head metadata for unmount restoration
-    const originalTitle = document.title;
+    activeStorefrontHeadInstances += 1;
 
-    const prevRobotsEl = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    const prevRobots = prevRobotsEl ? prevRobotsEl.getAttribute('content') : null;
-    const hadRobots = Boolean(prevRobotsEl);
+    // PAGE-1.2 & PAGE-1.3: Capture original head metadata for unmount restoration
+    const currentRobotsEl = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const currentDescEl = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    const currentCanonicalEl = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    const currentOgTitleEl = document.querySelector<HTMLMetaElement>('meta[property="og:title"]');
+    const currentOgDescEl = document.querySelector<HTMLMetaElement>('meta[property="og:description"]');
+    const currentOgImageEl = document.querySelector<HTMLMetaElement>('meta[property="og:image"]');
 
-    const prevDescEl = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-    const prevDesc = prevDescEl ? prevDescEl.getAttribute('content') : null;
-    const hadDesc = Boolean(prevDescEl);
+    if (activeStorefrontHeadInstances === 1 && originalTitleSnapshot === null) {
+      originalTitleSnapshot = document.title;
+      originalRobotsSnapshot = {
+        exists: Boolean(currentRobotsEl),
+        content: currentRobotsEl ? currentRobotsEl.getAttribute('content') : null,
+      };
+      originalDescSnapshot = {
+        exists: Boolean(currentDescEl),
+        content: currentDescEl ? currentDescEl.getAttribute('content') : null,
+      };
+      originalCanonicalSnapshot = {
+        exists: Boolean(currentCanonicalEl),
+        href: currentCanonicalEl ? currentCanonicalEl.getAttribute('href') : null,
+      };
+      originalOgTitleSnapshot = {
+        exists: Boolean(currentOgTitleEl),
+        content: currentOgTitleEl ? currentOgTitleEl.getAttribute('content') : null,
+      };
+      originalOgDescSnapshot = {
+        exists: Boolean(currentOgDescEl),
+        content: currentOgDescEl ? currentOgDescEl.getAttribute('content') : null,
+      };
+      originalOgImageSnapshot = {
+        exists: Boolean(currentOgImageEl),
+        content: currentOgImageEl ? currentOgImageEl.getAttribute('content') : null,
+      };
+    }
 
-    const prevCanonicalEl = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    const prevCanonical = prevCanonicalEl ? prevCanonicalEl.getAttribute('href') : null;
-    const hadCanonical = Boolean(prevCanonicalEl);
+    const originalTitle = originalTitleSnapshot ?? document.title;
 
-    const prevOgTitleEl = document.querySelector<HTMLMetaElement>('meta[property="og:title"]');
-    const prevOgTitle = prevOgTitleEl ? prevOgTitleEl.getAttribute('content') : null;
-    const hadOgTitle = Boolean(prevOgTitleEl);
-
-    const prevOgDescEl = document.querySelector<HTMLMetaElement>('meta[property="og:description"]');
-    const prevOgDesc = prevOgDescEl ? prevOgDescEl.getAttribute('content') : null;
-    const hadOgDesc = Boolean(prevOgDescEl);
-
-    const prevOgImageEl = document.querySelector<HTMLMetaElement>('meta[property="og:image"]');
-    const prevOgImage = prevOgImageEl ? prevOgImageEl.getAttribute('content') : null;
-    const hadOgImage = Boolean(prevOgImageEl);
-
-    const runtimeSeo = storefrontSettings?.storefront?.settings?.seo || {};
-    const themeSeo = theme.seo || {};
+    const runtimeSeo =
+      storefrontSettings?.storefront?.settings?.seo ||
+      storefrontSettings?.storefront?.designTokens?.seo ||
+      storefrontSettings?.storefrontSettings?.designTokens?.seo ||
+      (storefrontSettings as any)?.designTokens?.seo ||
+      (storefrontSettings as any)?.seo ||
+      {};
+    const themeSeo = theme?.seo || {};
     const seo = {
       ...themeSeo,
       ...(typeof runtimeSeo === 'object' && runtimeSeo !== null ? runtimeSeo : {}),
@@ -162,9 +215,11 @@ export const StorefrontHead: React.FC = () => {
     const storeName =
       storefrontSettings?.storefront?.settings?.storeName ||
       storefrontSettings?.storefrontSettings?.storeName ||
-      theme.header?.brandName ||
+      storefrontSettings?.storefront?.designTokens?.storeName ||
+      (storefrontSettings as any)?.storeName ||
+      theme?.header?.brandName ||
       storefrontSettings?.company?.name ||
-      theme.name ||
+      theme?.name ||
       '';
     const titleTemplate = resolveTitleTemplate({
       runtimeSeo:
@@ -172,7 +227,7 @@ export const StorefrontHead: React.FC = () => {
           ? (runtimeSeo as Record<string, unknown>)
           : {},
       themeSeo: themeSeo as Record<string, unknown>,
-      themeBrandNames: [theme.header?.brandName, theme.name].filter(
+      themeBrandNames: [theme?.header?.brandName, theme?.name].filter(
         (value): value is string => Boolean(value),
       ),
       storeName,
@@ -185,7 +240,7 @@ export const StorefrontHead: React.FC = () => {
       `${storeName} — تسوق أونلاين بأفضل الأسعار والعروض. شحن لكل المحافظات.`;
     const faviconUrl =
       seo.faviconUrl ||
-      theme.header?.logoUrl ||
+      theme?.header?.logoUrl ||
       storefrontSettings?.storefront?.settings?.['logoUrl'] ||
       storefrontSettings?.company?.logo ||
       undefined;
@@ -207,32 +262,64 @@ export const StorefrontHead: React.FC = () => {
       PAGE_NAME_MAP[pageSegment] ||
       pageSegment.charAt(0).toUpperCase() + pageSegment.slice(1);
 
-    // PAGE-1.2: Resolve active page configuration across theme & designTokens
-    const allPages: Record<string, any> = {
-      ...(theme?.pages || {}),
-      ...(((storefrontSettings?.storefront?.settings as any)?.designTokens?.pages) || {}),
-      ...(((storefrontSettings as any)?.designTokens?.pages) || {}),
-    };
+    // PAGE-1.2 & PAGE-1.3: Resolve active page configuration across theme & designTokens
+    const allPages: Record<string, any> = {};
+    const candidateSources = [
+      theme?.pages,
+      (theme as any)?.designTokens?.pages,
+      (storefrontSettings as any)?.pages,
+      (storefrontSettings as any)?.storefront?.pages,
+      (storefrontSettings as any)?.storefrontSettings?.pages,
+      (storefrontSettings?.storefront?.settings as any)?.pages,
+      (storefrontSettings as any)?.settings?.pages,
+      (storefrontSettings as any)?.designTokens?.pages,
+      (storefrontSettings?.storefront?.settings as any)?.designTokens?.pages,
+      (storefrontSettings as any)?.settings?.designTokens?.pages,
+      storefrontSettings?.storefrontSettings?.designTokens?.pages,
+      storefrontSettings?.storefront?.designTokens?.pages,
+    ];
 
-    let activePageKey = 'home';
-    if (routeSegments.length === 0) {
-      activePageKey = 'home';
-    } else if (routeSegments[0] === 'pages' && routeSegments[1]) {
-      activePageKey = routeSegments.slice(1).join('/');
-    } else if (routeSegments[0] === 'shop' && routeSegments[1] === 'page' && routeSegments[2]) {
-      activePageKey = routeSegments.slice(2).join('/');
-    } else {
-      const fullPath = routeSegments.join('/');
-      if (allPages[fullPath]) {
-        activePageKey = fullPath;
-      } else if (allPages[routeSegments[0]]) {
-        activePageKey = routeSegments[0];
-      } else {
-        activePageKey = routeSegments[0] || 'home';
+    for (const candidate of candidateSources) {
+      if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+        for (const [key, val] of Object.entries(candidate)) {
+          if (val && typeof val === 'object' && !Array.isArray(val)) {
+            allPages[key] = {
+              ...(allPages[key] || {}),
+              ...val,
+              seo: {
+                ...((allPages[key] as any)?.seo || {}),
+                ...((val as any)?.seo || {}),
+              },
+            };
+          }
+        }
       }
     }
 
-    const activePage = allPages[activePageKey];
+    let activePageKey = propActivePageKey || 'home';
+    if (!propActivePageKey) {
+      if (routeSegments.length === 0) {
+        activePageKey = 'home';
+      } else if (routeSegments[0] === 'pages' && routeSegments[1]) {
+        activePageKey = routeSegments.slice(1).join('/');
+      } else if (routeSegments[0] === 'shop' && routeSegments[1] === 'page' && routeSegments[2]) {
+        activePageKey = routeSegments.slice(2).join('/');
+      } else {
+        const fullPath = routeSegments.join('/');
+        if (allPages[fullPath]) {
+          activePageKey = fullPath;
+        } else if (allPages[routeSegments[0]]) {
+          activePageKey = routeSegments[0];
+        } else {
+          activePageKey = routeSegments[0] || 'home';
+        }
+      }
+    }
+
+    const activePage =
+      allPages[activePageKey] ||
+      (activePageKey === 'pdp' ? allPages['product'] : undefined) ||
+      (activePageKey === 'product' ? allPages['pdp'] : undefined);
     const pageSeo = activePage?.seo;
 
     const isDynamicDetailRoute =
@@ -389,65 +476,86 @@ export const StorefrontHead: React.FC = () => {
     }
     setLinkTag('canonical', canonicalUrl);
 
-    // PAGE-1.2: Cleanup on unmount — restore previous title and meta/link tags
+    // PAGE-1.3: Proof of execution marker
+    document.documentElement.setAttribute('data-seo-applied', '1');
+    document.documentElement.setAttribute('data-storefront-seo', activePageKey);
+
+    // Cleanup on unmount — restore previous title and meta/link tags
     return () => {
-      document.title = originalTitle;
+      activeStorefrontHeadInstances = Math.max(0, activeStorefrontHeadInstances - 1);
 
-      const currentRobotsEl = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
-      if (currentRobotsEl) {
-        if (hadRobots && prevRobots !== null) {
-          currentRobotsEl.setAttribute('content', prevRobots);
-        } else {
-          currentRobotsEl.remove();
-        }
-      }
+      if (activeStorefrontHeadInstances === 0) {
+        document.documentElement.removeAttribute('data-seo-applied');
+        document.documentElement.removeAttribute('data-storefront-seo');
 
-      const currentDescEl = document.querySelector<HTMLMetaElement>('meta[name="description"]');
-      if (currentDescEl) {
-        if (hadDesc && prevDesc !== null) {
-          currentDescEl.setAttribute('content', prevDesc);
-        } else {
-          currentDescEl.remove();
+        if (originalTitleSnapshot !== null) {
+          document.title = originalTitleSnapshot;
         }
-      }
 
-      const currentCanonicalEl = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-      if (currentCanonicalEl) {
-        if (hadCanonical && prevCanonical !== null) {
-          currentCanonicalEl.setAttribute('href', prevCanonical);
-        } else {
-          currentCanonicalEl.remove();
+        const livingRobotsEl = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+        if (livingRobotsEl) {
+          if (originalRobotsSnapshot?.exists && originalRobotsSnapshot.content !== null) {
+            livingRobotsEl.setAttribute('content', originalRobotsSnapshot.content);
+          } else {
+            livingRobotsEl.remove();
+          }
         }
-      }
 
-      const currentOgTitleEl = document.querySelector<HTMLMetaElement>('meta[property="og:title"]');
-      if (currentOgTitleEl) {
-        if (hadOgTitle && prevOgTitle !== null) {
-          currentOgTitleEl.setAttribute('content', prevOgTitle);
-        } else {
-          currentOgTitleEl.remove();
+        const livingDescEl = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+        if (livingDescEl) {
+          if (originalDescSnapshot?.exists && originalDescSnapshot.content !== null) {
+            livingDescEl.setAttribute('content', originalDescSnapshot.content);
+          } else {
+            livingDescEl.remove();
+          }
         }
-      }
 
-      const currentOgDescEl = document.querySelector<HTMLMetaElement>('meta[property="og:description"]');
-      if (currentOgDescEl) {
-        if (hadOgDesc && prevOgDesc !== null) {
-          currentOgDescEl.setAttribute('content', prevOgDesc);
-        } else {
-          currentOgDescEl.remove();
+        const livingCanonicalEl = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+        if (livingCanonicalEl) {
+          if (originalCanonicalSnapshot?.exists && originalCanonicalSnapshot.href !== null) {
+            livingCanonicalEl.setAttribute('href', originalCanonicalSnapshot.href);
+          } else {
+            livingCanonicalEl.remove();
+          }
         }
-      }
 
-      const currentOgImageEl = document.querySelector<HTMLMetaElement>('meta[property="og:image"]');
-      if (currentOgImageEl) {
-        if (hadOgImage && prevOgImage !== null) {
-          currentOgImageEl.setAttribute('content', prevOgImage);
-        } else {
-          currentOgImageEl.remove();
+        const livingOgTitleEl = document.querySelector<HTMLMetaElement>('meta[property="og:title"]');
+        if (livingOgTitleEl) {
+          if (originalOgTitleSnapshot?.exists && originalOgTitleSnapshot.content !== null) {
+            livingOgTitleEl.setAttribute('content', originalOgTitleSnapshot.content);
+          } else {
+            livingOgTitleEl.remove();
+          }
         }
+
+        const livingOgDescEl = document.querySelector<HTMLMetaElement>('meta[property="og:description"]');
+        if (livingOgDescEl) {
+          if (originalOgDescSnapshot?.exists && originalOgDescSnapshot.content !== null) {
+            livingOgDescEl.setAttribute('content', originalOgDescSnapshot.content);
+          } else {
+            livingOgDescEl.remove();
+          }
+        }
+
+        const livingOgImageEl = document.querySelector<HTMLMetaElement>('meta[property="og:image"]');
+        if (livingOgImageEl) {
+          if (originalOgImageSnapshot?.exists && originalOgImageSnapshot.content !== null) {
+            livingOgImageEl.setAttribute('content', originalOgImageSnapshot.content);
+          } else {
+            livingOgImageEl.remove();
+          }
+        }
+
+        originalTitleSnapshot = null;
+        originalRobotsSnapshot = null;
+        originalDescSnapshot = null;
+        originalCanonicalSnapshot = null;
+        originalOgTitleSnapshot = null;
+        originalOgDescSnapshot = null;
+        originalOgImageSnapshot = null;
       }
     };
-  }, [theme, location, storefrontSettings]);
+  }, [theme, location, storefrontSettings, propSettings, propTheme, propActivePageKey]);
 
   return null;
 };
