@@ -255,7 +255,7 @@ const StudentLessonPlayerPage: React.FC = () => {
             {/* Anti-Leak Watermark Overlay for enrolled student */}
             {isEnrolled && studentInfo?.phone && (
               <div className="absolute bottom-4 left-4 pointer-events-none opacity-40 text-[10px] text-white/80 font-mono select-none bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm">
-                <span>{studentInfo.name || "طالب ماكس بي"} · {studentInfo.phone}</span>
+                <span>{studentInfo.name || "عضو MaxP"} · {studentInfo.phone}</span>
               </div>
             )}
           </div>
@@ -378,7 +378,7 @@ const StudentLessonPlayerPage: React.FC = () => {
                 <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line space-y-3 p-2 bg-slate-50/70 rounded-2xl border border-slate-100">
                   {lesson.exerciseText || "لا يوجد تمرين عملي مخصص لهذا الدرس."}
                   <p className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-xl p-2.5">
-                    تسليم التمرين ومراجعته متاح للطلاب المشتركين أو بعد تسجيل الدخول — سجل دخولك أو اشترك في الكورس لتسليم تطبيقك ومراجعته مع الكوتش.
+                    تسليم التمرين ومراجعته متاح للأعضاء المشتركين أو بعد تسجيل الدخول — سجل دخولك أو اشترك في الكورس لتسليم تطبيقك ومراجعته مع الكوتش.
                   </p>
                 </div>
               ))}

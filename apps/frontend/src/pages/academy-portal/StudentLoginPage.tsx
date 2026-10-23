@@ -118,7 +118,7 @@ const StudentLoginPage: React.FC = () => {
           {step === "phone" ? <GraduationCap className="w-6 h-6" /> : <KeyRound className="w-6 h-6" />}
         </div>
         <h1 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">
-          {step === "phone" ? "تسجيل دخول الطالب" : "أدخل كود التحقق"}
+          {step === "phone" ? "تسجيل الدخول" : "أدخل كود التحقق"}
         </h1>
         <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
           {step === "phone"

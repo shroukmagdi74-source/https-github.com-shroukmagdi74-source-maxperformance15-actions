@@ -47,7 +47,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
       meta.content = "noindex, nofollow";
     }
 
-    // 🔒 حالة الدخول الحقيقية = وجود توكن الطالب (مش مجرد حفظ الاسم بعد الدفع)
+    // 🔒 حالة الدخول الحقيقية = وجود توكن العضو (مش مجرد حفظ الاسم بعد الدفع)
     setLoggedIn(Boolean(localStorage.getItem("studentToken")));
     setStudentPhone(localStorage.getItem("studentPhone"));
     setStudentName(localStorage.getItem("studentName"));
@@ -86,7 +86,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
               )}
               <div className="flex flex-col">
                 <span className="font-bold text-sm sm:text-base tracking-tight leading-tight">{portalTitle}</span>
-                <span className="text-[11px] text-muted-foreground font-medium">بوابة الطالب الذكية</span>
+                <span className="text-[11px] text-muted-foreground font-medium">أكاديمية أصحاب الأعمال</span>
               </div>
             </Link>
 
@@ -122,7 +122,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
             {loggedIn ? (
               <div className="flex items-center gap-2.5">
                 <div className="hidden sm:flex flex-col text-left">
-                  <span className="text-xs font-bold text-foreground text-right">{studentName || "طالب ماكس بي"}</span>
+                  <span className="text-xs font-bold text-foreground text-right">{studentName || "عضو MaxP"}</span>
                   <span className="text-[11px] font-mono text-muted-foreground text-right tabular-nums" dir="ltr">{studentPhone}</span>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold border border-primary/20">
@@ -143,7 +143,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
                 className="min-h-[40px] inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all shadow-xs active:scale-[0.98]"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span>دخول الطالب</span>
+                <span>دخول الأعضاء</span>
               </Link>
             )}
           </div>
@@ -188,7 +188,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
             <GraduationCap className="w-4 h-4 text-primary" />
             <span className="font-semibold text-foreground">{portalTitle}</span>
             <span>—</span>
-            <span>بوابة تعليمية مخصصة لأصحاب المشاريع والطلاب</span>
+            <span>أكاديمية تعليمية مخصصة لأصحاب المشاريع والشركات</span>
           </div>
           <div className="flex items-center gap-4 text-[11px] font-mono tabular-nums">
             <span>جميع الحقوق محفوظة {branding.name ? `لشركة ${branding.name} ومنصة MaxP` : "لمنصة MaxP"} © {new Date().getFullYear()}</span>

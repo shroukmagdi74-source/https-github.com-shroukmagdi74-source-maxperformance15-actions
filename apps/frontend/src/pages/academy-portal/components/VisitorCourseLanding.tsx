@@ -64,7 +64,7 @@ export const VisitorCourseLanding: React.FC<Props> = ({
           <div className="flex items-center gap-2.5 text-indigo-950 font-bold">
             <GraduationCap className="w-5 h-5 text-indigo-600 shrink-0" />
             <span>
-              مرحباً بك يا {studentName || "طالب ماكس بي"} — حسابك مسجّل في الأكاديمية.
+              مرحباً بك يا {studentName || "عضو MaxP"} — حسابك مسجّل في الأكاديمية.
               {isFreeCourse
                 ? " يمكنك البدء في دراسة الكورس فوراً مجاناً."
                 : " كمّل اشتراكك لفتح كامل الدروس والتمارين والتواصل مع الكوتش."}

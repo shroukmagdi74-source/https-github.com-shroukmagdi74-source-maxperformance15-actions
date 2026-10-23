@@ -80,7 +80,7 @@ const StudentMyCoursesPage: React.FC = () => {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
             <BookOpen className="w-3.5 h-3.5" />
-            <span>لوحة تعلم الطالب</span>
+            <span>لوحة التعلّم</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">كورساتي المشترك بها</h1>
           <p className="text-xs text-muted-foreground">تابع تقدمك الدراسي وأكمل دروسك من حيث توقفت.</p>
