@@ -160,10 +160,15 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
       // ignore getBoundingClientRect errors
     }
 
-    // 2. Safety net fallback (1200ms): guarantees content NEVER remains hidden
+    // 2. Arm the hidden state ONLY now that JS is running and the element is below the fold.
+    //    Without this class the CSS keeps the section fully visible (safe-by-default).
+    el.classList.add("sf-anim-armed");
+
+    // 3. Safety net fallback (1200ms): guarantees content NEVER remains hidden
     let observer: IntersectionObserver | null = null;
     const fallbackTimer = setTimeout(() => {
       setIsVisible(true);
+      el.classList.remove("sf-anim-armed");
       if (observer) {
         observer.disconnect();
       }
@@ -177,6 +182,7 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
             for (const entry of entries) {
               if (entry.isIntersecting || entry.intersectionRatio > 0) {
                 setIsVisible(true);
+                el.classList.remove("sf-anim-armed");
                 clearTimeout(fallbackTimer);
                 observer?.disconnect();
                 break;
@@ -198,6 +204,7 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
 
     return () => {
       clearTimeout(fallbackTimer);
+      el.classList.remove("sf-anim-armed");
       if (observer) {
         observer.disconnect();
       }
