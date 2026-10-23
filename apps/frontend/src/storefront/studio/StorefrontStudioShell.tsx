@@ -21,6 +21,8 @@ import { StudioPagesPanel } from "./StudioPagesPanel";
 import { StudioHeaderFooterPanel } from "./StudioHeaderFooterPanel";
 import { StudioTemplateGalleryPanel } from "./StudioTemplateGalleryPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
+import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
+import type { StorefrontPageSEOConfig, StorefrontPageStatus } from "../types/theme.types";
 import { buildPresetPage, type IndustryPreset } from "../presets/industryPresets";
 import type { StudioLeftRailActiveTab } from "./StudioLeftRail";
 import { createTemplateSections } from "./utils/studioPageTemplates";
@@ -329,6 +331,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(false);
   const [showCatalogModal, setShowCatalogModal] = useState<boolean>(false);
   const [showImagePickerModal, setShowImagePickerModal] = useState<boolean>(false);
+  const [isPageSettingsOpen, setIsPageSettingsOpen] = useState<boolean>(false);
   const [imagePickerTargetField, setImagePickerTargetField] = useState<string>("image");
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [selectedElement, setSelectedElement] = useState<StudioSelectedElement | null>(null);
@@ -461,6 +464,35 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     onChange,
     onSave,
   });
+
+  const handleUpdatePageSettings = useCallback(
+    (updates: { seo?: Partial<StorefrontPageSEOConfig>; status?: StorefrontPageStatus }) => {
+      const currentTokens = (currentDesignTokens as Record<string, any>) || {};
+      const currentPages = (currentTokens.pages as Record<string, any>) || {};
+      const currentPage = currentPages[activePageKey] || activePageConfig || {};
+
+      const nextPage = {
+        ...currentPage,
+        ...(updates.seo !== undefined
+          ? { seo: { ...((currentPage.seo as Record<string, any>) || {}), ...updates.seo } }
+          : {}),
+        ...(updates.status !== undefined ? { status: updates.status } : {}),
+      };
+
+      const nextPages = {
+        ...currentPages,
+        [activePageKey]: nextPage,
+      };
+
+      handleDesignTokensChange({
+        ...currentTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      });
+      onSave();
+    },
+    [activePageKey, activePageConfig, currentDesignTokens, handleDesignTokensChange, onSave]
+  );
 
   // Section Copy Handler (In-memory deep clone)
   const handleCopySection = useCallback(
@@ -1050,6 +1082,8 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         onOpenPreview={onOpenPreview}
         isHistoryOpen={isHistoryOpen}
         onToggleHistory={() => setIsHistoryOpen((prev) => !prev)}
+        pageStatus={(activePageConfig?.status as StorefrontPageStatus) || "published"}
+        onOpenPageSettings={() => setIsPageSettingsOpen(true)}
       />
 
       {/* 2. Main Studio Workspace Chassis with unified DnD */}
@@ -1535,7 +1569,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         isOpen={showImagePickerModal}
         onClose={() => setShowImagePickerModal(false)}
         onSelectImage={(url) => {
-          if (imagePickerTargetField === "panelImage") {
+          if (imagePickerTargetField === "ogImage") {
+            handleUpdatePageSettings({ seo: { ogImage: url } });
+          } else if (imagePickerTargetField === "panelImage") {
             handleUpdateSectionField("panelImage", url, deviceMode);
           } else {
             handleUpdateSectionField("image", url, deviceMode);
@@ -1544,10 +1580,30 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
           setShowImagePickerModal(false);
         }}
         selectedUrl={
-          imagePickerTargetField === "panelImage"
+          imagePickerTargetField === "ogImage"
+            ? (activePageConfig?.seo?.ogImage || "")
+            : imagePickerTargetField === "panelImage"
             ? (selectedSectionConfig?.settings?.panelImage || selectedSectionConfig?.panelImage || "")
             : (selectedSectionConfig?.image || selectedSectionConfig?.backgroundImage || "")
         }
+      />
+
+      <StudioPageSettingsPanel
+        isOpen={isPageSettingsOpen}
+        onClose={() => setIsPageSettingsOpen(false)}
+        pageKey={activePageKey}
+        pageTitle={activePageConfig?.title || activePageConfig?.label || activePageKey}
+        storeName={storeName}
+        seo={activePageConfig?.seo}
+        status={(activePageConfig?.status as StorefrontPageStatus) || "published"}
+        sections={activeSections}
+        availablePages={Object.keys(((currentDesignTokens as any)?.pages as Record<string, any>) || {}).concat(STUDIO_PAGES.map((p) => p.id))}
+        onUpdateSeo={(newSeo) => handleUpdatePageSettings({ seo: newSeo })}
+        onUpdateStatus={(newStatus) => handleUpdatePageSettings({ status: newStatus })}
+        onOpenImagePicker={() => {
+          setImagePickerTargetField("ogImage");
+          setShowImagePickerModal(true);
+        }}
       />
 
       <StudioHistoryPanel

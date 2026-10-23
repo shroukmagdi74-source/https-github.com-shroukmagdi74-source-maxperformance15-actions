@@ -193,13 +193,13 @@ const StorefrontHeader: React.FC<{
   }, [propGlobalHeader, theme, settings]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const {
-    query,
-    setQuery,
-    results,
-    isLoading,
-    isOpen: searchOpen,
-    setIsOpen: setSearchOpen,
-  } = search;
+    query = "",
+    setQuery = () => {},
+    results = [],
+    isLoading = false,
+    isOpen: searchOpen = false,
+    setIsOpen: setSearchOpen = () => {},
+  } = search || ({} as any);
   const location = useLocation();
   const navigate = useNavigate();
   const setIsOpen = useCartStore((s) => s.setIsOpen);
@@ -351,7 +351,31 @@ const StorefrontHeader: React.FC<{
       ? menuFromDesignTokens.map((m: any) => ({ label: m.label || "", to: m.url || m.to || "/" }))
       : null;
 
-  const navLinks = resolvedNavItems?.map((nav) => ({
+  // PAGE-1: Filter out draft pages from navigation menu
+  const isDraftPage = (to: string | undefined): boolean => {
+    if (!to) return false;
+    const clean = to.trim().split("?")[0].split("#")[0];
+    const stripped = clean.replace(/^\/+/, "");
+    const withoutPages = stripped.replace(/^pages\//, "");
+
+    const allPages: Record<string, any> = {
+      ...(theme?.pages || {}),
+      ...(((settings?.storefront?.settings as any)?.designTokens?.pages) || {}),
+      ...(((settings as any)?.designTokens?.pages) || {}),
+    };
+
+    const keysToCheck = [stripped, withoutPages, clean];
+    for (const key of keysToCheck) {
+      if (key && allPages[key] && allPages[key].status === "draft") {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const filteredNavItems = resolvedNavItems?.filter((nav) => !isDraftPage(nav.to));
+
+  const navLinks = (filteredNavItems?.map((nav) => ({
     label: nav.label,
     to: buildStorefrontPath(location.pathname, nav.to, location.search),
   })) || [
@@ -363,7 +387,7 @@ const StorefrontHeader: React.FC<{
       label: theme.direction === "rtl" ? "المتجر" : "Shop",
       to: buildStorefrontPath(location.pathname, "/shop", location.search),
     },
-  ];
+  ]).filter((link) => !isDraftPage(link.to));
 
   const isSticky = effectiveGlobalHeader?.sticky !== false;
   const announcementBarElement = useMemo(() => {
