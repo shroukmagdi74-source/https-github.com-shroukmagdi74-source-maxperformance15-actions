@@ -7,6 +7,8 @@ tokens for 57 tools already). Instead agents get ONE compact index tool:
   ai.agent_tool_catalog active rows, in a few hundred tokens.
 - action="execute" → run an active capability through the generic bridge
   (approval for writes is enforced by the risk_level gate, not by the LLM).
+- action="app" → inspect an application's knowledge card (screens, top questions,
+  capability domains, operating limits) if active for the company, or list active apps.
 """
 from __future__ import annotations
 
@@ -72,10 +74,12 @@ def _role_policy(role: str | None) -> tuple[tuple[str, ...], tuple[str, ...]]:
         return DEFAULT_FORBIDDEN_PREFIXES, ()
 
 
-
 class StoreCapabilityInput(BaseModel):
     action: str = Field(
-        description="Either 'search' (find capabilities by keyword) or 'execute' (run one by exact name)"
+        description=(
+            "Either 'search' (find capabilities by keyword), 'execute' (run one by exact name), "
+            "or 'app' (inspect an app's knowledge card and screens)"
+        )
     )
     query: str | None = Field(default=None, description="Search keywords, e.g. 'مرتجعات', 'invoice', 'coupon stats'")
     capability_name: str | None = Field(
@@ -84,6 +88,13 @@ class StoreCapabilityInput(BaseModel):
     arguments: dict[str, Any] = Field(
         default_factory=dict,
         description="Arguments for action='execute', matching the capability's parameters shown in search results",
+    )
+    app_slug: str | None = Field(
+        default=None,
+        description=(
+            "App slug for action='app' (e.g. 'order-core', 'inventory-pro'). "
+            "If omitted with action='app', returns list of active app slugs for the company."
+        ),
     )
     company_id: str | None = Field(default=None, description="Tenant ID (auto-injected)")
 
@@ -107,8 +118,50 @@ async def store_capability(
     company_id = input_data.company_id or ""
     role = getattr(ctx, "agent_role", None) if ctx is not None else None
 
-    if action not in ("search", "execute"):
-        return {"success": False, "error": f"Unknown action '{action}' — use 'search' or 'execute'"}
+    if action not in ("search", "execute", "app"):
+        return {"success": False, "error": f"Unknown action '{action}' — use 'search', 'execute', or 'app'"}
+
+    if action == "app":
+        from src.tools.app_cards import get_app_card
+
+        active_apps = await _company_app_slugs(company_id) if company_id else set()
+        active_set = active_apps if isinstance(active_apps, set) else set(active_apps or ())
+
+        app_slug = (input_data.app_slug or "").strip().lower()
+        if not app_slug:
+            active_list = sorted(list(active_set))
+            return {
+                "success": True,
+                "action": "app",
+                "active_apps": active_list,
+                "apps": active_list,
+                "count": len(active_list),
+            }
+
+        # Check if active for the company
+        if app_slug not in active_set:
+            return {
+                "success": False,
+                "error": f"التطبيق '{app_slug}' مش مفعّل على الشركة ومحتاج تفعيل أولاً للاستخدام",
+                "needs_activation": True,
+                "app_slug": app_slug,
+            }
+
+        card = get_app_card(app_slug)
+        if card is None:
+            return {
+                "success": False,
+                "error": f"لا توجد بطاقة معرفة مسجلة للتطبيق '{app_slug}'",
+                "app_slug": app_slug,
+            }
+
+        return {
+            "success": True,
+            "action": "app",
+            "app_slug": app_slug,
+            "card": card,
+            **card,
+        }
 
     import src.db.session as _db_mod
 
@@ -182,8 +235,9 @@ store_capability_tool = FunctionTool(
     description=(
         "Discover and run store capabilities that are not in your main tool list. "
         "action='search' with keywords (Arabic or English) lists matching capabilities with their "
-        "parameters; action='execute' runs one by exact name. Read capabilities only — "
-        "write capabilities appear in search but must be invoked via their dedicated tools."
+        "parameters; action='execute' runs one by exact name; action='app' inspects an app's knowledge card "
+        "(screens, top questions, limits) if active for the company, or lists active apps when app_slug is omitted. "
+        "Read capabilities only — write capabilities appear in search but must be invoked via their dedicated tools."
     ),
     func=store_capability,
     input_model=StoreCapabilityInput,
