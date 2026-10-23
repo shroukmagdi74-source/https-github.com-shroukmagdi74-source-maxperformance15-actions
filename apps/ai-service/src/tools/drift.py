@@ -24,6 +24,7 @@ from sqlalchemy import select
 
 import src.db.session as _db_mod
 from src.db.models.agent_tool_catalog import AgentToolCatalog
+from src.tools.capability_descriptions import describe_capability
 
 logger = structlog.get_logger(__name__)
 
@@ -116,6 +117,35 @@ async def run_drift_check(session: Any, manifest: list[dict[str, Any]] | None = 
             return stats
 
     rows = (await session.execute(select(AgentToolCatalog))).scalars().all()
+
+    # Self-heal existing auto rows missing Arabic usage hints
+    for r in rows:
+        if getattr(r, "source", None) != "auto":
+            continue
+        hint = getattr(r, "usage_hint_ar", None)
+        if not hint or not str(hint).strip() or str(hint).strip().lower().startswith("auto-discovered"):
+            r_method = getattr(r, "http_method", None) or "GET"
+            r_path = getattr(r, "endpoint", None) or ""
+            r_domain = getattr(r, "domain", None) or _infer_domain(r_path)
+            described = describe_capability(
+                method=r_method,
+                path=r_path,
+                domain=r_domain,
+                permission_key=getattr(r, "permission_key", None),
+                app_slug=getattr(r, "app_slug", None),
+                existing_hint=hint,
+            )
+            r.usage_hint_ar = described["usage_hint_ar"]
+            desc_en = getattr(r, "description_en", "") or ""
+            if not desc_en or desc_en.startswith("Auto-discovered backend capability:"):
+                r.description_en = described["description_en"]
+            if r_method.upper() == "GET" and (not r.input_schema or not (r.input_schema.get("properties") or {})):
+                r.input_schema = described["input_schema"]
+            meta = dict(getattr(r, "catalog_metadata", None) or {})
+            if "aliases" not in meta and described.get("aliases"):
+                meta["aliases"] = described["aliases"]
+                r.catalog_metadata = meta
+
     by_endpoint = {
         (r.http_method or "", r.endpoint or ""): r
         for r in rows
@@ -143,21 +173,37 @@ async def run_drift_check(session: Any, manifest: list[dict[str, Any]] | None = 
         else:
             state = "draft" if is_write else "active"
 
+        domain = _infer_domain(path)
+        permission_key = route.get("permissionKey")
+        app_slug = route.get("appSlug")
+        described = describe_capability(
+            method=method,
+            path=path,
+            domain=domain,
+            permission_key=permission_key,
+            app_slug=app_slug,
+            existing_hint=None,
+        )
+        meta = {"manifest_seen_at": time.time()}
+        if described.get("aliases"):
+            meta["aliases"] = described["aliases"]
+
         await session.merge(AgentToolCatalog(
             name=name,
-            domain=_infer_domain(path),
-            description_en=f"Auto-discovered backend capability: {_humanize_route(route)}",
+            domain=domain,
+            description_en=described["description_en"],
+            usage_hint_ar=described["usage_hint_ar"],
             endpoint=path,
             http_method=method,
-            input_schema={"type": "object", "properties": {}},
+            input_schema=described["input_schema"],
             path_params=[],
-            permission_key=route.get("permissionKey"),
-            app_slug=route.get("appSlug"),
+            permission_key=permission_key,
+            app_slug=app_slug,
             risk_level="write" if is_write else "read",
             exposure_state=state,
             roles=[],
             source="auto",
-            catalog_metadata={"manifest_seen_at": time.time()},
+            catalog_metadata=meta,
         ))
         stats["new_capabilities"] += 1
         if not is_write and state == "active":
