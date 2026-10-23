@@ -59,6 +59,30 @@ except ImportError:
     mod.FunctionTool = FunctionTool
     sys.modules["agent_framework"] = mod
 
+try:
+    import pydantic
+except ImportError:
+    mod = types.ModuleType("pydantic")
+
+    class BaseModel:
+        def __init__(self, **kw):
+            for k, v in self.__class__.__dict__.items():
+                if not k.startswith("_") and not callable(v):
+                    setattr(self, k, v)
+            for k, v in kw.items():
+                setattr(self, k, v)
+
+    def Field(*args, **kwargs):
+        if "default" in kwargs:
+            return kwargs["default"]
+        if "default_factory" in kwargs and callable(kwargs["default_factory"]):
+            return kwargs["default_factory"]()
+        return None
+
+    mod.BaseModel = BaseModel
+    mod.Field = Field
+    sys.modules["pydantic"] = mod
+
 from src.tools.app_cards import APP_CARDS, get_app_card, list_app_slugs
 from src.tools.definitions import store_capability as sc_mod
 from src.tools.definitions.store_capability import StoreCapabilityInput, store_capability
