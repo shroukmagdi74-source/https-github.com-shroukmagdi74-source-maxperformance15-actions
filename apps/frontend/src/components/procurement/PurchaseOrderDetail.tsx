@@ -247,7 +247,81 @@ export const PurchaseOrderDetail: React.FC = () => {
   const canCancel = order.status !== "RECEIVED" && order.status !== "CANCELLED";
 
   return (
-    <div className="p-3 sm:p-6 max-w-6xl mx-auto space-y-5 print:p-0">
+    <div className="p-3 sm:p-6 max-w-6xl mx-auto space-y-5 print:p-0 purchase-order-detail-container">
+      {/* Print-specific style rules */}
+      <style>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 15mm 10mm;
+          }
+          body, html {
+            background: white !important;
+            color: black !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          header, nav, aside, [role="navigation"], .sidebar, button, .print\\:hidden, #app-header, .app-sidebar, [data-sonner-toaster], .fixed {
+            display: none !important;
+          }
+          .purchase-order-detail-container {
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          .print-only {
+            display: block !important;
+          }
+          .border-border\\/70, .border {
+            border-color: rgb(209, 213, 219) !important;
+          }
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+          th, td {
+            border: 1px solid rgb(209, 213, 219) !important;
+            padding: 6px 8px !important;
+            color: black !important;
+          }
+          th {
+            background-color: rgb(243, 244, 246) !important;
+          }
+          tr {
+            page-break-inside: avoid;
+          }
+        }
+        @media screen {
+          .print-only {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      {/* Printable Document Official Header */}
+      <div className="print-only border-b-2 border-black pb-4 mb-4 text-black">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight">أمر شراء توريد / PURCHASE ORDER</h1>
+            <p className="text-sm font-semibold text-gray-800 mt-1">
+              رقم الأمر: <strong className="font-mono text-base">{order.orderNumber}</strong>
+            </p>
+            <p className="text-xs text-gray-600">
+              حالة الأمر: <strong>{statusLabels[order.status] ?? order.status}</strong>
+            </p>
+          </div>
+          <div className="text-end text-xs space-y-1">
+            <p className="font-bold text-sm">منصة MaxP للتجارة المتكاملة</p>
+            <p>تاريخ إصدار الأمر: <strong className="font-mono">{formatShortDate(order.orderDate, i18n.language)}</strong></p>
+            {order.expectedDelivery && (
+              <p>تاريخ التسليم المتوقع: <strong className="font-mono">{formatShortDate(order.expectedDelivery, i18n.language)}</strong></p>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Top Action Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-border/70 print:hidden">
         <div className="flex items-center gap-2">
@@ -587,6 +661,24 @@ export const PurchaseOrderDetail: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Printable Signature & Approvals Block */}
+      <div className="print-only pt-8 mt-6 border-t border-gray-300">
+        <div className="grid grid-cols-3 gap-6 text-center text-xs text-black">
+          <div>
+            <p className="font-bold mb-10 text-gray-800">إعداد مسؤول المشتريات</p>
+            <div className="border-t border-dashed border-gray-400 pt-1 text-[11px] text-gray-600">التوقيع والاسم</div>
+          </div>
+          <div>
+            <p className="font-bold mb-10 text-gray-800">اعتماد الإدارة المالية / المدير</p>
+            <div className="border-t border-dashed border-gray-400 pt-1 text-[11px] text-gray-600">الختم والتوقيع</div>
+          </div>
+          <div>
+            <p className="font-bold mb-10 text-gray-800">تأكيد واستلام المورد</p>
+            <div className="border-t border-dashed border-gray-400 pt-1 text-[11px] text-gray-600">توقيع المستلم / التاريخ</div>
+          </div>
+        </div>
+      </div>
 
       {/* Receive Items Modal */}
       <ReceiveItemsDialog

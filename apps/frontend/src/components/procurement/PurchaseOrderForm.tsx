@@ -1146,7 +1146,7 @@ const PurchaseOrderForm: React.FC = () => {
         </div>
 
         {/* Sticky Action Bar for Mobile (< 768px) */}
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/80 p-3 flex items-center justify-between shadow-2xl md:hidden">
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border/80 p-3 flex items-center justify-between shadow-2xl md:hidden print:hidden">
           <div className="flex flex-col">
             <span className="text-[11px] text-muted-foreground">الإجمالي التقديري:</span>
             <span className="text-lg font-black font-mono text-primary">
