@@ -16,7 +16,6 @@ import {
   ChevronDownIcon,
   CheckIcon,
   ClockIcon,
-  Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioDeviceMode, StudioZoomLevel, StudioPageDefinition, PageStyleScope } from "./StudioTypes";
 import { StudioPageSelector } from "./StudioPageSelector";
@@ -32,8 +31,6 @@ interface StudioTopBarProps {
   onApplyPageStylePreset?: (presetId: string) => void;
   onUpdatePageStyle?: (partial: Partial<PageStyleScope>) => void;
   onResetPageStyle?: () => void;
-  pageStatus?: "published" | "draft";
-  onOpenPageSettings?: () => void;
   deviceMode: StudioDeviceMode;
   hasPendingChanges: boolean;
   canUndo: boolean;
@@ -71,8 +68,6 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
   onApplyPageStylePreset,
   onUpdatePageStyle,
   onResetPageStyle,
-  pageStatus = "published",
-  onOpenPageSettings,
   deviceMode,
   hasPendingChanges,
   canUndo,
@@ -137,34 +132,6 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
               onResetStyle={onResetPageStyle || (() => {})}
             />
           )}
-          {onOpenPageSettings && (
-            <button
-              type="button"
-              data-testid="studio-page-settings-button"
-              onClick={onOpenPageSettings}
-              className="flex h-7 sm:h-8 items-center gap-1 rounded-lg border border-[#32353b] bg-[#202226] px-2 text-xs font-semibold text-[#e8eaee] hover:bg-[#282b30] hover:text-white transition-colors"
-              title="إعدادات الصفحة (SEO والنشر)"
-            >
-              <Cog6ToothIcon className="h-3.5 w-3.5 text-[#9ba0a8]" />
-              <span className="hidden xl:inline">إعدادات الصفحة</span>
-            </button>
-          )}
-          <span
-            data-testid="studio-page-status-badge"
-            className={`flex items-center gap-1 rounded-md px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold transition-all ${
-              pageStatus === "draft"
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-            }`}
-            title={pageStatus === "draft" ? "مسودة — مستبعدة من المنيو" : "منشورة"}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                pageStatus === "draft" ? "bg-amber-400" : "bg-emerald-400"
-              }`}
-            />
-            <span>{pageStatus === "draft" ? "مسودة" : "منشورة"}</span>
-          </span>
         </div>
 
         {/* Mobile Elements Button */}

@@ -71,7 +71,6 @@ export interface StorefrontSectionConfig {
   type: StorefrontSectionType;
   variant?: string;
   settings?: Record<string, unknown>;
-
   [key: string]: unknown;
 }
 
@@ -83,28 +82,12 @@ export interface StorefrontPageCompositionPolicy {
   enforceTrustSignals?: boolean;
 }
 
-export interface StorefrontPageSEOConfig {
-  title?: string;
-  description?: string;
-  ogImage?: string;
-  canonical?: string;
-  noindex?: boolean;
-}
-
-export type StorefrontPageStatus = 'published' | 'draft';
-
 export interface StorefrontPageConfig {
   sections: Array<string | StorefrontSectionConfig>;
   layoutHint?: StorefrontPageLayout;
-  seo?: StorefrontPageSEOConfig;
-  status?: StorefrontPageStatus;
-  title?: string;
-  label?: string;
-  slug?: string;
   pageGoal?: StorefrontPageGoal;
   compositionPolicy?: StorefrontPageCompositionPolicy;
   settings?: Record<string, unknown>;
-
 }
 
 export interface StorefrontThemeTokens {

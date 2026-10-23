@@ -59,7 +59,7 @@ const DynamicStorefrontPage: React.FC = () => {
     shouldFetchDbPage ? settings?.company?.id : undefined,
   );
 
-  // Sync dynamic page metadata with browser head (including PAGE-1 SEO)
+  // Sync dynamic page metadata with browser head
   useEffect(() => {
     const rawStoreName =
       settings?.storefront?.settings?.["storeName"] ||
@@ -68,34 +68,26 @@ const DynamicStorefrontPage: React.FC = () => {
       theme.name ||
       "";
     const storeName = typeof rawStoreName === "string" ? rawStoreName : "";
-    const currentSeo = (localizedPageConfig as any)?.seo || (pageConfig as any)?.seo;
 
-    // 1. Title
-    if (currentSeo?.title?.trim()) {
-      const customTitle = currentSeo.title.trim();
-      document.title =
-        storeName && !customTitle.includes(storeName)
-          ? `${customTitle} | ${storeName}`
-          : customTitle;
-    } else if (hasSections && localizedPageConfig) {
+    if (hasSections && localizedPageConfig) {
       const pageTitle =
         (localizedPageConfig as any).title?.trim() ||
         (localizedPageConfig as any).label?.trim() ||
         pageSlug ||
         "";
       document.title = pageTitle ? `${pageTitle} | ${storeName}` : storeName;
-    } else if (dbPage) {
-      const pageTitle =
-        dbPage.metaTitle?.trim() ||
-        (dbPage.title ? `${dbPage.title} | ${storeName}` : storeName);
-      document.title = pageTitle;
+      return;
     }
 
-    // 2. Meta Description
+    if (!dbPage) return;
+    const pageTitle =
+      dbPage.metaTitle?.trim() ||
+      (dbPage.title ? `${dbPage.title} | ${storeName}` : storeName);
+    document.title = pageTitle;
+
     const metaDesc =
-      currentSeo?.description?.trim() ||
-      dbPage?.metaDescription?.trim() ||
-      dbPage?.content?.replace(/<[^>]*>/g, "").slice(0, 160).trim();
+      dbPage.metaDescription?.trim() ||
+      dbPage.content?.replace(/<[^>]*>/g, "").slice(0, 160).trim();
     if (metaDesc) {
       let descEl = document.querySelector<HTMLMetaElement>('meta[name="description"]');
       if (!descEl) {
@@ -105,61 +97,11 @@ const DynamicStorefrontPage: React.FC = () => {
       }
       descEl.setAttribute("content", metaDesc);
     }
-
-    // 3. OG Image
-    if (currentSeo?.ogImage?.trim()) {
-      let ogEl = document.querySelector<HTMLMetaElement>('meta[property="og:image"]');
-      if (!ogEl) {
-        ogEl = document.createElement("meta");
-        ogEl.setAttribute("property", "og:image");
-        document.head.appendChild(ogEl);
-      }
-      ogEl.setAttribute("content", currentSeo.ogImage.trim());
-    }
-
-    // 4. Canonical
-    if (currentSeo?.canonical?.trim()) {
-      let canonicalEl = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-      if (!canonicalEl) {
-        canonicalEl = document.createElement("link");
-        canonicalEl.setAttribute("rel", "canonical");
-        document.head.appendChild(canonicalEl);
-      }
-      canonicalEl.setAttribute("href", currentSeo.canonical.trim());
-    }
-
-    // 5. Noindex
-    let robotsEl = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    if (currentSeo?.noindex) {
-      if (!robotsEl) {
-        robotsEl = document.createElement("meta");
-        robotsEl.setAttribute("name", "robots");
-        document.head.appendChild(robotsEl);
-      }
-      robotsEl.setAttribute("content", "noindex");
-    } else if (robotsEl && robotsEl.getAttribute("content") === "noindex") {
-      robotsEl.remove();
-    }
-  }, [dbPage, settings, theme, hasSections, localizedPageConfig, pageConfig, pageSlug]);
-
-  const isDraft =
-    (localizedPageConfig as any)?.status === "draft" ||
-    (pageConfig as any)?.status === "draft";
-
-  const draftPreviewBadge = isDraft ? (
-    <div
-      data-testid="draft-preview-badge"
-      className="w-full bg-amber-500/15 border-b border-amber-500/30 text-amber-900 dark:text-amber-200 px-4 py-2 text-center text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 sticky top-0 z-50 backdrop-blur-xs"
-    >
-      <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-      <span>معاينة — مسودة غير منشورة</span>
-    </div>
-  ) : null;
+  }, [dbPage, settings, theme, hasSections, localizedPageConfig, pageSlug]);
 
   if (hasSections && localizedPageConfig) {
     return (
       <div dir={direction} data-storefront-locale={locale} className="w-full">
-        {draftPreviewBadge}
         <PageComposer
           pageConfig={localizedPageConfig}
           layout={resolveStorefrontPageLayout(localizedPageConfig)}
@@ -181,7 +123,6 @@ const DynamicStorefrontPage: React.FC = () => {
   if (shouldFetchDbPage && dbPage) {
     return (
       <div className="custom-store-page container max-w-4xl mx-auto px-4 py-12 md:py-16 space-y-8 text-start" dir={direction} data-storefront-locale={locale}>
-        {draftPreviewBadge}
         <div className="border-b border-muted pb-6">
           <h1 className="text-3xl md:text-4xl font-extrabold font-heading text-foreground">
             {dbPage.title}
@@ -209,7 +150,6 @@ const DynamicStorefrontPage: React.FC = () => {
 
   return (
     <div dir={direction} data-storefront-locale={locale} className="w-full">
-      {draftPreviewBadge}
       <PageComposer
         pageConfig={localizedPageConfig || pageConfig!}
         layout={resolveStorefrontPageLayout(localizedPageConfig || pageConfig!)}
