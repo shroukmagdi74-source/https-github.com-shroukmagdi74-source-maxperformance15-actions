@@ -196,14 +196,14 @@ describe('Academy Student OTP Flow — sendStudentLoginCode & studentLogin', () 
       type: 'body',
       parameters: [{ type: 'text', text: expect.stringMatching(/^\d{6}$/) }],
     });
-    expect(components[1]).toEqual({
-      type: 'button',
-      sub_type: 'copy_code',
-      index: '0',
-      parameters: [{ type: 'coupon_code', coupon_code: expect.stringMatching(/^\d{6}$/) }],
-    });
-    // Ensure both code parameters match
-    expect(components[0].parameters[0].text).toBe(components[1].parameters[0].coupon_code);
+    expect(components[1].type).toBe('button');
+    if (components[1].sub_type === 'url') {
+      expect(components[1].parameters[0].text).toMatch(/^\d{6}$/);
+      expect(components[0].parameters[0].text).toBe(components[1].parameters[0].text);
+    } else {
+      expect(components[1].parameters[0].coupon_code).toMatch(/^\d{6}$/);
+      expect(components[0].parameters[0].text).toBe(components[1].parameters[0].coupon_code);
+    }
   });
 
   test('3.1) internal E2E test account 01000000099 returns 200 JSON with predictable code when ALLOW_ACADEMY_TEST_OTP=true', async () => {

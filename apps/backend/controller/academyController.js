@@ -991,9 +991,9 @@ exports.sendStudentLoginCode = async (req, res) => {
 
           if (hasButton) {
             const firstBtn = buttonsComp?.buttons?.[0];
-            const btnType = String(firstBtn?.otp_type || firstBtn?.type || firstBtn?.sub_type || '').toUpperCase();
+            const btnType = String(firstBtn?.type || firstBtn?.sub_type || firstBtn?.otp_type || '').toUpperCase();
 
-            if (btnType === 'COPY_CODE' || btnType === 'OTP' || authTemplate.name === 'student_login_otp') {
+            if (btnType === 'COPY_CODE' || btnType === 'OTP') {
               components.push({
                 type: 'button',
                 sub_type: 'copy_code',
