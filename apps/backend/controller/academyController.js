@@ -825,6 +825,22 @@ async function resolveActiveWhatsAppSession(companyId, db) {
 // Student Authentication & Profile
 // -------------------------------------------------------------
 
+/**
+ * 🔒 Security: Check if test fixed OTP (123456) is enabled.
+ * STRICT LAW: MUST require process.env.ALLOW_ACADEMY_TEST_OTP === 'true' AND target test phone.
+ * Default in production is strictly FALSE (OFF).
+ */
+function isAcademyTestOtpEnabled(phone, phoneVariants = []) {
+  if (process.env.ALLOW_ACADEMY_TEST_OTP !== 'true') {
+    return false;
+  }
+  const cleanPhone = String(phone || '').trim();
+  const variants = Array.isArray(phoneVariants) ? phoneVariants : [];
+  return cleanPhone === '01000000099' || cleanPhone === '01000000088' ||
+    variants.some(v => v === '01000000099' || v === '01000000088' || v === '201000000099' || v === '201000000088');
+}
+exports.isAcademyTestOtpEnabled = isAcademyTestOtpEnabled;
+
 exports.sendStudentLoginCode = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -889,11 +905,8 @@ exports.sendStudentLoginCode = async (req, res) => {
     }
 
     // 3. Generate 6-digit code
-    // 🔒 حسابات الاختبار (01000000099 / 01000000088) بكود ثابت 123456
-    const isTestFixedOtp = (cleanPhone === '01000000099' || cleanPhone === '01000000088' ||
-      phoneVariants.some(v => v === '01000000099' || v === '01000000088' || v === '201000000099' || v === '201000000088') ||
-      ((process.env.ALLOW_ACADEMY_TEST_OTP === 'true' || process.env.ACADEMY_TEST_ACCOUNTS === 'true') &&
-        (cleanPhone === '01000000099' || cleanPhone === '01000000088')));
+    // 🔒 حسابات الاختبار (01000000099 / 01000000088) بكود ثابت 123456 مشروطة حصريًا بـ ALLOW_ACADEMY_TEST_OTP === 'true'
+    const isTestFixedOtp = isAcademyTestOtpEnabled(cleanPhone, phoneVariants);
     const code = isTestFixedOtp ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
 
     // 4. Save in OTP store (valid for 10 minutes) under cleanPhone and recipientPhone
@@ -1097,7 +1110,7 @@ exports.sendStudentLoginCode = async (req, res) => {
       success: true,
       message: 'تم إرسال كود التحقق بنجاح إلى هاتفك عبر واتساب',
       expiresInSeconds: 600,
-      ...(isTestFixedOtp ? { testCode: '123456' } : {}),
+      ...(isTestFixedOtp && process.env.ALLOW_ACADEMY_TEST_OTP === 'true' ? { testCode: '123456' } : {}),
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1124,10 +1137,8 @@ exports.studentLogin = async (req, res) => {
     }
 
     const cleanCode = String(code).trim();
-    const isTestFixedOtp = (cleanPhone === '01000000099' || cleanPhone === '01000000088' ||
-      phoneVariants.some(v => v === '01000000099' || v === '01000000088' || v === '201000000099' || v === '201000000088') ||
-      ((process.env.ALLOW_ACADEMY_TEST_OTP === 'true' || process.env.ACADEMY_TEST_ACCOUNTS === 'true') &&
-        (cleanPhone === '01000000099' || cleanPhone === '01000000088')));
+    // 🔒 حسابات الاختبار بكود ثابت مشروطة حصريًا بـ ALLOW_ACADEMY_TEST_OTP === 'true'
+    const isTestFixedOtp = isAcademyTestOtpEnabled(cleanPhone, phoneVariants);
 
     // Verify OTP
     let isCodeValid = false;

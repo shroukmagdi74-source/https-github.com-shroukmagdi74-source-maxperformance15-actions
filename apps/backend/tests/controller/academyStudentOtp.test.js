@@ -206,7 +206,8 @@ describe('Academy Student OTP Flow — sendStudentLoginCode & studentLogin', () 
     expect(components[0].parameters[0].text).toBe(components[1].parameters[0].coupon_code);
   });
 
-  test('3.1) internal E2E test account 01000000099 returns 200 JSON with predictable code without external dispatch', async () => {
+  test('3.1) internal E2E test account 01000000099 returns 200 JSON with predictable code when ALLOW_ACADEMY_TEST_OTP=true', async () => {
+    process.env.ALLOW_ACADEMY_TEST_OTP = 'true';
     mockReq = { body: { phone: '01000000099' } };
     await academyController.sendStudentLoginCode(mockReq, mockRes);
 
@@ -214,7 +215,19 @@ describe('Academy Student OTP Flow — sendStudentLoginCode & studentLogin', () 
     expect(sentJson).toMatchObject({
       success: true,
       expiresInSeconds: 600,
+      testCode: '123456',
     });
+    delete process.env.ALLOW_ACADEMY_TEST_OTP;
+  });
+
+  test('3.2) internal E2E test account does NOT leak testCode when ALLOW_ACADEMY_TEST_OTP is false/unset', async () => {
+    delete process.env.ALLOW_ACADEMY_TEST_OTP;
+    mockReq = { body: { phone: '01000000088' } };
+    await academyController.sendStudentLoginCode(mockReq, mockRes);
+
+    expect(sentStatus).toBeNull();
+    expect(sentJson.success).toBe(true);
+    expect(sentJson.testCode).toBeUndefined();
   });
 
   test('4) rate limiter enforces 30 seconds wait and returns 429 JSON with retryAfter', async () => {

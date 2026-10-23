@@ -416,6 +416,16 @@ if [ -f "$DEPLOY_STAGING/backend.tar.gz" ]; then
     sudo cp /var/www/backend2/.env.production /var/www/backend2/.env
   fi
 
+  # 🔒 P0-Security: Ensure ALLOW_ACADEMY_TEST_OTP is disabled in production
+  if [ -f "/var/www/backend2/.env" ]; then
+    if grep -q '^ALLOW_ACADEMY_TEST_OTP=' /var/www/backend2/.env; then
+      sudo sed -i 's/^ALLOW_ACADEMY_TEST_OTP=.*/ALLOW_ACADEMY_TEST_OTP=false/' /var/www/backend2/.env
+    fi
+    if grep -q '^ACADEMY_TEST_ACCOUNTS=' /var/www/backend2/.env; then
+      sudo sed -i 's/^ACADEMY_TEST_ACCOUNTS=.*/ACADEMY_TEST_ACCOUNTS=false/' /var/www/backend2/.env
+    fi
+  fi
+
   # 🔑 Restore Firebase Service Account Key from persistent /var/www/shared
   if [ -f "/var/www/shared/firebase-service-account.json" ]; then
     sudo mkdir -p /var/www/backend2/config
