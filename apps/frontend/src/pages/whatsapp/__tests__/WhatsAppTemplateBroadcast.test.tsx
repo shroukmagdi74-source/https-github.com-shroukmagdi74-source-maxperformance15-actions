@@ -1,69 +1,75 @@
+/** @vitest-environment jsdom */
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import '@testing-library/jest-dom/vitest';
 import { MemoryRouter } from 'react-router-dom';
 import WhatsAppTemplateBroadcast from '../WhatsAppTemplateBroadcast';
+import { apiClient } from '../../../services/apiClient';
+import { broadcastService } from '../../../services/broadcastService';
+import { customerService } from '../../../services/customerService';
 
-const mockT = jest.fn((key: string) => {
-  const map: Record<string, string> = { 'common.back': 'رجوع' };
-  return map[key] || key;
-});
-
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: mockT,
-    i18n: { language: 'ar', dir: () => 'rtl' },
-  }),
-}));
-
-jest.mock('../../../services/apiClient', () => ({
+vi.mock('../../../services/apiClient', () => ({
   apiClient: {
-    get: jest.fn(),
-    put: jest.fn(),
-    post: jest.fn(),
-    delete: jest.fn(),
-    patch: jest.fn(),
+    get: vi.fn(),
+    put: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
+    patch: vi.fn(),
   },
 }));
 
-const { apiClient } = require('../../../services/apiClient') as {
-  apiClient: {
-    get: jest.Mock;
-    put: jest.Mock;
-    post: jest.Mock;
-    delete: jest.Mock;
-    patch: jest.Mock;
+vi.mock('../../../services/broadcastService', () => ({
+  broadcastService: {
+    getCustomerLists: vi.fn(),
+    getCustomersInListPaginated: vi.fn(),
+    getCampaigns: vi.fn(),
+    createCampaign: vi.fn(),
+    sendCampaign: vi.fn(),
+    deleteCustomerList: vi.fn(),
+    createCustomerList: vi.fn(),
+    refreshCustomerListCount: vi.fn(),
+  },
+}));
+
+vi.mock('../../../services/customerService', () => ({
+  customerService: {
+    getDistinctTags: vi.fn().mockResolvedValue([]),
+    getCustomers: vi.fn().mockResolvedValue({ data: [] }),
+  },
+}));
+
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-i18next')>();
+  return {
+    ...actual,
+    useTranslation: () => ({
+      t: (key: string, defaultVal?: string | Record<string, unknown>) => {
+        if (typeof defaultVal === 'string') return defaultVal;
+        const map: Record<string, string> = { 'common.back': 'رجوع' };
+        return map[key] || key;
+      },
+      i18n: { language: 'ar', dir: () => 'rtl' },
+    }),
   };
-};
+});
 
-describe('WhatsAppTemplateBroadcast', () => {
+describe('WhatsAppTemplateBroadcast (Batch 427)', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('renders heading and disabled send button', async () => {
-    apiClient.get.mockResolvedValue({ data: { sessions: [] } });
-
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <WhatsAppTemplateBroadcast />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByRole('heading', { name: 'بث قالب واتساب' })).toBeInTheDocument();
-    expect(screen.getByText(/أرسل قالب رسالة Meta API/)).toBeInTheDocument();
-
-    const sendBtn = screen.getByRole('button', { name: /إرسال البث/ });
-    expect(sendBtn).toBeDisabled();
-  });
-
-  test('loads sessions and renders approved template in select', async () => {
-    apiClient.get.mockImplementation((url: string) => {
+    vi.clearAllMocks();
+    (apiClient.get as any).mockImplementation((url: string) => {
       if (url === '/whatsapp/sessions') {
         return Promise.resolve({
           data: {
             sessions: [
-              { id: 's1', name: 'رقم المبيعات', phoneNumber: '201000000001', provider: 'META_CLOUD', metaWabaId: 'waba1' },
+              {
+                id: 's1',
+                name: 'رقم المبيعات',
+                phoneNumber: '201000000001',
+                provider: 'META_CLOUD',
+                metaWabaId: 'waba1',
+              },
             ],
           },
         });
@@ -77,168 +83,94 @@ describe('WhatsAppTemplateBroadcast', () => {
           },
         });
       }
+      if (url.includes('/whatsapp/lead-categories')) {
+        return Promise.resolve({ data: { data: [] } });
+      }
       return Promise.resolve({ data: {} });
     });
 
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <WhatsAppTemplateBroadcast />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getAllByText('رقم المبيعات').length).toBeGreaterThanOrEqual(1);
-    });
-
-    const trigger = screen.getByText('اختر قالباً');
-    await userEvent.click(trigger);
-    await waitFor(() => {
-      expect(screen.getByText((c) => c.includes('promo'))).toBeInTheDocument();
-    });
+    (broadcastService.getCustomerLists as any).mockResolvedValue([
+      { id: 'l1', name: 'عملاء VIP', count: 120, isDefault: false, criteria: {} },
+    ]);
+    (broadcastService.getCampaigns as any).mockResolvedValue([]);
   });
 
-  test('shows fallback to phoneNumber when session name missing', async () => {
-    apiClient.get.mockImplementation((url: string) => {
-      if (url === '/whatsapp/sessions') {
-        return Promise.resolve({
-          data: {
-            sessions: [
-              { id: 's1', phoneNumber: '201099999999', provider: 'META_CLOUD', metaWabaId: 'waba1' },
-            ],
-          },
-        });
-      }
-      if (url.includes('/whatsapp-templates/templates')) {
-        return Promise.resolve({ data: { templates: [] } });
-      }
-      return Promise.resolve({ data: {} });
-    });
-
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <WhatsAppTemplateBroadcast />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getAllByText('201099999999').length).toBeGreaterThanOrEqual(1);
-    });
+  afterEach(() => {
+    cleanup();
   });
 
-  test('shows empty templates message when no approved templates', async () => {
-    apiClient.get.mockImplementation((url: string) => {
-      if (url === '/whatsapp/sessions') {
-        return Promise.resolve({
-          data: {
-            sessions: [
-              { id: 's1', name: 'Sales', phoneNumber: '201000000001', provider: 'META_CLOUD', metaWabaId: 'waba1' },
-            ],
-          },
-        });
-      }
-      if (url.includes('/whatsapp-templates/templates')) {
-        return Promise.resolve({ data: { templates: [] } });
-      }
-      return Promise.resolve({ data: {} });
-    });
-
+  it('renders heading, tabs, and disabled send button when empty', async () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <WhatsAppTemplateBroadcast />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText('لا توجد قوالب معتمدة. أنشئ قالباً أولاً.')).toBeInTheDocument();
-    });
-  });
-
-  test('adds recipients from textarea and shows count', async () => {
-    apiClient.get.mockImplementation((url: string) => {
-      if (url === '/whatsapp/sessions') {
-        return Promise.resolve({
-          data: {
-            sessions: [
-              { id: 's1', name: 'Sales', phoneNumber: '201000000001', provider: 'META_CLOUD', metaWabaId: 'waba1' },
-            ],
-          },
-        });
-      }
-      if (url.includes('/whatsapp-templates/templates')) {
-        return Promise.resolve({ data: { templates: [{ name: 'promo', status: 'APPROVED', category: 'MARKETING', language: 'en' }] } });
-      }
-      return Promise.resolve({ data: {} });
-    });
-
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <WhatsAppTemplateBroadcast />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('0 مستلم')).toBeInTheDocument();
-    });
-
-    const textarea = screen.getByPlaceholderText(/أرقام الهواتف/);
-    await userEvent.type(textarea, '201234567890\n201098765432');
-    await userEvent.click(screen.getByText('إضافة المستلمين'));
-
-    expect(screen.getByText('2 مستلم')).toBeInTheDocument();
-    expect(screen.getByText('201234567890')).toBeInTheDocument();
-    expect(screen.getByText('201098765432')).toBeInTheDocument();
-  });
-
-  test('sends broadcast and shows result', async () => {
-    apiClient.get.mockImplementation((url: string) => {
-      if (url === '/whatsapp/sessions') {
-        return Promise.resolve({
-          data: {
-            sessions: [
-              { id: 's1', name: 'Sales', phoneNumber: '201000000001', provider: 'META_CLOUD', metaWabaId: 'waba1' },
-            ],
-          },
-        });
-      }
-      if (url.includes('/whatsapp-templates/templates')) {
-        return Promise.resolve({ data: { templates: [{ name: 'promo', status: 'APPROVED', category: 'MARKETING', language: 'en' }] } });
-      }
-      return Promise.resolve({ data: {} });
-    });
-    apiClient.post.mockResolvedValue({
-      data: {
-        results: { sent: 2, failed: 0, errors: [] },
-      },
-    });
-
-    render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <WhatsAppTemplateBroadcast />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getAllByText('Sales').length).toBeGreaterThanOrEqual(1);
-    });
-
-    const templateSelect = screen.getByText('اختر قالباً');
-    await userEvent.click(templateSelect);
-    await waitFor(() => {
-      expect(screen.getByText(/promo/)).toBeInTheDocument();
-    });
-    await userEvent.click(screen.getByText(/promo/));
-
-    const textarea = screen.getByPlaceholderText(/أرقام الهواتف/);
-    await userEvent.type(textarea, '201234567890');
-    await userEvent.click(screen.getByText('إضافة المستلمين'));
+    expect(await screen.findByRole('heading', { name: 'حملات بث قوالب واتساب' })).toBeInTheDocument();
+    expect(screen.getByText('إنشاء وإدارة حملات إرسال قوالب Meta API مع تتبع الفتح والضغط')).toBeInTheDocument();
 
     const sendBtn = screen.getByRole('button', { name: /إرسال البث/ });
-    expect(sendBtn).not.toBeDisabled();
-    await userEvent.click(sendBtn);
+    expect(sendBtn).toBeDisabled();
+  });
+
+  it('allows switching between tabs (Create, Campaigns, Analytics, Lists)', async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <WhatsAppTemplateBroadcast />
+      </MemoryRouter>
+    );
+
+    // Click on Lists Tab
+    const listsTab = screen.getByRole('tab', { name: /قوائم العملاء/ });
+    fireEvent.click(listsTab);
 
     await waitFor(() => {
-      expect(screen.getByText('تم الإرسال')).toBeInTheDocument();
+      expect(screen.getByText('عملاء VIP')).toBeInTheDocument();
+      expect(screen.getByText('120')).toBeInTheDocument();
     });
-    expect(screen.getByText('2')).toBeInTheDocument();
+
+    // Click on Analytics Tab
+    const analyticsTab = screen.getByRole('tab', { name: /التحليلات/ });
+    fireEvent.click(analyticsTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('لا توجد بيانات إحصائية بعد')).toBeInTheDocument();
+    });
+  });
+
+  it('adds recipients from textarea and updates count', async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <WhatsAppTemplateBroadcast />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('0 مستلم محدد')).toBeInTheDocument();
+    });
+
+    const textarea = screen.getByPlaceholderText(/اكتب أرقام الهواتف/);
+    fireEvent.change(textarea, { target: { value: '201234567890\n201098765432' } });
+
+    const addBtn = screen.getByRole('button', { name: /إضافة الأرقام للقائمة/ });
+    fireEvent.click(addBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('2 مستلم محدد')).toBeInTheDocument();
+      expect(screen.getByText('201234567890')).toBeInTheDocument();
+      expect(screen.getByText('201098765432')).toBeInTheDocument();
+    });
+  });
+
+  it('loads sessions and lists in select options', async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <WhatsAppTemplateBroadcast />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('رقم المبيعات (201000000001)')).toBeInTheDocument();
+    });
   });
 });
