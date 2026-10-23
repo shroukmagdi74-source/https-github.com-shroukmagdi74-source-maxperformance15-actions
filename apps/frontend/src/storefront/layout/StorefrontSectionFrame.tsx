@@ -85,7 +85,12 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
   // ─────────────────────────────────────────────────────────────
   const animConfig: SectionAnimationSettings | undefined = settings?.animation;
   const rawEntranceType = animConfig?.entrance?.type;
-  const hasEntrance = Boolean(rawEntranceType && rawEntranceType !== "none");
+  // KILL-SWITCH (2026-10-23): entrance animations are temporarily disabled.
+  // They repeatedly left sections at opacity:0 in production despite fallbacks.
+  // Hover + parallax remain active. Re-enable only after a proven live test.
+  const ENTRANCE_ANIMATIONS_ENABLED = false;
+  const hasEntrance =
+    ENTRANCE_ANIMATIONS_ENABLED && Boolean(rawEntranceType && rawEntranceType !== "none");
   const entranceType: AnimationEntranceType = hasEntrance ? rawEntranceType! : "none";
   const entranceDuration = Math.max(
     200,
