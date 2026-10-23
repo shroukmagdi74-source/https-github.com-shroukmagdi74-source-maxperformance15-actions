@@ -1,11 +1,14 @@
+/** @vitest-environment jsdom */
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, it, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ModeratorDashboard from '../ModeratorDashboard';
 import WhatsAppRoutingWorkspace from '../WhatsAppRoutingWorkspace';
+import translations from '@/locales/ar/sections/communication/whatsappInbox.json';
+import { apiClient } from '@/services/apiClient';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const translations = require('../../../locales/ar/sections/whatsappInbox.json');
 const resolveTranslation = (key: string) => {
   const normalizedKey = key.replace(/^whatsappInbox\./, '');
   return normalizedKey.split('.').reduce<unknown>((value, segment) => {
@@ -15,35 +18,24 @@ const resolveTranslation = (key: string) => {
     return key;
   }, translations as unknown) as string;
 };
-const mockT = jest.fn((key: string) => resolveTranslation(key));
+const mockT = vi.fn((key: string) => resolveTranslation(key));
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mockT,
     i18n: { language: 'ar', dir: () => 'rtl' },
   }),
 }));
 
-jest.mock('../../../services/apiClient', () => ({
+vi.mock('@/services/apiClient', () => ({
   apiClient: {
-    get: jest.fn(),
-    put: jest.fn(),
-    post: jest.fn(),
-    delete: jest.fn(),
-    patch: jest.fn(),
+    get: vi.fn(),
+    put: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
+    patch: vi.fn(),
   },
 }));
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { apiClient } = require('../../../services/apiClient') as {
-  apiClient: {
-    get: jest.Mock;
-    put: jest.Mock;
-    post: jest.Mock;
-    delete: jest.Mock;
-    patch: jest.Mock;
-  };
-};
 
 const workspacePayload = {
   success: true,
@@ -148,8 +140,12 @@ const settingsPayload = {
 
 describe('WhatsApp inbox admin pages', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockT.mockImplementation((key: string) => resolveTranslation(key));
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   test('ModeratorDashboard renders Arabic labels and latest conversation data', async () => {
