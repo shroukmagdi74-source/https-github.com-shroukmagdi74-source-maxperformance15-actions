@@ -1,162 +1,32 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React from 'react';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/hooks/useAuthSimple';
-import useSocket from '@/hooks/useSocket';
-import type { Contact } from '@/hooks/useWhatsAppQueries';
-import { useMarkAsRead } from '@/hooks/useWhatsAppMutations';
 
 import ChatSidebar from './components/ChatSidebar';
 import ChatWindow from './components/ChatWindow';
 import ChatRightPanel from './components/ChatRightPanel';
-import { ChatPollDialog } from './components/dialogs/ChatPollDialog';
-import { ChatButtonsDialog } from './components/dialogs/ChatButtonsDialog';
-import { ChatListDialog } from './components/dialogs/ChatListDialog';
-import { ChatCatalogDialog } from './components/dialogs/ChatCatalogDialog';
-import { ChatLocationDialog } from './components/dialogs/ChatLocationDialog';
-import { ChatTemplateDialog } from './components/dialogs/ChatTemplateDialog';
-import { ChatStatusDialog } from './components/dialogs/ChatStatusDialog';
-import { ChatMessageContextMenu } from './components/dialogs/ChatMessageContextMenu';
-import { ChatForwardDialog } from './components/dialogs/ChatForwardDialog';
-import { ChatReactionPickerDialog } from './components/dialogs/ChatReactionPickerDialog';
-import { ContactInfoSheet } from './components/dialogs/ContactInfoSheet';
-import { ChatStarredMessagesSheet } from './components/dialogs/ChatStarredMessagesSheet';
-import { ChatModalsContainer } from './components/dialogs/ChatModalsContainer';
-
-import { useWhatsAppChatData } from './hooks/useWhatsAppChatData';
-import { useWhatsAppChatSocket } from './hooks/useWhatsAppChatSocket';
-import { useWhatsAppChatNavigation } from './hooks/useWhatsAppChatNavigation';
-import { useWhatsAppChatActions } from './hooks/useWhatsAppChatActions';
-import { useWhatsAppChatDialogs } from './hooks/useWhatsAppChatDialogs';
-import {
-  getBestContactDisplayName,
-  getContactPhoneNumber,
-} from './whatsappContactDisplay';
+import { ChatActionDialogsHost } from './components/dialogs/ChatActionDialogsHost';
+import { useWhatsAppChatCoordinator } from './hooks/useWhatsAppChatCoordinator';
 
 const WhatsAppChatContent: React.FC = () => {
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
-  const { socket } = useSocket();
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [newMessage, setNewMessage] = useState('');
-  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
-  const markAsReadMutation = useMarkAsRead();
-  const markAsReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Modular Hooks
-  const chatData = useWhatsAppChatData();
-  const dialogs = useWhatsAppChatDialogs();
-
-  const normalizeContactJid = useCallback((jid: string) => {
-    if (!jid) return '';
-    const parts = jid.split('@')[0];
-    const bareJid = parts?.split(':')[0] || '';
-    return bareJid.replace(/\D/g, '');
-  }, []);
-
-  const getContactName = useCallback((contact: Contact) => {
-    return getBestContactDisplayName(contact);
-  }, []);
-
-  const getParticipantName = useCallback((participantJid: string) => {
-    return participantJid ? normalizeContactJid(participantJid) : '';
-  }, [normalizeContactJid]);
-
-  // Actions Hook
-  const chatActions = useWhatsAppChatActions({
-    selectedContact: chatData.selectedContact,
-    setSelectedContact: chatData.setSelectedContact,
-    selectedSession: chatData.selectedSession,
-    activeSessionId: chatData.activeSessionId,
-    targetSessionId: chatData.targetSessionId,
+  const {
     user,
-    visibleMessages: chatData.visibleMessages,
+    authLoading,
+    isAuthenticated,
+    queryClient,
+    t,
+    fileInputRef,
     newMessage,
     setNewMessage,
-    replyingTo: dialogs.replyingTo,
-    setReplyingTo: dialogs.setReplyingTo,
-    fileInputRef,
-    setOrdersRefreshToken: dialogs.setOrdersRefreshToken,
-    setShowImageGallery: dialogs.setShowImageGallery,
-  });
-
-  // Socket Hook
-  useWhatsAppChatSocket({
-    socket,
-    selectedContact: chatData.selectedContact,
-    setSelectedContact: chatData.setSelectedContact,
-    selectedSession: chatData.selectedSession,
-    setSelectedSession: chatData.setSelectedSession,
-    conversations: chatData.conversations,
-    normalizeContactJid,
-    setTypingUsers,
-    markAsReadMutation,
-  });
-
-  const markAsReadRef = useRef(markAsReadMutation);
-  useEffect(() => {
-    markAsReadRef.current = markAsReadMutation;
-  }, [markAsReadMutation]);
-
-  // Automatically mark conversation as read when opened/selected
-  useEffect(() => {
-    if (!chatData.selectedContact) return;
-    const contact = chatData.selectedContact;
-    if ((contact.unreadCount || 0) <= 0) return;
-
-    const targetSessionId =
-      contact.sessionId ||
-      (chatData.selectedSession === 'all' ? null : chatData.selectedSession) ||
-      chatData.activeSessionId;
-
-    if (!targetSessionId || !contact.jid) return;
-
-    if (markAsReadTimeoutRef.current) {
-      clearTimeout(markAsReadTimeoutRef.current);
-      markAsReadTimeoutRef.current = null;
-    }
-
-    markAsReadTimeoutRef.current = setTimeout(() => {
-      markAsReadRef.current.mutate({
-        sessionId: targetSessionId,
-        remoteJid: contact.jid,
-      });
-
-      chatData.setSelectedContact((prev) =>
-        prev && prev.jid === contact.jid ? { ...prev, unreadCount: 0 } : prev,
-      );
-    }, 200);
-
-    return () => {
-      if (markAsReadTimeoutRef.current) {
-        clearTimeout(markAsReadTimeoutRef.current);
-        markAsReadTimeoutRef.current = null;
-      }
-    };
-  }, [
-    chatData.selectedContact?.jid,
-    chatData.selectedContact?.sessionId,
-    chatData.selectedContact?.unreadCount,
-    chatData.selectedSession,
-    chatData.activeSessionId,
-  ]);
-
-  // Navigation Hook
-  const chatNav = useWhatsAppChatNavigation({
-    selectedContact: chatData.selectedContact,
-    setSelectedContact: chatData.setSelectedContact,
-    selectedSession: chatData.selectedSession,
-    setSelectedSession: chatData.setSelectedSession,
-    loadingSessions: chatData.loadingSessions,
-    conversations: chatData.conversations,
-    setNewMessage,
-    normalizeContactJid,
-  });
+    typingUsers,
+    chatData,
+    dialogs,
+    chatActions,
+    chatNav,
+    getContactName,
+    getParticipantName,
+    selectedContactPhoneNumber,
+  } = useWhatsAppChatCoordinator();
 
   if (authLoading || chatData.loadingSessions) {
     return (
@@ -169,10 +39,6 @@ const WhatsAppChatContent: React.FC = () => {
   if (!isAuthenticated) {
     return null;
   }
-
-  const selectedContactPhoneNumber = chatData.selectedContact
-    ? getContactPhoneNumber(chatData.selectedContact)
-    : null;
 
   return (
     <div
@@ -269,7 +135,9 @@ const WhatsAppChatContent: React.FC = () => {
             onSendMessage={chatActions.handleSendMessage}
             onFileUpload={chatActions.handleFileUpload}
             onVoiceNoteSend={async (blob) => {
-              await chatActions.handleSendFileDirect(new File([blob], 'voice_note.webm', { type: 'audio/webm' }));
+              await chatActions.handleSendFileDirect(
+                new File([blob], 'voice_note.webm', { type: 'audio/webm' })
+              );
             }}
             onOpenContactInfo={() => dialogs.setShowContactInfo(true)}
             onMessageContextMenu={chatActions.handleMessageContextMenu}
@@ -286,11 +154,18 @@ const WhatsAppChatContent: React.FC = () => {
             onOpenOrder={() => dialogs.setShowQuickOrderModal(true)}
             onOpenServiceOrder={() => dialogs.setShowServiceOrderModal(true)}
             onOpenTasks={() => dialogs.setShowQuickCreateTaskModal(true)}
-            onOpenTemplate={() => void chatData.handleOpenTemplateDialog().then(() => dialogs.setTemplateDialogOpen(true))}
+            onOpenTemplate={() =>
+              void chatData
+                .handleOpenTemplateDialog()
+                .then(() => dialogs.setTemplateDialogOpen(true))
+            }
             onOpenProducts={() => dialogs.setShowProductPicker(true)}
             onOpenImageGallery={() => dialogs.setShowImageGallery(true)}
             onBackToList={() => {
-              if (typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
+              if (
+                typeof document !== 'undefined' &&
+                typeof document.startViewTransition === 'function'
+              ) {
                 document.startViewTransition(() => chatData.setSelectedContact(null));
               } else {
                 chatData.setSelectedContact(null);
@@ -299,14 +174,18 @@ const WhatsAppChatContent: React.FC = () => {
             onTouchStart={chatNav.handleChatTouchStart}
             onTouchEnd={chatNav.handleChatTouchEnd}
             fileInputRef={fileInputRef}
-            isUploadingMedia={chatActions.sendMediaMutation.isPending || chatActions.isDirectUploading}
+            isUploadingMedia={
+              chatActions.sendMediaMutation.isPending || chatActions.isDirectUploading
+            }
             messagesError={chatData.messagesError}
             onRetryMessages={() => chatData.refetchMessages()}
             onOpenInteractive={() => dialogs.setInteractiveDialogOpen(true)}
             pinnedMessage={chatData.currentPinnedMessage}
             onScrollToPinnedMessage={() => {
               if (chatData.currentPinnedMessage) {
-                chatData.handleScrollToMessage(chatData.currentPinnedMessage.messageId);
+                chatData.handleScrollToMessage(
+                  chatData.currentPinnedMessage.messageId
+                );
               }
             }}
             onUnpinMessage={(messageId) => void chatActions.handleUnpinMessage(messageId)}
@@ -323,7 +202,9 @@ const WhatsAppChatContent: React.FC = () => {
               />
               <div className="chat-right-panel-container">
                 <ChatRightPanel
-                  key={chatData.selectedContact.id || chatData.selectedContact.jid}
+                  key={
+                    chatData.selectedContact.id || chatData.selectedContact.jid
+                  }
                   contact={chatData.selectedContact}
                   labels={chatData.labels}
                   refreshToken={dialogs.ordersRefreshToken}
@@ -337,9 +218,15 @@ const WhatsAppChatContent: React.FC = () => {
                   }}
                   onContactUpdated={(updatedContact) => {
                     chatData.setSelectedContact(updatedContact);
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp', 'conversations'] });
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp', 'contacts'] });
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp', 'messages'] });
+                    queryClient.invalidateQueries({
+                      queryKey: ['whatsapp', 'conversations'],
+                    });
+                    queryClient.invalidateQueries({
+                      queryKey: ['whatsapp', 'contacts'],
+                    });
+                    queryClient.invalidateQueries({
+                      queryKey: ['whatsapp', 'messages'],
+                    });
                   }}
                 />
               </div>
@@ -348,165 +235,18 @@ const WhatsAppChatContent: React.FC = () => {
         </div>
       </div>
 
-      <ChatMessageContextMenu
-        position={chatActions.messageContextMenu}
-        selectedMessage={chatActions.selectedMessageForMenu}
-        onClose={() => {
-          chatActions.setMessageContextMenu(null);
-          chatActions.setSelectedMessageForMenu(null);
-        }}
-        onSendReaction={chatActions.handleSendReaction}
-        onOpenReactionPicker={(messageId) => dialogs.setShowReactionPicker(messageId)}
-        onReply={chatActions.handleReply}
-        onCopy={chatActions.handleCopy}
-        onForward={() => dialogs.setForwardDialogOpen(true)}
-        onStarMessage={chatActions.handleStarMessage}
-        onPinMessage={chatActions.handlePinMessage}
-        onUnpinMessage={chatActions.handleUnpinMessage}
-        onDeleteMessage={chatActions.handleDeleteMessage}
-      />
-
-      <ChatForwardDialog
-        open={dialogs.forwardDialogOpen}
-        onOpenChange={dialogs.setForwardDialogOpen}
-        conversations={chatData.conversations}
-        getContactName={getContactName}
-        onForward={chatActions.handleForwardMessage}
-      />
-
-      <ChatReactionPickerDialog
-        messageId={dialogs.showReactionPicker}
-        onClose={() => dialogs.setShowReactionPicker(null)}
-        onSelectEmoji={chatActions.handleSendReaction}
-      />
-
-      <ChatPollDialog
-        open={dialogs.pollDialogOpen}
-        onOpenChange={dialogs.setPollDialogOpen}
-        onSendPoll={chatActions.handleSendPoll}
-      />
-
-      <ChatButtonsDialog
-        open={dialogs.buttonsDialogOpen}
-        onOpenChange={dialogs.setButtonsDialogOpen}
-        onSendButtons={chatActions.handleSendButtons}
-      />
-
-      <ChatListDialog
-        open={dialogs.listDialogOpen}
-        onOpenChange={dialogs.setListDialogOpen}
-        onSendList={chatActions.handleSendList}
-      />
-
-      <ChatCatalogDialog
-        open={dialogs.catalogDialogOpen}
-        onOpenChange={dialogs.setCatalogDialogOpen}
-        products={chatData.products}
-        onSendProduct={chatActions.handleSendProduct}
-      />
-
-      <ChatLocationDialog
-        open={dialogs.locationDialogOpen}
-        onOpenChange={dialogs.setLocationDialogOpen}
-        onSendLocation={chatActions.handleSendLocation}
-      />
-
-      <ChatTemplateDialog
-        open={dialogs.templateDialogOpen}
-        onOpenChange={dialogs.setTemplateDialogOpen}
-        templates={chatData.templates}
-        loadingTemplates={chatData.loadingTemplates}
-        onSendTemplate={chatActions.handleSendTemplate}
-      />
-
-      <ChatStatusDialog
-        open={dialogs.statusDialogOpen}
-        onOpenChange={dialogs.setStatusDialogOpen}
-        onPostStatus={chatActions.handlePostStatusAction}
-        isPosting={chatActions.postingStatus}
-      />
-
-      <ContactInfoSheet
-        open={dialogs.showContactInfo && Boolean(!chatData.selectedContact?.isGroup)}
-        onOpenChange={dialogs.setShowContactInfo}
-        contact={chatData.selectedContact}
-        onLoadStarredMessages={chatData.loadStarredMessages}
-        onMuteChat={chatActions.handleMuteChat}
-        onClearChat={chatActions.handleClearChat}
-        onDeleteChat={chatActions.handleDeleteChat}
-        onBlockContact={chatActions.handleBlockContact}
-        onUnblockContact={chatActions.handleUnblockContact}
-      />
-
-      <ChatStarredMessagesSheet
-        open={chatData.starredMessagesOpen}
-        onOpenChange={chatData.setStarredMessagesOpen}
-        messages={chatData.starredMessages}
-      />
-
-      <ChatModalsContainer
-        confirmData={chatActions.confirmData}
-        setConfirmData={chatActions.setConfirmData}
-        activeSessionId={chatData.activeSessionId}
-        selectedSession={chatData.selectedSession}
-        sessions={chatData.sessions}
-        selectedContact={chatData.selectedContact}
-        setSelectedContact={chatData.setSelectedContact}
-        conversations={chatData.conversations}
-        currentUserProfile={chatData.currentUserProfile}
-        showContactInfo={dialogs.showContactInfo}
-        setShowContactInfo={dialogs.setShowContactInfo}
-        createGroupDialogOpen={dialogs.createGroupDialogOpen}
-        setCreateGroupDialogOpen={dialogs.setCreateGroupDialogOpen}
-        profileDialogOpen={dialogs.profileDialogOpen}
-        setProfileDialogOpen={dialogs.setProfileDialogOpen}
-        checkNumberDialogOpen={dialogs.checkNumberDialogOpen}
-        setCheckNumberDialogOpen={dialogs.setCheckNumberDialogOpen}
-        showQuickOrderModal={dialogs.showQuickOrderModal}
-        setShowQuickOrderModal={dialogs.setShowQuickOrderModal}
-        showServiceOrderModal={dialogs.showServiceOrderModal}
-        setShowServiceOrderModal={dialogs.setShowServiceOrderModal}
-        showQuickCreateTaskModal={dialogs.showQuickCreateTaskModal}
-        setShowQuickCreateTaskModal={dialogs.setShowQuickCreateTaskModal}
-        showProductPicker={dialogs.showProductPicker}
-        setShowProductPicker={dialogs.setShowProductPicker}
-        showImageGallery={dialogs.showImageGallery}
-        setShowImageGallery={dialogs.setShowImageGallery}
-        interactiveDialogOpen={dialogs.interactiveDialogOpen}
-        setInteractiveDialogOpen={dialogs.setInteractiveDialogOpen}
-        labelDialogOpen={dialogs.labelDialogOpen}
-        setLabelDialogOpen={dialogs.setLabelDialogOpen}
-        selectedContactForLabel={dialogs.selectedContactForLabel}
-        setSelectedContactForLabel={dialogs.setSelectedContactForLabel}
-        broadcastDialogOpen={dialogs.broadcastDialogOpen}
-        setBroadcastDialogOpen={dialogs.setBroadcastDialogOpen}
-        privacyDialogOpen={dialogs.privacyDialogOpen}
-        setPrivacyDialogOpen={dialogs.setPrivacyDialogOpen}
-        businessProfileDialogOpen={dialogs.businessProfileDialogOpen}
-        setBusinessProfileDialogOpen={dialogs.setBusinessProfileDialogOpen}
-        quickOrderContact={dialogs.quickOrderContact}
-        setQuickOrderContact={dialogs.setQuickOrderContact}
+      <ChatActionDialogsHost
+        dialogs={dialogs}
+        chatData={chatData}
+        chatActions={chatActions}
         selectedContactPhoneNumber={selectedContactPhoneNumber}
-        targetSessionId={chatData.targetSessionId}
         getContactName={getContactName}
-        getContactPhoneNumber={getContactPhoneNumber}
-        onOrderCreated={(orderId) => {
-          toast.success(t('whatsapp.dialogs.orderCreated', { orderId }));
-          dialogs.setOrdersRefreshToken((prev) => prev + 1);
-        }}
-        onServiceOrderCreated={() => {
-          dialogs.setOrdersRefreshToken((prev) => prev + 1);
-        }}
-        onSendProductImages={chatActions.handleSendProductImages}
-        onSelectImageFromGallery={chatActions.handleSelectImageFromGallery}
-        onSelectMultipleImagesFromGallery={chatActions.handleSelectMultipleImagesFromGallery}
-        onSendInteractive={chatActions.handleSendInteractive}
+        t={t}
       />
     </div>
   );
 };
 
-const WhatsAppChat: React.FC = () => <WhatsAppChatContent />;
+export const WhatsAppChat: React.FC = () => <WhatsAppChatContent />;
 
 export default WhatsAppChat;
-export { WhatsAppChat };
