@@ -238,10 +238,11 @@ def test_store_capability_app_inactive_returns_needs_activation():
             company_id=company_id,
         ))
 
-        assert res.get("success") is False
+        assert res.get("success") is True
         assert res.get("needs_activation") is True
         assert res.get("app_slug") == "hr-core"
-        assert "مش مفعّل على الشركة" in res.get("error", "")
+        assert res.get("card") is None
+        assert "مش مفعّل على الشركة" in res.get("message", "")
 
     asyncio.run(_test())
 

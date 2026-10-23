@@ -141,10 +141,11 @@ async def store_capability(
         # Check if active for the company
         if app_slug not in active_set:
             return {
-                "success": False,
-                "error": f"التطبيق '{app_slug}' مش مفعّل على الشركة ومحتاج تفعيل أولاً للاستخدام",
+                "success": True,
                 "needs_activation": True,
                 "app_slug": app_slug,
+                "card": None,
+                "message": f"التطبيق '{app_slug}' متاح في المنصة لكنه مش مفعّل على الشركة",
             }
 
         card = get_app_card(app_slug)

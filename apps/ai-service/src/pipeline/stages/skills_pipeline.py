@@ -58,10 +58,13 @@ async def _execute_one_tool(ctx: PipelineContext, registry: Any, tc: dict) -> di
     # payload — the chat endpoint turns it into an approval draft the merchant
     # confirms (execution happens only via approval_service._execute_action).
     from src.tools.registry import WRITE_TOOL_NAMES
+    from src.pipeline.approval_policy import is_read_action
     is_write_approval = (
         func_name in WRITE_TOOL_NAMES
         or getattr(tool, "approval_mode", "never_require") == "always_require"
     )
+    if func_name in WRITE_TOOL_NAMES and is_read_action(func_name, arguments):
+        is_write_approval = False
     if func_name == "manage_agent_skill" and arguments.get("action") == "get":
         is_write_approval = False
 
