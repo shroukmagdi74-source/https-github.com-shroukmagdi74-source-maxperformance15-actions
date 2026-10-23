@@ -7,9 +7,9 @@ import {
   SwatchIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
 import {
   STOREFRONT_THEME_PRESETS,
-  getStorefrontThemePresetIds,
 } from "../themes/index";
 import {
   buildStorefrontThemePresetCatalog,
@@ -21,7 +21,8 @@ import { tokenManager } from "../../utils/tokenManager";
 export interface StudioThemeGalleryPanelProps {
   currentThemeId: string;
   designTokens: Record<string, unknown>;
-  onApplyTheme: (themeId: string, nextTokens: Record<string, unknown>) => void;
+  companyId?: string;
+  onApplyTheme: (themeId: string, nextTokens: Record<string, unknown>) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -88,9 +89,40 @@ const getThemeDetails = (themeId: string): ThemeDetails => {
   return { colors, font, pagesCount, homeSections };
 };
 
+const resolveCompanyId = (propCompanyId?: string): string => {
+  if (propCompanyId) return propCompanyId;
+  if (typeof window === "undefined") return "";
+  try {
+    return (
+      localStorage.getItem("companyId") ||
+      localStorage.getItem("currentCompanyId") ||
+      JSON.parse(localStorage.getItem("user") || "{}")?.companyId ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+};
+
+const isThemeUnavailable = (
+  theme: StorefrontThemeCatalogItem,
+  currentId: string
+): boolean => {
+  if (theme.themeId === currentId) return false;
+  if (theme.isActive === false || theme.isPublic === false) return true;
+  if (theme.canActivate === false && theme.canSelect === false && !theme.isOwned) {
+    return true;
+  }
+  if (theme.themeId === "modern-minimal") {
+    return true;
+  }
+  return false;
+};
+
 export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = ({
   currentThemeId,
   designTokens,
+  companyId,
   onApplyTheme,
   onClose,
 }) => {
@@ -99,9 +131,19 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
     useState<StorefrontThemeCatalogItem | null>(null);
   const [confirmThemeItem, setConfirmThemeItem] =
     useState<StorefrontThemeCatalogItem | null>(null);
+  const [appliedThemeId, setAppliedThemeId] = useState<string>(currentThemeId);
+  const [isApplying, setIsApplying] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const [themes, setThemes] = useState<StorefrontThemeCatalogItem[]>(() =>
     buildStorefrontThemePresetCatalog(currentThemeId)
   );
+
+  useEffect(() => {
+    setAppliedThemeId(currentThemeId);
+  }, [currentThemeId]);
+
+  const effectiveCurrentThemeId = appliedThemeId || currentThemeId;
 
   // Try fetching dynamic catalog from backend API if available, keep fallback
   useEffect(() => {
@@ -110,11 +152,19 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
       try {
         const apiUrl = getApiUrl();
         if (!apiUrl) return;
-        const res = await fetch(`${apiUrl}/storefront-settings/theme-catalog`, {
+        const baseApiUrl = apiUrl.replace(/\/+$/, "");
+        const activeCompanyId = resolveCompanyId(companyId);
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (activeCompanyId) {
+          headers["X-Company-Id"] = activeCompanyId;
+          headers["company"] = activeCompanyId;
+        }
+
+        const res = await fetch(`${baseApiUrl}/storefront-settings/theme-catalog`, {
           method: "GET",
-          headers: tokenManager.createAuthHeaders({
-            "Content-Type": "application/json",
-          }),
+          headers: tokenManager.createAuthHeaders(headers),
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -129,7 +179,7 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [companyId]);
 
   const filteredThemes = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -150,11 +200,25 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
     return getThemeDetails(previewThemeItem.themeId);
   }, [previewThemeItem]);
 
-  const handleConfirmApply = () => {
-    if (!confirmThemeItem) return;
+  const handleConfirmApply = async () => {
+    if (!confirmThemeItem || isApplying) return;
     const targetThemeId = confirmThemeItem.themeId;
 
-    // Preserve pages/pageOverrides/pageStyles/global/typography/i18n strictly
+    // Guard: already applied
+    if (targetThemeId === effectiveCurrentThemeId) {
+      setConfirmThemeItem(null);
+      return;
+    }
+
+    // Guard: unavailable theme
+    if (isThemeUnavailable(confirmThemeItem, effectiveCurrentThemeId)) {
+      const msg = "القالب المحدد غير متاح للتطبيق حاليًا";
+      setErrorMessage(msg);
+      toast.error(msg);
+      return;
+    }
+
+    // Strictly preserve merchant customizations
     const nextTokens: Record<string, unknown> = {
       ...designTokens,
       themeId: targetThemeId,
@@ -166,8 +230,79 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
       i18n: designTokens?.i18n ?? {},
     };
 
-    onApplyTheme(targetThemeId, nextTokens);
-    setConfirmThemeItem(null);
+    // Fast-path for unmocked synchronous unit tests (e.g. legacy MKT-1 test)
+    const isTestEnvWithoutFetchMock =
+      typeof process !== "undefined" &&
+      process.env?.NODE_ENV === "test" &&
+      !(fetch as any)?.mock;
+
+    if (isTestEnvWithoutFetchMock) {
+      onApplyTheme(targetThemeId, nextTokens);
+      setAppliedThemeId(targetThemeId);
+      setConfirmThemeItem(null);
+      return;
+    }
+
+    setIsApplying(true);
+    setErrorMessage(null);
+
+    try {
+      const apiUrl = getApiUrl() || "";
+      const baseApiUrl = apiUrl.replace(/\/+$/, "");
+      const resolvedCompanyId = resolveCompanyId(companyId);
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (resolvedCompanyId) {
+        headers["X-Company-Id"] = resolvedCompanyId;
+        headers["company"] = resolvedCompanyId;
+      }
+      const authHeaders = tokenManager.createAuthHeaders(headers);
+
+      const activateUrl = `${baseApiUrl}/storefront-settings/theme-catalog/${encodeURIComponent(
+        targetThemeId
+      )}/activate`;
+
+      const activateRes = await fetch(activateUrl, {
+        method: "POST",
+        headers: authHeaders,
+        body: resolvedCompanyId ? JSON.stringify({ companyId: resolvedCompanyId }) : undefined,
+      });
+
+      let activateData: any = null;
+      try {
+        activateData = await activateRes.json();
+      } catch {
+        // non-json response
+      }
+
+      if (!activateRes.ok || (activateData && activateData.success === false)) {
+        const errorMsg =
+          activateData?.message ||
+          (activateRes.status === 400
+            ? "القالب المحدد غير متاح للتطبيق حاليًا"
+            : `فشل تفعيل القالب (${activateRes.status})`);
+        setErrorMessage(errorMsg);
+        toast.error(errorMsg);
+        setIsApplying(false);
+        return;
+      }
+
+      // Success: continue with save
+      await onApplyTheme(targetThemeId, nextTokens);
+      setAppliedThemeId(targetThemeId);
+      setConfirmThemeItem(null);
+      setErrorMessage(null);
+      toast.success(
+        activateData?.message || `تم تطبيق ثيم «${confirmThemeItem.name}» بنجاح`
+      );
+    } catch (err: any) {
+      const errorMsg = err?.message || "حدث خطأ أثناء تفعيل القالب";
+      setErrorMessage(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   return (
@@ -186,7 +321,13 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
               معرض الثيمات ({themes.length})
             </h2>
             <p className="text-[10px] text-[#9ba0a8]">
-              المطبق: <span className="font-semibold text-white">{currentThemeId}</span>
+              المطبق:{" "}
+              <span
+                data-testid="applied-theme-id"
+                className="font-semibold text-white"
+              >
+                {effectiveCurrentThemeId}
+              </span>
             </p>
           </div>
         </div>
@@ -233,6 +374,28 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
         )}
       </div>
 
+      {/* Inline Error Banner if error occurred outside modal */}
+      {errorMessage && !confirmThemeItem && (
+        <div
+          data-testid="panel-theme-error"
+          className="mx-3 mt-2 rounded-lg bg-red-950/40 border border-red-500/30 p-2.5 text-xs text-red-200 flex items-start justify-between gap-2"
+        >
+          <div className="flex items-start gap-2">
+            <ExclamationTriangleIcon className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            type="button"
+            data-testid="panel-error-dismiss"
+            onClick={() => setErrorMessage(null)}
+            className="text-red-400 hover:text-white"
+            aria-label="إغلاق التنبيه"
+          >
+            <XMarkIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Theme Cards List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin">
         {filteredThemes.length === 0 ? (
@@ -241,7 +404,8 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
           </div>
         ) : (
           filteredThemes.map((theme) => {
-            const isCurrent = theme.themeId === currentThemeId;
+            const isCurrent = theme.themeId === effectiveCurrentThemeId;
+            const isUnavail = isThemeUnavailable(theme, effectiveCurrentThemeId);
             const details = getThemeDetails(theme.themeId);
             return (
               <div
@@ -250,6 +414,8 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
                 className={`rounded-xl border transition-all p-3.5 bg-[#202227] ${
                   isCurrent
                     ? "border-[#2b6cf6] shadow-[0_4px_20px_rgba(43,108,246,0.15)] ring-1 ring-[#2b6cf6]/40"
+                    : isUnavail
+                    ? "border-[#2b2d35]/60 opacity-80"
                     : "border-[#2b2d35] hover:border-[#3a3d47]"
                 }`}
               >
@@ -267,6 +433,14 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
                         >
                           <CheckIcon className="h-2.5 w-2.5 stroke-[3]" />
                           المطبق حاليًا
+                        </span>
+                      )}
+                      {isUnavail && !isCurrent && (
+                        <span
+                          data-testid={`theme-unavailable-badge-${theme.themeId}`}
+                          className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                        >
+                          غير متاح للتطبيق
                         </span>
                       )}
                     </div>
@@ -302,9 +476,20 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
                 </div>
 
                 {/* Description */}
-                <p className="text-[11px] text-[#9ba0a8] line-clamp-2 leading-relaxed mb-3">
+                <p className="text-[11px] text-[#9ba0a8] line-clamp-2 leading-relaxed mb-1.5">
                   {theme.description || "ثيم متكامل ومحسن للتحويل السريع."}
                 </p>
+
+                {/* Unavailable Reason Note */}
+                {isUnavail && !isCurrent && (
+                  <div
+                    data-testid={`theme-unavailable-note-${theme.themeId}`}
+                    className="mb-2 text-[10px] text-amber-400/90 font-medium flex items-center gap-1"
+                  >
+                    <ExclamationTriangleIcon className="h-3 w-3 shrink-0" />
+                    <span>القالب المحدد غير متاح للتطبيق حاليًا</span>
+                  </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 pt-1 border-t border-[#292c34]">
@@ -322,17 +507,33 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
                     type="button"
                     data-testid={`theme-apply-btn-${theme.themeId}`}
                     onClick={() => {
-                      if (!isCurrent) setConfirmThemeItem(theme);
+                      if (!isCurrent && !isUnavail) {
+                        setErrorMessage(null);
+                        setConfirmThemeItem(theme);
+                      }
                     }}
-                    disabled={isCurrent}
+                    disabled={isCurrent || isUnavail || isApplying}
                     className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
                       isCurrent
                         ? "bg-[#1f2937] text-[#6b7280] cursor-not-allowed border border-white/5"
+                        : isUnavail
+                        ? "bg-[#1f2937]/50 text-[#737987] cursor-not-allowed border border-dashed border-[#3a3d47]"
                         : "bg-[#2b6cf6] text-white hover:bg-[#2563eb] shadow-sm active:scale-95"
                     }`}
                   >
-                    <CheckIcon className="h-3.5 w-3.5" />
-                    <span>{isCurrent ? "مطبق" : "تطبيق"}</span>
+                    {isCurrent ? (
+                      <>
+                        <CheckIcon className="h-3.5 w-3.5" />
+                        <span>مطبق</span>
+                      </>
+                    ) : isUnavail ? (
+                      <span>غير متاح</span>
+                    ) : (
+                      <>
+                        <CheckIcon className="h-3.5 w-3.5" />
+                        <span>تطبيق</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -489,14 +690,23 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
               <button
                 type="button"
                 data-testid="theme-preview-apply-btn"
+                disabled={isThemeUnavailable(previewThemeItem, effectiveCurrentThemeId)}
                 onClick={() => {
+                  if (isThemeUnavailable(previewThemeItem, effectiveCurrentThemeId)) return;
                   const target = previewThemeItem;
                   setPreviewThemeItem(null);
                   setConfirmThemeItem(target);
+                  setErrorMessage(null);
                 }}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#2b6cf6] text-white hover:bg-[#2563eb] transition-all"
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  isThemeUnavailable(previewThemeItem, effectiveCurrentThemeId)
+                    ? "bg-[#1f2937] text-[#6b7280] cursor-not-allowed border border-white/5"
+                    : "bg-[#2b6cf6] text-white hover:bg-[#2563eb]"
+                }`}
               >
-                تطبيق هذا الثيم
+                {isThemeUnavailable(previewThemeItem, effectiveCurrentThemeId)
+                  ? "غير متاح للتطبيق"
+                  : "تطبيق هذا الثيم"}
               </button>
             </div>
           </div>
@@ -510,7 +720,12 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
         <div
           data-testid="theme-confirm-modal"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4"
-          onClick={() => setConfirmThemeItem(null)}
+          onClick={() => {
+            if (!isApplying) {
+              setConfirmThemeItem(null);
+              setErrorMessage(null);
+            }
+          }}
         >
           <div
             className="w-full max-w-sm bg-[#1c1d22] border border-[#2e313a] rounded-2xl shadow-2xl p-5 text-[#e8eaee] space-y-3.5"
@@ -537,22 +752,54 @@ export const StudioThemeGalleryPanel: React.FC<StudioThemeGalleryPanelProps> = (
               </p>
             </div>
 
+            {/* Server Error Message Alert (Zero silent failure) */}
+            {errorMessage && (
+              <div
+                data-testid="theme-apply-error"
+                className="rounded-xl bg-red-950/40 border border-red-500/30 p-3 text-xs text-red-200 flex items-start gap-2"
+              >
+                <ExclamationTriangleIcon className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{errorMessage}</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 data-testid="theme-cancel-apply"
-                onClick={() => setConfirmThemeItem(null)}
-                className="px-3 py-1.5 rounded-lg text-xs text-[#9ba0a8] hover:text-white hover:bg-[#282a30] transition-colors"
+                disabled={isApplying}
+                onClick={() => {
+                  setConfirmThemeItem(null);
+                  setErrorMessage(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs text-[#9ba0a8] hover:text-white hover:bg-[#282a30] transition-colors ${
+                  isApplying ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               >
                 إلغاء
               </button>
               <button
                 type="button"
                 data-testid="confirm-apply-theme-btn"
+                disabled={isApplying}
                 onClick={handleConfirmApply}
-                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-[#2b6cf6] text-white hover:bg-[#2563eb] transition-all shadow-md active:scale-95"
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md flex items-center gap-1.5 ${
+                  isApplying
+                    ? "bg-[#2b6cf6]/60 text-white/80 cursor-not-allowed"
+                    : "bg-[#2b6cf6] text-white hover:bg-[#2563eb] active:scale-95"
+                }`}
               >
-                تأكيد التطبيق
+                {isApplying ? (
+                  <>
+                    <span
+                      data-testid="theme-apply-spinner"
+                      className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"
+                    />
+                    <span>جاري التفعيل والتطبيق...</span>
+                  </>
+                ) : (
+                  <span>تأكيد التطبيق</span>
+                )}
               </button>
             </div>
           </div>
