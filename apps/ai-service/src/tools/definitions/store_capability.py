@@ -135,7 +135,13 @@ async def store_capability(
             results = []
             for row in rows:
                 hint = str(getattr(row, "usage_hint_ar", "") or "")
-                haystack = f"{row.name} {row.description_en} {row.domain} {hint}".lower()
+                meta = getattr(row, "catalog_metadata", {}) or {}
+                raw_aliases = meta.get("aliases", []) if isinstance(meta, dict) else []
+                if isinstance(raw_aliases, (list, tuple, set)):
+                    aliases_text = " ".join(str(a) for a in raw_aliases if a)
+                else:
+                    aliases_text = str(raw_aliases or "")
+                haystack = f"{row.name} {row.description_en} {row.domain} {hint} {aliases_text}".lower()
                 if not query or query in haystack or any(w in haystack for w in query.split()):
                     results.append({
                         "name": row.name,

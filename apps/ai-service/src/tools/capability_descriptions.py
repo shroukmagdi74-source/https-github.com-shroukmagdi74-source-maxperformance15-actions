@@ -15,7 +15,7 @@ DOMAIN_ARABIC: dict[str, tuple[str, list[str], list[str]]] = {
     # domain: (primary_ar, ar_synonyms, en_synonyms)
     "returns": (
         "المرتجعات",
-        ["مرتجعات", "استرجاع", "إرجاع", "طلب إرجاع", "استبدال"],
+        ["مرتجعات", "استرجاع", "إرجاع", "ارتجاع", "طلب إرجاع", "استبدال", "مرتجع"],
         ["returns", "return", "refund", "refunds"],
     ),
     "invoices": (
@@ -30,7 +30,7 @@ DOMAIN_ARABIC: dict[str, tuple[str, list[str], list[str]]] = {
     ),
     "loyalty": (
         "ولاء العملاء",
-        ["ولاء العملاء", "ولاء", "نقاط", "مكافآت", "رصيد نقاط", "برنامج ولاء"],
+        ["ولاء العملاء", "نقاط الولاء", "ولاء", "نقاط", "مكافآت", "رصيد نقاط", "برنامج ولاء"],
         ["loyalty", "points", "rewards", "loyalty program"],
     ),
     "treasury": (
@@ -86,8 +86,10 @@ SEGMENT_TRANSLATIONS: dict[str, tuple[str, list[str], list[str]]] = {
     "coupon": ("كوبون", ["كوبون", "خصم"], ["coupon"]),
     "invoices": ("فاتورة", ["فواتير", "فاتورة"], ["invoices", "invoice"]),
     "invoice": ("فاتورة", ["فاتورة"], ["invoice"]),
-    "returns": ("مرتجع", ["مرتجعات", "مرتجع"], ["returns", "return"]),
+    "order_invoices": ("فواتير الطلبات", ["فواتير", "طلبات", "فاتورة"], ["order_invoices", "invoices"]),
+    "returns": ("مرتجع", ["مرتجعات", "مرتجع", "إرجاع", "ارتجاع"], ["returns", "return"]),
     "return": ("مرتجع", ["مرتجع"], ["return"]),
+    "return_requests": ("طلبات المرتجعات", ["طلبات", "مرتجعات", "إرجاع"], ["return_requests", "returns"]),
     "reviews": ("تقييم", ["تقييمات", "تقييم"], ["reviews", "review"]),
     "review": ("تقييم", ["تقييم"], ["review"]),
     "webhooks": ("ويب هوك", ["ويب هوك"], ["webhooks", "webhook"]),
@@ -121,7 +123,7 @@ SEGMENT_TRANSLATIONS: dict[str, tuple[str, list[str], list[str]]] = {
     "transaction": ("حركة", ["حركة", "معاملة"], ["transaction"]),
     "vouchers": ("قسائم", ["قسائم", "كوبونات"], ["vouchers", "voucher"]),
     "voucher": ("قسيمة", ["قسيمة", "كوبون"], ["voucher"]),
-    "points": ("نقاط", ["نقاط", "رصيد نقاط"], ["points", "point"]),
+    "points": ("نقاط", ["نقاط", "رصيد نقاط", "نقاط الولاء"], ["points", "point"]),
     "point": ("نقطة", ["نقطة"], ["point"]),
     "members": ("أعضاء", ["أعضاء", "عملاء"], ["members", "member"]),
     "member": ("عضو", ["عضو", "عميل"], ["member"]),
@@ -243,8 +245,9 @@ def describe_capability(
     if domain_meta:
         domain_ar_primary, domain_ar_syns, domain_en_syns = domain_meta
     else:
+        # Fallback for unknown domain: ensure domain_ar_primary has no raw Latin characters
+        domain_ar_primary = "النظام"
         fallback_label = norm_domain.replace("_", " ")
-        domain_ar_primary = fallback_label
         domain_ar_syns = [fallback_label]
         domain_en_syns = [fallback_label]
 
@@ -267,6 +270,11 @@ def describe_capability(
         tail_ar_syns = [pretty_tail]
         tail_en_syns = [pretty_tail]
 
+    # Rule: Zero leaked English in usage_hint_ar.
+    # If tail_ar contains any Latin characters (untranslated path segment),
+    # strictly discard it and use the Arabic domain name only.
+    tail_is_arabic = not bool(re.search(r"[A-Za-z]", tail_ar))
+
     # Build Arabic usage hint (if not already set with a custom human hint)
     custom_human_hint = False
     if existing_hint and str(existing_hint).strip():
@@ -278,26 +286,38 @@ def describe_capability(
     if not custom_human_hint:
         if method_upper == "GET":
             if is_item_lookup:
-                usage_hint_ar = f"تفاصيل {tail_ar} — استعلام عن بيانات وسجل {domain_ar_primary} بواسطة المعرف"
+                if tail_is_arabic and tail_ar != domain_ar_primary:
+                    usage_hint_ar = f"تفاصيل {tail_ar} — استعلام عن بيانات وسجل {domain_ar_primary} بواسطة المعرف"
+                else:
+                    usage_hint_ar = f"تفاصيل عنصر في {domain_ar_primary} — استعلام عن البيانات بواسطة المعرف"
             elif tail_seg_clean in ("stats", "statistics", "analytics", "summary"):
-                usage_hint_ar = f"{tail_ar} {domain_ar_primary} — عرض تقارير ومؤشرات الأداء مع فلترة بالفترة والحالة"
+                usage_hint_ar = f"إحصائيات {domain_ar_primary} — عرض تقارير ومؤشرات الأداء مع فلترة بالفترة والحالة"
             elif tail_seg_clean in ("settings", "config", "configuration"):
                 usage_hint_ar = f"إعدادات {domain_ar_primary} — استعلام وعرض إعدادات وتكوين النظام"
             else:
                 # E.g. GET /api/v1/returns/requests → «قائمة طلبات المرتجعات — اعرض المرتجعات مع فلترة بالفترة والحالة»
-                if tail_ar != domain_ar_primary and tail_seg_clean != norm_domain:
+                if tail_is_arabic and tail_ar != domain_ar_primary and tail_seg_clean != norm_domain:
                     title = f"قائمة {tail_ar} {domain_ar_primary}"
                 else:
                     title = f"قائمة {domain_ar_primary}"
                 usage_hint_ar = f"{title} — اعرض {domain_ar_primary} مع فلترة بالفترة والحالة"
         elif method_upper == "POST":
-            usage_hint_ar = f"إنشاء {tail_ar} في {domain_ar_primary} — تسجيل وحفظ بيانات جديدة"
+            if tail_is_arabic and tail_ar != domain_ar_primary and tail_seg_clean != norm_domain:
+                usage_hint_ar = f"إنشاء {tail_ar} في {domain_ar_primary} — تسجيل وحفظ بيانات جديدة"
+            else:
+                usage_hint_ar = f"إنشاء عنصر جديد في {domain_ar_primary} — تسجيل وحفظ بيانات جديدة"
         elif method_upper in ("PUT", "PATCH"):
-            usage_hint_ar = f"تحديث {tail_ar} في {domain_ar_primary} — تعديل وحفظ بيانات السجل"
+            if tail_is_arabic and tail_ar != domain_ar_primary and tail_seg_clean != norm_domain:
+                usage_hint_ar = f"تحديث {tail_ar} في {domain_ar_primary} — تعديل وحفظ بيانات السجل"
+            else:
+                usage_hint_ar = f"تحديث بيانات في {domain_ar_primary} — تعديل وحفظ بيانات السجل"
         elif method_upper == "DELETE":
-            usage_hint_ar = f"حذف {tail_ar} من {domain_ar_primary} — إزالة أو إلغاء السجل نهائيًا"
+            if tail_is_arabic and tail_ar != domain_ar_primary and tail_seg_clean != norm_domain:
+                usage_hint_ar = f"حذف {tail_ar} من {domain_ar_primary} — إزالة أو إلغاء السجل نهائيًا"
+            else:
+                usage_hint_ar = f"حذف عنصر من {domain_ar_primary} — إزالة أو إلغاء السجل نهائيًا"
         else:
-            usage_hint_ar = f"عملية {method_upper} على {tail_ar} في {domain_ar_primary}"
+            usage_hint_ar = f"عملية على {domain_ar_primary}"
 
     # Build English description
     pretty_tail_en = tail_seg_clean.replace("_", " ")

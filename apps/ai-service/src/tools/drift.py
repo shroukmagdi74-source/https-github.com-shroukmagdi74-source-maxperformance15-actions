@@ -142,7 +142,7 @@ async def run_drift_check(session: Any, manifest: list[dict[str, Any]] | None = 
             if r_method.upper() == "GET" and (not r.input_schema or not (r.input_schema.get("properties") or {})):
                 r.input_schema = described["input_schema"]
             meta = dict(getattr(r, "catalog_metadata", None) or {})
-            if "aliases" not in meta and described.get("aliases"):
+            if described.get("aliases"):
                 meta["aliases"] = described["aliases"]
                 r.catalog_metadata = meta
 

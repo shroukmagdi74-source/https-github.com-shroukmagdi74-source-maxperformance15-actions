@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import sys
 import types
 
@@ -295,8 +296,141 @@ def test_unknown_domain_fallback():
         app_slug=None,
     )
     assert res["usage_hint_ar"]
-    assert "custom fleet" in res["usage_hint_ar"] or "vehicles" in res["usage_hint_ar"]
     assert res["description_en"]
+
+
+# =====================================================================
+# Anti-Leakage Guard Tests (Item 2 & 3 in ticket feedback)
+# =====================================================================
+
+LATIN_WORD_REGEX = re.compile(r"[A-Za-z]{3,}")
+ALLOWLIST = {"webhook", "pixel"}
+
+
+def assert_no_leaked_english(hint_ar: str):
+    """Assert that usage_hint_ar contains zero raw English words from the path."""
+    found = LATIN_WORD_REGEX.findall(hint_ar)
+    disallowed = [w for w in found if w.lower() not in ALLOWLIST]
+    assert not disallowed, f"Found leaked English words {disallowed} in usage_hint_ar: '{hint_ar}'"
+
+
+def test_no_leaked_english_across_all_13_domains():
+    """Verify zero English words in usage_hint_ar across all standard domains and various paths."""
+    test_paths = [
+        ("GET", "/api/v1/returns/requests", "returns"),
+        ("GET", "/api/v1/invoices/order-invoices", "invoices"),
+        ("GET", "/api/v1/coupons/brand-new-widget", "coupons"),
+        ("POST", "/api/v1/loyalty/points-summary", "loyalty"),
+        ("GET", "/api/v1/treasury/cash-vault", "treasury"),
+        ("DELETE", "/api/v1/staff/remote-contractors", "staff"),
+        ("GET", "/api/v1/webhooks/delivery-events", "webhooks"),
+        ("GET", "/api/v1/reviews/moderation-queue", "reviews"),
+        ("POST", "/api/v1/import-export/bulk-dispatch", "import_export"),
+        ("GET", "/api/v1/order-workflow/fulfillment-stages", "order_workflow"),
+        ("GET", "/api/v1/affiliates/payout-links", "affiliates"),
+        ("GET", "/api/v1/pixels/custom-conversion-tags", "pixels"),
+        ("GET", "/api/v1/landing-pages/funnel-templates", "landing_pages"),
+    ]
+    for method, path, domain in test_paths:
+        res = describe_capability(method=method, path=path, domain=domain, permission_key=None, app_slug=None)
+        assert_no_leaked_english(res["usage_hint_ar"])
+
+
+def test_no_leaked_english_on_untranslated_compound_path():
+    """Specific regression test for: «قائمة order invoices الفواتير».
+    Must NOT contain 'order invoices' — should produce clean Arabic domain phrasing."""
+    res = describe_capability(
+        method="GET",
+        path="/api/v1/invoices/untranslated-compound-segment",
+        domain="invoices",
+        permission_key=None,
+        app_slug=None,
+    )
+    assert_no_leaked_english(res["usage_hint_ar"])
+    assert "untranslated" not in res["usage_hint_ar"].lower()
+    assert "compound" not in res["usage_hint_ar"].lower()
+    assert "الفواتير" in res["usage_hint_ar"]
+
+
+# =====================================================================
+# Synonym / Alias Search Tests (Item 1 in ticket feedback)
+# =====================================================================
+
+
+def test_synonym_search_coverage_5_required_terms():
+    """Verify search finds records by synonyms: إرجاع, ارتجاع, فاتورة, نقاط الولاء, ويب هوك."""
+    catalog = [
+        {"method": "GET", "path": "/api/v1/returns/requests", "domain": "returns", "name": "bridge_get_returns_requests"},
+        {"method": "GET", "path": "/api/v1/invoices", "domain": "invoices", "name": "bridge_get_invoices"},
+        {"method": "GET", "path": "/api/v1/loyalty/points", "domain": "loyalty", "name": "bridge_get_loyalty_points"},
+        {"method": "GET", "path": "/api/v1/webhooks", "domain": "webhooks", "name": "bridge_get_webhooks"},
+        {"method": "GET", "path": "/api/v1/coupons", "domain": "coupons", "name": "bridge_get_coupons"},
+    ]
+
+    fixture_rows = []
+    for item in catalog:
+        described = describe_capability(
+            method=item["method"],
+            path=item["path"],
+            domain=item["domain"],
+            permission_key=None,
+            app_slug=None,
+        )
+        row = MockCatalogRow(
+            name=item["name"],
+            domain=item["domain"],
+            description_en=described["description_en"],
+            usage_hint_ar=described["usage_hint_ar"],
+            endpoint=item["path"],
+            http_method=item["method"],
+            input_schema=described["input_schema"],
+            catalog_metadata={"aliases": described["aliases"]},
+            source="auto",
+        )
+        fixture_rows.append(row)
+
+    # Search logic matching updated store_capability.py
+    def do_search(query: str):
+        q = (query or "").strip().lower()
+        results = []
+        for row in fixture_rows:
+            hint = str(getattr(row, "usage_hint_ar", "") or "")
+            meta = getattr(row, "catalog_metadata", {}) or {}
+            raw_aliases = meta.get("aliases", []) if isinstance(meta, dict) else []
+            if isinstance(raw_aliases, (list, tuple, set)):
+                aliases_text = " ".join(str(a) for a in raw_aliases if a)
+            else:
+                aliases_text = str(raw_aliases or "")
+            haystack = f"{row.name} {row.description_en} {row.domain} {hint} {aliases_text}".lower()
+            if not q or q in haystack or any(w in haystack for w in q.split()):
+                results.append({
+                    "name": row.name,
+                    "domain": row.domain,
+                    "description": (hint or row.description_en or "")[:160],
+                    "risk": row.risk_level,
+                    "parameters": list((row.input_schema or {}).get("properties", {}).keys()),
+                })
+        return results
+
+    # 1. إرجاع -> should match returns
+    m_irja = do_search("إرجاع")
+    assert len(m_irja) >= 1 and any(m["domain"] == "returns" for m in m_irja), f"Failed to match 'إرجاع', got: {m_irja}"
+
+    # 2. ارتجاع -> should match returns
+    m_irtija = do_search("ارتجاع")
+    assert len(m_irtija) >= 1 and any(m["domain"] == "returns" for m in m_irtija), f"Failed to match 'ارتجاع', got: {m_irtija}"
+
+    # 3. فاتورة (singular) -> should match invoices
+    m_fatoora = do_search("فاتورة")
+    assert len(m_fatoora) >= 1 and any(m["domain"] == "invoices" for m in m_fatoora), f"Failed to match 'فاتورة', got: {m_fatoora}"
+
+    # 4. نقاط الولاء -> should match loyalty
+    m_loyalty = do_search("نقاط الولاء")
+    assert len(m_loyalty) >= 1 and any(m["domain"] == "loyalty" for m in m_loyalty), f"Failed to match 'نقاط الولاء', got: {m_loyalty}"
+
+    # 5. ويب هوك -> should match webhooks
+    m_webhooks = do_search("ويب هوك")
+    assert len(m_webhooks) >= 1 and any(m["domain"] == "webhooks" for m in m_webhooks), f"Failed to match 'ويب هوك', got: {m_webhooks}"
 
 
 # =====================================================================
@@ -307,7 +441,6 @@ def test_unknown_domain_fallback():
 def test_acceptance_criterion_1_search_fixture_6_rows():
     """Acceptance 1: On a fixture with 6 rows (returns/invoices/coupons),
     searching 'مرتجعات' returns the returns rows with an Arabic description."""
-    # 6 fixture rows
     rows_data = [
         {"method": "GET", "path": "/api/v1/returns/requests", "domain": "returns", "name": "bridge_get_returns_requests"},
         {"method": "GET", "path": "/api/v1/returns/:id", "domain": "returns", "name": "bridge_get_returns_by_id"},
@@ -334,17 +467,23 @@ def test_acceptance_criterion_1_search_fixture_6_rows():
             endpoint=r["path"],
             http_method=r["method"],
             input_schema=described["input_schema"],
+            catalog_metadata={"aliases": described["aliases"]},
             source="auto",
         )
         fixture_rows.append(row)
 
-    # Search logic matching store_capability.py
     def do_search(query: str):
         q = (query or "").strip().lower()
         results = []
         for row in fixture_rows:
             hint = str(getattr(row, "usage_hint_ar", "") or "")
-            haystack = f"{row.name} {row.description_en} {row.domain} {hint}".lower()
+            meta = getattr(row, "catalog_metadata", {}) or {}
+            raw_aliases = meta.get("aliases", []) if isinstance(meta, dict) else []
+            if isinstance(raw_aliases, (list, tuple, set)):
+                aliases_text = " ".join(str(a) for a in raw_aliases if a)
+            else:
+                aliases_text = str(raw_aliases or "")
+            haystack = f"{row.name} {row.description_en} {row.domain} {hint} {aliases_text}".lower()
             if not q or q in haystack or any(w in haystack for w in q.split()):
                 results.append({
                     "name": row.name,
@@ -360,7 +499,6 @@ def test_acceptance_criterion_1_search_fixture_6_rows():
     for m in returns_matches:
         assert m["domain"] == "returns"
         assert "مرتجع" in m["description"] or "المرتجعات" in m["description"]
-        # Verify description is Arabic
         assert any("\u0600" <= c <= "\u06FF" for c in m["description"])
 
     invoices_matches = do_search("فواتير")
@@ -392,7 +530,6 @@ def test_acceptance_criterion_2_post_without_schema_has_no_parameters():
 async def test_acceptance_criterion_3_self_healing_and_idempotency_in_drift():
     """Acceptance 3: 100% of source='auto' rows have usage_hint_ar filled after first drift cycle,
     and a second cycle is idempotent."""
-    # 4 existing auto rows: 2 with None, 1 with empty string, 1 with generic placeholder, 1 curated row
     r1 = MockCatalogRow(name="row1", domain="returns", endpoint="/api/v1/returns/requests", http_method="GET", source="auto", usage_hint_ar=None)
     r2 = MockCatalogRow(name="row2", domain="invoices", endpoint="/api/v1/invoices", http_method="GET", source="auto", usage_hint_ar="")
     r3 = MockCatalogRow(
@@ -409,7 +546,7 @@ async def test_acceptance_criterion_3_self_healing_and_idempotency_in_drift():
         endpoint="/api/v1/staff",
         http_method="GET",
         source="curated",
-        usage_hint_ar=None,  # curated row must not be modified by auto-healing
+        usage_hint_ar=None,
     )
 
     session = MockSession(rows=[r1, r2, r3, r_curated])
@@ -417,24 +554,19 @@ async def test_acceptance_criterion_3_self_healing_and_idempotency_in_drift():
     # Run cycle 1
     await run_drift_check(session, manifest=[])
 
-    # 100% of auto rows must be healed with Arabic hints
     auto_rows = [r1, r2, r3]
     for r in auto_rows:
         assert r.usage_hint_ar is not None, f"Row {r.name} usage_hint_ar still None"
         assert len(r.usage_hint_ar.strip()) > 0, f"Row {r.name} usage_hint_ar is empty"
         assert not r.usage_hint_ar.startswith("Auto-discovered"), f"Row {r.name} still has auto placeholder"
         assert any("\u0600" <= c <= "\u06FF" for c in r.usage_hint_ar), f"Row {r.name} hint is not Arabic"
+        assert_no_leaked_english(r.usage_hint_ar)
 
-    # Curated row must not have been touched
     assert r_curated.usage_hint_ar is None
-
-    # GET rows r1 and r2 received GET input_schema
     assert set(r1.input_schema["properties"].keys()) == set(GET_PROPERTIES.keys())
-    # POST row r3 received parameterless schema
     assert r3.input_schema["properties"] == {}
 
-    # Snapshot hints after cycle 1
-    snapshots = {r.name: (r.usage_hint_ar, r.description_en, dict(r.input_schema)) for r in auto_rows}
+    snapshots = {r.name: (r.usage_hint_ar, r.description_en, dict(r.input_schema), dict(r.catalog_metadata)) for r in auto_rows}
 
     # Run cycle 2 (idempotency check)
     await run_drift_check(session, manifest=[])
@@ -444,6 +576,7 @@ async def test_acceptance_criterion_3_self_healing_and_idempotency_in_drift():
         assert r.usage_hint_ar == expected[0], f"Row {r.name} usage_hint_ar changed on second cycle"
         assert r.description_en == expected[1], f"Row {r.name} description_en changed on second cycle"
         assert r.input_schema == expected[2], f"Row {r.name} input_schema changed on second cycle"
+        assert r.catalog_metadata == expected[3], f"Row {r.name} catalog_metadata changed on second cycle"
 
 
 if __name__ == "__main__":
