@@ -306,7 +306,7 @@ exports.createPurchaseOrder = async (req, res) => {
 
       return {
         productId: safeProductId,
-        productName: (item.productName || "صنف بدون اسم").trim(),
+        productName: (item.productName || item.itemName || item.name || "صنف بدون اسم").trim(),
         description: item.variantName || item.description || "",
         quantity,
         unitPrice,
@@ -579,7 +579,7 @@ exports.updatePurchaseOrder = async (req, res) => {
 
         return {
           productId: safeProductId,
-          productName: (item.productName || "صنف بدون اسم").trim(),
+          productName: (item.productName || item.itemName || item.name || "صنف بدون اسم").trim(),
           description: item.variantName || item.description || "",
           quantity,
           unitPrice,
@@ -754,7 +754,7 @@ exports.receiveItems = async (req, res) => {
         }),
       );
 
-      const receivedQuantity = parseInt(item.receivedQuantity, 10);
+      const receivedQuantity = Math.max(0, parseFloat(item.receivedQuantity) || 0);
 
       if (item.updateInventory && receivedQuantity > 0) {
         const variantId =

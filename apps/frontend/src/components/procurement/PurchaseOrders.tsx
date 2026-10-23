@@ -250,9 +250,22 @@ const PurchaseOrders: React.FC = () => {
               </TableRow>
             ) : (
               orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-mono text-xs font-medium text-primary text-start">
-                    {order.orderNumber}
+                <TableRow
+                  key={order.id}
+                  className="hover:bg-muted/50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/procurement/purchase-orders/${order.id}`)}
+                >
+                  <TableCell className="font-mono text-xs font-semibold text-primary text-start">
+                    <button
+                      type="button"
+                      className="hover:underline focus:outline-none font-semibold text-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/procurement/purchase-orders/${order.id}`);
+                      }}
+                    >
+                      {order.orderNumber}
+                    </button>
                   </TableCell>
                   <TableCell className="text-start">{order.supplier?.name || "—"}</TableCell>
                   <TableCell className="text-xs tabular-nums text-start">
@@ -272,7 +285,7 @@ const PurchaseOrders: React.FC = () => {
                     {statusLabels[order.status] ?? order.status}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
@@ -345,8 +358,8 @@ const PurchaseOrders: React.FC = () => {
             <ProcurementMobileCard
               key={order.id}
               eyebrow={order.orderNumber}
-              title={order.supplier.name}
-              subtitle={t("procurement.purchaseOrders.mobileItemCount", { count: order._count.items })}
+              title={order.supplier?.name || "—"}
+              subtitle={t("procurement.purchaseOrders.mobileItemCount", { count: order._count?.items ?? (order as any).items?.length ?? 0 })}
               status={
                 <Badge variant={statusColors[order.status] || "outline"}>
                   {statusLabels[order.status] ?? order.status}
@@ -368,7 +381,7 @@ const PurchaseOrders: React.FC = () => {
                 },
                 {
                   label: t("procurement.purchaseOrders.mobileSupplierPhone"),
-                  value: order.supplier.phone || "-",
+                  value: order.supplier?.phone || "-",
                 },
               ]}
               actions={

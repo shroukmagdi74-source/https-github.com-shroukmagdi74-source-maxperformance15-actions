@@ -245,6 +245,7 @@ export const PurchaseOrderDetail: React.FC = () => {
   const canApprove = order.status === "DRAFT" || order.status === "PENDING";
   const canReceive = order.status === "ORDERED" || order.status === "PARTIALLY_RECEIVED";
   const canCancel = order.status !== "RECEIVED" && order.status !== "CANCELLED";
+  const canCreateInvoice = order.status !== "CANCELLED";
 
   return (
     <div className="p-3 sm:p-6 max-w-6xl mx-auto space-y-5 print:p-0 purchase-order-detail-container">
@@ -391,6 +392,18 @@ export const PurchaseOrderDetail: React.FC = () => {
             >
               <XCircle className="size-4" />
               {t("procurement.purchaseOrderDetail.cancelBtn", "إلغاء الأمر")}
+            </Button>
+          )}
+
+          {canCreateInvoice && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate(`/procurement/purchase-invoices/new?purchaseOrderId=${order.id}`)}
+              className="gap-1.5"
+            >
+              <FileText className="size-4" />
+              {t("procurement.purchaseOrderDetail.createInvoiceBtn", "إنشاء فاتورة شراء")}
             </Button>
           )}
 
@@ -612,8 +625,19 @@ export const PurchaseOrderDetail: React.FC = () => {
         </CardHeader>
         <CardContent className="p-0 sm:p-4">
           {invoices.length === 0 ? (
-            <div className="p-6 text-center text-xs text-muted-foreground">
-              {t("procurement.purchaseOrderDetail.noLinkedInvoices", "لا توجد فواتير مرتبطة بهذا الأمر بعد")}
+            <div className="p-6 text-center text-xs text-muted-foreground space-y-2">
+              <p>{t("procurement.purchaseOrderDetail.noLinkedInvoices", "لا توجد فواتير مرتبطة بهذا الأمر بعد")}</p>
+              {canCreateInvoice && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate(`/procurement/purchase-invoices/new?purchaseOrderId=${order.id}`)}
+                  className="gap-1.5 mt-1"
+                >
+                  <FileText className="size-3.5" />
+                  {t("procurement.purchaseOrderDetail.createInvoiceBtn", "إنشاء فاتورة شراء من هذا الأمر")}
+                </Button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

@@ -16,7 +16,7 @@ import {
   SlidersHorizontal,
   Lightbulb,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../services/apiClient";
 import { formatCurrency } from "../../utils/currency";
@@ -98,6 +98,8 @@ interface TreasuryAccount {
 const PurchaseInvoiceForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const poQueryId = searchParams.get("purchaseOrderId") || searchParams.get("poId");
   const isEdit = Boolean(id);
   const { t } = useTranslation();
 
@@ -163,8 +165,10 @@ const PurchaseInvoiceForm: React.FC = () => {
     fetchInitialData();
     if (isEdit) {
       fetchInvoice();
+    } else if (poQueryId) {
+      loadInitialPurchaseOrder(poQueryId);
     }
-  }, [id]);
+  }, [id, poQueryId]);
 
   // Click outside to close supplier combobox
   useEffect(() => {
@@ -234,6 +238,64 @@ const PurchaseInvoiceForm: React.FC = () => {
     } catch (error) {
       console.error("Error fetching initial data:", error);
       toast.error(t("procurement.purchaseInvoiceForm.fetchError", "فشل في تحميل البيانات الأولية"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadInitialPurchaseOrder = async (poId: string) => {
+    try {
+      setLoading(true);
+      const res = await apiClient.get(`/procurement/purchase-orders/${poId}`);
+      const po = res.data?.order || res.data;
+      if (po) {
+        setFormData((prev) => ({
+          ...prev,
+          supplierId: po.supplierId || prev.supplierId,
+          purchaseOrderId: po.id,
+          shippingCost: Number(po.shippingCost || 0),
+          discountAmount: Number(po.discountAmount || 0),
+          notes: po.notes ? `أمر شراء: ${po.orderNumber} - ${po.notes}` : `أمر شراء: ${po.orderNumber}`,
+        }));
+
+        if (po.supplierId) {
+          fetchSupplierPurchaseOrders(po.supplierId);
+        }
+
+        const poItems = po.purchaseOrderItems || po.items;
+        if (Array.isArray(poItems) && poItems.length > 0) {
+          setItems(
+            poItems.map((item: any) => {
+              const quantity = Number(item.quantity || 1);
+              const unitPrice = Number(item.unitPrice || 0);
+              const taxRate = Number(item.taxRate || 0);
+              const discountRate = Number(item.discountRate || 0);
+              const subtotal = quantity * unitPrice;
+              const discount = subtotal * (discountRate / 100);
+              const tax = (subtotal - discount) * (taxRate / 100);
+              const totalPrice = subtotal - discount + tax;
+              const variantMatch = item.notes?.match(/\[variantId:([^\]]+)\]/);
+              const variantId = variantMatch ? variantMatch[1] : item.variantId || null;
+
+              return {
+                productId: item.productId || null,
+                variantId,
+                productName: item.productName || "",
+                description: item.description || "",
+                quantity,
+                unitPrice,
+                taxRate,
+                discountRate,
+                totalPrice,
+                notes: item.notes || "",
+              };
+            }),
+          );
+          toast.success(`تم استيراد ${poItems.length} أصناف من أمر الشراء ${po.orderNumber}`);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading purchase order into invoice form:", err);
     } finally {
       setLoading(false);
     }
