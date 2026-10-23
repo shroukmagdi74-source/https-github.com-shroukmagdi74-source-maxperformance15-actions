@@ -186,7 +186,8 @@ const isCompanyAppInstallationValid = (ca, company = null) => {
     return true;
   }
 
-  const now = new Date();
+  // NOTE: `now` is declared once at the top of this scope (line ~159). Re-declaring it here
+  // caused a SyntaxError ("Identifier 'now' has already been declared") that blocked deploys.
   const isCompanyInActiveTrial = Boolean(
     company?.trialModeEnabled &&
     company?.trialEndsAt &&
