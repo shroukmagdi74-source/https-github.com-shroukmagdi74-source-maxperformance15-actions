@@ -101,41 +101,107 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
 
   const reducedMotion = isReducedMotionActive();
 
+  // Helper: check if rendering within studio editor canvas
+  const isEditorCanvas = (): boolean => {
+    if (typeof window === "undefined") return false;
+    try {
+      const path = window.location.pathname;
+      if (path.includes("/editor") || path.includes("/studio")) {
+        return true;
+      }
+      if (
+        sectionRef.current?.closest(
+          "[data-studio-sortable-section], [data-studio-canvas], [data-studio-viewport], .studio-canvas"
+        )
+      ) {
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  };
+
   const [isVisible, setIsVisible] = useState<boolean>(() => {
-    if (!hasEntrance || reducedMotion) return true;
+    if (!hasEntrance || reducedMotion || isEditorCanvas()) return true;
     return false;
   });
 
   const [parallaxY, setParallaxY] = useState<number>(0);
 
-  // Entrance scroll observer (IntersectionObserver with threshold 0.15)
+  // Entrance scroll observer + immediate in-viewport detection + 1200ms fallback safety net (Ticket ANIM-1.1)
   useEffect(() => {
-    if (!hasEntrance || isReducedMotionActive()) {
+    if (!hasEntrance || isReducedMotionActive() || isEditorCanvas()) {
       setIsVisible(true);
       return;
     }
     const el = sectionRef.current;
-    if (!el) return;
-
-    if (typeof IntersectionObserver === "undefined") {
+    if (!el) {
       setIsVisible(true);
       return;
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsVisible(true);
-            observer.disconnect();
-          }
-        });
-      },
-      { threshold: 0.15 }
-    );
+    // 1. Immediate in-viewport detection: elements visible in screen at load receive is-visible immediately
+    try {
+      const rect = el.getBoundingClientRect();
+      const winHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+      const winWidth = window.innerWidth || document.documentElement.clientWidth || 1200;
+      const isInViewport =
+        rect.top < winHeight &&
+        rect.bottom > 0 &&
+        rect.left < winWidth &&
+        rect.right > 0;
 
-    observer.observe(el);
-    return () => observer.disconnect();
+      if (isInViewport) {
+        setIsVisible(true);
+        return;
+      }
+    } catch {
+      // ignore getBoundingClientRect errors
+    }
+
+    // 2. Safety net fallback (1200ms): guarantees content NEVER remains hidden
+    let observer: IntersectionObserver | null = null;
+    const fallbackTimer = setTimeout(() => {
+      setIsVisible(true);
+      if (observer) {
+        observer.disconnect();
+      }
+    }, 1200);
+
+    // 3. Low-threshold IntersectionObserver with rootMargin
+    if (typeof IntersectionObserver !== "undefined") {
+      try {
+        observer = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (entry.isIntersecting || entry.intersectionRatio > 0) {
+                setIsVisible(true);
+                clearTimeout(fallbackTimer);
+                observer?.disconnect();
+                break;
+              }
+            }
+          },
+          {
+            threshold: [0, 0.05],
+            rootMargin: "50px 0px 50px 0px",
+          }
+        );
+        observer.observe(el);
+      } catch {
+        setIsVisible(true);
+      }
+    } else {
+      setIsVisible(true);
+    }
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      if (observer) {
+        observer.disconnect();
+      }
+    };
   }, [hasEntrance, sectionKey]);
 
   // Lightweight parallax (passive scroll listener with requestAnimationFrame)
@@ -232,6 +298,7 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
   const animClasses = [
     hasEntrance ? "sf-anim-entrance" : "",
     hasEntrance && isVisible ? "is-visible" : "",
+    hasEntrance && entranceType !== "none" ? `sf-anim-in-${entranceType}` : "",
     hoverType !== "none" ? `sf-anim-hover-${hoverType}` : "",
     hasParallax ? "sf-anim-parallax" : "",
   ].filter(Boolean).join(" ");

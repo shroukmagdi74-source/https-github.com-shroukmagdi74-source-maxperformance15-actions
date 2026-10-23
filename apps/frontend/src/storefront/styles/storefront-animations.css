@@ -1,5 +1,5 @@
 /**
- * Storefront Section Animations (Ticket ANIM-1)
+ * Storefront Section Animations (Ticket ANIM-1 & ANIM-1.1)
  * Entrance (Scroll Reveal), Hover Interactions, and Lightweight Parallax
  * Zero layout-shift: strictly hardware-accelerated transform & opacity
  */
@@ -24,91 +24,132 @@
 }
 
 /* Fade */
-[data-anim-in="fade"] {
+[data-anim-in="fade"],
+.sf-anim-in-fade {
   opacity: 0;
 }
-[data-anim-in="fade"].is-visible {
+[data-anim-in="fade"].is-visible,
+.sf-anim-in-fade.is-visible {
   opacity: 1;
 }
 
 /* Slide Up */
-[data-anim-in="slide-up"] {
+[data-anim-in="slide-up"],
+.sf-anim-in-slide-up {
   opacity: 0;
   transform: translateY(30px);
 }
-[data-anim-in="slide-up"].is-visible {
+[data-anim-in="slide-up"].is-visible,
+.sf-anim-in-slide-up.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
 
 /* Slide Right */
-[data-anim-in="slide-right"] {
+[data-anim-in="slide-right"],
+.sf-anim-in-slide-right {
   opacity: 0;
   transform: translateX(-30px);
 }
-[data-anim-in="slide-right"].is-visible {
+[data-anim-in="slide-right"].is-visible,
+.sf-anim-in-slide-right.is-visible {
   opacity: 1;
   transform: translateX(0);
 }
 
 /* Zoom */
-[data-anim-in="zoom"] {
+[data-anim-in="zoom"],
+.sf-anim-in-zoom {
   opacity: 0;
   transform: scale(0.95);
 }
-[data-anim-in="zoom"].is-visible {
+[data-anim-in="zoom"].is-visible,
+.sf-anim-in-zoom.is-visible {
   opacity: 1;
   transform: scale(1);
 }
 
 /* ─────────────────────────────────────────────────────────────
- * 2. Hover Interactions
+ * 2. Hover Interactions (Pure CSS :hover, zero layout shift)
  * ───────────────────────────────────────────────────────────── */
 
 /* Lift */
-[data-anim-hover="lift"] {
+[data-anim-hover="lift"],
+.sf-anim-hover-lift {
+  will-change: transform, box-shadow;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-[data-anim-hover="lift"]:hover {
-  transform: translateY(-4px);
+[data-anim-hover="lift"]:hover,
+.sf-anim-hover-lift:hover {
+  transform: translateY(-4px) !important;
   box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.12), 0 4px 6px -4px rgba(0, 0, 0, 0.06);
+  transition-delay: 0s !important;
 }
 
 /* Scale */
-[data-anim-hover="scale"] {
+[data-anim-hover="scale"],
+.sf-anim-hover-scale {
+  will-change: transform;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-[data-anim-hover="scale"]:hover {
-  transform: scale(1.02);
+[data-anim-hover="scale"]:hover,
+.sf-anim-hover-scale:hover {
+  transform: scale(1.02) !important;
+  transition-delay: 0s !important;
 }
 
 /* Glow */
-[data-anim-hover="glow"] {
+[data-anim-hover="glow"],
+.sf-anim-hover-glow {
+  will-change: box-shadow;
   transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-[data-anim-hover="glow"]:hover {
+[data-anim-hover="glow"]:hover,
+.sf-anim-hover-glow:hover {
   box-shadow: 0 0 25px -5px var(--store-accent, #2b6cf6);
+  transition-delay: 0s !important;
 }
 
 /* ─────────────────────────────────────────────────────────────
  * 3. Lightweight Parallax (Scroll Driven)
  * ───────────────────────────────────────────────────────────── */
 
-[data-parallax="true"] {
+[data-parallax="true"],
+.sf-anim-parallax {
   will-change: transform;
   transform: translateY(var(--sf-parallax-y, 0px));
 }
 
 /* Combined Parallax + Hover */
-[data-parallax="true"][data-anim-hover="lift"]:hover {
-  transform: translateY(calc(var(--sf-parallax-y, 0px) - 4px));
+[data-parallax="true"][data-anim-hover="lift"]:hover,
+.sf-anim-parallax.sf-anim-hover-lift:hover {
+  transform: translateY(calc(var(--sf-parallax-y, 0px) - 4px)) !important;
+  transition-delay: 0s !important;
 }
-[data-parallax="true"][data-anim-hover="scale"]:hover {
-  transform: translateY(var(--sf-parallax-y, 0px)) scale(1.02);
+[data-parallax="true"][data-anim-hover="scale"]:hover,
+.sf-anim-parallax.sf-anim-hover-scale:hover {
+  transform: translateY(var(--sf-parallax-y, 0px)) scale(1.02) !important;
+  transition-delay: 0s !important;
 }
 
 /* ─────────────────────────────────────────────────────────────
- * 4. Accessibility: Strict prefers-reduced-motion compliance
+ * 4. Editor Canvas Safety: Never leave sections hidden in studio/editor
+ * ───────────────────────────────────────────────────────────── */
+
+[data-studio-sortable-section] [data-anim-in],
+[data-studio-canvas] [data-anim-in],
+[data-studio-viewport] [data-anim-in],
+.studio-canvas [data-anim-in],
+.studio-editor [data-anim-in],
+[data-studio-frame] [data-anim-in],
+[data-studio-sortable-section].sf-anim-entrance,
+[data-studio-canvas] .sf-anim-entrance {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 5. Accessibility: Strict prefers-reduced-motion compliance
  * ───────────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -116,9 +157,14 @@
   [data-anim-hover],
   [data-parallax],
   .sf-anim-entrance,
+  .sf-anim-hover-lift,
+  .sf-anim-hover-scale,
+  .sf-anim-hover-glow,
+  .sf-anim-parallax,
   .is-visible {
     animation: none !important;
     transition: none !important;
+    transition-duration: 0s !important;
     transform: none !important;
     opacity: 1 !important;
     box-shadow: none !important;
