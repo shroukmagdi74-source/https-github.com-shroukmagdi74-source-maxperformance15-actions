@@ -57,5 +57,8 @@ jobs:
             echo "test_app_cards.py not present yet — skipped"
           fi
 
+      - name: Golden Cases Validation
+        run: python apps/ai-service/tests/tools/test_golden_cases.py
+
       - name: Validate Agent Skills & Tools
         run: node scripts/validate-agent-skills.js

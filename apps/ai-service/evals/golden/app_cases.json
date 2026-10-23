@@ -1,0 +1,821 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "order-core-1",
+      "app": "order-core",
+      "question": "كام أوردر جالي النهاردة في المتجر؟",
+      "expected_capabilities": [
+        "order_summary"
+      ],
+      "forbidden_capabilities": [
+        "order_cancel"
+      ],
+      "expect_approval": false
+    },
+    {
+      "id": "order-core-2",
+      "app": "order-core",
+      "question": "عايز أشوف طلبات المرتجعات اللي مستنية مراجعة وتأكيد",
+      "expected_capabilities": [
+        "returns_requests_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-core-3",
+      "app": "order-core",
+      "question": "الغِي الأوردر رقم 1052 عشان العميل رجع في كلامه",
+      "expected_capabilities": [
+        "order_cancel"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "order-invoicing-1",
+      "app": "order-invoicing",
+      "question": "طلعلي قايمة بكل الفواتير الضريبية اللي صدرت النهاردة",
+      "expected_capabilities": [
+        "invoice_list"
+      ],
+      "forbidden_capabilities": [
+        "order_cancel"
+      ],
+      "expect_approval": false
+    },
+    {
+      "id": "order-invoicing-2",
+      "app": "order-invoicing",
+      "question": "عايز أشوف فواتير المبيعات بتاعة الأسبوع ده للمحاسب",
+      "expected_capabilities": [
+        "invoice_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-invoicing-3",
+      "app": "order-invoicing",
+      "question": "فين ألاقي إعدادات الفواتير وضريبة القيمة المضافة للتطبيق؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-shipping-turbo-1",
+      "app": "order-shipping-turbo",
+      "question": "كام تكلفة شحن طرد 2 كيلو لمحافظة الإسكندرية مع توربو؟",
+      "expected_capabilities": [
+        "shipping_rates"
+      ],
+      "forbidden_capabilities": [
+        "order_cancel"
+      ],
+      "expect_approval": false
+    },
+    {
+      "id": "order-shipping-turbo-2",
+      "app": "order-shipping-turbo",
+      "question": "تتبع شحنة توربو رقم البوليصة TRB982341 واعرف مكانها فين",
+      "expected_capabilities": [
+        "shipment_track"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-shipping-turbo-3",
+      "app": "order-shipping-turbo",
+      "question": "حدّث بيانات الشحن والعنوان للشحنة رقم 5410 وخليها تسليم مسائي",
+      "expected_capabilities": [
+        "shipping_update"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "order-shipping-hub-1",
+      "app": "order-shipping-hub",
+      "question": "إيه شركات الشحن المربوطة حالياً على المتجر وشغالة؟",
+      "expected_capabilities": [
+        "shipping_companies_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-shipping-hub-2",
+      "app": "order-shipping-hub",
+      "question": "عايز أسعار الشحن ومقارنة المحافظات بين بوسطة وتوربو",
+      "expected_capabilities": [
+        "shipping_rates"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-shipping-hub-3",
+      "app": "order-shipping-hub",
+      "question": "اربط شركة الشحن بوسطة وفعلها على السيستم بالـ API key",
+      "expected_capabilities": [
+        "shipping_company_connect"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "inventory-pro-1",
+      "app": "inventory-pro",
+      "question": "شوفلي المنتجات اللي قربت تخلص في المخزن ووصلت لحد الطلب",
+      "expected_capabilities": [
+        "product_low_stock"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "inventory-pro-2",
+      "app": "inventory-pro",
+      "question": "كام الرصيد المتاح من التيشرت الأسود مقاس L في المخزن الرئيسي؟",
+      "expected_capabilities": [
+        "inventory_check"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "inventory-pro-3",
+      "app": "inventory-pro",
+      "question": "عدّل رصيد المخزن للصنف تيشرت كود TS-01 بإضافة 50 قطعة جرد",
+      "expected_capabilities": [
+        "inventory_adjust"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "coupons-pro-1",
+      "app": "coupons-pro",
+      "question": "هل كود الخصم SUMMER2026 شغال وصالح للاستخدام حالياً؟",
+      "expected_capabilities": [
+        "coupon_validate"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "coupons-pro-2",
+      "app": "coupons-pro",
+      "question": "عايز أعرف إحصائيات استخدام الكوبونات وأعلى كود حقق مبيعات",
+      "expected_capabilities": [
+        "coupon_stats"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "coupons-pro-3",
+      "app": "coupons-pro",
+      "question": "اعملي كود خصم جديد بنسبة 15% بمناسبة الجمعة البيضاء",
+      "expected_capabilities": [
+        "discount_create"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "crm-basic-1",
+      "app": "crm-basic",
+      "question": "هاتلي بيانات وسجل طلبات العميل صاحب الرقم 01012345678",
+      "expected_capabilities": [
+        "customer_info"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "crm-basic-2",
+      "app": "crm-basic",
+      "question": "مين أكتر 10 عملاء اشتروا من المتجر وإجمالي إنفاقهم كام؟",
+      "expected_capabilities": [
+        "customer_top_buyers"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "crm-basic-3",
+      "app": "crm-basic",
+      "question": "ابحثلي عن الأوردرات السابقة المسجلة برقم تليفون العميل 01198765432",
+      "expected_capabilities": [
+        "order_lookup_by_phone"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "crm-lite-1",
+      "app": "crm-lite",
+      "question": "إيه السلات المتروكة اللي العملاء سابوها النهاردة وما كملوش الطلب؟",
+      "expected_capabilities": [
+        "abandoned_carts"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "crm-lite-2",
+      "app": "crm-lite",
+      "question": "عاوز ملخص عام لمسار المبيعات والصفقات اللي لسه مفتوحة",
+      "expected_capabilities": [
+        "pipeline_overview"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "crm-lite-3",
+      "app": "crm-lite",
+      "question": "اقترحلي خطة متابعة للعملاء المحتملين اللي اتأخروا في الرد",
+      "expected_capabilities": [
+        "followup_suggestions"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "campaign-attribution-1",
+      "app": "campaign-attribution",
+      "question": "عايز تقرير إسناد الحملات الإعلانية ومصدر كل أوردر اتأكد",
+      "expected_capabilities": [
+        "orders_campaign_attribution_report"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "campaign-attribution-2",
+      "app": "campaign-attribution",
+      "question": "هاتلي تفاصيل الحساب الإعلاني وإجمالي الصرف الإعلاني اليوم",
+      "expected_capabilities": [
+        "facebook_ad_account_info"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "campaign-attribution-3",
+      "app": "campaign-attribution",
+      "question": "زوّد ميزانية الحملة الإعلانية الناجحة على فيسبوك لـ 1000 جنيه يومياً",
+      "expected_capabilities": [
+        "facebook_ad_update_budget"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "whatsapp-business-1",
+      "app": "whatsapp-business",
+      "question": "ابعت رسالة تأكيد الأوردر للعميل على الواتساب على رقم 01023456789",
+      "expected_capabilities": [
+        "whatsapp_send"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "whatsapp-business-2",
+      "app": "whatsapp-business",
+      "question": "فين أتابع أوتوميشن الرد الآلي وتنبيهات الواتساب في المتجر؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "whatsapp-business-3",
+      "app": "whatsapp-business",
+      "question": "اعمل حملة رسائل جماعية برودكاست لكل العملاء بعرض العيد",
+      "expected_capabilities": [
+        "message_broadcast"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "unified-inbox-1",
+      "app": "unified-inbox",
+      "question": "عايز أشوف محادثات العملاء الواردة من كل القنوات في صندوق موحد",
+      "expected_capabilities": [
+        "unified_inbox_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "unified-inbox-2",
+      "app": "unified-inbox",
+      "question": "رد على رسالة العميل على ماسنجر فيسبوك بخصوص تفاصيل الشحن",
+      "expected_capabilities": [
+        "facebook_reply"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "unified-inbox-3",
+      "app": "unified-inbox",
+      "question": "شغّل قواعد الرد الآلي التلقائي للبوت في صندوق الرسائل الموحد",
+      "expected_capabilities": [
+        "bot_automation_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "facebook-pages-connect-1",
+      "app": "facebook-pages-connect",
+      "question": "ورّيني صفحات الفيسبوك المربوطة حالياً بالمتجر وحالة اتصالها",
+      "expected_capabilities": [
+        "facebook_pages_connected_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "facebook-pages-connect-2",
+      "app": "facebook-pages-connect",
+      "question": "رد على تعليق العميل على بوست الصفحة وقله تم التواصل في الخاص",
+      "expected_capabilities": [
+        "facebook_reply"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "facebook-pages-connect-3",
+      "app": "facebook-pages-connect",
+      "question": "انشر درافت الإعلان الجديد اللي جهزناه على صفحة الفيسبوك",
+      "expected_capabilities": [
+        "facebook_ad_publish_draft"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "hr-core-1",
+      "app": "hr-core",
+      "question": "هاتلي قايمة الموظفين المسجلين في الشركة وإحصائيات الحضور",
+      "expected_capabilities": [
+        "hr_employees_stats"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "hr-core-2",
+      "app": "hr-core",
+      "question": "كام رصيد الإجازات المتبقي للموظف في حسابه السنوي؟",
+      "expected_capabilities": [
+        "hr_leave_balance"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "hr-core-3",
+      "app": "hr-core",
+      "question": "قدّم طلب سلفة مالية بقيمة 3000 جنيه من الراتب للشهر الحالي",
+      "expected_capabilities": [
+        "hr_advance_request_create"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "treasury-expenses-pro-1",
+      "app": "treasury-expenses-pro",
+      "question": "كام إجمالي الإيرادات والمبيعات الصافية اللي دخلت الخزينة النهاردة؟",
+      "expected_capabilities": [
+        "sales_revenue"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "treasury-expenses-pro-2",
+      "app": "treasury-expenses-pro",
+      "question": "اعملي ملخص سريع لوضع الخزينة والسيولة والمركز المالي للمؤسسة",
+      "expected_capabilities": [
+        "company_snapshot"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "treasury-expenses-pro-3",
+      "app": "treasury-expenses-pro",
+      "question": "فين شاشات وسندات الصرف وتسجيل المصروفات اليومية للخزينة؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "accounting-1",
+      "app": "accounting",
+      "question": "عايز تقرير المبيعات والإيرادات الإجمالية عن الربع المالي الحالي",
+      "expected_capabilities": [
+        "sales_revenue"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "accounting-2",
+      "app": "accounting",
+      "question": "هاتلي لقطة شاملة لأداء الحسابات ومؤشرات التدفق النقدي للشركة",
+      "expected_capabilities": [
+        "company_snapshot"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "accounting-3",
+      "app": "accounting",
+      "question": "إيه الشاشات والقيود المحاسبية وميزان المراجعة المتاحة في تطبيق المحاسبة؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "procurement-pro-1",
+      "app": "procurement-pro",
+      "question": "شوفلي نواقص البضاعة والمواد الخام اللي محتاجين نطلبها من الموردين",
+      "expected_capabilities": [
+        "product_low_stock"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "procurement-pro-2",
+      "app": "procurement-pro",
+      "question": "كام الرصيد المتبقي ومعدل استهلاك المخزون المتوقع في الفترة الجاية؟",
+      "expected_capabilities": [
+        "inventory_burn_rate_forecast"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "procurement-pro-3",
+      "app": "procurement-pro",
+      "question": "سجّل إذن إضافة بضاعة واردة من المورد وعدّل أرصدة المستودع",
+      "expected_capabilities": [
+        "inventory_adjust"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "manufacturing-1",
+      "app": "manufacturing",
+      "question": "افحص كميات المواد الخام ومكونات التصنيع المتاحة قبل بدء التشغيل",
+      "expected_capabilities": [
+        "inventory_check"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "manufacturing-2",
+      "app": "manufacturing",
+      "question": "توقعلي معدل حرق واستهلاك خامات التصنيع للأسبوع القادم",
+      "expected_capabilities": [
+        "inventory_burn_rate_forecast"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "manufacturing-3",
+      "app": "manufacturing",
+      "question": "اصرف كميات الخامات المطلوبة لأمر الشغل وعدّل رصيد مخزن الإنتاج",
+      "expected_capabilities": [
+        "inventory_adjust"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "pos-pro-1",
+      "app": "pos-pro",
+      "question": "ابحث عن الصنف في شاشة الكاشير بالباركود أو الاسم لمعرفة سعره",
+      "expected_capabilities": [
+        "product_search"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "pos-pro-2",
+      "app": "pos-pro",
+      "question": "هاتلي إجمالي مبيعات وردية الكاشير وإيرادات نقاط البيع اليوم",
+      "expected_capabilities": [
+        "sales_revenue"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "pos-pro-3",
+      "app": "pos-pro",
+      "question": "أنشئ مسودة طلب بيع جديد لنقطة البيع مع الأصناف المختارة",
+      "expected_capabilities": [
+        "order_create_draft"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "cafe-restaurant-pro-1",
+      "app": "cafe-restaurant-pro",
+      "question": "ابحث عن طبق أو وجبة في المنيو للتأكد من توافرها والسعر",
+      "expected_capabilities": [
+        "product_search"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "cafe-restaurant-pro-2",
+      "app": "cafe-restaurant-pro",
+      "question": "تأكد من رصيد خامات ومشروبات البار والمطبخ المتاحة قبل الوردية",
+      "expected_capabilities": [
+        "inventory_check"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "cafe-restaurant-pro-3",
+      "app": "cafe-restaurant-pro",
+      "question": "افتح طلب ترابيزة جديدة وسجل مسودة الأوردر بالوجبات المطلوبة",
+      "expected_capabilities": [
+        "order_create_draft"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "booking-app-1",
+      "app": "booking-app",
+      "question": "هاتلي قايمة الخدمات والعيادات المتاحة للحجز وسعر كل خدمة",
+      "expected_capabilities": [
+        "booking_services_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "booking-app-2",
+      "app": "booking-app",
+      "question": "ورّيني جدول الأطباء والمتخصصين المتاحين للحجز ومواعيدهم",
+      "expected_capabilities": [
+        "booking_doctors_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "booking-app-3",
+      "app": "booking-app",
+      "question": "احجز موعد كشف جديد للعميل وسجل الحجز المبدئي في العيادة",
+      "expected_capabilities": [
+        "booking_reserve"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "academy-app-1",
+      "app": "academy-app",
+      "question": "عايز خطة الكورس التدريبي والوحدات التعليمية المتاحة للطلاب",
+      "expected_capabilities": [
+        "get_course_outline"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "academy-app-2",
+      "app": "academy-app",
+      "question": "استعرض نص وشرح الدرس الحالي للوحدة التعليمية الأولى",
+      "expected_capabilities": [
+        "get_current_lesson_script"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "academy-app-3",
+      "app": "academy-app",
+      "question": "سجّل طالب جديد في الدورة التدريبية وافتحله صلاحية الدخول",
+      "expected_capabilities": [
+        "education_enroll"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "dental-lab-app-1",
+      "app": "dental-lab-app",
+      "question": "إزاي أسجل كيس أو حالة تركيبة جديدة واردة من طبيب أسنان؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "dental-lab-app-2",
+      "app": "dental-lab-app",
+      "question": "فين شاشات توزيع مراحل الشغل على الفنيين في معمل الأسنان؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "dental-lab-app-3",
+      "app": "dental-lab-app",
+      "question": "إيه حدود وسياسات تسليم التركيبات والباركود في تطبيق معمل الأسنان؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "radiology-app-1",
+      "app": "radiology-app",
+      "question": "إزاي أسجل فحص أشعة جديد لمريض وأحدد نوع الفحص المطلوب؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "radiology-app-2",
+      "app": "radiology-app",
+      "question": "فين شاشة استعراض صور DICOM وكتابة تقرير التشخيص الطبي للأشعة؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "radiology-app-3",
+      "app": "radiology-app",
+      "question": "إيه الصلاحيات والشاشات المتاحة لأطباء الأشعة وفنيي الأجهزة بالمركز؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "marketing-agency-pro-1",
+      "app": "marketing-agency-pro",
+      "question": "عايز تحليل لأداء الحملات الإعلانية ومؤشرات الـ ROAS لكل المتاجر",
+      "expected_capabilities": [
+        "orders_campaign_attribution_report"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "marketing-agency-pro-2",
+      "app": "marketing-agency-pro",
+      "question": "حلل أداء المنتج وإمكانية عمل حملة إعلانية ممولة ناجحة له",
+      "expected_capabilities": [
+        "facebook_ad_analyze_product"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "marketing-agency-pro-3",
+      "app": "marketing-agency-pro",
+      "question": "غيّر حالة الحملة الإعلانية على فيسبوك وشغلها فوراً بعد المراجعة",
+      "expected_capabilities": [
+        "facebook_ad_update_status"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "internal-courier-fleet-1",
+      "app": "internal-courier-fleet",
+      "question": "تتبع شحنة المندوب الداخلي برقم البوليصة واعرف موقع التسليم",
+      "expected_capabilities": [
+        "shipment_track"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "internal-courier-fleet-2",
+      "app": "internal-courier-fleet",
+      "question": "ابحث عن عنوان ومنطقة التوصيل لتحديد خط سير المندوب التابع للأسطول",
+      "expected_capabilities": [
+        "search_area_by_text"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "internal-courier-fleet-3",
+      "app": "internal-courier-fleet",
+      "question": "حدّث حالة الشحنة المسندة للمندوب وخليها قيد التوصيل الفعلي",
+      "expected_capabilities": [
+        "shipping_update"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "amazon-affiliate-pro-1",
+      "app": "amazon-affiliate-pro",
+      "question": "هاتلي رابط العمولة والتتبع التسويقي لمنتج أمازون لمشاركته",
+      "expected_capabilities": [
+        "affiliate_get_link"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "amazon-affiliate-pro-2",
+      "app": "amazon-affiliate-pro",
+      "question": "ابحث في المنتجات المستوردة من أمازون في المتجر عن سماعات بلوتوث",
+      "expected_capabilities": [
+        "product_search"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "amazon-affiliate-pro-3",
+      "app": "amazon-affiliate-pro",
+      "question": "فين شاشات ضبط وإعدادات ربط حساب أمازون أفلييت والـ Tracking ID؟",
+      "expected_capabilities": [
+        "store_capability"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "woocommerce-pro-1",
+      "app": "woocommerce-pro",
+      "question": "ابحث في منتجات المتجر المربوط بووكومرس عن صنف معين",
+      "expected_capabilities": [
+        "product_search"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "woocommerce-pro-2",
+      "app": "woocommerce-pro",
+      "question": "افحص كميات ورصيد المخزون في المتجر لمطابقته مع ووكومرس",
+      "expected_capabilities": [
+        "inventory_check"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "woocommerce-pro-3",
+      "app": "woocommerce-pro",
+      "question": "حدّث حالات دفعة أوردرات ووكومرس معاً في النظام لتم التجهيز",
+      "expected_capabilities": [
+        "orders_bulk_status_update"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    }
+  ]
+}
