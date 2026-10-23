@@ -348,6 +348,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             finalUser = currentInitialUser;
           }
         } else {
+          // 🛡️ P1-4: Never call /auth/refresh for anonymous visitors on public portal / academy / catalog routes,
+          // or when there are no stored credentials in localStorage.
+          const isPublicPortalRoute = typeof window !== 'undefined' && (
+            window.location.pathname.startsWith('/portal') ||
+            window.location.pathname.startsWith('/academy') ||
+            window.location.pathname.startsWith('/p/')
+          );
+          const hasStoredCredentials = Boolean(
+            tokenManager.getAccessToken() ||
+            tokenManager.getRefreshToken() ||
+            localStorage.getItem('user') ||
+            localStorage.getItem('token') ||
+            localStorage.getItem('studentToken')
+          );
+
+          if (isPublicPortalRoute || !hasStoredCredentials) {
+            debugLog('🌐 [AuthProvider] Public portal route or anonymous visitor — skipping /auth/refresh call');
+            setUser(null);
+            finalUser = null;
+            return;
+          }
+
           debugLog('🔐 [AuthProvider] No token found, attempting cookie-based session refresh...');
           const refreshResult = await refreshSessionTokens();
 

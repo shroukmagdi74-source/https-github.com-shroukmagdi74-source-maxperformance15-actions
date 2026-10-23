@@ -492,11 +492,20 @@ export default defineConfig(({ mode }) => {
             (f) => !/^(?:route-|storefront-)[^/]*\.js$/.test(f.split('/').pop() || ''),
           );
           if (urls.length === 0) return html;
-          const preloadScript =
-            '<script>(function(){if(window.__MAXP_IS_STOREFRONT__)return;var h=document.head;[' +
+          const preloadCode =
+            '(function(){if(window.__MAXP_IS_STOREFRONT__)return;var h=document.head;[' +
             urls.map((f) => `'/${f}'`).join(',') +
-            '].forEach(function(u){var l=document.createElement("link");l.rel="modulepreload";l.crossOrigin="";l.href=u;h.appendChild(l);});})();</script>';
-          return html.replace('</head>', `${preloadScript}</head>`);
+            '].forEach(function(u){var l=document.createElement("link");l.rel="modulepreload";l.crossOrigin="";l.href=u;h.appendChild(l);});})();';
+
+          bundle['assets/app-shell-preload.js'] = {
+            type: 'asset',
+            fileName: 'assets/app-shell-preload.js',
+            name: 'app-shell-preload.js',
+            source: preloadCode,
+            needsCodeReference: false,
+          } as any;
+
+          return html.replace('</head>', '<script src="/assets/app-shell-preload.js"></script></head>');
         },
       },
     ].filter(Boolean),

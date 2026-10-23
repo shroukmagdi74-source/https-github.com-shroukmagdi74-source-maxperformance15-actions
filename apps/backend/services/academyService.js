@@ -1312,6 +1312,33 @@ class AcademyService {
       }
     }
 
+    // Resilient lesson sort order helper (extracts 'الدرس X' if stored sortOrder is 0)
+    const parseLessonOrder = (lesson) => {
+      if (typeof lesson.sortOrder === 'number' && lesson.sortOrder > 0) {
+        return lesson.sortOrder;
+      }
+      const match = String(lesson.title || '').match(/الدرس\s+(\d+)/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
+      return Number(lesson.sortOrder) || 0;
+    };
+
+    // Auto-heal zero sortOrder in DB and sort module lessons ascending
+    for (const m of course.modules) {
+      for (const lesson of m.lessons) {
+        const calculatedOrder = parseLessonOrder(lesson);
+        if (calculatedOrder > 0 && (!lesson.sortOrder || lesson.sortOrder === 0)) {
+          lesson.sortOrder = calculatedOrder;
+          db.academyLesson.update({
+            where: { id: lesson.id },
+            data: { sortOrder: calculatedOrder },
+          }).catch(() => {});
+        }
+      }
+      m.lessons.sort((a, b) => parseLessonOrder(a) - parseLessonOrder(b));
+    }
+
     // Flatten all lessons to determine sequential lock status
     const allLessons = course.modules.flatMap((m) => m.lessons);
     let previousLessonDone = true; // First lesson is unlocked
@@ -1333,7 +1360,7 @@ class AcademyService {
         return {
           id: lesson.id,
           title: lesson.title,
-          sortOrder: lesson.sortOrder,
+          sortOrder: parseLessonOrder(lesson),
           durationMin: lesson.durationMin,
           isFreePreview: isFree,
           hasQuiz: Boolean(lesson.quiz),

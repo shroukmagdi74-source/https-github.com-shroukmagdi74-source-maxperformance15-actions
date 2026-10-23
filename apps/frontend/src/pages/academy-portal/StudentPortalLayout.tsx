@@ -94,7 +94,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
             <nav className="hidden sm:flex items-center gap-1.5 mr-2">
               <Link
                 to="/portal/catalog"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                className={`min-h-[40px] flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
                   isActive("/portal/catalog") || location.pathname === "/portal"
                     ? "bg-primary/10 text-primary border border-primary/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
@@ -105,7 +105,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
               </Link>
               <Link
                 to="/portal/my-courses"
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                className={`min-h-[40px] flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
                   isActive("/portal/my-courses")
                     ? "bg-primary/10 text-primary border border-primary/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
@@ -131,7 +131,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
                 <button
                   onClick={handleLogout}
                   title="تسجيل الخروج"
-                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                  className="min-h-[40px] min-w-[40px] p-2 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                   aria-label="تسجيل الخروج"
                 >
                   <LogOut className="w-4 h-4" />
@@ -140,7 +140,7 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
             ) : (
               <Link
                 to="/portal/login"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all shadow-xs active:scale-[0.98]"
+                className="min-h-[40px] inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all shadow-xs active:scale-[0.98]"
               >
                 <LogIn className="w-3.5 h-3.5" />
                 <span>دخول الطالب</span>

@@ -205,7 +205,7 @@ const AcademyCatalogPublicPage: React.FC = () => {
                     {firstLesson && previewLessons > 0 && (
                       <Link
                         to={`/portal/course/${course.id}/lesson/${firstLesson.id}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+                        className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
                         title="مشاهدة الدرس الأول مجاناً"
                       >
                         <PlayCircle className="w-3.5 h-3.5" />
@@ -215,7 +215,7 @@ const AcademyCatalogPublicPage: React.FC = () => {
                     {isApexHost ? (
                       <a
                         href={getCourseUrl(course.id, (course as any).companySlug)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-[0.98] shadow-xs"
+                        className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-[0.98] shadow-xs"
                       >
                         <span>التفاصيل</span>
                         <ArrowLeft className="w-3.5 h-3.5" />
@@ -223,7 +223,7 @@ const AcademyCatalogPublicPage: React.FC = () => {
                     ) : (
                       <Link
                         to={`/portal/course/${course.id}`}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-[0.98] shadow-xs"
+                        className="min-h-[40px] inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all active:scale-[0.98] shadow-xs"
                       >
                         <span>التفاصيل</span>
                         <ArrowLeft className="w-3.5 h-3.5" />

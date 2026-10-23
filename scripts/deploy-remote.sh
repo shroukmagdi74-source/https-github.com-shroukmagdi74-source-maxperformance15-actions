@@ -817,6 +817,10 @@ if [ -n "$PM2_BIN" ]; then
     echo "🖼️ Updating Course 1 Thumbnail (1080x1080)..."
     NODE_ENV=production timeout 60 node scripts/update-course1-thumbnail.js || echo "⚠️ update-course1-thumbnail skipped, continuing..."
   fi
+  if [ -f "scripts/backfill-academy-lesson-order.js" ]; then
+    echo "🎓 Backfilling Course 1 Lesson Sort Order..."
+    NODE_ENV=production timeout 60 node scripts/backfill-academy-lesson-order.js || echo "⚠️ backfill-academy-lesson-order skipped, continuing..."
+  fi
 
   # Capture baseline restart count for maxp-backend
   INITIAL_RESTARTS=$(node -e '

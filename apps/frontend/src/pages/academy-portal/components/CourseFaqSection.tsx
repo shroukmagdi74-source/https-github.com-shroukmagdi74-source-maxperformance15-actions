@@ -72,7 +72,7 @@ export const CourseFaqSection: React.FC<Props> = ({ price, isFreeCourse = false 
               <button
                 type="button"
                 onClick={() => setOpenFaq(isOpen ? null : idx)}
-                className="w-full flex items-center justify-between gap-3 text-right py-2 text-xs sm:text-sm font-bold text-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-lg"
+                className="w-full min-h-[44px] flex items-center justify-between gap-3 text-right py-3 px-1 text-xs sm:text-sm font-bold text-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-lg"
               >
                 <span className="flex items-center gap-2">
                   <HelpCircle className="w-4 h-4 text-muted-foreground/70 shrink-0" />

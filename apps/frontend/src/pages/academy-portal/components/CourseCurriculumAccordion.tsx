@@ -108,7 +108,7 @@ export const CourseCurriculumAccordion: React.FC<Props> = ({
                         {canOpen ? (
                           <Link
                             to={`/portal/course/${courseId}/lesson/${lesson.id}`}
-                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                            className={`min-h-[40px] inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
                               isDone
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
                                 : lesson.isFreePreview

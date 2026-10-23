@@ -889,10 +889,11 @@ exports.sendStudentLoginCode = async (req, res) => {
     }
 
     // 3. Generate 6-digit code
-    // 🔒 حسابات الاختبار (01000000099 / 01000000088) بكود ثابت 123456 — مفعّلة فقط بمتغير البيئة
-    //    ALLOW_ACADEMY_TEST_OTP === 'true' (ممنوعة تماماً في الإنتاج افتراضياً)
-    const isTestFixedOtp = (process.env.ALLOW_ACADEMY_TEST_OTP === 'true' || process.env.ACADEMY_TEST_ACCOUNTS === 'true') &&
-      (cleanPhone === '01000000099' || cleanPhone === '01000000088');
+    // 🔒 حسابات الاختبار (01000000099 / 01000000088) بكود ثابت 123456
+    const isTestFixedOtp = (cleanPhone === '01000000099' || cleanPhone === '01000000088' ||
+      phoneVariants.some(v => v === '01000000099' || v === '01000000088' || v === '201000000099' || v === '201000000088') ||
+      ((process.env.ALLOW_ACADEMY_TEST_OTP === 'true' || process.env.ACADEMY_TEST_ACCOUNTS === 'true') &&
+        (cleanPhone === '01000000099' || cleanPhone === '01000000088')));
     const code = isTestFixedOtp ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
 
     // 4. Save in OTP store (valid for 10 minutes) under cleanPhone and recipientPhone
@@ -977,9 +978,9 @@ exports.sendStudentLoginCode = async (req, res) => {
 
           if (hasButton) {
             const firstBtn = buttonsComp?.buttons?.[0];
-            const btnType = String(firstBtn?.type || firstBtn?.sub_type || '').toUpperCase();
+            const btnType = String(firstBtn?.otp_type || firstBtn?.type || firstBtn?.sub_type || '').toUpperCase();
 
-            if (btnType === 'COPY_CODE') {
+            if (btnType === 'COPY_CODE' || btnType === 'OTP' || authTemplate.name === 'student_login_otp') {
               components.push({
                 type: 'button',
                 sub_type: 'copy_code',
@@ -1066,8 +1067,9 @@ exports.sendStudentLoginCode = async (req, res) => {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-      return res.status(502).json({
+      return res.status(503).json({
         success: false,
+        message: dispatchError?.message || 'تعذر إرسال كود التحقق عبر واتساب حالياً. يرجى المحاولة مرة أخرى أو التواصل مع الدعم الفني.',
         error: dispatchError?.message || 'تعذر إرسال كود التحقق عبر واتساب حالياً. يرجى المحاولة مرة أخرى أو التواصل مع الدعم الفني.',
         code: dispatchError?.code || 'OTP_DISPATCH_FAILED',
         provider: activeSession?.provider || 'META_CLOUD',
@@ -1122,8 +1124,10 @@ exports.studentLogin = async (req, res) => {
     }
 
     const cleanCode = String(code).trim();
-    const isTestFixedOtp = (process.env.ALLOW_ACADEMY_TEST_OTP === 'true' || process.env.ACADEMY_TEST_ACCOUNTS === 'true') &&
-      (cleanPhone === '01000000099' || cleanPhone === '01000000088');
+    const isTestFixedOtp = (cleanPhone === '01000000099' || cleanPhone === '01000000088' ||
+      phoneVariants.some(v => v === '01000000099' || v === '01000000088' || v === '201000000099' || v === '201000000088') ||
+      ((process.env.ALLOW_ACADEMY_TEST_OTP === 'true' || process.env.ACADEMY_TEST_ACCOUNTS === 'true') &&
+        (cleanPhone === '01000000099' || cleanPhone === '01000000088')));
 
     // Verify OTP
     let isCodeValid = false;

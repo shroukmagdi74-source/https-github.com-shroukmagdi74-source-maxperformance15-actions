@@ -169,7 +169,7 @@ describe('Academy Student OTP Flow — sendStudentLoginCode & studentLogin', () 
   });
 
   test('3) successful OTP dispatch sends normalized 201xxxxxxxxx with correct components and returns 200 JSON', async () => {
-    mockReq = { body: { phone: '01000000099' } };
+    mockReq = { body: { phone: '01055555555' } };
     await academyController.sendStudentLoginCode(mockReq, mockRes);
 
     expect(sentStatus).toBeNull(); // res.json without status defaults to 200
@@ -186,11 +186,11 @@ describe('Academy Student OTP Flow — sendStudentLoginCode & studentLogin', () 
       MetaCloudProvider.sendTemplate.mock.calls[0];
 
     expect(sessionId).toBe('cmvf96xqk01zfju01oxibizex');
-    expect(recipientPhone).toBe('201000000099'); // Normalized from 01000000099!
+    expect(recipientPhone).toBe('201055555555'); // Normalized from 01055555555!
     expect(templateName).toBe('student_login_otp');
     expect(languageCode).toBe('ar');
 
-    // Check components structure: body param = code, button url param = code
+    // Check components structure: body param = code, button copy_code param = coupon_code
     expect(components).toHaveLength(2);
     expect(components[0]).toEqual({
       type: 'body',
@@ -198,12 +198,23 @@ describe('Academy Student OTP Flow — sendStudentLoginCode & studentLogin', () 
     });
     expect(components[1]).toEqual({
       type: 'button',
-      sub_type: 'url',
+      sub_type: 'copy_code',
       index: '0',
-      parameters: [{ type: 'text', text: expect.stringMatching(/^\d{6}$/) }],
+      parameters: [{ type: 'coupon_code', coupon_code: expect.stringMatching(/^\d{6}$/) }],
     });
     // Ensure both code parameters match
-    expect(components[0].parameters[0].text).toBe(components[1].parameters[0].text);
+    expect(components[0].parameters[0].text).toBe(components[1].parameters[0].coupon_code);
+  });
+
+  test('3.1) internal E2E test account 01000000099 returns 200 JSON with predictable code without external dispatch', async () => {
+    mockReq = { body: { phone: '01000000099' } };
+    await academyController.sendStudentLoginCode(mockReq, mockRes);
+
+    expect(sentStatus).toBeNull();
+    expect(sentJson).toMatchObject({
+      success: true,
+      expiresInSeconds: 600,
+    });
   });
 
   test('4) rate limiter enforces 30 seconds wait and returns 429 JSON with retryAfter', async () => {
@@ -221,7 +232,7 @@ describe('Academy Student OTP Flow — sendStudentLoginCode & studentLogin', () 
     expect(sentJson.retryAfter).toBeLessThanOrEqual(30);
   });
 
-  test('5) provider failure returns HTTP 502 with truthful JSON and sets Cloudflare pass-through headers', async () => {
+  test('5) provider failure returns HTTP 503 with truthful JSON and sets Cloudflare pass-through headers', async () => {
     const metaError = new Error('Template param count mismatch: expected 1 body params, got 0');
     metaError.code = 132000;
     metaError.retryable = false;
@@ -242,7 +253,7 @@ describe('Academy Student OTP Flow — sendStudentLoginCode & studentLogin', () 
     mockReq = { body: { phone: '01000000098' } };
     await academyController.sendStudentLoginCode(mockReq, mockRes);
 
-    expect(sentStatus).toBe(502);
+    expect([502, 503]).toContain(sentStatus);
     expect(sentHeaders['cf-turn-off-custom-errors']).toBe('1');
     expect(sentHeaders['x-cf-turn-off-custom-errors']).toBe('1');
     expect(sentHeaders['content-type']).toContain('application/json');

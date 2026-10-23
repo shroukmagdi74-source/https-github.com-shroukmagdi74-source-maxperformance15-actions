@@ -86,6 +86,39 @@ const loadIndexHtml = async () => {
   );
 };
 
+function alignCspWithInlineScripts(res, htmlContent) {
+  try {
+    if (!htmlContent) return;
+    const crypto = require("crypto");
+    const scriptMatches = [...htmlContent.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+    const inlineHashes = [];
+    for (const m of scriptMatches) {
+      const scriptContent = m[1];
+      if (scriptContent && scriptContent.trim()) {
+        const hash = crypto.createHash("sha256").update(scriptContent).digest("base64");
+        inlineHashes.push(`'sha256-${hash}'`);
+      }
+    }
+    if (inlineHashes.length > 0) {
+      const currentCsp = res.getHeader("Content-Security-Policy");
+      if (currentCsp) {
+        const csps = Array.isArray(currentCsp) ? currentCsp : [String(currentCsp)];
+        const updated = csps.map((csp) => {
+          let c = csp;
+          for (const h of inlineHashes) {
+            if (!c.includes(h)) {
+              c = c.replace(/script-src\s+([^;]+)/, `script-src $1 ${h}`);
+              c = c.replace(/script-src-elem\s+([^;]+)/, `script-src-elem $1 ${h}`);
+            }
+          }
+          return c;
+        });
+        res.setHeader("Content-Security-Policy", updated);
+      }
+    }
+  } catch (_) {}
+}
+
 exports.handleStorefrontShell = async (req, res, next) => {
   if (!isHtmlRouteRequest(req)) {
     return next();
@@ -122,6 +155,9 @@ exports.handleStorefrontShell = async (req, res, next) => {
   const cacheKey = `${req.companyId}:${req.path}`;
   const cached = htmlPageCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < HTML_CACHE_TTL_MS) {
+    // Dynamic CSP alignment for inline scripts (e.g. JSON-LD metadata)
+    alignCspWithInlineScripts(res, cached.html);
+
     res.set("Content-Type", "text/html; charset=utf-8");
     res.set("X-HTML-Cache", "HIT");
     res.set(
@@ -617,6 +653,9 @@ exports.handleStorefrontShell = async (req, res, next) => {
     if (semanticSnippet && html.includes('<div id="root"></div>')) {
       html = html.replace('<div id="root"></div>', `<div id="root">${semanticSnippet}</div>`);
     }
+
+    // Dynamic CSP alignment for inline scripts (e.g. JSON-LD metadata)
+    alignCspWithInlineScripts(res, html);
 
     res.set("Content-Type", "text/html; charset=utf-8");
 

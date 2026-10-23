@@ -73,7 +73,7 @@ export const VisitorCourseLanding: React.FC<Props> = ({
           {isFreeCourse ? (
             <Link
               to={startLearningUrl}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-2xs"
+              className="min-h-[40px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-2xs"
             >
               <span>ابدأ الآن مجانًا</span>
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -82,7 +82,7 @@ export const VisitorCourseLanding: React.FC<Props> = ({
             <button
               type="button"
               onClick={onCheckout}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-2xs"
+              className="min-h-[40px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-2xs"
             >
               <span>إتمام الاشتراك — {course.price} ج.م</span>
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -145,7 +145,7 @@ export const VisitorCourseLanding: React.FC<Props> = ({
                   {firstLesson && freeLessons > 0 && (
                     <Link
                       to={`/portal/course/${course.id}/lesson/${firstLesson.id}`}
-                      className="px-5 py-3 rounded-2xl bg-muted/60 hover:bg-muted text-foreground font-bold text-xs transition-colors flex items-center gap-2"
+                      className="min-h-[44px] px-5 py-2.5 rounded-2xl bg-muted/60 hover:bg-muted text-foreground font-bold text-xs transition-colors flex items-center gap-2"
                     >
                       <PlayCircle className="w-4 h-4 text-primary" />
                       <span>معاينة أول درس</span>
@@ -158,7 +158,7 @@ export const VisitorCourseLanding: React.FC<Props> = ({
                 type="button"
                 onClick={onShare}
                 title="مشاركة رابط الكورس"
-                className="px-4 py-3 rounded-2xl border border-border bg-card hover:bg-muted/40 text-foreground font-bold text-xs transition-colors flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                className="min-h-[44px] px-4 py-2.5 rounded-2xl border border-border bg-card hover:bg-muted/40 text-foreground font-bold text-xs transition-colors flex items-center gap-1.5 active:scale-95 shadow-2xs"
               >
                 {copiedShare ? (
                   <>

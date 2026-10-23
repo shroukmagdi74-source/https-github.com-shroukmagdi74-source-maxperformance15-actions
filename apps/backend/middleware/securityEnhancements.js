@@ -318,6 +318,7 @@ const securityHeaders = (req, res, next) => {
   const INLINE_SCRIPT_HASHES = [
     "'sha256-m/WhJzqWXWLcIZXvJjjG7sSATMoO3wXPIerAcbnZoMM='",
     "'sha256-mmS9HhnyD6ltKC5u9zc0Y/jTrAHsA7eDDJ018bmfJCk='",
+    "'sha256-feEuQv7l32vC7doZlINCILghYVn48CunOf+8E/ZKRoY='",
   ];
 
   const contentSecurityPolicy = [
