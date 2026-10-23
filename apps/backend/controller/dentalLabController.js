@@ -5781,11 +5781,17 @@ const getMyInfo = async (req, res) => {
       }
 
       const trialEnded = Boolean(company.trialEndsAt && now > new Date(company.trialEndsAt));
-      if (trialEnded && !hasPaidSub && !dentalApp?.validUntil) {
+      const hasDentalFutureValidity = Boolean(dentalApp?.validUntil && new Date(dentalApp.validUntil) > now);
+      if (trialEnded && !hasPaidSub && !hasDentalFutureValidity) {
         isExpired = true;
       }
 
-      if (pSub?.status === 'SUSPENDED' || pSub?.status === 'CANCELLED' || dentalApp?.status === 'EXPIRED' || dentalApp?.status === 'SUSPENDED') {
+      if (
+        pSub?.status === 'SUSPENDED' ||
+        pSub?.status === 'CANCELLED' ||
+        (dentalApp?.status === 'EXPIRED' && !hasDentalFutureValidity) ||
+        dentalApp?.status === 'SUSPENDED'
+      ) {
         isExpired = true;
       }
 

@@ -156,8 +156,18 @@ const isCompanyAppInstallationValid = (ca, company = null) => {
     return true;
   }
   const statusUpper = String(ca.status || '').trim().toUpperCase();
+  const now = new Date();
+  const hasOwnFutureValidity = Boolean(ca.validUntil && new Date(ca.validUntil) > now);
+  const hasOwnFutureBilling = Boolean(ca.nextBillingAt && new Date(ca.nextBillingAt) > now);
+
   if (!['ACTIVE', 'TRIAL'].includes(statusUpper)) {
-    return false;
+    // If an app was marked EXPIRED by an overly strict guard, but possesses a valid future
+    // expiration or billing date (e.g. paid monthly/yearly subscription), treat it as valid.
+    if (statusUpper === 'EXPIRED' && (hasOwnFutureValidity || hasOwnFutureBilling)) {
+      // Valid future subscription exists!
+    } else {
+      return false;
+    }
   }
 
   const appSlug = String(ca.app?.slug || ca.slug || '').trim().toLowerCase();
@@ -216,9 +226,6 @@ const isCompanyAppInstallationValid = (ca, company = null) => {
   }
 
   if (isPaidApp) {
-    const hasOwnFutureValidity = Boolean(ca.validUntil && new Date(ca.validUntil) > now);
-    const hasOwnFutureBilling = Boolean(ca.nextBillingAt && new Date(ca.nextBillingAt) > now);
-
     if (trialEnded && !hasOwnFutureValidity && !hasOwnFutureBilling) {
       const pSub = company?.platformSubscription;
       const isFeeActive = Number(pSub?.monthlyFee || 0) > 0 && pSub?.status === 'ACTIVE' && (!pSub?.nextBillingDate || new Date(pSub.nextBillingDate) > now);
@@ -244,7 +251,7 @@ const isCompanyAppInstallationValid = (ca, company = null) => {
     }
   }
 
-  if (DENTAL_LAB_SLUGS.has(appSlug) && company?.platformSubscription) {
+  if (DENTAL_LAB_SLUGS.has(appSlug) && !hasOwnFutureValidity && !hasOwnFutureBilling && company?.platformSubscription) {
     const pSub = company.platformSubscription;
     const pSubStatus = String(pSub.status || '').trim().toUpperCase();
     if (['SUSPENDED', 'CANCELLED', 'EXPIRED'].includes(pSubStatus)) {
@@ -478,16 +485,35 @@ const checkAppAccess = (appSlug) => {
           }
         }
 
+        const hasOwnFutureValidity = Boolean(
+          companyAppRecord.validUntil && new Date(companyAppRecord.validUntil) > new Date()
+        );
+        const hasOwnFutureBilling = Boolean(
+          companyAppRecord.nextBillingAt && new Date(companyAppRecord.nextBillingAt) > new Date()
+        );
+
         if (!['TRIAL', 'ACTIVE'].includes(companyAppRecord.status) && !hasAppBypassException(recordWithApp, company)) {
-          if (candidateApp.slug === primarySlug) {
-            primaryAppExplicitlyInactive = true;
+          // If status was marked EXPIRED due to prior guard flaw, but record has an active validUntil/nextBillingAt,
+          // auto-heal status to ACTIVE so the paid subscriber is not blocked.
+          if (companyAppRecord.status === 'EXPIRED' && (hasOwnFutureValidity || hasOwnFutureBilling)) {
+            executeWithRetry(async () => {
+              return await getSharedPrismaClient().companyApp.update({
+                where: { id: companyAppRecord.id },
+                data: { status: 'ACTIVE' }
+              });
+            }).catch((err) => console.error('[checkAppAccess] Auto-heal to ACTIVE failed:', err.message));
+            companyAppRecord.status = 'ACTIVE';
+          } else {
+            if (candidateApp.slug === primarySlug) {
+              primaryAppExplicitlyInactive = true;
+            }
+            // Track the best error to show later (prefer primary app error)
+            if (!matchedApp || candidateApp.slug === primarySlug) {
+              matchedApp = candidateApp;
+              matchedCompanyApp = companyAppRecord;
+            }
+            continue;
           }
-          // Track the best error to show later (prefer primary app error)
-          if (!matchedApp || candidateApp.slug === primarySlug) {
-            matchedApp = candidateApp;
-            matchedCompanyApp = companyAppRecord;
-          }
-          continue;
         }
 
         // Check trial & subscription expiry (validUntil / nextBillingAt / platformSubscription)
