@@ -114,8 +114,6 @@ ADVANCED_TOOL_NAMES: set[str] = {
     "inventory_variant_stock_scan",
     "inventory_burn_rate_forecast",
     # Store Suite (Complete Store Bundle)
-    "bot_automation_manage",
-    "returns_settings_manage",
     "unified_inbox_manage",
     "facebook_pages_connected_list",
 }
@@ -201,6 +199,8 @@ WRITE_TOOL_NAMES: set[str] = {
     # Store Suite writes
     "orders_bulk_status_update",
     "order_set_preparation_hold",
+    "bot_automation_manage",
+    "returns_settings_manage",
 }
 
 DIRECT_WRITE_TOOL_NAMES: set[str] = {
@@ -217,6 +217,7 @@ DIRECT_WRITE_TOOL_NAMES: set[str] = {
     "shipping_ticket_create",
     "shipping_ticket_reply",
     "order_target_settings",
+    "manage_todo",
 }
 
 
@@ -228,17 +229,18 @@ DIRECT_WRITE_TOOL_NAMES: set[str] = {
 MUTATING_NAME_TOKENS: frozenset[str] = frozenset({
     "create", "update", "delete", "remove", "cancel", "refund", "adjust",
     "configure", "toggle", "send", "broadcast", "publish", "spawn", "reserve",
-    "enroll", "schedule", "record", "set", "reply",
+    "enroll", "schedule", "record", "set", "reply", "manage", "settings",
 })
 
 
 def unclassified_mutating_tools() -> list[str]:
     """Mutating-named tools missing from both approval classification lists.
 
-    Matching is segment-based (underscore/dot split), so `payment_settings_read`
-    (segment "settings") does not match "set". Scoped to SkillRegistry domain
-    tools (the chat-pipeline surface); dotted manager_tools live outside the
-    SkillRegistry and are unreachable there.
+    Matching is segment-based (underscore/dot split). Explicit read-oriented tools
+    (containing segment "read", e.g. `payment_settings_read`, `affiliate_settings_read`)
+    and read telemetry (`unified_inbox_manage`) are non-mutating reads.
+    Scoped to SkillRegistry domain tools (the chat-pipeline surface); dotted
+    manager_tools live outside the SkillRegistry and are unreachable there.
     """
     from src.tools.names import canonical_tool_name
 
@@ -247,6 +249,9 @@ def unclassified_mutating_tools() -> list[str]:
     for tool in _registry.get_all_tools():
         canonical = canonical_tool_name(tool.name)
         segments = set(canonical.lower().replace(".", "_").split("_"))
+        # Explicit read-oriented tools and pure telemetry are non-mutating
+        if "read" in segments or canonical in {"unified_inbox_manage"}:
+            continue
         if segments & MUTATING_NAME_TOKENS and canonical not in classified:
             offending.append(canonical)
     return sorted(offending)

@@ -115,6 +115,23 @@ const skillSet = new Set(allSkillDirs);
 
 for (const agentDir of agentDirs) {
   if (agentDir.startsWith(".")) continue;
+  // Guard: Ban C0 control characters in agent markdown contracts
+  const AGENT_DOC_FILES = ["SOUL.md", "TOOLS.md", "AGENTS.md", "PERSONA.md"];
+  const C0_CONTROL_REGEX = /[\x00-\x08\x0b\x0c\x0e-\x1f]/;
+  for (const docFile of AGENT_DOC_FILES) {
+    const docPath = path.join(AGENTS_DIR, agentDir, docFile);
+    if (!fs.existsSync(docPath)) continue;
+    const docContent = fs.readFileSync(docPath, "utf-8");
+    const docLines = docContent.split("\n");
+    for (let i = 0; i < docLines.length; i++) {
+      const match = docLines[i].match(C0_CONTROL_REGEX);
+      if (match) {
+        const charCode = match[0].charCodeAt(0);
+        err(`${agentDir}/${docFile}:${i + 1}: contains forbidden C0 control character U+${charCode.toString(16).padStart(4, "0").toUpperCase()}`);
+      }
+    }
+  }
+
   const agentJsonPath = path.join(AGENTS_DIR, agentDir, "agent.json");
   if (!fs.existsSync(agentJsonPath)) {
     err(`${agentDir}/agent.json missing`);

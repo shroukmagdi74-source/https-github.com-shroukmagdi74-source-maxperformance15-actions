@@ -40,9 +40,9 @@
  *    - Valid inputs with realistic Egyptian e-commerce payloads
  *    - Invalid inputs: Missing required fields, invalid enum/literal values, bad data types
  * 3. Approval Gates Verification:
- *    - WRITE_TOOL_NAMES (always_require): orders_bulk_status_update, order_set_preparation_hold, order_cancel, inventory_adjust, conversion_tool_toggle
+ *    - WRITE_TOOL_NAMES (always_require): orders_bulk_status_update, order_set_preparation_hold, order_cancel, inventory_adjust, conversion_tool_toggle, bot_automation_manage, returns_settings_manage
  *    - DIRECT_WRITE_TOOL_NAMES (never_require): order_confirm, order_update_details
- *    - READ_TOOL_NAMES (never_require): all read & analytics tools
+ *    - READ_TOOL_NAMES (never_require): all read & analytics tools (pure queries without PUT/POST/PATCH mutations)
  * 4. Backend Route & Guard Verification:
  *    - /api/v1/orders/bulk/status
  *    - /api/v1/returns/settings & /api/v1/returns/reasons
@@ -421,6 +421,8 @@ const MANDATORY_GATED_TOOLS = [
   { name: 'order_cancel', appId: 'order-workflow', reason: 'إلغاء الطلبات المسجلة' },
   { name: 'inventory_adjust', appId: 'inventory-pro', reason: 'تعديل رصيد المخزون اليدوي' },
   { name: 'conversion_tool_toggle', appId: 'store', reason: 'تشغيل أو إيقاف أدوات ترويجية في المتجر' },
+  { name: 'bot_automation_manage', appId: 'bot-automation', reason: 'تعديل إعدادات ورسائل ردود الشات التلقائي' },
+  { name: 'returns_settings_manage', appId: 'returns-settings', reason: 'تعديل سياسات وقوانين ونافذة أيام المرتجعات' },
 ];
 
 for (const tool of MANDATORY_GATED_TOOLS) {
@@ -448,6 +450,61 @@ for (const tool of DIRECT_EXECUTION_TOOLS) {
     `أداة التشغيل المباشر [${tool.name}] مسجلة في DIRECT_WRITE_TOOL_NAMES (never_require)`,
     `سبب التشغيل المباشر: ${tool.reason}`,
     `الأداة مفقودة من DIRECT_WRITE_TOOL_NAMES!`
+  );
+}
+
+// 3. Static Analysis Security Gateway: Any tool calling _request("PUT"|"POST"|"PATCH") MUST be in WRITE_TOOL_NAMES or DIRECT_WRITE_TOOL_NAMES
+console.log('\n🔒 [بوابة فحص الاستدعاءات التعديلية] التحقق التلقائي من تصنيف كافة أدوات PUT/POST/PATCH:');
+const classifiedWriteToolsSet = new Set([...writeToolsSet, ...directWriteToolsSet]);
+const defFiles = fs.readdirSync(TOOLS_DEF_DIR).filter(f => f.endsWith('.py') && f !== '__init__.py');
+const scannedMutatingTools = [];
+
+for (const f of defFiles) {
+  const fullPath = path.join(TOOLS_DEF_DIR, f);
+  const code = fs.readFileSync(fullPath, 'utf8').replace(/\r\n/g, '\n');
+  const lines = code.split('\n');
+  const toolMappings = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('FunctionTool(')) {
+      let block = lines[i];
+      let j = i + 1;
+      while (j < lines.length && !lines[j].match(/^[a-zA-Z0-9_]+Tool\b|^[a-zA-Z0-9_]+_tool\s*=|\n__all_tools__\s*=/)) {
+        block += '\n' + lines[j];
+        if (lines[j].trim() === ')' || lines[j].trim() === '),') {
+          break;
+        }
+        j++;
+      }
+      const nameMatch = block.match(/name\s*=\s*["']([^"']+)["']/);
+      const funcMatch = block.match(/(?:func|fn)\s*=\s*([a-zA-Z0-9_]+)/);
+      if (nameMatch && funcMatch) {
+        toolMappings.push({ toolName: nameMatch[1], fnName: funcMatch[1] });
+      }
+    }
+  }
+
+  for (const { toolName, fnName } of toolMappings) {
+    const fnRegex = new RegExp(`(?:async\\s+)?def\\s+${fnName}\\s*\\([\\s\\S]*?:([\\s\\S]*?)(?=\\n(?:async\\s+)?def|\\nclass\\s+|\\n[a-zA-Z0-9_]+(?:_tool)?\\s*=|\\n__all_tools__|$)`);
+    const fnMatch = code.match(fnRegex);
+    if (fnMatch) {
+      const fnBody = fnMatch[1];
+      const mutatingMatches = [...fnBody.matchAll(/_request\(\s*["'](PUT|POST|PATCH)["']/gi)];
+      if (mutatingMatches.length > 0) {
+        const methods = [...new Set(mutatingMatches.map(m => m[1].toUpperCase()))];
+        scannedMutatingTools.push({ toolName, file: f, methods });
+      }
+    }
+  }
+}
+
+for (const mt of scannedMutatingTools) {
+  const isClassified = classifiedWriteToolsSet.has(mt.toolName);
+  assertTest(
+    isClassified,
+    'security-gateway',
+    `أداة التعديل [${mt.toolName}] مصنفة في قوائم الكتابة (WRITE أو DIRECT_WRITE)`,
+    `طرق التعديل المستخدمة [${mt.methods.join(', ')}] في ملف ${mt.file}`,
+    `ثغرة أمنية حرجة! الأداة [${mt.toolName}] في ${mt.file} تنفذ [${mt.methods.join(', ')}] لكنها غير مصنفة في WRITE_TOOL_NAMES أو DIRECT_WRITE_TOOL_NAMES!`
   );
 }
 

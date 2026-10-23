@@ -46,10 +46,10 @@ describe('Saleem Complete Store Bundle (17 Apps) — End-to-End Intent & Tool Si
     {
       appId: 'bot-automation',
       appName: 'أتمتة المحادثات والردود',
-      prompt: 'شوف إعدادات ردود الشات التلقائي ورسالة الترحيب',
+      prompt: 'عدل رسالة الترحيب في الشات التلقائي وخليها أهلاً بك في متجرنا',
       expectedTools: ['bot_automation_manage'],
-      requiresApproval: false,
-      samplePayload: { action: 'get_settings' },
+      requiresApproval: true,
+      samplePayload: { action: 'update_settings', welcome_message: 'أهلاً بك في متجرنا' },
     },
     {
       appId: 'bulk-orders',
@@ -86,10 +86,10 @@ describe('Saleem Complete Store Bundle (17 Apps) — End-to-End Intent & Tool Si
     {
       appId: 'returns-settings',
       appName: 'إعدادات المرتجعات',
-      prompt: 'إيه سياسة الاسترجاع وفترة السماح المحددة بالمتجر؟',
+      prompt: 'عدل سياسة الاسترجاع وخلي فترة السماح بالمتجر 14 يوم',
       expectedTools: ['returns_settings_manage'],
-      requiresApproval: false,
-      samplePayload: { action: 'get_settings' },
+      requiresApproval: true,
+      samplePayload: { action: 'update_settings', return_window_days: 14 },
     },
     {
       appId: 'returns-reasons-analytics',
@@ -179,12 +179,14 @@ describe('Saleem Complete Store Bundle (17 Apps) — End-to-End Intent & Tool Si
 
   test('write/mutation tools correctly trigger approval requirements', () => {
     const gatedApps = SIMULATION_SCENARIOS.filter(s => s.requiresApproval);
-    expect(gatedApps.length).toBeGreaterThanOrEqual(3);
+    expect(gatedApps.length).toBeGreaterThanOrEqual(5);
 
     const gatedAppIds = gatedApps.map(g => g.appId);
     expect(gatedAppIds).toContain('store');
     expect(gatedAppIds).toContain('bulk-orders');
     expect(gatedAppIds).toContain('order-preparation-hold');
+    expect(gatedAppIds).toContain('bot-automation');
+    expect(gatedAppIds).toContain('returns-settings');
   });
 
   test('all sample payloads contain valid structured attributes without free-form prompts', () => {
