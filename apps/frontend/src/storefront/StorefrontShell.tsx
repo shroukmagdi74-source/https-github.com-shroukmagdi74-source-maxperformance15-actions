@@ -891,15 +891,32 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
       </div>
     </div>
   );
+  const isHomeDraft =
+    (theme.pages?.home as any)?.status === "draft" ||
+    ((settings as any)?.designTokens?.pages?.home as any)?.status === "draft";
+
+  const homeDraftBadge = isHomeDraft ? (
+    <div
+      data-testid="draft-preview-badge"
+      className="w-full bg-amber-500/15 border-b border-amber-500/30 text-amber-900 dark:text-amber-200 px-4 py-2 text-center text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 sticky top-0 z-50 backdrop-blur-xs"
+    >
+      <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+      <span>معاينة — مسودة غير منشورة</span>
+    </div>
+  ) : null;
+
   const homePageElement = (
-    <PageComposer
-      key={`home:${routePageKey}`}
-      pageConfig={theme.pages.home}
-      layout={resolveStorefrontPageLayout(theme.pages.home)}
-      runtimeText={runtimeText}
-      renderSectionFrame={StorefrontSectionFrame}
-      locale={currentLocale}
-    />
+    <div className="w-full">
+      {homeDraftBadge}
+      <PageComposer
+        key={`home:${routePageKey}`}
+        pageConfig={theme.pages.home}
+        layout={resolveStorefrontPageLayout(theme.pages.home)}
+        runtimeText={runtimeText}
+        renderSectionFrame={StorefrontSectionFrame}
+        locale={currentLocale}
+      />
+    </div>
   );
   const shopPageElement = (
     <div key={`shop:${routePageKey}`} className="w-full flex flex-col">

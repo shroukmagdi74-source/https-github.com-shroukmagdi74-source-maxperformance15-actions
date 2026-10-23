@@ -364,7 +364,8 @@ const StorefrontHeader: React.FC<{
       ...(((settings as any)?.designTokens?.pages) || {}),
     };
 
-    const keysToCheck = [stripped, withoutPages, clean];
+    const isHome = clean === '/' || clean === '' || stripped === '' || stripped === 'home' || withoutPages === 'home';
+    const keysToCheck = [isHome ? 'home' : null, stripped, withoutPages, clean, clean.replace(/\/$/, '').split('/').pop()].filter(Boolean);
     for (const key of keysToCheck) {
       if (key && allPages[key] && allPages[key].status === "draft") {
         return true;

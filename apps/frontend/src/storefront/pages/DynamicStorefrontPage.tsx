@@ -59,8 +59,26 @@ const DynamicStorefrontPage: React.FC = () => {
     shouldFetchDbPage ? settings?.company?.id : undefined,
   );
 
-  // Sync dynamic page metadata with browser head (including PAGE-1 SEO)
+  // Sync dynamic page metadata with browser head (including PAGE-1 & PAGE-1.2 SEO + unmount cleanup)
   useEffect(() => {
+    const prevTitle = typeof document !== "undefined" ? document.title : "";
+
+    const prevRobotsEl = typeof document !== "undefined" ? document.querySelector<HTMLMetaElement>('meta[name="robots"]') : null;
+    const prevRobots = prevRobotsEl ? prevRobotsEl.getAttribute("content") : null;
+    const hadRobots = Boolean(prevRobotsEl);
+
+    const prevDescEl = typeof document !== "undefined" ? document.querySelector<HTMLMetaElement>('meta[name="description"]') : null;
+    const prevDesc = prevDescEl ? prevDescEl.getAttribute("content") : null;
+    const hadDesc = Boolean(prevDescEl);
+
+    const prevCanonicalEl = typeof document !== "undefined" ? document.querySelector<HTMLLinkElement>('link[rel="canonical"]') : null;
+    const prevCanonical = prevCanonicalEl ? prevCanonicalEl.getAttribute("href") : null;
+    const hadCanonical = Boolean(prevCanonicalEl);
+
+    const prevOgImageEl = typeof document !== "undefined" ? document.querySelector<HTMLMetaElement>('meta[property="og:image"]') : null;
+    const prevOgImage = prevOgImageEl ? prevOgImageEl.getAttribute("content") : null;
+    const hadOgImage = Boolean(prevOgImageEl);
+
     const rawStoreName =
       settings?.storefront?.settings?.["storeName"] ||
       (settings?.storefront as Record<string, any> | undefined)?.["name"] ||
@@ -128,7 +146,7 @@ const DynamicStorefrontPage: React.FC = () => {
       canonicalEl.setAttribute("href", currentSeo.canonical.trim());
     }
 
-    // 5. Noindex
+    // 5. Noindex (sets noindex; on full Shell StorefrontHead sets noindex, nofollow)
     let robotsEl = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (currentSeo?.noindex) {
       if (!robotsEl) {
@@ -137,9 +155,52 @@ const DynamicStorefrontPage: React.FC = () => {
         document.head.appendChild(robotsEl);
       }
       robotsEl.setAttribute("content", "noindex");
-    } else if (robotsEl && robotsEl.getAttribute("content") === "noindex") {
+    } else if (robotsEl && (robotsEl.getAttribute("content") === "noindex" || robotsEl.getAttribute("content") === "noindex, nofollow")) {
       robotsEl.remove();
     }
+
+    // Cleanup on unmount: restore original metadata
+    return () => {
+      if (typeof document !== "undefined") {
+        document.title = prevTitle;
+
+        const currentRobotsEl = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+        if (currentRobotsEl) {
+          if (hadRobots && prevRobots !== null) {
+            currentRobotsEl.setAttribute("content", prevRobots);
+          } else {
+            currentRobotsEl.remove();
+          }
+        }
+
+        const currentDescEl = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+        if (currentDescEl) {
+          if (hadDesc && prevDesc !== null) {
+            currentDescEl.setAttribute("content", prevDesc);
+          } else {
+            currentDescEl.remove();
+          }
+        }
+
+        const currentCanonicalEl = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+        if (currentCanonicalEl) {
+          if (hadCanonical && prevCanonical !== null) {
+            currentCanonicalEl.setAttribute("href", prevCanonical);
+          } else {
+            currentCanonicalEl.remove();
+          }
+        }
+
+        const currentOgImageEl = document.querySelector<HTMLMetaElement>('meta[property="og:image"]');
+        if (currentOgImageEl) {
+          if (hadOgImage && prevOgImage !== null) {
+            currentOgImageEl.setAttribute("content", prevOgImage);
+          } else {
+            currentOgImageEl.remove();
+          }
+        }
+      }
+    };
   }, [dbPage, settings, theme, hasSections, localizedPageConfig, pageConfig, pageSlug]);
 
   const isDraft =
