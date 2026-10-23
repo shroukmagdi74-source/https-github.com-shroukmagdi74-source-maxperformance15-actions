@@ -1,0 +1,126 @@
+/**
+ * Storefront Section Animations (Ticket ANIM-1)
+ * Entrance (Scroll Reveal), Hover Interactions, and Lightweight Parallax
+ * Zero layout-shift: strictly hardware-accelerated transform & opacity
+ */
+
+:root {
+  --sf-anim-duration: 600ms;
+  --sf-anim-delay: 0ms;
+  --sf-parallax-y: 0px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 1. Entrance Animations (Scroll Reveal via IntersectionObserver)
+ * ───────────────────────────────────────────────────────────── */
+
+[data-anim-in]:not([data-anim-in="none"]),
+.sf-anim-entrance {
+  will-change: transform, opacity;
+  transition-property: transform, opacity;
+  transition-duration: var(--sf-anim-duration, 600ms);
+  transition-delay: var(--sf-anim-delay, 0ms);
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Fade */
+[data-anim-in="fade"] {
+  opacity: 0;
+}
+[data-anim-in="fade"].is-visible {
+  opacity: 1;
+}
+
+/* Slide Up */
+[data-anim-in="slide-up"] {
+  opacity: 0;
+  transform: translateY(30px);
+}
+[data-anim-in="slide-up"].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Slide Right */
+[data-anim-in="slide-right"] {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+[data-anim-in="slide-right"].is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Zoom */
+[data-anim-in="zoom"] {
+  opacity: 0;
+  transform: scale(0.95);
+}
+[data-anim-in="zoom"].is-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 2. Hover Interactions
+ * ───────────────────────────────────────────────────────────── */
+
+/* Lift */
+[data-anim-hover="lift"] {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-anim-hover="lift"]:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.12), 0 4px 6px -4px rgba(0, 0, 0, 0.06);
+}
+
+/* Scale */
+[data-anim-hover="scale"] {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-anim-hover="scale"]:hover {
+  transform: scale(1.02);
+}
+
+/* Glow */
+[data-anim-hover="glow"] {
+  transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-anim-hover="glow"]:hover {
+  box-shadow: 0 0 25px -5px var(--store-accent, #2b6cf6);
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 3. Lightweight Parallax (Scroll Driven)
+ * ───────────────────────────────────────────────────────────── */
+
+[data-parallax="true"] {
+  will-change: transform;
+  transform: translateY(var(--sf-parallax-y, 0px));
+}
+
+/* Combined Parallax + Hover */
+[data-parallax="true"][data-anim-hover="lift"]:hover {
+  transform: translateY(calc(var(--sf-parallax-y, 0px) - 4px));
+}
+[data-parallax="true"][data-anim-hover="scale"]:hover {
+  transform: translateY(var(--sf-parallax-y, 0px)) scale(1.02);
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * 4. Accessibility: Strict prefers-reduced-motion compliance
+ * ───────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-anim-in],
+  [data-anim-hover],
+  [data-parallax],
+  .sf-anim-entrance,
+  .is-visible {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+    box-shadow: none !important;
+  }
+}

@@ -20,7 +20,8 @@ export type StudioInspectorTab =
   | "style"
   | "visibility"
   | "i18n"
-  | "analytics";
+  | "analytics"
+  | "animation";
 
 export type StudioZoomLevel = number;
 

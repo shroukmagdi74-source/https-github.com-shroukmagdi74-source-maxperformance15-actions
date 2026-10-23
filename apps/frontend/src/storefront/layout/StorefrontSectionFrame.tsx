@@ -1,10 +1,11 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import type { StorefrontPageConfig, StorefrontPageLayout } from "../types/theme.types";
 import { useStorefrontTheme } from "../engine/ThemeProvider";
 import type { RenderSectionFrameArgs } from "../engine/PageComposer";
 import { buildSectionStyle, hasDeviceOverrides, generateResponsiveCss } from "../studio/utils/studioStyleUtils";
 import { useCurrentBreakpoint } from "../hooks/useCurrentBreakpoint";
 import { observeSectionView, trackClick } from "../analytics/beacon";
+import "../styles/storefront-animations.css";
 
 export const resolveStorefrontPageLayout = (
   pageConfig: StorefrontPageConfig | undefined,
@@ -14,6 +15,30 @@ export const resolveStorefrontPageLayout = (
 export const REVEAL_ENABLED_THEMES = new Set<string>(['soft-graceful']);
 export const isRevealEnabledTheme = (themeId?: string) =>
   Boolean(themeId) && REVEAL_ENABLED_THEMES.has(String(themeId));
+
+export type AnimationEntranceType = "fade" | "slide-up" | "slide-right" | "zoom" | "none";
+export type AnimationHoverType = "none" | "lift" | "scale" | "glow";
+
+export interface SectionAnimationSettings {
+  entrance?: {
+    type?: AnimationEntranceType;
+    duration?: number;
+    delay?: number;
+  };
+  hover?: AnimationHoverType;
+  parallax?: boolean;
+}
+
+export const isReducedMotionActive = (): boolean => {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+};
 
 export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
   element,
@@ -55,6 +80,95 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const sectionType = typeof sectionEntry === "string" ? sectionEntry : sectionEntry?.type;
 
+  // ─────────────────────────────────────────────────────────────
+  // Ticket ANIM-1: Animations (Entrance, Hover, Parallax)
+  // ─────────────────────────────────────────────────────────────
+  const animConfig: SectionAnimationSettings | undefined = settings?.animation;
+  const rawEntranceType = animConfig?.entrance?.type;
+  const hasEntrance = Boolean(rawEntranceType && rawEntranceType !== "none");
+  const entranceType: AnimationEntranceType = hasEntrance ? rawEntranceType! : "none";
+  const entranceDuration = Math.max(
+    200,
+    Math.min(1200, Number(animConfig?.entrance?.duration ?? 600))
+  );
+  const entranceDelay = Math.max(
+    0,
+    Math.min(800, Number(animConfig?.entrance?.delay ?? 0))
+  );
+  const hoverType: AnimationHoverType =
+    animConfig?.hover && animConfig.hover !== "none" ? animConfig.hover : "none";
+  const hasParallax = Boolean(animConfig?.parallax);
+
+  const reducedMotion = isReducedMotionActive();
+
+  const [isVisible, setIsVisible] = useState<boolean>(() => {
+    if (!hasEntrance || reducedMotion) return true;
+    return false;
+  });
+
+  const [parallaxY, setParallaxY] = useState<number>(0);
+
+  // Entrance scroll observer (IntersectionObserver with threshold 0.15)
+  useEffect(() => {
+    if (!hasEntrance || isReducedMotionActive()) {
+      setIsVisible(true);
+      return;
+    }
+    const el = sectionRef.current;
+    if (!el) return;
+
+    if (typeof IntersectionObserver === "undefined") {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasEntrance, sectionKey]);
+
+  // Lightweight parallax (passive scroll listener with requestAnimationFrame)
+  useEffect(() => {
+    if (!hasParallax || isReducedMotionActive()) {
+      setParallaxY(0);
+      return;
+    }
+
+    let rafId: number | null = null;
+    const handleScroll = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const el = sectionRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const winHeight = window.innerHeight || 800;
+        const progress = (rect.top + rect.height / 2 - winHeight / 2) / winHeight;
+        const clamped = Math.max(-1, Math.min(1, progress));
+        const offset = Math.round(-clamped * 15);
+        setParallaxY(offset);
+      });
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [hasParallax]);
+
   useEffect(() => {
     if (!sectionRef.current) return;
     const pageKey =
@@ -76,6 +190,58 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
     }
   };
 
+  // Compute animation inline styles
+  const animStyle: React.CSSProperties = {};
+  if (!reducedMotion) {
+    if (hasEntrance) {
+      (animStyle as any)["--sf-anim-duration"] = `${entranceDuration}ms`;
+      (animStyle as any)["--sf-anim-delay"] = `${entranceDelay}ms`;
+      animStyle.transitionDuration = `${entranceDuration}ms`;
+      animStyle.transitionDelay = `${entranceDelay}ms`;
+
+      if (!isVisible) {
+        animStyle.opacity = 0;
+        if (entranceType === "slide-up") {
+          animStyle.transform = "translateY(30px)";
+        } else if (entranceType === "slide-right") {
+          animStyle.transform = "translateX(-30px)";
+        } else if (entranceType === "zoom") {
+          animStyle.transform = "scale(0.95)";
+        }
+      } else {
+        animStyle.opacity = 1;
+        if (hasParallax && parallaxY !== 0) {
+          animStyle.transform = `translateY(${parallaxY}px)`;
+        } else if (entranceType === "slide-up") {
+          animStyle.transform = "translateY(0)";
+        } else if (entranceType === "slide-right") {
+          animStyle.transform = "translateX(0)";
+        } else if (entranceType === "zoom") {
+          animStyle.transform = "scale(1)";
+        }
+      }
+    } else if (hasParallax && parallaxY !== 0) {
+      animStyle.transform = `translateY(${parallaxY}px)`;
+    }
+  }
+
+  if (hasParallax) {
+    (animStyle as any)["--sf-parallax-y"] = `${parallaxY}px`;
+  }
+
+  const animClasses = [
+    hasEntrance ? "sf-anim-entrance" : "",
+    hasEntrance && isVisible ? "is-visible" : "",
+    hoverType !== "none" ? `sf-anim-hover-${hoverType}` : "",
+    hasParallax ? "sf-anim-parallax" : "",
+  ].filter(Boolean).join(" ");
+
+  const combinedClassName = [
+    reveal ? `sf-reveal` : "",
+    index > 0 ? "mt-6 sm:mt-12" : "",
+    animClasses,
+  ].filter(Boolean).join(" ");
+
   return (
     <div
       ref={sectionRef}
@@ -86,14 +252,19 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
       data-section-type={typeof sectionEntry === "string" ? sectionEntry : sectionEntry?.type}
       data-device-breakpoint={currentBreakpoint}
       data-has-responsive={hasResponsive ? "true" : undefined}
+      data-anim-in={entranceType}
+      data-anim-hover={hoverType}
+      data-parallax={hasParallax ? "true" : "false"}
+      data-anim-visible={hasEntrance ? (isVisible ? "true" : "false") : undefined}
       style={{
         fontFamily: pageStyleVars?.['--store-font-family'] || 'var(--store-font-family, inherit)',
         fontSize: pageStyleVars?.['--store-font-size-base'] || 'var(--store-font-size-base, inherit)',
         lineHeight: pageStyleVars?.['--store-line-height'] || 'var(--store-line-height, inherit)',
         letterSpacing: pageStyleVars?.['--store-letter-spacing'] ?? '0',
         ...sectionStyle,
+        ...animStyle,
       }}
-      className={reveal ? `sf-reveal ${index > 0 ? 'mt-6 sm:mt-12' : ''}` : index > 0 ? 'mt-6 sm:mt-12' : ''}
+      className={combinedClassName}
       data-reveal-delay={reveal ? (index % 5) + 1 : undefined}
     >
       {responsiveCss && (

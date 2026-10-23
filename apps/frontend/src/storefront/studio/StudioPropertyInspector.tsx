@@ -11,6 +11,7 @@ import {
   TagIcon,
   GlobeAltIcon,
   ChartBarIcon,
+  PlayIcon,
 } from "@heroicons/react/24/outline";
 import { getStorefrontSectionLabel } from "../sections/manifest";
 import type { StudioInspectorTab, StudioDeviceMode, StudioSelectedElement } from "./StudioTypes";
@@ -21,6 +22,7 @@ import { StudioInspectorContentTab } from "./inspector/StudioInspectorContentTab
 import { StudioInspectorAiTab } from "./inspector/StudioInspectorAiTab";
 import { StudioI18nTab } from "./StudioI18nTab";
 import { StudioInspectorAnalyticsTab } from "./inspector/StudioInspectorAnalyticsTab";
+import { StudioAnimationControls } from "./inspector/StudioAnimationControls";
 import { resolveEffectiveSectionSettings, hasDeviceOverrides, getDeviceOverridesCount } from "./utils/studioStyleUtils";
 
 interface StudioPropertyInspectorProps {
@@ -113,6 +115,7 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
   }> = [
     { id: "design", label: "تصميم", icon: PaintBrushIcon },
     { id: "layout", label: "تخطيط", icon: Squares2X2Icon },
+    { id: "animation", label: "حركة", icon: PlayIcon },
     { id: "content", label: "محتوى", icon: DocumentTextIcon },
     { id: "interactions", label: "تجاوب", icon: SparklesIcon },
     { id: "i18n" as StudioInspectorTab, label: "اللغة", icon: GlobeAltIcon },
@@ -221,7 +224,13 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
             <button
               key={tab.id}
               type="button"
-              data-testid={tab.id === "analytics" ? "studio-analytics-tab" : undefined}
+              data-testid={
+                tab.id === "animation"
+                  ? "studio-animation-tab"
+                  : tab.id === "analytics"
+                  ? "studio-analytics-tab"
+                  : undefined
+              }
               onClick={() => {
                 setActiveTab(tab.id);
                 onClearSelectedElement?.();
@@ -532,6 +541,15 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
                   onBatchUpdateFields={onBatchUpdateFields}
                 />
               )
+            )}
+
+            {activeTab === "animation" && (
+              <StudioAnimationControls
+                settings={settings}
+                onUpdateField={onUpdateField}
+                onBatchUpdateFields={onBatchUpdateFields}
+                onSave={onSave}
+              />
             )}
 
             {activeTab === "content" && (
