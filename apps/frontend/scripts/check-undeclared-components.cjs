@@ -12,7 +12,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const babelParser = require('@babel/parser');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC_DIR = path.join(ROOT, 'src');
@@ -61,138 +60,161 @@ function walk(node, visitor) {
   }
 }
 
-const files = collectFiles(SRC_DIR);
-const errors = [];
-let filesChecked = 0;
-let tagsChecked = 0;
-
-for (const file of files) {
-  const content = fs.readFileSync(file, 'utf8');
-  let ast;
+async function getBabelParser() {
   try {
-    ast = babelParser.parse(content, {
-      sourceType: 'module',
-      plugins: [
-        'jsx',
-        'typescript',
-        'decorators-legacy',
-        'classProperties',
-        'asyncDoExpressions',
-        'doExpressions'
-      ]
-    });
-  } catch (err) {
-    // If a file has syntax errors, report it
-    errors.push({
-      file: path.relative(ROOT, file),
-      name: 'SyntaxError',
-      line: err.loc ? err.loc.line : 0,
-      col: err.loc ? err.loc.column : 0,
-      message: `Syntax error: ${err.message}`
-    });
-    continue;
+    const mod = await import('@babel/parser');
+    return mod.parse ? mod : (mod.default || mod);
+  } catch (esmErr) {
+    try {
+      const mod = require('@babel/parser');
+      return mod.parse ? mod : (mod.default || mod);
+    } catch (cjsErr) {
+      console.error('Failed to load @babel/parser:', esmErr, cjsErr);
+      process.exit(1);
+    }
   }
+}
 
-  filesChecked++;
-  const declared = new Set([...GLOBAL_BUILTINS]);
-  const jsxUsages = [];
+async function main() {
+  const babelParser = await getBabelParser();
+  const files = collectFiles(SRC_DIR);
+  const errors = [];
+  let filesChecked = 0;
+  let tagsChecked = 0;
 
-  // Pass 1: Collect all declared identifiers in file
-  walk(ast, (node) => {
-    // Imports
-    if (node.type === 'ImportSpecifier' || node.type === 'ImportDefaultSpecifier' || node.type === 'ImportNamespaceSpecifier') {
-      if (node.local && node.local.name) declared.add(node.local.name);
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'utf8');
+    let ast;
+    try {
+      ast = babelParser.parse(content, {
+        sourceType: 'module',
+        plugins: [
+          'jsx',
+          'typescript',
+          'decorators-legacy',
+          'classProperties',
+          'asyncDoExpressions',
+          'doExpressions'
+        ]
+      });
+    } catch (err) {
+      // If a file has syntax errors, report it
+      errors.push({
+        file: path.relative(ROOT, file),
+        name: 'SyntaxError',
+        line: err.loc ? err.loc.line : 0,
+        col: err.loc ? err.loc.column : 0,
+        message: `Syntax error: ${err.message}`
+      });
+      continue;
     }
-    // const/let/var declarations
-    if (node.type === 'VariableDeclarator' && node.id) {
-      if (node.id.type === 'Identifier') declared.add(node.id.name);
-      else if (node.id.type === 'ObjectPattern') {
-        walk(node.id, (child) => {
-          if ((child.type === 'ObjectProperty' || child.type === 'Property') && child.value) {
-            if (child.value.type === 'Identifier') declared.add(child.value.name);
-            else if (child.value.type === 'AssignmentPattern' && child.value.left && child.value.left.type === 'Identifier') {
-              declared.add(child.value.left.name);
-            }
-          } else if (child.type === 'RestElement' && child.argument && child.argument.type === 'Identifier') {
-            declared.add(child.argument.name);
-          }
-        });
-      } else if (node.id.type === 'ArrayPattern') {
-        walk(node.id, (child) => {
-          if (child.type === 'Identifier') declared.add(child.name);
-        });
+
+    filesChecked++;
+    const declared = new Set([...GLOBAL_BUILTINS]);
+    const jsxUsages = [];
+
+    // Pass 1: Collect all declared identifiers in file
+    walk(ast, (node) => {
+      // Imports
+      if (node.type === 'ImportSpecifier' || node.type === 'ImportDefaultSpecifier' || node.type === 'ImportNamespaceSpecifier') {
+        if (node.local && node.local.name) declared.add(node.local.name);
       }
-    }
-    // Functions, Classes, Types, Interfaces, Enums
-    if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration' ||
-         node.type === 'TSTypeAliasDeclaration' || node.type === 'TSInterfaceDeclaration' ||
-         node.type === 'TSEnumDeclaration') && node.id) {
-      declared.add(node.id.name);
-    }
-    // Function parameters
-    if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
-      if (node.params) {
-        for (const p of node.params) {
-          if (p.type === 'Identifier') declared.add(p.name);
-          else if (p.type === 'ObjectPattern' || p.type === 'ArrayPattern') {
-            walk(p, (child) => {
-              if (child.type === 'Identifier') declared.add(child.name);
-            });
-          } else if (p.type === 'AssignmentPattern' && p.left) {
-            if (p.left.type === 'Identifier') declared.add(p.left.name);
+      // const/let/var declarations
+      if (node.type === 'VariableDeclarator' && node.id) {
+        if (node.id.type === 'Identifier') declared.add(node.id.name);
+        else if (node.id.type === 'ObjectPattern') {
+          walk(node.id, (child) => {
+            if ((child.type === 'ObjectProperty' || child.type === 'Property') && child.value) {
+              if (child.value.type === 'Identifier') declared.add(child.value.name);
+              else if (child.value.type === 'AssignmentPattern' && child.value.left && child.value.left.type === 'Identifier') {
+                declared.add(child.value.left.name);
+              }
+            } else if (child.type === 'RestElement' && child.argument && child.argument.type === 'Identifier') {
+              declared.add(child.argument.name);
+            }
+          });
+        } else if (node.id.type === 'ArrayPattern') {
+          walk(node.id, (child) => {
+            if (child.type === 'Identifier') declared.add(child.name);
+          });
+        }
+      }
+      // Functions, Classes, Types, Interfaces, Enums
+      if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration' ||
+           node.type === 'TSTypeAliasDeclaration' || node.type === 'TSInterfaceDeclaration' ||
+           node.type === 'TSEnumDeclaration') && node.id) {
+        declared.add(node.id.name);
+      }
+      // Function parameters
+      if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
+        if (node.params) {
+          for (const p of node.params) {
+            if (p.type === 'Identifier') declared.add(p.name);
+            else if (p.type === 'ObjectPattern' || p.type === 'ArrayPattern') {
+              walk(p, (child) => {
+                if (child.type === 'Identifier') declared.add(child.name);
+              });
+            } else if (p.type === 'AssignmentPattern' && p.left) {
+              if (p.left.type === 'Identifier') declared.add(p.left.name);
+            }
           }
         }
       }
-    }
-    // Object properties with icon: SomeIcon or Icon: SomeIcon
-    if (node.type === 'ObjectProperty' && node.key && (node.key.name === 'icon' || node.key.name === 'Icon')) {
-      if (node.value && node.value.type === 'Identifier' && /^[A-Z]/.test(node.value.name)) {
-        jsxUsages.push({
-          name: node.value.name,
-          line: node.loc ? node.loc.start.line : 0,
-          col: node.loc ? node.loc.start.column : 0
-        });
-      }
-    }
-    // JSXOpeningElement
-    if (node.type === 'JSXOpeningElement' && node.name) {
-      if (node.name.type === 'JSXIdentifier') {
-        const name = node.name.name;
-        // React component tags start with Uppercase letter
-        if (/^[A-Z]/.test(name)) {
+      // Object properties with icon: SomeIcon or Icon: SomeIcon
+      if (node.type === 'ObjectProperty' && node.key && (node.key.name === 'icon' || node.key.name === 'Icon')) {
+        if (node.value && node.value.type === 'Identifier' && /^[A-Z]/.test(node.value.name)) {
           jsxUsages.push({
-            name,
+            name: node.value.name,
             line: node.loc ? node.loc.start.line : 0,
             col: node.loc ? node.loc.start.column : 0
           });
         }
       }
-    }
-  });
+      // JSXOpeningElement
+      if (node.type === 'JSXOpeningElement' && node.name) {
+        if (node.name.type === 'JSXIdentifier') {
+          const name = node.name.name;
+          // React component tags start with Uppercase letter
+          if (/^[A-Z]/.test(name)) {
+            jsxUsages.push({
+              name,
+              line: node.loc ? node.loc.start.line : 0,
+              col: node.loc ? node.loc.start.column : 0
+            });
+          }
+        }
+      }
+    });
 
-  // Pass 2: Verify all JSX usages
-  for (const usage of jsxUsages) {
-    tagsChecked++;
-    if (!declared.has(usage.name)) {
-      errors.push({
-        file: path.relative(ROOT, file),
-        name: usage.name,
-        line: usage.line,
-        col: usage.col,
-        message: `JSX element <${usage.name} /> is referenced but not imported or declared in this file`
-      });
+    // Pass 2: Verify all JSX usages
+    for (const usage of jsxUsages) {
+      tagsChecked++;
+      if (!declared.has(usage.name)) {
+        errors.push({
+          file: path.relative(ROOT, file),
+          name: usage.name,
+          line: usage.line,
+          col: usage.col,
+          message: `JSX element <${usage.name} /> is referenced but not imported or declared in this file`
+        });
+      }
     }
   }
+
+  if (errors.length > 0) {
+    console.error(`\n❌ [check-undeclared-components] Found ${errors.length} undeclared component/icon reference(s):`);
+    for (const err of errors) {
+      console.error(`  - ${err.file}:${err.line}:${err.col} -> ${err.message}`);
+    }
+    console.error(`\n🚨 Build blocked: Fix the missing imports above to prevent runtime crashes.\n`);
+    process.exit(1);
+  }
+
+  console.log(`✅ [check-undeclared-components] OK — ${filesChecked} file(s), ${tagsChecked} JSX component tag(s) all valid.`);
+  process.exit(0);
 }
 
-if (errors.length > 0) {
-  console.error(`\n❌ [check-undeclared-components] Found ${errors.length} undeclared component/icon reference(s):`);
-  for (const err of errors) {
-    console.error(`  - ${err.file}:${err.line}:${err.col} -> ${err.message}`);
-  }
-  console.error(`\n🚨 Build blocked: Fix the missing imports above to prevent runtime crashes.\n`);
+main().catch((err) => {
+  console.error('Fatal error in check-undeclared-components:', err);
   process.exit(1);
-}
-
-console.log(`✅ [check-undeclared-components] OK — ${filesChecked} file(s), ${tagsChecked} JSX component tag(s) all valid.`);
-process.exit(0);
+});
