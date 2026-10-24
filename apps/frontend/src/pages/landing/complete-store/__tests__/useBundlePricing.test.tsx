@@ -1,4 +1,8 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
+
+const jest = vi;
 import {
   mergeBundlePricing,
   extractBundleFromPayload,

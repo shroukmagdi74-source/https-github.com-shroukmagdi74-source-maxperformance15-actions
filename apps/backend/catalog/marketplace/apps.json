@@ -4348,5 +4348,164 @@
     "engineCompatibility": null,
     "createdAt": "2026-10-15T00:00:00Z",
     "updatedAt": "2026-10-15T00:00:00Z"
+  },
+  {
+    "id": "cat-app-returns-reasons-analytics",
+    "slug": "returns-reasons-analytics",
+    "name": "أسباب المرتجعات",
+    "nameEn": "Returns Reasons Analytics",
+    "description": "تحليل أسباب إرجاع الطلبات: المقاس، الجودة، التوصيل، وخطأ الطلب — بمقارنة بين الفترات وحسب المنتج.",
+    "descriptionEn": "Order return reasons analysis: size, quality, delivery, and order error — with period comparisons and per-product breakdown.",
+    "category": "ANALYTICS",
+    "pricingModel": "SUBSCRIPTION",
+    "monthlyPrice": 99,
+    "yearlyPrice": 990,
+    "unitPrice": null,
+    "unitName": null,
+    "trialDays": 14,
+    "requiredApps": [
+      "returns-settings"
+    ],
+    "positioning": {
+      "audience": "أصحاب المتاجر وفرق العمليات الذين يريدون معرفة أسباب إرجاع الطلبات وخفض معدلات المرتجعات.",
+      "surface": "داخل قسم تحليلات المرتجعات — لوحة تفصيل الأسباب والمنتجات.",
+      "outcome": "معالجة أسباب المرتجعات الجذرية وتقليل الهدر وتكاليف الشحن العكسي."
+    },
+    "features": {
+      "reasonsBreakdown": {
+        "enabled": true,
+        "name": "تفصيل أسباب الإرجاع",
+        "description": "توزيع أسباب المرتجعات بين المقاس والجودة والتوصيل وخطأ الطلب.",
+        "access": "PAID"
+      },
+      "productReturns": {
+        "enabled": true,
+        "name": "أسباب الإرجاع حسب المنتج",
+        "description": "كشف المنتجات ذات معدل الإرجاع المرتفع وربط كل منتج بأسبابه المحددة.",
+        "access": "PAID"
+      },
+      "periodComparison": {
+        "enabled": true,
+        "name": "المقارنات الزمنية",
+        "description": "مقارنة نسب وأسباب الإرجاع بين الفترات لقياس تحسن جودة العمليات.",
+        "access": "PAID"
+      }
+    },
+    "isActive": true,
+    "isPublic": true,
+    "isFeatured": false,
+    "isPopular": false,
+    "icon": "arrow-path-rounded-square",
+    "logo": null,
+    "coverImage": null,
+    "engineCompatibility": null,
+    "createdAt": "2026-10-24T00:00:00Z",
+    "updatedAt": "2026-10-24T00:00:00Z"
+  },
+  {
+    "id": "cat-app-profit-analytics",
+    "slug": "profit-analytics",
+    "name": "تحليلات الأرباح",
+    "nameEn": "Profit Analytics",
+    "description": "صافي الربح الحقيقي: إيراد − تكلفة المنتج − الشحن − الإعلان — على مستوى الأوردر والمنتج مع هوامش الربحية.",
+    "descriptionEn": "True net profit calculation: revenue minus product cost, shipping, and ad spend — at the order and product level with profit margins.",
+    "category": "ANALYTICS",
+    "pricingModel": "SUBSCRIPTION",
+    "monthlyPrice": 99,
+    "yearlyPrice": 990,
+    "unitPrice": null,
+    "unitName": null,
+    "trialDays": 14,
+    "requiredApps": [
+      "orders-analytics"
+    ],
+    "positioning": {
+      "audience": "أصحاب المتاجر والمدراء الماليون الذين يريدون معرفة صافي الربح الحقيقي لكل طلب ومنتج.",
+      "surface": "داخل قسم تحليلات الأرباح — شاشات صافي الربح وهوامش المنتجات.",
+      "outcome": "قرارات تسعير وتوريد أذكى مع معرفة المنتجات الرابحة فعلياً والخاسرة."
+    },
+    "features": {
+      "netProfit": {
+        "enabled": true,
+        "name": "صافي الربح الفعلي",
+        "description": "حساب صافي الأرباح بعد خصم تكلفة البضاعة وتكاليف الشحن ومصاريف الحملات.",
+        "access": "PAID"
+      },
+      "productMargins": {
+        "enabled": true,
+        "name": "هوامش ربحية المنتجات",
+        "description": "تحليل أداء كل منتج ومعرفة هامش الربح الإجمالي والصافي لكل قطعة.",
+        "access": "PAID"
+      },
+      "costBreakdown": {
+        "enabled": true,
+        "name": "توزيع التكاليف",
+        "description": "رسم بياني يوضح حصة تكلفة المنتج والشحن والإعلانات من إجمالي الإيرادات.",
+        "access": "PAID"
+      }
+    },
+    "isActive": true,
+    "isPublic": true,
+    "isFeatured": false,
+    "isPopular": false,
+    "icon": "banknotes",
+    "logo": null,
+    "coverImage": null,
+    "engineCompatibility": null,
+    "createdAt": "2026-10-24T00:00:00Z",
+    "updatedAt": "2026-10-24T00:00:00Z"
+  },
+  {
+    "id": "cat-app-campaign-attribution-analytics",
+    "slug": "campaign-attribution-analytics",
+    "name": "بيانات الحملة",
+    "nameEn": "Campaign Data",
+    "description": "ربط كل أوردر بالحملة والإعلان الذي جلبه — لمعرفة أي حملة تحقق مبيعات فعلية وأيها تستهلك الميزانية دون جدوى.",
+    "descriptionEn": "Order attribution analytics: linking every order to its marketing campaign and ad — discover which ads drive real revenue and which waste budget.",
+    "category": "ANALYTICS",
+    "pricingModel": "FREE",
+    "monthlyPrice": 0,
+    "yearlyPrice": 0,
+    "unitPrice": null,
+    "unitName": null,
+    "trialDays": 14,
+    "requiredApps": [
+      "campaign-attribution"
+    ],
+    "positioning": {
+      "audience": "المسوقون وأصحاب المتاجر الذين يديرون حملات إعلانية ويريدون ربط المبيعات بالحملات بدقة.",
+      "surface": "داخل تقارير تحليل الحملات الإعلانية في قسم التحليلات.",
+      "outcome": "تحسين توزيع ميزانيات الإعلانات ومضاعفة العائد على الإنفاق الإعلاني (ROAS)."
+    },
+    "features": {
+      "orderAttribution": {
+        "enabled": true,
+        "name": "ربط الطلبات بالحملات",
+        "description": "إظهار تفاصيل الحملة الإعلانية والإعلان ومصدر الزيارة لكل طلب وارد.",
+        "access": "FREE"
+      },
+      "campaignPerformance": {
+        "enabled": true,
+        "name": "أداء الحملات الإعلانية",
+        "description": "تحليل عدد الطلبات والإيرادات المحققة من كل منصة وحملة إعلانية.",
+        "access": "FREE"
+      },
+      "roasInsights": {
+        "enabled": true,
+        "name": "مؤشرات العائد الإعلاني",
+        "description": "تقييم كفاءة الإنفاق الإعلاني ومقارنة مردود القنوات التسويقية المختلفة.",
+        "access": "FREE"
+      }
+    },
+    "isActive": true,
+    "isPublic": true,
+    "isFeatured": false,
+    "isPopular": false,
+    "icon": "megaphone",
+    "logo": null,
+    "coverImage": null,
+    "engineCompatibility": null,
+    "createdAt": "2026-10-24T00:00:00Z",
+    "updatedAt": "2026-10-24T00:00:00Z"
   }
 ]
