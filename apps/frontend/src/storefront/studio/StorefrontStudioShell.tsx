@@ -23,6 +23,7 @@ import { StudioTemplateGalleryPanel } from "./StudioTemplateGalleryPanel";
 import { StudioThemeGalleryPanel } from "./StudioThemeGalleryPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
+import { useStudioTouchDrag } from "./hooks/useStudioTouchDrag";
 import type { StorefrontPageSEOConfig, StorefrontPageStatus } from "../types/theme.types";
 import { buildPresetPage, type IndustryPreset } from "../presets/industryPresets";
 import type { StudioLeftRailActiveTab } from "./StudioLeftRail";
@@ -464,6 +465,34 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     externalDesignTokens,
     onChange,
     onSave,
+  });
+
+  const handleTouchReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+      const fromKey = sectionKeys[fromIndex];
+      const toKey = sectionKeys[toIndex];
+      if (!fromKey || !toKey) return;
+      handleDragEnd({
+        active: { id: fromKey },
+        over: { id: toKey },
+      } as any);
+    },
+    [sectionKeys, handleDragEnd]
+  );
+
+  const {
+    isTouchDragging,
+    activeTouchDragIndex,
+    activeTouchDragKey,
+    touchDropTargetSlot,
+    touchDragOffsetY,
+    handleTouchPointerDown,
+  } = useStudioTouchDrag({
+    sections: activeSections,
+    sectionKeys,
+    activePageKey,
+    onReorder: handleTouchReorder,
   });
 
   const handleUpdatePageSettings = useCallback(
@@ -1268,6 +1297,27 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
             >
               <div
                 className="relative min-h-[800px] bg-background"
+                onPointerDownCapture={(e) => {
+                  if (e.pointerType === "mouse") return;
+                  const target = e.target as HTMLElement;
+                  if (target.closest("[data-studio-drag-handle]")) return;
+                  const handle = target.closest<HTMLElement>(
+                    "button[title='اسحب لإعادة الترتيب']"
+                  );
+                  if (!handle) return;
+                  const sectionWrapper = handle.closest<HTMLElement>(
+                    "[data-studio-touch-section], [data-studio-sortable-section='true']"
+                  );
+                  if (!sectionWrapper) return;
+                  const sectionKey =
+                    sectionWrapper.getAttribute("data-studio-touch-section") ||
+                    sectionWrapper.getAttribute("data-section-key");
+                  const indexStr = sectionWrapper.getAttribute("data-studio-section-index");
+                  const idx = typeof indexStr === "string" ? parseInt(indexStr, 10) : -1;
+                  if (sectionKey && idx >= 0) {
+                    handleTouchPointerDown(e, idx, sectionKey);
+                  }
+                }}
                 style={{
                   ...resolvePageStyleVars(previewTheme, activePageKey, activePageStyle),
                   fontFamily: activePageStyle?.fontFamily ? 'var(--store-font-family)' : undefined,
@@ -1345,69 +1395,127 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                           ? (sectionEntry.settings || sectionEntry)
                           : undefined;
 
+                      const isBeingTouchDragged = isTouchDragging && activeTouchDragKey === stableKey;
+                      const isDropTargetBefore =
+                        isTouchDragging &&
+                        touchDropTargetSlot === index &&
+                        activeTouchDragIndex !== index;
+                      const isDropTargetAfter =
+                        isTouchDragging &&
+                        touchDropTargetSlot === index + 1 &&
+                        index === activeSections.length - 1 &&
+                        activeTouchDragIndex !== index;
+
                       return (
-                        <StudioSortableSection
+                        <div
                           key={stableKey}
-                          id={stableKey}
-                          index={index}
-                          sectionKey={stableKey}
-                          sectionLabel={sectionLabel}
-                          sectionType={sectionType}
-                          selected={isSelected}
-                          totalSections={activeSections.length}
-                          deviceMode={deviceMode}
-                          showSpacingOverlay={showSpacingOverlay}
-                          settings={sectionSettings}
-                          hidden={isSectionHidden}
-                          locked={isSectionLocked}
-                          libraryDropSlot={libraryDropSlot}
-                          selectedElement={selectedElement}
-                          onSelect={() => {
-                            setSelectedSectionKey(stableKey);
-                            setIsInspectorOpen(true);
-                          }}
-                          onToggleVisibility={() => handleToggleSectionVisibility(stableKey)}
-                          onSelectElement={(el) => {
-                            setSelectedSectionKey(stableKey);
-                            setSelectedElement(el);
-                            setIsInspectorOpen(true);
-                          }}
-                          onClearSelectedElement={() => {
-                            setSelectedElement(null);
-                          }}
-                          onUpdateField={(field, val) => handleUpdateSectionField(field, val, deviceMode)}
-                          onBatchUpdateFields={(updates) => handleBatchUpdateSectionFields(updates, stableKey, deviceMode)}
-                          onSave={onSave}
-                          onMoveUp={() => handleMoveSection(index, "up")}
-                          onMoveDown={() => handleMoveSection(index, "down")}
-                          onDuplicate={() => handleDuplicateSection(index)}
-                          onDelete={() => handleDeleteSection(stableKey)}
-                          onContextMenu={(e) => {
-                            setContextMenu({
-                              x: e.clientX,
-                              y: e.clientY,
-                              sectionKey: stableKey,
-                              index,
-                              totalSections: activeSections.length,
-                              isHidden: isSectionHidden,
-                              isLocked: isSectionLocked,
-                              label: sectionLabel,
-                            });
-                          }}
-                          onLibraryDragOver={(slot) => setLibraryDropSlot(slot)}
-                          onLibraryDrop={(secType, slot) => {
-                            handleAddSection(secType, slot);
-                            setLibraryDropSlot(null);
-                            setDraggingLibraryItem(null);
-                          }}
-                          onLibraryDropIntoContainer={(secType, containerKey) => {
-                            handleAddSection(secType, undefined, containerKey);
-                            setLibraryDropSlot(null);
-                            setDraggingLibraryItem(null);
+                          data-studio-touch-section={stableKey}
+                          data-studio-section-index={index}
+                          className="relative group/touch-section"
+                          style={{
+                            transform: isBeingTouchDragged ? `translateY(${touchDragOffsetY}px)` : undefined,
+                            zIndex: isBeingTouchDragged ? 45 : undefined,
+                            boxShadow: isBeingTouchDragged ? "0 10px 25px -5px rgba(43, 108, 246, 0.3)" : undefined,
                           }}
                         >
-                          {element}
-                        </StudioSortableSection>
+                          {/* Drop indicator before section */}
+                          {isDropTargetBefore && (
+                            <div
+                              data-studio-drop-indicator="true"
+                              data-studio-touch-drop-indicator="true"
+                              className="h-1 bg-[#2b6cf6] rounded-full my-1 shadow-[0_0_8px_#2b6cf6] transition-all"
+                            />
+                          )}
+
+                          {/* Touch drag handle on section: touch-action: none ONLY on this handle */}
+                          <button
+                            type="button"
+                            data-studio-drag-handle="true"
+                            data-testid="studio-drag-handle"
+                            data-section-key={stableKey}
+                            data-section-index={index}
+                            tabIndex={0}
+                            aria-label={`اسحب لإعادة ترتيب ${sectionLabel}`}
+                            title="اسحب لإعادة الترتيب"
+                            style={{ touchAction: "none" }}
+                            className="touch-none absolute start-2 top-2 z-30 flex items-center justify-center p-1.5 rounded-md bg-[#17181c]/90 text-[#9ba0a8] hover:text-white hover:bg-[#202226] border border-[#33363c] shadow-md cursor-grab active:cursor-grabbing opacity-0 group-hover/touch-section:opacity-100 max-sm:opacity-85 focus-visible:opacity-100 transition-opacity"
+                            onPointerDown={(e) => handleTouchPointerDown(e, index, stableKey)}
+                          >
+                            <GripDotsIcon className="h-3.5 w-3.5" />
+                          </button>
+
+                          <StudioSortableSection
+                            key={stableKey}
+                            id={stableKey}
+                            index={index}
+                            sectionKey={stableKey}
+                            sectionLabel={sectionLabel}
+                            sectionType={sectionType}
+                            selected={isSelected}
+                            totalSections={activeSections.length}
+                            deviceMode={deviceMode}
+                            showSpacingOverlay={showSpacingOverlay}
+                            settings={sectionSettings}
+                            hidden={isSectionHidden}
+                            locked={isSectionLocked}
+                            libraryDropSlot={libraryDropSlot}
+                            selectedElement={selectedElement}
+                            onSelect={() => {
+                              setSelectedSectionKey(stableKey);
+                              setIsInspectorOpen(true);
+                            }}
+                            onToggleVisibility={() => handleToggleSectionVisibility(stableKey)}
+                            onSelectElement={(el) => {
+                              setSelectedSectionKey(stableKey);
+                              setSelectedElement(el);
+                              setIsInspectorOpen(true);
+                            }}
+                            onClearSelectedElement={() => {
+                              setSelectedElement(null);
+                            }}
+                            onUpdateField={(field, val) => handleUpdateSectionField(field, val, deviceMode)}
+                            onBatchUpdateFields={(updates) => handleBatchUpdateSectionFields(updates, stableKey, deviceMode)}
+                            onSave={onSave}
+                            onMoveUp={() => handleMoveSection(index, "up")}
+                            onMoveDown={() => handleMoveSection(index, "down")}
+                            onDuplicate={() => handleDuplicateSection(index)}
+                            onDelete={() => handleDeleteSection(stableKey)}
+                            onContextMenu={(e) => {
+                              setContextMenu({
+                                x: e.clientX,
+                                y: e.clientY,
+                                sectionKey: stableKey,
+                                index,
+                                totalSections: activeSections.length,
+                                isHidden: isSectionHidden,
+                                isLocked: isSectionLocked,
+                                label: sectionLabel,
+                              });
+                            }}
+                            onLibraryDragOver={(slot) => setLibraryDropSlot(slot)}
+                            onLibraryDrop={(secType, slot) => {
+                              handleAddSection(secType, slot);
+                              setLibraryDropSlot(null);
+                              setDraggingLibraryItem(null);
+                            }}
+                            onLibraryDropIntoContainer={(secType, containerKey) => {
+                              handleAddSection(secType, undefined, containerKey);
+                              setLibraryDropSlot(null);
+                              setDraggingLibraryItem(null);
+                            }}
+                          >
+                            {element}
+                          </StudioSortableSection>
+
+                          {/* Drop indicator after last section */}
+                          {isDropTargetAfter && (
+                            <div
+                              data-studio-drop-indicator="true"
+                              data-studio-touch-drop-indicator="true"
+                              className="h-1 bg-[#2b6cf6] rounded-full my-1 shadow-[0_0_8px_#2b6cf6] transition-all"
+                            />
+                          )}
+                        </div>
                       );
                     }}
                   />
