@@ -6,9 +6,9 @@
   /* Light Mode Tokens */
   --sb-bg-rail: oklch(0.984 0.003 247.9);
   --sb-bg-panel: rgba(255, 255, 255, 0.8);
-  --sb-border: rgba(15, 23, 42, 0.08);
+  --sb-border: rgba(15, 23, 42, 0.13);
   --sb-text-main: oklch(0.208 0.040 265.8);
-  --sb-text-muted: oklch(0.554 0.041 257.4);
+  --sb-text-muted: oklch(0.480 0.038 257.4);
   --sb-accent: oklch(0.623 0.188 259.8);
   --sb-accent-soft: rgba(59, 130, 246, 0.1);
 }
@@ -146,7 +146,7 @@
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: 0;
-  opacity: 0.9;
+  opacity: 1;
   text-align: center;
 }
 
