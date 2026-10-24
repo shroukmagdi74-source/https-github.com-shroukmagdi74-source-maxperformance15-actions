@@ -112,4 +112,30 @@ describe("ConversionToolsIndexPage Redesigned Studio", () => {
     fireEvent.click(screen.getByText("النشطة"));
     expect(screen.getByText("مؤقّت العروض")).toBeTruthy();
   });
+
+  it("shows empty state when no tools match query and resets filters", async () => {
+    render(
+      <MemoryRouter>
+        <ConversionToolsIndexPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText("البحث في الأدوات بالاسم أو الفائدة..."),
+      ).toBeTruthy();
+    });
+
+    const searchInput = screen.getByPlaceholderText(
+      "البحث في الأدوات بالاسم أو الفائدة...",
+    );
+    fireEvent.change(searchInput, { target: { value: "non-existent-keyword-xyz-99" } });
+
+    expect(screen.getByText("لم نجد أدوات مطابقة لبحثك")).toBeTruthy();
+
+    const resetBtn = screen.getByRole("button", { name: "عرض كل الأدوات" });
+    fireEvent.click(resetBtn);
+
+    expect(screen.queryByText("لم نجد أدوات مطابقة لبحثك")).toBeNull();
+  });
 });
