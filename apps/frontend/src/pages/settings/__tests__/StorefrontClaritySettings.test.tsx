@@ -1,42 +1,51 @@
+/* @vitest-environment jsdom */
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import StorefrontClaritySettings from '../StorefrontClaritySettings';
 
-jest.mock('react-i18next', () => ({
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+const mockGetSettings = vi.fn();
+const mockUpdateSettings = vi.fn();
+
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, fallback?: string) => fallback || _key,
   }),
 }));
 
-jest.mock('sonner', () => ({
-  __esModule: true,
+vi.mock('sonner', () => ({
+  toast: {
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
+  },
   default: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
   },
 }));
 
-jest.mock('../../../services/storefrontSettingsService', () => ({
+vi.mock('../../../services/storefrontSettingsService', () => ({
   storefrontSettingsService: {
-    getSettings: jest.fn(),
-    updateSettings: jest.fn(),
+    getSettings: (...args: unknown[]) => mockGetSettings(...args),
+    updateSettings: (...args: unknown[]) => mockUpdateSettings(...args),
   },
 }));
 
-jest.mock('../ClarityAnalyticsPanel', () => () => <div data-testid="analytics-panel" />);
+vi.mock('../ClarityAnalyticsPanel', () => ({
+  default: () => <div data-testid="analytics-panel" />,
+}));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const toast = require('sonner').default as {
-  success: jest.Mock;
-  error: jest.Mock;
+const toast = {
+  success: mockToastSuccess,
+  error: mockToastError,
 };
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { storefrontSettingsService } = require('../../../services/storefrontSettingsService') as {
-  storefrontSettingsService: {
-    getSettings: jest.Mock;
-    updateSettings: jest.Mock;
-  };
+const storefrontSettingsService = {
+  getSettings: mockGetSettings,
+  updateSettings: mockUpdateSettings,
 };
 
 describe('StorefrontClaritySettings', () => {
@@ -49,8 +58,8 @@ describe('StorefrontClaritySettings', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    window.confirm = jest.fn(() => true);
+    vi.clearAllMocks();
+    window.confirm = vi.fn(() => true);
     storefrontSettingsService.getSettings.mockResolvedValue({
       data: {
         clarityProjectId: 'k3a9mz1b',
@@ -62,6 +71,10 @@ describe('StorefrontClaritySettings', () => {
         clarityProjectId: 'newclarity1',
       },
     });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('loads the saved project id and shows connected state', async () => {
@@ -137,7 +150,7 @@ describe('StorefrontClaritySettings', () => {
   });
 
   it('disconnects after confirmation', async () => {
-    window.confirm = jest.fn(() => true);
+    window.confirm = vi.fn(() => true);
     await renderPage();
 
     fireEvent.click(screen.getByText('قطع الاتصال'));
@@ -153,7 +166,7 @@ describe('StorefrontClaritySettings', () => {
   });
 
   it('cancels disconnect when user declines confirmation', async () => {
-    window.confirm = jest.fn(() => false);
+    window.confirm = vi.fn(() => false);
     await renderPage();
 
     fireEvent.click(screen.getByText('قطع الاتصال'));
