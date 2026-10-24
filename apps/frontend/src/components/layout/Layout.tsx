@@ -51,6 +51,7 @@ import { envConfig } from "../../config/environment";
 const SuperAdminLayout = React.lazy(() => import("./SuperAdminLayout"));
 const AppDashboardPage = React.lazy(() => import("./app-dashboard/AppDashboardPage"));
 const AppShell = React.lazy(() => import("./app-dashboard/AppShell"));
+const AdminBottomNav = React.lazy(() => import("./app-dashboard/AdminBottomNav"));
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -950,6 +951,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
                 allSections={menuSections}
               />
             </div>
+            <AdminBottomNav />
           </React.Suspense>
         ) : (
           <React.Suspense fallback={<div className="min-h-screen" />}>
