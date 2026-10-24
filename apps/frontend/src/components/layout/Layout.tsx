@@ -709,7 +709,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
                     {currentCompany?.name?.charAt(0) || "M"}
                   </div>
                 </CompanyLogo>
-                <span className="font-extrabold text-xs xs:text-sm tracking-tight text-gray-900 dark:text-white truncate max-w-[80px] xs:max-w-[120px] sm:max-w-[180px]">
+                <span className="business-shell-company-name font-extrabold text-xs xs:text-sm tracking-tight text-gray-900 dark:text-white truncate max-w-[80px] xs:max-w-[120px] sm:max-w-[180px]">
                   {currentCompany?.name || "MaxP"}
                 </span>
               </Link>
