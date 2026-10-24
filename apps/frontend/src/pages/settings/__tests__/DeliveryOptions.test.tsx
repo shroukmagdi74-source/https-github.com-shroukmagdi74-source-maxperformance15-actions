@@ -8,15 +8,17 @@ import DeliveryOptions from "../DeliveryOptions";
 
 const mockApiGet = vi.fn();
 const mockApiPost = vi.fn();
+const mockApiPut = vi.fn();
 const mockApiPatch = vi.fn();
+const mockApiDelete = vi.fn();
 
 vi.mock("../../../services/apiClient", () => ({
   apiClient: {
     get: (...args: unknown[]) => mockApiGet(...args),
     post: (...args: unknown[]) => mockApiPost(...args),
-    put: vi.fn(),
+    put: (...args: unknown[]) => mockApiPut(...args),
     patch: (...args: unknown[]) => mockApiPatch(...args),
-    delete: vi.fn(),
+    delete: (...args: unknown[]) => mockApiDelete(...args),
   },
 }));
 
@@ -120,6 +122,85 @@ describe("DeliveryOptions", () => {
         isActive: true,
         sortOrder: 0,
       });
+    });
+  });
+
+  it("opens edit dialog and updates existing option", async () => {
+    mockApiGet.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          {
+            id: "delivery-1",
+            name: "توصيل سريع",
+            description: "خلال 24 ساعة",
+            deliveryTime: "24 ساعة",
+            price: 80,
+            isDefault: false,
+            isActive: true,
+            sortOrder: 1,
+          },
+        ],
+      },
+    });
+
+    mockApiPut.mockResolvedValue({ data: { success: true } });
+
+    render(<DeliveryOptions />);
+
+    await screen.findByRole("heading", { name: "خيارات التوصيل" });
+
+    fireEvent.click(screen.getByRole("button", { name: "تعديل" }));
+
+    fireEvent.change(screen.getByLabelText("السعر (جنيه)"), {
+      target: { value: "95" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "تحديث الخيار" }));
+
+    await waitFor(() => {
+      expect(mockApiPut).toHaveBeenCalledWith("/delivery-options/delivery-1", {
+        name: "توصيل سريع",
+        description: "خلال 24 ساعة",
+        deliveryTime: "24 ساعة",
+        price: 95,
+        isDefault: false,
+        isActive: true,
+        sortOrder: 1,
+      });
+    });
+  });
+
+  it("deletes a delivery option after confirmation", async () => {
+    mockApiGet.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          {
+            id: "delivery-1",
+            name: "توصيل سريع",
+            description: "خلال 24 ساعة",
+            deliveryTime: "24 ساعة",
+            price: 80,
+            isDefault: false,
+            isActive: true,
+            sortOrder: 1,
+          },
+        ],
+      },
+    });
+
+    mockApiDelete.mockResolvedValue({ data: { success: true } });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<DeliveryOptions />);
+
+    await screen.findByRole("heading", { name: "خيارات التوصيل" });
+
+    fireEvent.click(screen.getByRole("button", { name: "حذف توصيل سريع" }));
+
+    await waitFor(() => {
+      expect(mockApiDelete).toHaveBeenCalledWith("/delivery-options/delivery-1");
     });
   });
 });
