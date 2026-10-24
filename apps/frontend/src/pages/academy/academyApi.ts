@@ -99,6 +99,19 @@ export interface MyEnrollment {
   course: Course & { modulesCount?: number; lessonsCount?: number };
 }
 
+export interface StudentAttribution {
+  source?: string;
+  medium?: string;
+  platform?: string;
+  campaignName?: string;
+  campaignId?: string;
+  adSetId?: string;
+  adId?: string;
+  landingPath?: string;
+  referrer?: string;
+  [key: string]: any;
+}
+
 export interface StudentProgressRow {
   id: string;
   studentName?: string;
@@ -116,6 +129,54 @@ export interface StudentProgressRow {
   progressPercent: number;
   hasCertificate: boolean;
   certificateNumber?: string | null;
+  attribution?: StudentAttribution | null;
+  sessionDetails?: any;
+}
+
+export interface SourcesAnalyticsData {
+  range: { days: number; from: string; to: string };
+  totals: {
+    enrollments: number;
+    paidEnrollments: number;
+    attributedEnrollments: number;
+    unattributedEnrollments: number;
+    revenue: number;
+    enrollmentValue: number;
+  };
+  bySource: Array<{
+    source: string;
+    medium: string;
+    platform: string;
+    enrollments: number;
+    paidEnrollments: number;
+    revenue: number;
+    enrollmentValue: number;
+  }>;
+  byCampaign: Array<{
+    campaignName: string;
+    campaignId: string;
+    adId: string;
+    adSetId: string;
+    source: string;
+    medium: string;
+    enrollments: number;
+    paidEnrollments: number;
+    revenue: number;
+    enrollmentValue: number;
+    lastEnrolledAt: string;
+  }>;
+  byLanding: Array<{
+    landingPath: string;
+    referrer: string;
+    enrollments: number;
+    paidEnrollments: number;
+  }>;
+  byDay: Array<{
+    date: string;
+    enrollments: number;
+    paidEnrollments: number;
+    revenue: number;
+  }>;
 }
 
 export interface ExerciseSubmission {
@@ -257,10 +318,35 @@ export const academyApi = {
       studentPhone?: string;
       studentEmail?: string;
       subscriptionDays?: number;
+      attribution?: any;
+      sessionDetails?: any;
     }
   ): Promise<any> {
-    const res = await apiClient.post<any>(`/api/v1/academy/courses/${courseId}/enroll`, studentData);
+    let attribution = studentData.attribution;
+    let sessionDetails = studentData.sessionDetails;
+    if (!attribution) {
+      try {
+        const { getOrderAttributionPayload } = await import("../../storefront/utils/orderAttribution");
+        attribution = getOrderAttributionPayload();
+      } catch (_) {}
+    }
+    if (!sessionDetails) {
+      try {
+        const { getStorefrontSessionDetails } = await import("../../storefront/utils/storefrontSessionTracker");
+        sessionDetails = getStorefrontSessionDetails();
+      } catch (_) {}
+    }
+    const res = await apiClient.post<any>(`/api/v1/academy/courses/${courseId}/enroll`, {
+      ...studentData,
+      ...(attribution ? { attribution } : {}),
+      ...(sessionDetails ? { sessionDetails } : {}),
+    });
     return (res.data as any)?.enrollment;
+  },
+
+  async getSourcesAnalytics(days: number = 30): Promise<SourcesAnalyticsData> {
+    const res = await apiClient.get<any>(`/api/v1/academy/analytics/sources?days=${days}`);
+    return res.data?.data;
   },
 
   async enrollStudentManually(

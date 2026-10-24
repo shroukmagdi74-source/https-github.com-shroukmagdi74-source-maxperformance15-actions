@@ -101,6 +101,8 @@ model AcademyEnrollment {
   completedAt      DateTime?
   expiresAt        DateTime? // null = اشتراك مؤبد، تاريخ = ينتهي عنده الوصول
   subscriptionDays Int?      // عدد أيام الاشتراك (null = مؤبد)
+  attribution      Json?
+  sessionDetails   Json?
 
   course      AcademyCourse       @relation(fields: [courseId], references: [id], onDelete: Cascade)
   progress    AcademyProgress[]

@@ -3,7 +3,13 @@ const { safeJsonParse } = require('../utils/jsonUtils');
 function normalizeAttributionText(value, maxLength = 320) {
   if (value === undefined || value === null) return null;
 
-  const normalized = String(value).trim().replace(/\s+/g, ' ');
+  let str;
+  if (typeof value === 'object') {
+    try { str = JSON.stringify(value); } catch (_) { str = String(value); }
+  } else {
+    str = String(value);
+  }
+  const normalized = str.trim().replace(/\s+/g, ' ');
   if (!normalized) return null;
 
   return normalized.slice(0, maxLength);
@@ -107,13 +113,19 @@ function isAudienceNetworkSignal({ source, medium, referrer }) {
 }
 
 function sanitizeOrderAttribution(rawAttribution, fallbacks = {}) {
-  const attribution =
+  let attribution =
     typeof rawAttribution === 'string'
       ? safeJsonParse(rawAttribution, null)
       : rawAttribution;
 
+  const hasFallbacks = fallbacks && typeof fallbacks === 'object' && Object.keys(fallbacks).length > 0;
+
   if (!attribution || typeof attribution !== 'object' || Array.isArray(attribution)) {
-    return null;
+    if (hasFallbacks && Object.values(fallbacks).some((v) => v !== null && v !== undefined && v !== '')) {
+      attribution = {};
+    } else {
+      return null;
+    }
   }
 
   const rawParams = sanitizeAttributionRawParams(attribution.rawParams);
@@ -138,7 +150,7 @@ function sanitizeOrderAttribution(rawAttribution, fallbacks = {}) {
     normalizeAttributionText(attribution.platform, 80)?.toLowerCase() ||
     inferAttributionPlatform(attribution.source, referrer, clickIds);
 
-  let source = normalizeAttributionText(attribution.source || attribution.utm_source, 120)?.toLowerCase();
+  let source = normalizeAttributionText(attribution.source || attribution.utm_source || fallbacks.source || fallbacks.utm_source, 120)?.toLowerCase();
   if (!source) {
     if (platform) {
       source = platform;
@@ -155,7 +167,7 @@ function sanitizeOrderAttribution(rawAttribution, fallbacks = {}) {
     source = 'direct';
   }
 
-  let medium = normalizeAttributionText(attribution.medium || attribution.utm_medium, 120)?.toLowerCase();
+  let medium = normalizeAttributionText(attribution.medium || attribution.utm_medium || fallbacks.medium || fallbacks.utm_medium, 120)?.toLowerCase();
   if (!medium) {
     if (source === 'direct') {
       medium = 'none';
@@ -187,7 +199,7 @@ function sanitizeOrderAttribution(rawAttribution, fallbacks = {}) {
     source,
     medium,
     campaignName: normalizeAttributionText(
-      attribution.campaignName || attribution.campaign || attribution.utm_campaign,
+      attribution.campaignName || attribution.campaign || attribution.utm_campaign || fallbacks.campaignName || fallbacks.campaign || fallbacks.utm_campaign,
       160,
     ),
     campaignId: normalizeAttributionText(
@@ -224,11 +236,11 @@ function sanitizeOrderAttribution(rawAttribution, fallbacks = {}) {
       160,
     ),
     content: normalizeAttributionText(
-      attribution.content || attribution.utm_content,
+      attribution.content || attribution.utm_content || fallbacks.content || fallbacks.utm_content,
       160,
     ),
     term: normalizeAttributionText(
-      attribution.term || attribution.utm_term,
+      attribution.term || attribution.utm_term || fallbacks.term || fallbacks.utm_term,
       160,
     ),
     landingPath: normalizeAttributionText(attribution.landingPath, 1024),

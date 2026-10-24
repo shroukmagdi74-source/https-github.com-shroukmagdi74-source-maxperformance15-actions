@@ -619,6 +619,8 @@ class AcademyService {
     studentEmail,
     subscriptionDays,
     byAdmin = false,
+    attribution = null,
+    sessionDetails = null,
   }) {
     const db = this.getDb();
     const course = await db.academyCourse.findFirst({
@@ -683,6 +685,8 @@ class AcademyService {
             orderId: orderId || existing.orderId,
             expiresAt: renewedExpiresAt,
             subscriptionDays: subDays || existing.subscriptionDays,
+            ...(attribution ? { attribution } : {}),
+            ...(sessionDetails ? { sessionDetails } : {}),
           },
         });
       }
@@ -709,6 +713,8 @@ class AcademyService {
         status: 'ACTIVE',
         subscriptionDays: subDays,
         expiresAt,
+        ...(attribution ? { attribution } : {}),
+        ...(sessionDetails ? { sessionDetails } : {}),
       },
     });
 
@@ -875,7 +881,22 @@ class AcademyService {
     }
   }
 
-  async autoEnrollFromPaidOrder({ companyId, customerId, storeProductId, orderId, customerName, customerPhone, customerEmail }) {
+  async autoEnrollFromPaidOrder({ companyId, customerId, storeProductId, orderId, customerName, customerPhone, customerEmail, attribution = null, sessionDetails = null }) {
+    let orderAttribution = attribution;
+    let orderSessionDetails = sessionDetails;
+    if (orderId && (!orderAttribution || !orderSessionDetails)) {
+      try {
+        const ord = await this.getDb().order.findUnique({ where: { id: orderId }, select: { metadata: true } });
+        if (ord?.metadata) {
+          let meta = ord.metadata;
+          if (typeof meta === 'string') {
+            try { meta = JSON.parse(meta); } catch (_) { meta = null; }
+          }
+          if (!orderAttribution && meta?.attribution) orderAttribution = meta.attribution;
+          if (!orderSessionDetails && meta?.sessionDetails) orderSessionDetails = meta.sessionDetails;
+        }
+      } catch (_) {}
+    }
     if (!storeProductId) return null;
     const db = this.getDb();
     const courses = await db.academyCourse.findMany({
@@ -915,6 +936,8 @@ class AcademyService {
         studentEmail: customerEmail,
         subscriptionDays: course.subscriptionDays,
         byAdmin: false, // بعد دفع — orderId موجود يتجاوز الحارس
+        attribution: orderAttribution,
+        sessionDetails: orderSessionDetails,
       });
 
       lastEnrollment = enrollment;
@@ -984,6 +1007,13 @@ class AcademyService {
     }
 
     if (!order) return { success: false, enrolled: 0, reason: 'Order not found' };
+
+    let orderMeta = order.metadata;
+    if (typeof orderMeta === 'string') {
+      try { orderMeta = JSON.parse(orderMeta); } catch (_) { orderMeta = null; }
+    }
+    const orderAttribution = orderMeta?.attribution || null;
+    const orderSessionDetails = orderMeta?.sessionDetails || null;
 
     const resolvedCompanyId = companyId || order.companyId;
     let items = order.orderItems || [];
@@ -1060,6 +1090,8 @@ class AcademyService {
         studentEmail: customerEmail,
         subscriptionDays: course.subscriptionDays,
         byAdmin: false,
+        attribution: orderAttribution,
+        sessionDetails: orderSessionDetails,
       });
 
       if (enr) {
@@ -2267,10 +2299,32 @@ ${studentUrl || 'لا يوجد رابط'}`;
       orderBy: { enrolledAt: 'desc' },
     });
 
+    const orderIds = Array.from(new Set(enrollments.map((en) => en.orderId).filter(Boolean)));
+    const orders = orderIds.length > 0 ? await db.order.findMany({
+      where: { id: { in: orderIds } },
+      select: { id: true, metadata: true },
+    }) : [];
+    const orderMap = new Map(orders.map((o) => [o.id, o]));
+
     return enrollments.map((en) => {
       const completedCount = en.progress.filter((p) => p.status === 'DONE').length;
       const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
       const isExpired = en.expiresAt ? new Date(en.expiresAt) < new Date() : false;
+
+      let attribution = en.attribution || null;
+      let sessionDetails = en.sessionDetails || null;
+      if (!attribution && en.orderId && orderMap.has(en.orderId)) {
+        const ord = orderMap.get(en.orderId);
+        if (ord?.metadata) {
+          let meta = ord.metadata;
+          if (typeof meta === 'string') {
+            try { meta = JSON.parse(meta); } catch (_) { meta = null; }
+          }
+          if (meta?.attribution) attribution = meta.attribution;
+          if (!sessionDetails && meta?.sessionDetails) sessionDetails = meta.sessionDetails;
+        }
+      }
+
       return {
         id: en.id,
         studentName: en.studentName,
@@ -2288,9 +2342,258 @@ ${studentUrl || 'لا يوجد رابط'}`;
         progressPercent,
         hasCertificate: Boolean(en.certificate),
         certificateNumber: en.certificate?.certificateNumber || null,
+        attribution,
+        sessionDetails,
       };
     });
   }
+
+  async getSourcesAnalytics(companyId, { days = 30 } = {}) {
+    if (!companyId) throw new Error('معرف الشركة مطلوب');
+
+    const parsedDays = Math.min(365, Math.max(1, parseInt(days, 10) || 30));
+    const to = new Date();
+    const from = new Date(to.getTime() - parsedDays * 24 * 60 * 60 * 1000);
+
+    const db = this.getDb();
+    const enrollments = await db.academyEnrollment.findMany({
+      where: {
+        companyId,
+        enrolledAt: {
+          gte: from,
+          lte: to,
+        },
+      },
+      include: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+          },
+        },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    const orderIds = Array.from(new Set(enrollments.map((e) => e.orderId).filter(Boolean)));
+    const orders = orderIds.length > 0 ? await db.order.findMany({
+      where: {
+        id: { in: orderIds },
+        companyId,
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        total: true,
+        paymentStatus: true,
+        status: true,
+        metadata: true,
+      },
+    }) : [];
+    const orderMap = new Map(orders.map((o) => [o.id, o]));
+
+    const totals = {
+      enrollments: enrollments.length,
+      paidEnrollments: 0,
+      attributedEnrollments: 0,
+      unattributedEnrollments: 0,
+      revenue: 0,
+      enrollmentValue: 0,
+    };
+
+    const sourceMap = new Map();
+    const campaignMap = new Map();
+    const landingMap = new Map();
+    const dayMap = new Map();
+
+    for (const en of enrollments) {
+      let attr = en.attribution;
+      if (typeof attr === 'string') {
+        try { attr = JSON.parse(attr); } catch (_) { attr = null; }
+      }
+
+      const order = en.orderId ? orderMap.get(en.orderId) : null;
+      if (!attr || Object.keys(attr).length === 0) {
+        if (order?.metadata) {
+          let orderMeta = order.metadata;
+          if (typeof orderMeta === 'string') {
+            try { orderMeta = JSON.parse(orderMeta); } catch (_) { orderMeta = null; }
+          }
+          if (orderMeta?.attribution) {
+            attr = orderMeta.attribution;
+            if (typeof attr === 'string') {
+              try { attr = JSON.parse(attr); } catch (_) { attr = null; }
+            }
+          }
+        }
+      }
+
+      const rawSource = attr?.source ? String(attr.source).trim() : '';
+      const isAttributed = Boolean(
+        rawSource &&
+        rawSource.toLowerCase() !== 'unattributed' &&
+        rawSource.toLowerCase() !== 'unknown'
+      );
+
+      const isPaid = Boolean(order && ['PAID', 'COMPLETED'].includes(String(order.paymentStatus || '').toUpperCase()));
+      const orderRevenue = isPaid ? (Number(order.total) || 0) : 0;
+      const coursePrice = Number(en.course?.price) || 0;
+      const enrollmentValue = coursePrice > 0 ? coursePrice : 0;
+
+      if (isPaid) totals.paidEnrollments += 1;
+      if (isAttributed) {
+        totals.attributedEnrollments += 1;
+      } else {
+        totals.unattributedEnrollments += 1;
+      }
+      totals.revenue += orderRevenue;
+      totals.enrollmentValue += enrollmentValue;
+
+      const srcKey = isAttributed ? rawSource : 'unknown';
+      const mediumKey = attr?.medium ? String(attr.medium).trim() : '';
+      const platformKey = attr?.platform ? String(attr.platform).trim() : '';
+
+      // 1. bySource
+      const sourceGroupKey = `${srcKey}__${mediumKey}__${platformKey}`;
+      if (!sourceMap.has(sourceGroupKey)) {
+        sourceMap.set(sourceGroupKey, {
+          source: srcKey,
+          medium: mediumKey,
+          platform: platformKey,
+          enrollments: 0,
+          paidEnrollments: 0,
+          revenue: 0,
+          enrollmentValue: 0,
+        });
+      }
+      const sItem = sourceMap.get(sourceGroupKey);
+      sItem.enrollments += 1;
+      if (isPaid) sItem.paidEnrollments += 1;
+      sItem.revenue += orderRevenue;
+      sItem.enrollmentValue += enrollmentValue;
+
+      // 2. byCampaign
+      const campaignName = attr?.campaignName ? String(attr.campaignName).trim() : (isAttributed ? '' : 'غير معروف');
+      const campaignId = attr?.campaignId ? String(attr.campaignId).trim() : '';
+      const adId = attr?.adId ? String(attr.adId).trim() : '';
+      const adSetId = attr?.adSetId ? String(attr.adSetId).trim() : '';
+      const campaignGroupKey = `${campaignName}__${campaignId}__${adId}__${adSetId}__${srcKey}__${mediumKey}`;
+      const enDateIso = en.enrolledAt instanceof Date ? en.enrolledAt.toISOString() : new Date(en.enrolledAt).toISOString();
+
+      if (!campaignMap.has(campaignGroupKey)) {
+        campaignMap.set(campaignGroupKey, {
+          campaignName,
+          campaignId,
+          adId,
+          adSetId,
+          source: srcKey,
+          medium: mediumKey,
+          enrollments: 0,
+          paidEnrollments: 0,
+          revenue: 0,
+          enrollmentValue: 0,
+          lastEnrolledAt: enDateIso,
+        });
+      }
+      const cItem = campaignMap.get(campaignGroupKey);
+      cItem.enrollments += 1;
+      if (isPaid) cItem.paidEnrollments += 1;
+      cItem.revenue += orderRevenue;
+      cItem.enrollmentValue += enrollmentValue;
+      if (new Date(enDateIso) > new Date(cItem.lastEnrolledAt)) {
+        cItem.lastEnrolledAt = enDateIso;
+      }
+
+      // 3. byLanding
+      let landingPath = attr?.landingPath ? String(attr.landingPath).trim() : '';
+      let referrer = attr?.referrer ? String(attr.referrer).trim() : '';
+      if (!landingPath && en.sessionDetails) {
+        let sDetails = en.sessionDetails;
+        if (typeof sDetails === 'string') {
+          try { sDetails = JSON.parse(sDetails); } catch (_) { sDetails = null; }
+        }
+        landingPath = sDetails?.pagesVisited?.[0]?.path || sDetails?.trafficSource?.landingPath || '';
+        referrer = referrer || sDetails?.trafficSource?.referrer || '';
+      }
+      landingPath = landingPath || 'غير معروف';
+      referrer = referrer || 'مباشر';
+
+      const landingGroupKey = `${landingPath}__${referrer}`;
+      if (!landingMap.has(landingGroupKey)) {
+        landingMap.set(landingGroupKey, {
+          landingPath,
+          referrer,
+          enrollments: 0,
+          paidEnrollments: 0,
+        });
+      }
+      const lItem = landingMap.get(landingGroupKey);
+      lItem.enrollments += 1;
+      if (isPaid) lItem.paidEnrollments += 1;
+
+      // 4. byDay
+      const dateKey = enDateIso.slice(0, 10);
+      if (!dayMap.has(dateKey)) {
+        dayMap.set(dateKey, {
+          date: dateKey,
+          enrollments: 0,
+          paidEnrollments: 0,
+          revenue: 0,
+        });
+      }
+      const dItem = dayMap.get(dateKey);
+      dItem.enrollments += 1;
+      if (isPaid) dItem.paidEnrollments += 1;
+      dItem.revenue += orderRevenue;
+    }
+
+    totals.revenue = Math.round(totals.revenue * 100) / 100;
+    totals.enrollmentValue = Math.round(totals.enrollmentValue * 100) / 100;
+
+    const bySource = Array.from(sourceMap.values())
+      .map((item) => ({
+        ...item,
+        revenue: Math.round(item.revenue * 100) / 100,
+        enrollmentValue: Math.round(item.enrollmentValue * 100) / 100,
+      }))
+      .sort((a, b) => b.enrollments - a.enrollments || b.revenue - a.revenue)
+      .slice(0, 50);
+
+    const byCampaign = Array.from(campaignMap.values())
+      .map((item) => ({
+        ...item,
+        revenue: Math.round(item.revenue * 100) / 100,
+        enrollmentValue: Math.round(item.enrollmentValue * 100) / 100,
+      }))
+      .sort((a, b) => b.enrollments - a.enrollments || b.revenue - a.revenue)
+      .slice(0, 50);
+
+    const byLanding = Array.from(landingMap.values())
+      .sort((a, b) => b.enrollments - a.enrollments || b.paidEnrollments - a.paidEnrollments)
+      .slice(0, 50);
+
+    const byDay = Array.from(dayMap.values())
+      .map((item) => ({
+        ...item,
+        revenue: Math.round(item.revenue * 100) / 100,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      range: {
+        days: parsedDays,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      },
+      totals,
+      bySource,
+      byCampaign,
+      byLanding,
+      byDay,
+    };
+  }
+
 }
 
 module.exports = new AcademyService();

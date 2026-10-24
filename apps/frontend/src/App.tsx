@@ -1193,6 +1193,9 @@ const AcademyLessonViewerPage = React.lazy(
 const AcademyStudentsPage = React.lazy(
   () => import("./pages/academy/AcademyStudentsPage"),
 );
+const AcademySourcesPage = React.lazy(
+  () => import("./pages/academy/AcademySourcesPage"),
+);
 const EducationTeacherSchedulePage = React.lazy(
   () => import("./pages/admin/EducationTeacherSchedulePage"),
 );
@@ -8779,6 +8782,16 @@ const AppContent = () => {
                     <Layout fullWidth>
                       <AppAccessRoute requiredAppSlugs={['academy-app']}>
                         <AcademyStudentsPage />
+                      </AppAccessRoute>
+                    </Layout>
+                  }
+                />
+                <Route
+                  path="/academy/sources"
+                  element={
+                    <Layout fullWidth>
+                      <AppAccessRoute requiredAppSlugs={['academy-app']}>
+                        <AcademySourcesPage />
                       </AppAccessRoute>
                     </Layout>
                   }

@@ -68,6 +68,7 @@ router.post('/lessons/:id/quiz', instructorAuth, controller.saveLessonQuiz);
 
 // Progress & Analytics for Instructor
 router.get('/courses/:id/students', instructorAuth, controller.getStudentsProgress);
+router.get('/analytics/sources', instructorAuth, controller.getSourcesAnalytics);
 
 // -------------------------------------------------------------
 // Student Portal & Catalog (Public / Token Protected)

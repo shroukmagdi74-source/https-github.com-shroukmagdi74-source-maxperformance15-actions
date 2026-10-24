@@ -53,6 +53,17 @@ const StudentPortalLayout: React.FC<StudentPortalLayoutProps> = ({ children }) =
     setStudentName(localStorage.getItem("studentName"));
   }, [location.pathname]);
 
+  // تتبع مسار جلسة الطالب في صفحات الأكاديمية لحساب دقيق لمدة الزيارة ومصادر الإحالة
+  useEffect(() => {
+    try {
+      import("../../storefront/utils/storefrontSessionTracker")
+        .then(({ recordPageVisit }) => {
+          recordPageVisit(location.pathname + location.search);
+        })
+        .catch(() => {});
+    } catch (_) {}
+  }, [location.pathname, location.search]);
+
   const handleLogout = () => {
     localStorage.removeItem("studentToken");
     localStorage.removeItem("studentPhone");

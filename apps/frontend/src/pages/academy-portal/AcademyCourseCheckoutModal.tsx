@@ -41,6 +41,17 @@ const AcademyCourseCheckoutModal: React.FC<CheckoutModalProps> = ({
       setLoading(true);
       setError(null);
 
+      let attribution: any = undefined;
+      let sessionDetails: any = undefined;
+      try {
+        const { getOrderAttributionPayload } = await import("../../storefront/utils/orderAttribution");
+        attribution = getOrderAttributionPayload();
+      } catch (_) {}
+      try {
+        const { getStorefrontSessionDetails } = await import("../../storefront/utils/storefrontSessionTracker");
+        sessionDetails = getStorefrontSessionDetails();
+      } catch (_) {}
+
       const res = await fetch(`/api/v1/academy/courses/${courseId}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -49,6 +60,8 @@ const AcademyCourseCheckoutModal: React.FC<CheckoutModalProps> = ({
           studentPhone: studentPhone.trim(),
           studentEmail: studentEmail.trim() || undefined,
           paymentMethod: "card",
+          ...(attribution ? { attribution } : {}),
+          ...(sessionDetails ? { sessionDetails } : {}),
         }),
       });
 

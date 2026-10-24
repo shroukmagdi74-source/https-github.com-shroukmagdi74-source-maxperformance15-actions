@@ -80,6 +80,7 @@ export function AcademyStudentsTable({
             <tr>
               <th className="p-3 sm:p-3.5">اسم الطالب</th>
               <th className="p-3 sm:p-3.5">الهاتف / واتساب</th>
+              <th className="p-3 sm:p-3.5">مصدر التسجيل</th>
               <th className="p-3 sm:p-3.5">نسبة الإكمال</th>
               <th className="p-3 sm:p-3.5">الدروس المنجزة</th>
               <th className="p-3 sm:p-3.5">الشهادة</th>
@@ -149,6 +150,28 @@ export function AcademyStudentsTable({
                     ) : (
                       "—"
                     )}
+                  </td>
+
+                  <td className="p-3 sm:p-3.5">
+                    {(() => {
+                      const attr = st.attribution;
+                      const sourceLabel = attr?.campaignName || attr?.source || "غير معروف";
+                      const tooltipParts = [
+                        attr?.landingPath ? `المسار: ${attr.landingPath}` : null,
+                        attr?.medium ? `الوسيط: ${attr.medium}` : null,
+                        attr?.platform ? `المنصة: ${attr.platform}` : null,
+                      ].filter(Boolean);
+                      const tooltipText = tooltipParts.length > 0 ? tooltipParts.join(" | ") : "لا توجد تفاصيل حملة";
+
+                      return (
+                        <div
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-muted/40 text-foreground border border-border/50 max-w-[140px] sm:max-w-[180px] truncate"
+                          title={tooltipText}
+                        >
+                          <span className="truncate">{sourceLabel}</span>
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   <td className="p-3 sm:p-3.5">

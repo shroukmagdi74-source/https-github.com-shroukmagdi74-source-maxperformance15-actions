@@ -1,5 +1,7 @@
 const academyService = require('../services/academyService');
 const KashierService = require('../services/kashierService');
+const { sanitizeOrderAttribution } = require('../utils/orderAttribution');
+const { buildSessionDetails } = require('../utils/sessionDetailsHelper');
 const jwt = require('jsonwebtoken');
 const { getJwtSecret } = require('../utils/jwtSecret');
 
@@ -360,6 +362,18 @@ exports.enrollStudent = async (req, res) => {
     const { courseId } = req.params;
     const { studentName, studentPhone, studentEmail, customerId, orderId, subscriptionDays } = req.body;
 
+    const fallbackUtm = {
+      source: req.utm?.utm_source,
+      medium: req.utm?.utm_medium,
+      campaignName: req.utm?.utm_campaign,
+      content: req.utm?.utm_content,
+      term: req.utm?.utm_term,
+    };
+    let attribution = sanitizeOrderAttribution(req.body?.attribution, fallbackUtm);
+    let sessionDetails = req.body?.sessionDetails
+      ? await buildSessionDetails(req.body.sessionDetails, req)
+      : null;
+
     // أنواع التوكنات غير التابعة لفريق الشركة لا تُعامل كأدمن إطلاقاً
     const NON_STAFF_ROLES = ['STUDENT', 'CUSTOMER', 'COURIER', 'AI_SERVICE'];
     const isStaffCaller = Boolean(req.user?.id) && !NON_STAFF_ROLES.includes(req.user?.role);
@@ -376,7 +390,7 @@ exports.enrollStudent = async (req, res) => {
         where: {
           OR: [{ id: String(orderId) }, { orderNumber: String(orderId) }],
         },
-        select: { id: true, companyId: true, paymentStatus: true, status: true },
+        select: { id: true, companyId: true, paymentStatus: true, status: true, metadata: true },
       });
       const isPaidOrder = order && ['COMPLETED', 'PAID'].includes(String(order.paymentStatus || '').toUpperCase());
       if (isStaffCaller) {
@@ -388,6 +402,19 @@ exports.enrollStudent = async (req, res) => {
           success: false,
           error: 'لا يمكن التسجيل في كورس مدفوع إلا بعد إتمام الدفع فعلياً.',
         });
+      }
+
+      if (!attribution || Object.keys(attribution).length === 0) {
+        let orderMeta = order?.metadata;
+        if (typeof orderMeta === 'string') {
+          try { orderMeta = JSON.parse(orderMeta); } catch (_) { orderMeta = null; }
+        }
+        if (orderMeta?.attribution) {
+          attribution = sanitizeOrderAttribution(orderMeta.attribution);
+        }
+        if (!sessionDetails && orderMeta?.sessionDetails) {
+          sessionDetails = await buildSessionDetails(orderMeta.sessionDetails, req);
+        }
       }
     }
 
@@ -405,6 +432,8 @@ exports.enrollStudent = async (req, res) => {
       studentEmail: studentEmail || req.user?.email,
       subscriptionDays: subscriptionDays ? Number(subscriptionDays) : null,
       byAdmin,
+      attribution,
+      sessionDetails,
     });
 
     res.status(201).json({ success: true, enrollment });
@@ -1375,6 +1404,18 @@ exports.checkoutCourse = async (req, res) => {
     const cleanName = rawName && rawName.toString().trim() ? rawName.toString().trim() : 'طالب جديد';
     const cleanEmail = rawEmail && rawEmail.toString().trim() ? rawEmail.toString().trim() : null;
 
+    const fallbackUtm = {
+      source: req.utm?.utm_source,
+      medium: req.utm?.utm_medium,
+      campaignName: req.utm?.utm_campaign,
+      content: req.utm?.utm_content,
+      term: req.utm?.utm_term,
+    };
+    const attribution = sanitizeOrderAttribution(req.body?.attribution, fallbackUtm);
+    const sessionDetails = req.body?.sessionDetails
+      ? await buildSessionDetails(req.body.sessionDetails, req)
+      : null;
+
     const db = academyService.getDb();
     const course = await db.academyCourse.findUnique({
       where: { id: courseId },
@@ -1525,6 +1566,8 @@ exports.checkoutCourse = async (req, res) => {
             courseId: course.id,
             studentPhone: cleanPhone,
             studentName: cleanName,
+            ...(attribution ? { attribution } : {}),
+            ...(sessionDetails ? { sessionDetails } : {}),
           }),
           orderItems: {
             create: [
@@ -1580,6 +1623,13 @@ exports.checkoutCourse = async (req, res) => {
         shippingAddress: 'رقمي / كورس أونلاين (اختبار داخلي)',
         city: 'أونلاين',
         notes: `اشتراك رقمي تجريبي داخلي في كورس: ${course.title}`,
+        metadata: JSON.stringify({
+          courseId: course.id,
+          studentPhone: cleanPhone,
+          studentName: cleanName,
+          ...(attribution ? { attribution } : {}),
+          ...(sessionDetails ? { sessionDetails } : {}),
+        }),
         orderItems: {
           create: [
             {
@@ -1778,3 +1828,17 @@ exports.verifyCoursePayment = async (req, res) => {
 };
 
 
+
+exports.getSourcesAnalytics = async (req, res) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) {
+      return res.status(403).json({ success: false, message: 'غير مصرح' });
+    }
+    const days = req.query.days || 30;
+    const data = await academyService.getSourcesAnalytics(companyId, { days });
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};

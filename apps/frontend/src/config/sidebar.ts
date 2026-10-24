@@ -1519,6 +1519,7 @@ export const getSidebarConfig = (
                 { to: '/academy/courses', icon: BookOpen, label: isEn ? 'Courses Management' : t('sidebar.academyCourses', 'إدارة الكورسات') },
                 { to: '/academy/catalog', icon: Store, label: isEn ? 'Student Portal & Catalog' : t('sidebar.academyCatalog', 'بوابة الطلاب والكتالوج') },
                 { to: '/academy/students', icon: Users, label: isEn ? 'Students & Progress' : t('sidebar.academyStudents', 'الطلاب والتقدم') },
+                { to: '/academy/sources', icon: Target, label: isEn ? 'Campaign Sources' : t('sidebar.academySources', 'مصادر التسجيل والحملات') },
             ]
         },
 
