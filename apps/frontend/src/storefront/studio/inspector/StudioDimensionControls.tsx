@@ -7,7 +7,7 @@ import { ResponsiveFieldBadge } from "./StudioResponsiveControls";
 interface FreeNumberInputProps {
   label: string;
   value: number | string | undefined | null;
-  onChange: (val: number) => void;
+  onChange: (val: number | string) => void;
   min?: number;
   max?: number;
   step?: number;
@@ -35,7 +35,10 @@ export const FreeNumberInput: React.FC<FreeNumberInputProps> = ({
   onReset,
   propName,
 }) => {
-  const numValue = value !== undefined && value !== null ? parseFreeNumber(value) : "";
+  const numValue =
+    value !== undefined && value !== null && value !== ""
+      ? parseFreeNumber(value)
+      : "";
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Intercept Arabic numeral keystrokes and convert them to Latin digits
@@ -75,8 +78,13 @@ export const FreeNumberInput: React.FC<FreeNumberInputProps> = ({
           placeholder={placeholder}
           onKeyDown={handleKeyDown}
           onChange={(e) => {
-            const normalized = normalizeArabicDigits(e.target.value);
-            const parsed = normalized === "" ? 0 : parseFloat(normalized);
+            const raw = e.target.value;
+            if (raw === "") {
+              onChange("");
+              return;
+            }
+            const normalized = normalizeArabicDigits(raw);
+            const parsed = parseFloat(normalized);
             onChange(isNaN(parsed) ? 0 : parsed);
           }}
           className="w-14 bg-transparent text-end font-mono text-[11.5px] font-bold text-[#17181c] outline-none tabular-nums"
@@ -106,10 +114,17 @@ export const StudioPaddingControl: React.FC<StudioPaddingControlProps> = ({
 }) => {
   const [isLinked, setIsLinked] = useState<boolean>(settings.paddingLinked ?? true);
 
-  const paddingTop = parseFreeNumber(settings.paddingTop ?? settings.padding, 24);
-  const paddingBottom = parseFreeNumber(settings.paddingBottom ?? settings.padding, 24);
-  const paddingRight = parseFreeNumber(settings.paddingRight ?? settings.padding, 32);
-  const paddingLeft = parseFreeNumber(settings.paddingLeft ?? settings.padding, 32);
+  const resolvePaddingVal = (field: string, fallback: number) => {
+    const val = settings[field] ?? settings.padding;
+    if (val === "") return "";
+    if (val === undefined || val === null) return fallback;
+    return parseFreeNumber(val, fallback);
+  };
+
+  const paddingTop = resolvePaddingVal("paddingTop", 24);
+  const paddingBottom = resolvePaddingVal("paddingBottom", 24);
+  const paddingRight = resolvePaddingVal("paddingRight", 32);
+  const paddingLeft = resolvePaddingVal("paddingLeft", 32);
 
   // Check responsive overrides
   const targetSource = rawSettings || settings;
@@ -124,7 +139,7 @@ export const StudioPaddingControl: React.FC<StudioPaddingControlProps> = ({
     isLeftCustomized ||
     isPropertyOverridden(targetSource, "padding", deviceMode as "mobile" | "tablet");
 
-  const handleUpdate = (direction: "top" | "bottom" | "right" | "left", val: number) => {
+  const handleUpdate = (direction: "top" | "bottom" | "right" | "left", val: number | string) => {
     if (isLinked) {
       const updates = {
         paddingTop: val,
@@ -288,6 +303,7 @@ export interface StudioMarginControlProps {
   deviceMode?: StudioDeviceMode;
   rawSettings?: Record<string, any>;
   onUpdateField: (field: string, value: any) => void;
+  onBatchUpdateFields?: (updates: Record<string, any>) => void;
   onResetField?: (field: string) => void;
 }
 
@@ -296,60 +312,190 @@ export const StudioMarginControl: React.FC<StudioMarginControlProps> = ({
   deviceMode = "desktop",
   rawSettings,
   onUpdateField,
+  onBatchUpdateFields,
   onResetField,
 }) => {
-  const marginTop = parseFreeNumber(settings.marginTop, 0);
-  const marginBottom = parseFreeNumber(settings.marginBottom, 0);
+  const [isLinked, setIsLinked] = useState<boolean>(settings.marginLinked ?? false);
+
+  const resolveMarginVal = (field: string, fallback?: number) => {
+    const val = settings[field] ?? settings.margin;
+    if (val === "") return "";
+    if (val === undefined || val === null) return fallback !== undefined ? fallback : "";
+    return parseFreeNumber(val, fallback ?? 0);
+  };
+
+  const marginTop = resolveMarginVal("marginTop", 0);
+  const marginBottom = resolveMarginVal("marginBottom", 0);
+  const marginRight = resolveMarginVal("marginRight", 0);
+  const marginLeft = resolveMarginVal("marginLeft", 0);
 
   const targetSource = rawSettings || settings;
   const isTopCustomized = isPropertyOverridden(targetSource, "marginTop", deviceMode as "mobile" | "tablet");
   const isBottomCustomized = isPropertyOverridden(targetSource, "marginBottom", deviceMode as "mobile" | "tablet");
-  const isAnyMarginCustomized = isTopCustomized || isBottomCustomized;
+  const isRightCustomized = isPropertyOverridden(targetSource, "marginRight", deviceMode as "mobile" | "tablet");
+  const isLeftCustomized = isPropertyOverridden(targetSource, "marginLeft", deviceMode as "mobile" | "tablet");
+  const isAnyMarginCustomized =
+    isTopCustomized ||
+    isBottomCustomized ||
+    isRightCustomized ||
+    isLeftCustomized ||
+    isPropertyOverridden(targetSource, "margin", deviceMode as "mobile" | "tablet");
+
+  const handleUpdate = (direction: "top" | "bottom" | "right" | "left", val: number | string) => {
+    if (isLinked) {
+      const updates = {
+        marginTop: val,
+        marginBottom: val,
+        marginRight: val,
+        marginLeft: val,
+        margin: val,
+        marginLinked: true,
+      };
+      if (onBatchUpdateFields) {
+        onBatchUpdateFields(updates);
+      } else {
+        Object.entries(updates).forEach(([k, v]) => onUpdateField(k, v));
+      }
+    } else {
+      const fieldName =
+        direction === "top"
+          ? "marginTop"
+          : direction === "bottom"
+          ? "marginBottom"
+          : direction === "right"
+          ? "marginRight"
+          : "marginLeft";
+      onUpdateField(fieldName, val);
+    }
+  };
 
   const handleResetMarginAll = () => {
     if (onResetField) {
       onResetField("marginTop");
       onResetField("marginBottom");
+      onResetField("marginRight");
+      onResetField("marginLeft");
       onResetField("margin");
+    } else if (onBatchUpdateFields) {
+      onBatchUpdateFields({
+        marginTop: null,
+        marginBottom: null,
+        marginRight: null,
+        marginLeft: null,
+        margin: null,
+      });
     } else {
       onUpdateField("marginTop", null);
       onUpdateField("marginBottom", null);
+      onUpdateField("marginRight", null);
+      onUpdateField("marginLeft", null);
       onUpdateField("margin", null);
     }
+  };
+
+  const handleToggleLinked = () => {
+    const nextLinked = !isLinked;
+    setIsLinked(nextLinked);
+    onUpdateField("marginLinked", nextLinked);
   };
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="block text-[10px] font-bold text-[#3f434a]">الهامش الخارجي (Margin)</span>
-        {isAnyMarginCustomized && deviceMode !== "desktop" && (
-          <ResponsiveFieldBadge
-            deviceMode={deviceMode}
-            isCustomized={isAnyMarginCustomized}
-            propName="margin"
-            onReset={handleResetMarginAll}
-          />
-        )}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-[#3f434a]">الهامش الخارجي (Margin)</span>
+          {isAnyMarginCustomized && deviceMode !== "desktop" && (
+            <ResponsiveFieldBadge
+              deviceMode={deviceMode}
+              isCustomized={isAnyMarginCustomized}
+              propName="margin"
+              onReset={handleResetMarginAll}
+            />
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleToggleLinked}
+          className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9.5px] font-medium transition-colors ${
+            isLinked
+              ? "bg-[#2b6cf6]/10 text-[#2b6cf6] font-bold"
+              : "bg-[#ececee] text-[#7a7f87] hover:text-[#17181c]"
+          }`}
+          title={isLinked ? "القيم مرتبطة: التعديل يسري على جميع الاتجاهات" : "القيم منفصلة: كل اتجاه مستقل"}
+        >
+          <LinkIcon className="h-3 w-3" />
+          <span>{isLinked ? "قيم موحدة" : "قيم منفصلة"}</span>
+        </button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+
+      {isLinked ? (
         <FreeNumberInput
-          label="أعلى"
+          label="موحد (كل الاتجاهات)"
           value={marginTop}
           deviceMode={deviceMode}
-          isCustomized={isTopCustomized}
-          propName="marginTop"
-          onReset={() => onResetField ? onResetField("marginTop") : onUpdateField("marginTop", null)}
-          onChange={(val) => onUpdateField("marginTop", val)}
+          isCustomized={isAnyMarginCustomized}
+          onReset={handleResetMarginAll}
+          propName="margin"
+          onChange={(val) => handleUpdate("top", val)}
         />
-        <FreeNumberInput
-          label="أسفل"
-          value={marginBottom}
-          deviceMode={deviceMode}
-          isCustomized={isBottomCustomized}
-          propName="marginBottom"
-          onReset={() => onResetField ? onResetField("marginBottom") : onUpdateField("marginBottom", null)}
-          onChange={(val) => onUpdateField("marginBottom", val)}
-        />
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <FreeNumberInput
+            label="أعلى"
+            value={marginTop}
+            deviceMode={deviceMode}
+            isCustomized={isTopCustomized}
+            propName="marginTop"
+            onReset={() => onResetField ? onResetField("marginTop") : onUpdateField("marginTop", null)}
+            onChange={(val) => handleUpdate("top", val)}
+          />
+          <FreeNumberInput
+            label="أسفل"
+            value={marginBottom}
+            deviceMode={deviceMode}
+            isCustomized={isBottomCustomized}
+            propName="marginBottom"
+            onReset={() => onResetField ? onResetField("marginBottom") : onUpdateField("marginBottom", null)}
+            onChange={(val) => handleUpdate("bottom", val)}
+          />
+          <FreeNumberInput
+            label="يمين"
+            value={marginRight}
+            deviceMode={deviceMode}
+            isCustomized={isRightCustomized}
+            propName="marginRight"
+            onReset={() => onResetField ? onResetField("marginRight") : onUpdateField("marginRight", null)}
+            onChange={(val) => handleUpdate("right", val)}
+          />
+          <FreeNumberInput
+            label="يسار"
+            value={marginLeft}
+            deviceMode={deviceMode}
+            isCustomized={isLeftCustomized}
+            propName="marginLeft"
+            onReset={() => onResetField ? onResetField("marginLeft") : onUpdateField("marginLeft", null)}
+            onChange={(val) => handleUpdate("left", val)}
+          />
+        </div>
+      )}
+
+      {/* Quick presets for rapid adjustments */}
+      <div className="flex items-center gap-1 pt-0.5">
+        {[
+          { label: "0", val: 0 },
+          { label: "16", val: 16 },
+          { label: "24", val: 24 },
+          { label: "32", val: 32 },
+        ].map((preset) => (
+          <button
+            key={preset.val}
+            type="button"
+            onClick={() => handleUpdate("top", preset.val)}
+            className="flex-1 rounded border border-[#ececee] bg-[#fafbfc] py-1 text-center text-[9.5px] text-[#6f747b] hover:bg-[#f0f2f5] hover:text-[#17181c] transition-colors"
+          >
+            {preset.label}
+          </button>
+        ))}
       </div>
     </div>
   );
