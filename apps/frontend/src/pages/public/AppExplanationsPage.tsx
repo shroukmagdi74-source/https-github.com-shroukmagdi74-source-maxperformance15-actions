@@ -16,6 +16,7 @@ import {
   BarChart3,
   Users,
   MoreHorizontal,
+  VideoOff,
 } from "lucide-react";
 import {
   Collapsible,
@@ -26,6 +27,7 @@ import {
   getYouTubeEmbedUrl,
   getDirectVideoUrl,
 } from "../../utils/explanationVideo";
+import { useYouTubeEmbedError } from "../../hooks/useYouTubeEmbedError";
 import DOMPurify from "dompurify";
 
 interface AppExplanation {
@@ -480,23 +482,40 @@ const ExplanationRow: React.FC<{
 };
 
 /** فيديو الكارت — ما يُرندر إلا بعد فتح الكارت (تحميل عند الطلب) */
-const CardVideoBlock: React.FC<{ exp: AppExplanation; watchVideoLabel: string }> = ({
+export const CardVideoBlock: React.FC<{ exp: AppExplanation; watchVideoLabel: string }> = ({
   exp,
   watchVideoLabel,
 }) => {
+  const yt = exp.videoUrl ? getYouTubeEmbedUrl(exp.videoUrl, { jsApi: true }) : null;
+  const direct = exp.videoUrl && !yt ? getDirectVideoUrl(exp.videoUrl) : null;
+  const { failed: ytFailed, iframeRef, handshake } = useYouTubeEmbedError(yt);
+
   if (!exp.videoUrl) return null;
-  const yt = getYouTubeEmbedUrl(exp.videoUrl);
-  const direct = yt ? null : getDirectVideoUrl(exp.videoUrl);
 
   return (
     <>
-      {yt && (
+      {yt && ytFailed && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300/70 bg-amber-50 p-3.5 dark:border-amber-500/40 dark:bg-amber-500/10 max-w-[640px]">
+          <VideoOff className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" aria-hidden="true" />
+          <div className="text-xs leading-relaxed">
+            <span className="block font-bold text-foreground">الفيديو التوضيحي مش متاح حاليًا</span>
+            <span className="block text-muted-foreground">
+              الشرح المكتوب تحت كامل — وإحنا بنرجّع الفيديو في أقرب وقت.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {yt && !ytFailed && (
         <div className="space-y-2 mb-4">
           <div className="w-full max-w-[640px] aspect-video max-h-[380px] rounded-xl overflow-hidden bg-black border border-border shadow-sm">
             <iframe
+              ref={iframeRef}
+              id={`yt-card-${exp.id}`}
               className="w-full h-full border-0"
               src={yt}
               title={exp.title}
+              onLoad={handshake}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
             />

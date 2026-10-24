@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { PlayCircle, ExternalLink, VideoOff } from "lucide-react";
 import {
   getYouTubeEmbedUrl,
   getDirectVideoUrl,
 } from "../../../utils/explanationVideo";
+import { useYouTubeEmbedError } from "../../../hooks/useYouTubeEmbedError";
 
 const useIsMobileViewport = (): boolean => {
   const [isMobile, setIsMobile] = useState<boolean>(
@@ -18,60 +19,6 @@ const useIsMobileViewport = (): boolean => {
     return () => mq.removeEventListener("change", onChange);
   }, []);
   return isMobile;
-};
-
-const YOUTUBE_ORIGIN_RE = /^https:\/\/(www\.)?youtube(-nocookie)?\.com$/;
-
-/**
- * A removed / private / embedding-disabled YouTube video keeps rendering a black
- * player with an English «Video unavailable» banner inside the explanation modal.
- * With `enablejsapi=1` the player reports those cases as an `onError` message, so
- * we can swap the dead frame for an Arabic notice (the written explanation below
- * stays the source of truth).
- */
-const useYouTubeErrorState = (embedUrl: string | null) => {
-  const [failed, setFailed] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-
-  useEffect(() => {
-    setFailed(false);
-    if (!embedUrl || typeof window === "undefined") return;
-
-    const onMessage = (event: MessageEvent) => {
-      if (!YOUTUBE_ORIGIN_RE.test(event.origin || "")) return;
-      let payload: unknown = event.data;
-      if (typeof payload === "string") {
-        try {
-          payload = JSON.parse(payload);
-        } catch {
-          return;
-        }
-      }
-      if (
-        payload &&
-        typeof payload === "object" &&
-        (payload as { event?: string }).event === "onError"
-      ) {
-        setFailed(true);
-      }
-    };
-
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [embedUrl]);
-
-  const handshake = () => {
-    try {
-      iframeRef.current?.contentWindow?.postMessage(
-        JSON.stringify({ event: "listening", id: iframeRef.current.id }),
-        "*",
-      );
-    } catch {
-      // cross-origin / jsdom — the error listener stays the only signal
-    }
-  };
-
-  return { failed, iframeRef, handshake };
 };
 
 export const VideoBlock: React.FC<{
@@ -91,7 +38,7 @@ export const VideoBlock: React.FC<{
   const activeUrl = (showMobile ? videoUrlMobile : videoUrl) || videoUrl || videoUrlMobile || "";
   const embedUrl = getYouTubeEmbedUrl(activeUrl, { jsApi: true });
   const directVideoUrl = embedUrl ? null : getDirectVideoUrl(activeUrl);
-  const { failed: embedFailed, iframeRef, handshake } = useYouTubeErrorState(embedUrl);
+  const { failed: embedFailed, iframeRef, handshake } = useYouTubeEmbedError(embedUrl);
 
   const frameClass = showMobile
     ? "w-full aspect-[9/16] max-h-[420px] mx-auto rounded-xl overflow-hidden bg-black shadow-md border border-border/80"
