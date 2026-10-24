@@ -1,14 +1,26 @@
 import React from "react";
 import { Check, MessageCircle, CreditCard } from "lucide-react";
-import { PRICE_PER_DAY, WHATSAPP_CONSULT_URL, csbFmt, INDIVIDUAL_TOTAL } from "./csbData";
+import {
+  PRICE_PER_DAY,
+  WHATSAPP_CONSULT_URL,
+  csbFmt,
+  INDIVIDUAL_TOTAL,
+  BUNDLE_PRICE,
+} from "./csbData";
 import { CsbInvoice } from "./CsbInvoice";
+import { MergedPricingResult } from "./useBundlePricing";
 
 interface Props {
   onSubscribe: () => void;
   isCheckingOut: boolean;
+  pricing?: MergedPricingResult;
 }
 
-export const CsbHero: React.FC<Props> = ({ onSubscribe, isCheckingOut }) => {
+export const CsbHero: React.FC<Props> = ({ onSubscribe, isCheckingOut, pricing }) => {
+  const bundlePrice = pricing?.bundlePrice ?? BUNDLE_PRICE;
+  const individualTotal = pricing?.individualTotal ?? INDIVIDUAL_TOTAL;
+  const pricePerDay = pricing?.pricePerDay ?? PRICE_PER_DAY;
+
   return (
     <header className="csb-hero">
       <div className="csb-hero-copy">
@@ -18,12 +30,12 @@ export const CsbHero: React.FC<Props> = ({ onSubscribe, isCheckingOut }) => {
         </span>
 
         <h1>
-          متجرك كله في نظام واحد — <span className="csb-h1-green">999 ج.م</span> في الشهر
+          متجرك كله في نظام واحد — <span className="csb-h1-green">{csbFmt(bundlePrice)} ج.م</span> في الشهر
         </h1>
 
         <p className="csb-hero-sub">
           من رسالة العميل لحد صافي الربح: المتجر والواتساب والشحن والمخزون والمرتجعات
-          والتحليلات — بـ{PRICE_PER_DAY} ج.م في اليوم تقريبًا، بدل {csbFmt(INDIVIDUAL_TOTAL)} لو
+          والتحليلات — بـ{csbFmt(pricePerDay)} ج.م في اليوم تقريبًا، بدل {csbFmt(individualTotal)} لو
           اشتريت الأدوات واحدة واحدة.
         </p>
 
@@ -35,7 +47,7 @@ export const CsbHero: React.FC<Props> = ({ onSubscribe, isCheckingOut }) => {
             disabled={isCheckingOut}
           >
             <CreditCard size={16} strokeWidth={2.2} />
-            {isCheckingOut ? "بنجهز الدفع…" : "اشترك الآن — 999 ج.م/شهر"}
+            {isCheckingOut ? "بنجهز الدفع…" : `اشترك الآن — ${csbFmt(bundlePrice)} ج.م/شهر`}
           </button>
           <a
             href={WHATSAPP_CONSULT_URL}
@@ -64,7 +76,7 @@ export const CsbHero: React.FC<Props> = ({ onSubscribe, isCheckingOut }) => {
         </div>
       </div>
 
-      <CsbInvoice onSubscribe={onSubscribe} />
+      <CsbInvoice onSubscribe={onSubscribe} pricing={pricing} />
     </header>
   );
 };

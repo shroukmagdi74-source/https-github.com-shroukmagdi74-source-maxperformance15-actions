@@ -22,20 +22,33 @@ import {
   LANDING_SLUG,
   UTM_KEYS,
   WHATSAPP_CONSULT_URL,
-  BUNDLE_PRICE,
-  INDIVIDUAL_TOTAL,
   csbFmt,
 } from "./complete-store/csbData";
 import { useRevealOnScroll } from "./complete-store/csbHooks";
+import { useBundlePricing } from "./complete-store/useBundlePricing";
 import "./complete-store/csb.css";
 
 export const CompleteStoreBundleLanding: React.FC = () => {
   const navigate = useNavigate();
+  const pricing = useBundlePricing();
   const [utm, setUtm] = useState<Record<string, string>>({});
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [spend, setSpend] = useState<number>(INDIVIDUAL_TOTAL);
+  const [spend, setSpend] = useState<number>(pricing.individualTotal);
+  const [userEditedSpend, setUserEditedSpend] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   useRevealOnScroll(rootRef);
+
+  // تحديث إنفاق الحاسبة تلقائياً إذا تغير إجمالي الكتالوج ولم يقم المستخدم بالتعديل اليدوي
+  useEffect(() => {
+    if (!userEditedSpend) {
+      setSpend(pricing.individualTotal);
+    }
+  }, [pricing.individualTotal, userEditedSpend]);
+
+  const handleSpendChange = useCallback((v: number) => {
+    setUserEditedSpend(true);
+    setSpend(v);
+  }, []);
 
   // ── SEO tags + UTM first-touch ──
   useEffect(() => {
@@ -124,12 +137,12 @@ export const CompleteStoreBundleLanding: React.FC = () => {
         content_ids: [BUNDLE_SLUG],
         content_type: "product_group",
         num_items: 17,
-        value: BUNDLE_PRICE,
+        value: pricing.bundlePrice,
         currency: "EGP",
       });
       trackPlatformSiteLead("csb_subscribe_cta", {
         bundle: BUNDLE_SLUG,
-        value: BUNDLE_PRICE,
+        value: pricing.bundlePrice,
         currency: "EGP",
       });
     } catch {
@@ -167,21 +180,30 @@ export const CompleteStoreBundleLanding: React.FC = () => {
     } finally {
       setIsCheckingOut(false);
     }
-  }, [navigate, buildRegisterQuery, utm, isCheckingOut]);
+  }, [navigate, buildRegisterQuery, utm, isCheckingOut, pricing.bundlePrice]);
 
-  const annualSaving = Math.max(0, Math.round(spend) - BUNDLE_PRICE) * 12;
+  const annualSaving = Math.max(0, Math.round(spend) - pricing.bundlePrice) * 12;
 
   return (
     <div className="csb-root" dir="rtl" ref={rootRef}>
-      <CsbNavbar onSubscribe={handleSubscribe} />
+      <CsbNavbar onSubscribe={handleSubscribe} bundlePrice={pricing.bundlePrice} />
 
       <main>
-        <CsbHero onSubscribe={handleSubscribe} isCheckingOut={isCheckingOut} />
+        <CsbHero
+          onSubscribe={handleSubscribe}
+          isCheckingOut={isCheckingOut}
+          pricing={pricing}
+        />
         <CsbStats />
         <CsbVideo />
         <CsbJourney />
-        <CsbFamilies />
-        <CsbCalculator spend={spend} onSpendChange={setSpend} />
+        <CsbFamilies pricing={pricing} />
+        <CsbCalculator
+          spend={spend}
+          onSpendChange={handleSpendChange}
+          bundlePrice={pricing.bundlePrice}
+          individualTotal={pricing.individualTotal}
+        />
         <CsbCompare />
         <CsbLead utm={utm} />
         <CsbFaq />
@@ -192,7 +214,7 @@ export const CompleteStoreBundleLanding: React.FC = () => {
       <div className="csb-sticky-mobile">
         <div className="csb-sticky-meta">
           <b>
-            {csbFmt(BUNDLE_PRICE)} ج.م/شهر — 17 أداة
+            {csbFmt(pricing.bundlePrice)} ج.م/شهر — 17 أداة
           </b>
           تفعيل فوري · إلغاء في أي وقت
         </div>

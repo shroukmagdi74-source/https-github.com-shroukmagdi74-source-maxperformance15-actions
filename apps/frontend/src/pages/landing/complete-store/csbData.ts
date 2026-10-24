@@ -15,6 +15,10 @@ export interface CsbFamily {
   lineIds: string[];
 }
 
+// فترة التيست: monthlyPrice في الداتابيز = 5. اللاند بتعرض 999 لحد ما التيست يخلص.
+// بعد الإرجاع: خليها null عشان تقرأ من الـAPI مباشرة.
+export const BUNDLE_PRICE_OVERRIDE: number | null = 999;
+
 export const BUNDLE_PRICE = 999;
 export const INDIVIDUAL_TOTAL = 2936;
 export const MONTHLY_SAVING = INDIVIDUAL_TOTAL - BUNDLE_PRICE; // 1,937

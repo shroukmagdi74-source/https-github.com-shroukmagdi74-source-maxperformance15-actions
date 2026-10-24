@@ -1,14 +1,21 @@
 import React from "react";
-import { CSB_FAMILIES, CSB_LINES, csbFmt } from "./csbData";
+import { CSB_FAMILIES, CSB_LINES, BUNDLE_PRICE, csbFmt } from "./csbData";
+import { MergedPricingResult } from "./useBundlePricing";
 
-const lineById = (id: string) => CSB_LINES.find((l) => l.id === id);
-
-const familySum = (ids: string[]) =>
-  ids.reduce((acc, id) => acc + (lineById(id)?.price ?? 0), 0);
+interface Props {
+  pricing?: MergedPricingResult;
+}
 
 /** Bento غير متماثل: عائلتين فوق + عمود جانبي ممتد + عائلتين تحت */
-export const CsbFamilies: React.FC = () => {
+export const CsbFamilies: React.FC<Props> = ({ pricing }) => {
   const [selling, conversations, logistics, measurement] = CSB_FAMILIES;
+  const lines = pricing?.lines ?? CSB_LINES;
+  const bundlePrice = pricing?.bundlePrice ?? BUNDLE_PRICE;
+
+  const lineById = (id: string) => lines.find((l) => l.id === id);
+
+  const familySum = (ids: string[]) =>
+    ids.reduce((acc, id) => acc + (lineById(id)?.price ?? 0), 0);
 
   const renderList = (ids: string[]) => (
     <ul>
@@ -53,7 +60,9 @@ export const CsbFamilies: React.FC = () => {
   const foot = (ids: string[]) => (
     <div className="csb-family-foot">
       <span>قيمتها لو اتشترت منفردة</span>
-      <b>{csbFmt(familySum(ids))} ج.م/شهر — داخلة في الـ999</b>
+      <b>
+        {csbFmt(familySum(ids))} ج.م/شهر — داخلة في الـ{csbFmt(bundlePrice)}
+      </b>
     </div>
   );
 

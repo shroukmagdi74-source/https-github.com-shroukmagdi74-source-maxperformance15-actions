@@ -1,21 +1,35 @@
 import React, { useMemo } from "react";
 import { BUNDLE_PRICE, INDIVIDUAL_TOTAL, WHATSAPP_CONSULT_URL, csbFmt } from "./csbData";
 
-const CHIPS = [1000, 1500, 2000, 2936];
-
 interface Props {
   spend: number;
   onSpendChange: (v: number) => void;
+  bundlePrice?: number;
+  individualTotal?: number;
 }
 
 /** حاسبة صادقة: العميل يدخل إنفاقه الشهري الحالي — والفرق بيتحسب قدامه على أساس سنة. */
-export const CsbCalculator: React.FC<Props> = ({ spend, onSpendChange }) => {
+export const CsbCalculator: React.FC<Props> = ({
+  spend,
+  onSpendChange,
+  bundlePrice = BUNDLE_PRICE,
+  individualTotal = INDIVIDUAL_TOTAL,
+}) => {
   const setSpend = onSpendChange;
 
+  const chips = useMemo(
+    () => [1000, 1500, 2000, individualTotal],
+    [individualTotal]
+  );
+
   const { monthly, annual, below } = useMemo(() => {
-    const diff = Math.max(0, Math.round(spend) - BUNDLE_PRICE);
-    return { monthly: diff, annual: diff * 12, below: Math.round(spend) <= BUNDLE_PRICE };
-  }, [spend]);
+    const diff = Math.max(0, Math.round(spend) - bundlePrice);
+    return {
+      monthly: diff,
+      annual: diff * 12,
+      below: Math.round(spend) <= bundlePrice,
+    };
+  }, [spend, bundlePrice]);
 
   return (
     <section className="csb-section" id="calculator">
@@ -46,7 +60,7 @@ export const CsbCalculator: React.FC<Props> = ({ spend, onSpendChange }) => {
             style={{ textAlign: "right" }}
           />
           <div className="csb-calc-chips" role="group" aria-label="قيم جاهزة">
-            {CHIPS.map((c) => (
+            {chips.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -66,7 +80,10 @@ export const CsbCalculator: React.FC<Props> = ({ spend, onSpendChange }) => {
                 <span>الرقم بتاعك أقل من سعر الباقة</span>
                 <strong style={{ fontSize: 18 }}>عادي — مش مجبر عليها</strong>
               </div>
-              <p className="csb-calc-note" style={{ fontSize: 13, color: "rgba(245,241,232,0.75)" }}>
+              <p
+                className="csb-calc-note"
+                style={{ fontSize: 13, color: "rgba(245,241,232,0.75)" }}
+              >
                 الباقة بتفرق لما تجمع الوقت الضايع والأوردرات اللي بتقع بين الأنظمة المتفرقة.
                 لو عايز رأي صريح في وضعك، كلمنا:
               </p>
@@ -75,7 +92,11 @@ export const CsbCalculator: React.FC<Props> = ({ spend, onSpendChange }) => {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="csb-btn csb-btn-sm"
-                style={{ background: "#fbfdfb", color: "var(--csb-green)", alignSelf: "flex-start" }}
+                style={{
+                  background: "#fbfdfb",
+                  color: "var(--csb-green)",
+                  alignSelf: "flex-start",
+                }}
               >
                 استشارة واتساب — من غير التزام
               </a>
@@ -95,7 +116,7 @@ export const CsbCalculator: React.FC<Props> = ({ spend, onSpendChange }) => {
                 </strong>
               </div>
               <p className="csb-calc-note">
-                الحساب: ({csbFmt(Math.round(spend))} − {csbFmt(BUNDLE_PRICE)}) × 12 — الفلوس دي
+                الحساب: ({csbFmt(Math.round(spend))} − {csbFmt(bundlePrice)}) × 12 — الفلوس دي
                 بتفضل في جيبك مش في اشتراكات متفرقة.
               </p>
             </>

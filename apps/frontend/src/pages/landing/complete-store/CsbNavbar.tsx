@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { CreditCard, MessageCircle } from "lucide-react";
-import { WHATSAPP_CONSULT_URL } from "./csbData";
+import { WHATSAPP_CONSULT_URL, BUNDLE_PRICE, csbFmt } from "./csbData";
 
 interface Props {
   onSubscribe: () => void;
+  bundlePrice?: number;
 }
 
-export const CsbNavbar: React.FC<Props> = ({ onSubscribe }) => {
+export const CsbNavbar: React.FC<Props> = ({ onSubscribe, bundlePrice = BUNDLE_PRICE }) => {
   const [imgError, setImgError] = useState(false);
 
   return (
@@ -57,7 +58,7 @@ export const CsbNavbar: React.FC<Props> = ({ onSubscribe }) => {
           </Link>
           <button type="button" className="csb-btn csb-btn-primary csb-btn-sm" onClick={onSubscribe}>
             <CreditCard size={13} strokeWidth={2.2} />
-            اشترك — 999/شهر
+            اشترك — {csbFmt(bundlePrice)}/شهر
           </button>
         </div>
       </div>

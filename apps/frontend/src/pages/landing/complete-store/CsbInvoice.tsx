@@ -9,18 +9,27 @@ import {
   csbFmt,
 } from "./csbData";
 import { useCountUp } from "./csbHooks";
+import { MergedPricingResult } from "./useBundlePricing";
 
 /**
- * الفاتورة التفاعلية: 17 بند بأسعارهم المنفردة، الإجمالي متشطب، والمجموع الجديد 999.
+ * الفاتورة التفاعلية: 17 بند بأسعارهم المنفردة، الإجمالي متشطب، والمجموع الجديد (999).
  * كل بند بيتفتح يورّح ميزة الأداة الفعلية.
  */
 export const CsbInvoice: React.FC<{
   ctaRef?: React.RefObject<HTMLDivElement | null>;
   onSubscribe?: () => void;
-}> = ({ ctaRef, onSubscribe }) => {
+  pricing?: MergedPricingResult;
+}> = ({ ctaRef, onSubscribe, pricing }) => {
   const [openId, setOpenId] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const { ref: oldTotalRef, value: animatedOld } = useCountUp(INDIVIDUAL_TOTAL, 1100);
+
+  const lines = pricing?.lines ?? CSB_LINES;
+  const individualTotal = pricing?.individualTotal ?? INDIVIDUAL_TOTAL;
+  const bundlePrice = pricing?.bundlePrice ?? BUNDLE_PRICE;
+  const monthlySaving = pricing?.monthlySaving ?? MONTHLY_SAVING;
+  const discountPct = pricing?.discountPct ?? DISCOUNT_PCT;
+
+  const { ref: oldTotalRef, value: animatedOld } = useCountUp(individualTotal, 1100);
 
   // خط الشطب بيتحط ككلاس على جذر الصفحة بعد ما الفاتورة تظهر
   useEffect(() => {
@@ -35,10 +44,13 @@ export const CsbInvoice: React.FC<{
   }, []);
 
   return (
-    <div className="csb-receipt-wrap" ref={(el) => {
-      wrapRef.current = el;
-      if (ctaRef) ctaRef.current = el;
-    }}>
+    <div
+      className="csb-receipt-wrap"
+      ref={(el) => {
+        wrapRef.current = el;
+        if (ctaRef) ctaRef.current = el;
+      }}
+    >
       <div className="csb-receipt" data-testid="csb-invoice">
         <div className="csb-receipt-head">
           <strong>فاتورة اشتراكات المتجر</strong>
@@ -46,7 +58,7 @@ export const CsbInvoice: React.FC<{
         </div>
 
         <div className="csb-receipt-rows">
-          {CSB_LINES.map((line) => {
+          {lines.map((line) => {
             const open = openId === line.id;
             return (
               <div className="csb-row" data-open={open} key={line.id}>
@@ -96,19 +108,25 @@ export const CsbInvoice: React.FC<{
           </div>
           <div className="csb-total-final">
             <strong>
-              {csbFmt(BUNDLE_PRICE)} <small>ج.م / شهر — كل حاجة</small>
+              {csbFmt(bundlePrice)} <small>ج.م / شهر — كل حاجة</small>
             </strong>
             <span className="csb-save-badge">
-              وفّرت {csbFmt(MONTHLY_SAVING)} ج.م ({DISCOUNT_PCT}%)
+              وفّرت {csbFmt(monthlySaving)} ج.م ({discountPct}%)
             </span>
           </div>
         </div>
 
-        <p className="csb-receipt-foot">الأسعار من كتالوج سوق MaxP الرسمي — اضغط على أي بند تعرف بيعمل إيه</p>
+        <p className="csb-receipt-foot">
+          الأسعار من كتالوج سوق MaxP الرسمي — اضغط على أي بند تعرف بيعمل إيه
+        </p>
 
         {onSubscribe && (
           <div className="csb-receipt-ctas">
-            <button type="button" className="csb-btn csb-btn-primary csb-btn-sm" onClick={onSubscribe}>
+            <button
+              type="button"
+              className="csb-btn csb-btn-primary csb-btn-sm"
+              onClick={onSubscribe}
+            >
               اشترك الآن — تفعيل فوري
             </button>
           </div>
