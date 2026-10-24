@@ -118,6 +118,28 @@ REQUIRED_APP_SLUGS = [
     "woocommerce-pro",
 ]
 
+# The 17 applications comprising the complete store bundle (baca)
+STORE_COMPLETE_BUNDLE_SLUGS = [
+    "store",
+    "order-workflow",
+    "whatsapp-business",
+    "bot-automation",
+    "bulk-orders",
+    "order-preparation-hold",
+    "order-shipping-turbo",
+    "inventory-pro",
+    "returns-settings",
+    "returns-reasons-analytics",
+    "orders-analytics",
+    "profit-analytics",
+    "campaign-attribution",
+    "campaign-attribution-analytics",
+    "facebook-ads-pro",
+    "facebook-pages-connect",
+    "unified-inbox",
+]
+
+
 
 def _has_arabic(text: str) -> bool:
     """Return True if the text contains Arabic characters."""
@@ -127,6 +149,44 @@ def _has_arabic(text: str) -> bool:
 # ===========================================================================
 # 1. App Cards Unit Tests
 # ===========================================================================
+
+def test_app_cards_total_count_is_38():
+    """Verify that APP_CARDS contains exactly 38 application cards (27 original + 11 bundle additions)."""
+    assert len(APP_CARDS) == 38, f"Expected exactly 38 cards, found {len(APP_CARDS)}"
+
+
+def test_all_17_store_complete_bundle_slugs_have_cards():
+    """Verify that all 17 application slugs in the store-complete bundle have registered cards (assert 17/17)."""
+    assert len(STORE_COMPLETE_BUNDLE_SLUGS) == 17
+    covered = [s for s in STORE_COMPLETE_BUNDLE_SLUGS if get_app_card(s) is not None]
+    assert len(covered) == 17, (
+        f"Missing bundle cards: {set(STORE_COMPLETE_BUNDLE_SLUGS) - set(covered)} "
+        f"({len(covered)}/17)"
+    )
+    assert len(covered) == len(STORE_COMPLETE_BUNDLE_SLUGS)
+
+
+def test_every_card_has_exact_five_questions_and_non_empty_metadata():
+    """Every single card in APP_CARDS must have exactly 5 questions and non-empty screens, limits, name_ar, summary_ar."""
+    assert len(APP_CARDS) == 38, f"Expected 38 cards, got {len(APP_CARDS)}"
+    for slug, card in APP_CARDS.items():
+        assert card.get("name_ar"), f"Slug '{slug}' has empty name_ar"
+        assert _has_arabic(card["name_ar"]), f"Slug '{slug}' name_ar is not Arabic"
+        assert card.get("summary_ar"), f"Slug '{slug}' has empty summary_ar"
+        assert _has_arabic(card["summary_ar"]), f"Slug '{slug}' summary_ar is not Arabic"
+        assert isinstance(card.get("screens"), list) and len(card["screens"]) > 0, f"Slug '{slug}' has empty screens"
+        for screen in card["screens"]:
+            assert screen.startswith("/"), f"Slug '{slug}' screen '{screen}' does not start with /"
+        assert isinstance(card.get("capability_domains"), list) and len(card["capability_domains"]) > 0, f"Slug '{slug}' has empty capability_domains"
+        assert isinstance(card.get("limits"), list) and len(card["limits"]) > 0, f"Slug '{slug}' has empty limits"
+        for limit in card["limits"]:
+            assert _has_arabic(limit), f"Slug '{slug}' limit '{limit}' is not Arabic"
+        questions = card.get("top_questions", [])
+        assert isinstance(questions, list), f"Slug '{slug}' top_questions is not a list"
+        assert len(questions) == 5, f"Slug '{slug}' must have exactly 5 questions, found {len(questions)}"
+        for q in questions:
+            assert q and _has_arabic(q), f"Slug '{slug}' question is empty or not Arabic: {q!r}"
+
 
 def test_all_26_slugs_have_complete_cards():
     """Verify that every single required slug has a card with non-empty fields."""
@@ -167,12 +227,15 @@ def test_get_app_card_nonexistent_returns_none():
 
 
 def test_list_app_slugs_returns_sorted_list():
-    """list_app_slugs() must return a sorted list containing all required slugs."""
+    """list_app_slugs() must return a sorted list containing all 38 required slugs."""
     slugs = list_app_slugs()
     assert isinstance(slugs, list)
+    assert len(slugs) == 38, f"Expected 38 slugs, got {len(slugs)}"
     assert slugs == sorted(slugs)
     for req in REQUIRED_APP_SLUGS:
         assert req in slugs, f"Required slug '{req}' missing from list_app_slugs()"
+    for b_slug in STORE_COMPLETE_BUNDLE_SLUGS:
+        assert b_slug in slugs, f"Bundle slug '{b_slug}' missing from list_app_slugs()"
 
 
 def test_get_app_card_returns_deep_copy():
