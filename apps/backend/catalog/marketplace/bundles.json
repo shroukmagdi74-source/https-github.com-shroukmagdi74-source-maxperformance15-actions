@@ -145,5 +145,39 @@
     ],
     "createdAt": "2026-09-22T00:00:00.000Z",
     "updatedAt": "2026-09-22T00:00:00.000Z"
+  },
+  {
+    "id": "cat-bundle-store-complete",
+    "slug": "store-complete-bundle",
+    "name": "باقة المتجر الكاملة",
+    "nameEn": "Complete Store Bundle",
+    "description": "17 أداة في باقة واحدة: المتجر + مسار الطلبات + واتساب لتأكيد الأوردر + أتمتة المحادثات + الشحن الذكي + المخزون + المرتجعات وأسبابها + التحليلات + Campaign Attribution — بـ999 ج.م/شهر بدل 2,936 منفردة (أقل بـ66%).",
+    "monthlyPrice": 5,
+    "yearlyPrice": null,
+    "discount": 0,
+    "trialDays": 7,
+    "isActive": true,
+    "isFeatured": true,
+    "appSlugs": [
+      "store",
+      "order-workflow",
+      "whatsapp-business",
+      "bot-automation",
+      "bulk-orders",
+      "order-preparation-hold",
+      "order-shipping-turbo",
+      "inventory-pro",
+      "returns-settings",
+      "returns-reasons-analytics",
+      "orders-analytics",
+      "profit-analytics",
+      "campaign-attribution",
+      "campaign-attribution-analytics",
+      "facebook-ads-pro",
+      "facebook-pages-connect",
+      "unified-inbox"
+    ],
+    "createdAt": "2026-10-06T13:00:44.094Z",
+    "updatedAt": "2026-10-24T10:09:51.991Z"
   }
 ]
