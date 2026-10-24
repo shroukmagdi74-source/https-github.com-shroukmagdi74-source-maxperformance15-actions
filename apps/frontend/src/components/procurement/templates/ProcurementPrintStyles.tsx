@@ -1,12 +1,22 @@
 import React from "react";
 
-export const ProcurementPrintStyles: React.FC = () => {
+interface ProcurementPrintStylesProps {
+  paperSize?: "A4" | "A5";
+}
+
+export const ProcurementPrintStyles: React.FC<ProcurementPrintStylesProps> = ({
+  paperSize = "A4",
+}) => {
+  const pageRule =
+    paperSize === "A5"
+      ? "size: A5 landscape; margin: 6mm 8mm;"
+      : "size: A4 portrait; margin: 10mm 12mm 12mm 12mm;";
+
   return (
     <style>{`
       @media print {
         @page {
-          size: A4 portrait;
-          margin: 10mm 12mm 12mm 12mm;
+          ${pageRule}
         }
         body, html {
           background: #ffffff !important;
@@ -34,8 +44,11 @@ export const ProcurementPrintStyles: React.FC = () => {
         .printable-commercial-sheet {
           display: block !important;
           width: 100% !important;
+          max-width: 100% !important;
+          min-width: 100% !important;
           background: #ffffff !important;
           color: #0f172a !important;
+          box-shadow: none !important;
         }
         .no-break {
           page-break-inside: avoid !important;
@@ -48,7 +61,7 @@ export const ProcurementPrintStyles: React.FC = () => {
       }
       @media screen {
         .printable-commercial-sheet {
-          display: none !important;
+          display: block;
         }
       }
     `}</style>

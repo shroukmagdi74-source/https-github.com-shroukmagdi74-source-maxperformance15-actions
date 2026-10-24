@@ -279,6 +279,7 @@ export const PurchaseOrderDetail: React.FC = () => {
       taxRate: it.taxRate,
       discountRate: it.discountRate,
       totalPrice: it.totalPrice,
+      packagingUnit: (it as { packagingUnit?: string; unit?: string }).packagingUnit || (it as { unit?: string }).unit || null,
     })),
     financialSummary: {
       subtotal: order.subtotal,

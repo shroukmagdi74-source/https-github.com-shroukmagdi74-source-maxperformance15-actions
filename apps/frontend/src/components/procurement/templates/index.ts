@@ -1,5 +1,7 @@
 export * from "./types";
 export * from "./ProcurementPrintStyles";
+export * from "./CommercialFactoryTemplate";
+export * from "./CompactEcoHalfPageTemplate";
 export * from "./OfficialTaxTemplate";
 export * from "./ModernMinimalTemplate";
 export * from "./GoodsReceiptTemplate";

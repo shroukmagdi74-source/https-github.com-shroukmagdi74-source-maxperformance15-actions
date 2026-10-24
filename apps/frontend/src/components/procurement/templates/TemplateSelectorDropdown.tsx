@@ -11,6 +11,11 @@ import {
   ShieldCheck,
   Settings,
   ChevronLeft,
+  Factory,
+  Leaf,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +40,8 @@ import {
   PROCUREMENT_TEMPLATE_STORAGE_KEY,
   NormalizedProcurementData,
 } from "./types";
+import { CommercialFactoryTemplate } from "./CommercialFactoryTemplate";
+import { CompactEcoHalfPageTemplate } from "./CompactEcoHalfPageTemplate";
 import { OfficialTaxTemplate } from "./OfficialTaxTemplate";
 import { ModernMinimalTemplate } from "./ModernMinimalTemplate";
 import { GoodsReceiptTemplate } from "./GoodsReceiptTemplate";
@@ -47,7 +54,9 @@ interface TemplateSelectorDropdownProps {
 }
 
 const templateIcons: Record<ProcurementTemplateId, React.ReactNode> = {
-  official_tax: <ShieldCheck className="size-4 text-emerald-600" />,
+  commercial_factory: <Factory className="size-4 text-red-600" />,
+  compact_eco: <Leaf className="size-4 text-emerald-600" />,
+  official_tax: <ShieldCheck className="size-4 text-slate-800" />,
   modern_minimal: <Sparkles className="size-4 text-blue-600" />,
   goods_receipt: <Boxes className="size-4 text-amber-600" />,
 };
@@ -61,6 +70,7 @@ export const TemplateSelectorDropdown: React.FC<TemplateSelectorDropdownProps> =
   const navigate = useNavigate();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<ProcurementTemplateId>(selectedTemplate);
+  const [zoomScale, setZoomScale] = useState<number>(0.85);
 
   const currentOption =
     AVAILABLE_PROCUREMENT_TEMPLATES.find((t) => t.id === selectedTemplate) ||
@@ -90,6 +100,10 @@ export const TemplateSelectorDropdown: React.FC<TemplateSelectorDropdownProps> =
   const renderPreviewContent = () => {
     if (!data) return null;
     switch (previewTemplate) {
+      case "commercial_factory":
+        return <CommercialFactoryTemplate data={data} isRtl={isRtl} />;
+      case "compact_eco":
+        return <CompactEcoHalfPageTemplate data={data} isRtl={isRtl} />;
       case "modern_minimal":
         return <ModernMinimalTemplate data={data} isRtl={isRtl} />;
       case "goods_receipt":
@@ -143,16 +157,14 @@ export const TemplateSelectorDropdown: React.FC<TemplateSelectorDropdownProps> =
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
                       {templateIcons[tmpl.id]}
-                      <span className="font-bold text-xs text-foreground">
-                        {tmpl.nameAr}
-                      </span>
+                      <span className="font-bold text-xs text-foreground">{tmpl.nameAr}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Badge
                         variant={isSelected ? "default" : "secondary"}
                         className="text-[10px] px-1.5 py-0"
                       >
-                        {tmpl.badgeAr}
+                        {tmpl.paperSizeLabelAr}
                       </Badge>
                       {isSelected && <Check className="size-3.5 text-primary" />}
                     </div>
@@ -170,7 +182,7 @@ export const TemplateSelectorDropdown: React.FC<TemplateSelectorDropdownProps> =
                         className="text-[10px] font-medium text-primary hover:underline inline-flex items-center gap-1"
                       >
                         <Eye className="size-3" />
-                        معاينة سريعة للورقة
+                        معاينة وتكبير الورقة
                       </button>
                     </div>
                   )}
@@ -206,19 +218,57 @@ export const TemplateSelectorDropdown: React.FC<TemplateSelectorDropdownProps> =
         </Button>
       </div>
 
-      {/* Quick Visual Preview Dialog (Screen only) */}
+      {/* Quick Visual Preview Dialog (Screen only with Zoom & Scaling protection) */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 print:hidden">
+        <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 print:hidden">
           <DialogHeader className="border-b border-border pb-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <FileText className="size-5 text-primary" />
-                <DialogTitle className="text-base sm:text-lg font-bold">
-                  معاينة قالب الطباعة:{" "}
-                  {AVAILABLE_PROCUREMENT_TEMPLATES.find((t) => t.id === previewTemplate)?.nameAr}
-                </DialogTitle>
+                <div>
+                  <DialogTitle className="text-base sm:text-lg font-bold">
+                    معاينة:{" "}
+                    {AVAILABLE_PROCUREMENT_TEMPLATES.find((t) => t.id === previewTemplate)?.nameAr}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                    ورقة الطباعة بدقة المتجه الرسمية بدون تشوه في الأعمدة أو النصوص.
+                  </DialogDescription>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* Action Buttons & Zoom Bar */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center bg-muted/60 border border-border rounded-lg p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setZoomScale((s) => Math.max(0.4, Number((s - 0.15).toFixed(2))))}
+                    className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
+                    title="تصغير"
+                  >
+                    <ZoomOut className="size-3.5" />
+                  </button>
+                  <span className="px-2 font-mono text-[11px] font-semibold">
+                    {Math.round(zoomScale * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setZoomScale((s) => Math.min(1.4, Number((s + 0.15).toFixed(2))))}
+                    className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
+                    title="تكبير"
+                  >
+                    <ZoomIn className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoomScale(0.85)}
+                    className="px-2 py-1 text-[10px] font-medium hover:bg-background rounded text-muted-foreground"
+                    title="إعادة ضبط الحجم"
+                  >
+                    <Maximize2 className="size-3 inline me-1" />
+                    ضبط
+                  </button>
+                </div>
+
                 <Button
                   size="sm"
                   variant="default"
@@ -234,14 +284,20 @@ export const TemplateSelectorDropdown: React.FC<TemplateSelectorDropdownProps> =
                 </Button>
               </div>
             </div>
-            <DialogDescription className="text-xs text-muted-foreground mt-1">
-              هكذا ستظهر الورقة المطبوعة بمقاس A4 الرسمي عند الإرسال للطابعة أو الحفظ كـ PDF.
-            </DialogDescription>
           </DialogHeader>
 
-          {/* Render container with realistic A4 simulation */}
-          <div className="my-2 p-4 sm:p-8 bg-slate-100 rounded-xl overflow-x-auto flex justify-center">
-            <div className="w-full max-w-[794px] bg-white shadow-md rounded-sm p-6 sm:p-8 border border-slate-200">
+          {/* Scaled Preview Frame: Guaranteed No-Squish Container */}
+          <div className="my-2 p-3 sm:p-6 bg-slate-200/80 rounded-xl overflow-x-auto overflow-y-auto flex justify-center min-h-[460px]">
+            <div
+              style={{
+                transform: `scale(${zoomScale})`,
+                transformOrigin: "top center",
+                width: "794px",
+                minWidth: "794px",
+                marginBottom: zoomScale < 1 ? `-${Math.round((1 - zoomScale) * 800)}px` : 0,
+              }}
+              className="bg-white shadow-2xl rounded-sm transition-transform duration-150 ease-out border border-slate-300"
+            >
               {renderPreviewContent()}
             </div>
           </div>

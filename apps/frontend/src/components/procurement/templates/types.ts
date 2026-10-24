@@ -1,40 +1,79 @@
 import React from "react";
 
-export type ProcurementTemplateId = "official_tax" | "modern_minimal" | "goods_receipt";
+export type ProcurementTemplateId =
+  | "commercial_factory"
+  | "compact_eco"
+  | "official_tax"
+  | "modern_minimal"
+  | "goods_receipt";
 
 export interface ProcurementTemplateOption {
   id: ProcurementTemplateId;
   nameAr: string;
   nameEn: string;
   badgeAr: string;
+  paperSize: "A4" | "A5";
+  paperSizeLabelAr: string;
   descriptionAr: string;
+  accentColor?: string;
+  isEco?: boolean;
 }
 
 export const AVAILABLE_PROCUREMENT_TEMPLATES: ProcurementTemplateOption[] = [
+  {
+    id: "commercial_factory",
+    nameAr: "نموذج المصانع والمؤسسات (هونزو التجاري)",
+    nameEn: "Factory & Commercial Pro (Huinzo Edition)",
+    badgeAr: "الأكثر طلباً للمصانع",
+    paperSize: "A4",
+    paperSizeLabelAr: "A4 كاملة",
+    descriptionAr: "تصميم أنيق بالهوية التجارية مع بطاقتي المورد والفاتورة، تفصيل تعبئة الوحدة (كرتونة/كيس/باكت)، وشريط إجمالي مالي عريض.",
+    accentColor: "#DC2626",
+  },
+  {
+    id: "compact_eco",
+    nameAr: "الموفر للطباعة (نصف ورقة A5)",
+    nameEn: "Eco Half-Page Compact (A5)",
+    badgeAr: "موفر 50% ورق وحبر",
+    paperSize: "A5",
+    paperSizeLabelAr: "A5 نصف ورقة",
+    descriptionAr: "مخصص للطباعة الاقتصادية السريعة على نصف ورقة (A5 أو 2 بالفاتورة)، يقلل استهلاك الورق والحبر للمشتريات اليومية.",
+    accentColor: "#059669",
+    isEco: true,
+  },
   {
     id: "official_tax",
     nameAr: "الرسمي التجاري والضريبي",
     nameEn: "Official Corporate & Tax",
     badgeAr: "معتمد للشركات",
-    descriptionAr: "قالب ضريبي معتمد للشركات يضم الأرقام الضريبية، تفصيل القيمة المضافة، والاعتمادات الثلاثية.",
+    paperSize: "A4",
+    paperSizeLabelAr: "A4 كاملة",
+    descriptionAr: "قالب ضريبي رسمي يضم الأرقام الضريبية، تفصيل القيمة المضافة، والاعتمادات الثلاثية المعتمدة محاسبياً.",
+    accentColor: "#0F172A",
   },
   {
     id: "modern_minimal",
     nameAr: "العصري الأنيق (مودرن)",
     nameEn: "Modern Minimalist",
     badgeAr: "مشتريات وخدمات",
-    descriptionAr: "تصميم عصري بسيط بأرقام واضحة وهوامش مريحة، مثالي للمعدات والخدمات والتوريد السريع.",
+    paperSize: "A4",
+    paperSizeLabelAr: "A4 كاملة",
+    descriptionAr: "تصميم عصري بخطوط هادئة وأرقام واضحة وهوامش مريحة، مثالي للمعدات والخدمات والتوريد المباشر.",
+    accentColor: "#2563EB",
   },
   {
     id: "goods_receipt",
     nameAr: "إذن استلام وفحص مخزني",
     nameEn: "Goods Receipt & QC Note",
     badgeAr: "مستودعات وجودة",
-    descriptionAr: "مستند تشغيلي يركز على مطابقة الكميات وفحص الجودة وحالة البضاعة وتوقيع أمين المستودع.",
+    paperSize: "A4",
+    paperSizeLabelAr: "A4 كاملة",
+    descriptionAr: "مستند تشغيلي يركز على مطابقة الكميات الفعلية مع أمر الشراء وفحص الجودة وتوقيع أمين المستودع.",
+    accentColor: "#D97706",
   },
 ];
 
-export const DEFAULT_PROCUREMENT_TEMPLATE: ProcurementTemplateId = "official_tax";
+export const DEFAULT_PROCUREMENT_TEMPLATE: ProcurementTemplateId = "commercial_factory";
 export const PROCUREMENT_TEMPLATE_STORAGE_KEY = "maxp_procurement_print_template";
 
 export interface NormalizedProcurementItem {
@@ -43,6 +82,7 @@ export interface NormalizedProcurementItem {
   description?: string | null;
   sku?: string | null;
   quantity: number | string;
+  packagingUnit?: string | null; // e.g. "كرتونة", "كيس", "باكت", "علبة", "قطعة"
   receivedQuantity?: number | string;
   unitPrice: number | string;
   taxRate?: number | string;
@@ -56,6 +96,7 @@ export interface NormalizedProcurementData {
   documentDate: string;
   dueDate?: string | null;
   expectedDelivery?: string | null;
+  warehouseName?: string | null;
   status: string;
   statusLabel: string;
   companyName: string;
@@ -65,9 +106,11 @@ export interface NormalizedProcurementData {
     crNumber?: string | null;
     address?: string | null;
     phone?: string | null;
+    logoUrl?: string | null;
   };
   supplier: {
     id: string;
+    code?: string | null;
     name: string;
     phone?: string | null;
     email?: string | null;
@@ -83,6 +126,7 @@ export interface NormalizedProcurementData {
     subtotal: number | string;
     discountAmount?: number | string;
     taxAmount?: number | string;
+    taxRate?: number | string;
     shippingCost?: number | string;
     totalAmount: number | string;
     paidAmount?: number | string;

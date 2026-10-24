@@ -235,6 +235,7 @@ export const PurchaseInvoiceDetail: React.FC = () => {
       taxRate: it.taxRate,
       discountRate: it.discountRate,
       totalPrice: it.totalPrice,
+      packagingUnit: (it as { packagingUnit?: string; unit?: string }).packagingUnit || (it as { unit?: string }).unit || null,
     })),
     financialSummary: {
       subtotal: invoice.subtotal,

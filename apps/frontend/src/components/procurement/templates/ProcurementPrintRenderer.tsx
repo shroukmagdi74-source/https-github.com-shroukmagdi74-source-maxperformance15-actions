@@ -1,9 +1,15 @@
 import React from "react";
 import { ProcurementPrintStyles } from "./ProcurementPrintStyles";
+import { CommercialFactoryTemplate } from "./CommercialFactoryTemplate";
+import { CompactEcoHalfPageTemplate } from "./CompactEcoHalfPageTemplate";
 import { OfficialTaxTemplate } from "./OfficialTaxTemplate";
 import { ModernMinimalTemplate } from "./ModernMinimalTemplate";
 import { GoodsReceiptTemplate } from "./GoodsReceiptTemplate";
-import { NormalizedProcurementData, ProcurementTemplateId } from "./types";
+import {
+  NormalizedProcurementData,
+  ProcurementTemplateId,
+  AVAILABLE_PROCUREMENT_TEMPLATES,
+} from "./types";
 
 interface ProcurementPrintRendererProps {
   templateId: ProcurementTemplateId;
@@ -16,8 +22,15 @@ export const ProcurementPrintRenderer: React.FC<ProcurementPrintRendererProps> =
   data,
   isRtl = true,
 }) => {
+  const currentOption = AVAILABLE_PROCUREMENT_TEMPLATES.find((t) => t.id === templateId);
+  const paperSize = currentOption?.paperSize || "A4";
+
   const renderTemplateContent = () => {
     switch (templateId) {
+      case "commercial_factory":
+        return <CommercialFactoryTemplate data={data} isRtl={isRtl} />;
+      case "compact_eco":
+        return <CompactEcoHalfPageTemplate data={data} isRtl={isRtl} />;
       case "modern_minimal":
         return <ModernMinimalTemplate data={data} isRtl={isRtl} />;
       case "goods_receipt":
@@ -30,7 +43,7 @@ export const ProcurementPrintRenderer: React.FC<ProcurementPrintRendererProps> =
 
   return (
     <div className="procurement-print-root">
-      <ProcurementPrintStyles />
+      <ProcurementPrintStyles paperSize={paperSize} />
       <div className="hidden print:block">{renderTemplateContent()}</div>
     </div>
   );
