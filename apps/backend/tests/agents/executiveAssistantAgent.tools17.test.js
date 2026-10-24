@@ -169,7 +169,7 @@ describe('Executive Assistant Agent (Saleem) — Complete Store Bundle (17 Apps)
   // =========================================================================
   test('evals.json covers all 17 scenarios including Complete Store Bundle apps', () => {
     expect(Array.isArray(evalsJson.evalScenarios)).toBe(true);
-    expect(evalsJson.evalScenarios.length).toBe(17);
+    expect(evalsJson.evalScenarios.length).toBeGreaterThanOrEqual(17);
 
     const scenarioIds = evalsJson.evalScenarios.map(s => s.id);
     expect(scenarioIds).toContain('scenario_bulk_orders_update');
@@ -180,6 +180,7 @@ describe('Executive Assistant Agent (Saleem) — Complete Store Bundle (17 Apps)
     expect(scenarioIds).toContain('scenario_returns_settings_check');
     expect(scenarioIds).toContain('scenario_unified_inbox_telemetry');
     expect(scenarioIds).toContain('scenario_facebook_pages_list');
+    expect(scenarioIds).toContain('scenario_capabilities_overview');
   });
 
   // =========================================================================

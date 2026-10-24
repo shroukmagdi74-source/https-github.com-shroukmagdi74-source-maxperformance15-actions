@@ -168,6 +168,16 @@
       "expectedTools": [
         "facebook_pages_connected_list"
       ]
+    },
+    {
+      "id": "scenario_capabilities_overview",
+      "name": "استعراض القدرات الذكية الثلاث وما يمكن لسليم فعله",
+      "userMessage": "إيه اللي تقدر تعمله؟",
+      "expectedKeywords": [
+        "فهرس",
+        "بطاق",
+        "مهار"
+      ]
     }
   ]
 }
