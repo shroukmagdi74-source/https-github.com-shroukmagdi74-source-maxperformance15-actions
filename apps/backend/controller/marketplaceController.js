@@ -836,6 +836,11 @@ exports.getAllApps = async (req, res) => {
     const catalogSource = getMarketplaceCatalogSource();
     const specialtyFilter = await resolveMarketplaceSpecialtyFilter(req.user);
 
+    // Self-healing: if an authenticated company has an active bundle, prune any unbundled trial apps
+    if (req.user?.companyId) {
+      cleanOrphanedTrialAppsIfBundleActive(req.user.companyId).catch(() => null);
+    }
+
     if (catalogSource !== 'db') {
       const catalogResult = await marketplaceCatalogService.getAllApps({
         category,
@@ -2467,6 +2472,61 @@ exports.subscribeToBundle = async (req, res) => {
 // ── Integrated landing (Phase 2): bundle checkout via Kashier + webhook activation ──
 
 /**
+ * Self-healing helper: removes unbundled onboarding trial apps for companies
+ * that have an active paid bundle subscription.
+ */
+async function cleanOrphanedTrialAppsIfBundleActive(companyId) {
+  if (!companyId) return;
+  try {
+    const prisma = getSharedPrismaClient();
+    const apps = await prisma.companyApp.findMany({
+      where: { companyId },
+      select: {
+        id: true,
+        appId: true,
+        status: true,
+        installedInTrial: true,
+        settings: true
+      }
+    });
+
+    const hasActiveBundle = apps.some((a) => {
+      const s = a.settings || {};
+      return s?.bundleInstallation?.isBundle === true && a.status === 'ACTIVE';
+    });
+    if (!hasActiveBundle) return;
+
+    const bundleApp = apps.find((a) => a.settings?.bundleInstallation?.bundleSlug);
+    const bundleSlug = bundleApp?.settings?.bundleInstallation?.bundleSlug;
+    if (!bundleSlug) return;
+
+    const bundleRes = await resolveBundleForWrite(bundleSlug);
+    const bundleAppIds = new Set(normalizeStringArray(bundleRes?.bundle?.appIds));
+    if (bundleAppIds.size === 0) return;
+
+    const idsToDelete = apps
+      .filter((a) => {
+        if (bundleAppIds.has(a.appId)) return false;
+        const s = a.settings || {};
+        return (
+          a.installedInTrial === true &&
+          (s?.onboarding?.source === 'signup-specialty' || s?.onboarding?.source === 'clothing-landing-free-tier')
+        );
+      })
+      .map((a) => a.id);
+
+    if (idsToDelete.length > 0) {
+      await prisma.companyApp.deleteMany({
+        where: { id: { in: idsToDelete } }
+      });
+      console.log(`[MARKETPLACE] Self-healed: removed ${idsToDelete.length} unbundled orphan apps for company ${companyId}`);
+    }
+  } catch (err) {
+    // Non-blocking fail-safe
+  }
+}
+
+/**
  * Activates every app in `bundle` for `companyId` (upsert + bundle settings + installCount),
  * mirroring the wallet subscribe path but without any wallet movement. Used by the
  * Kashier webhook after a successful bundle payment.
@@ -2526,6 +2586,37 @@ async function activatePaidBundleApps(prisma, bundle, bundleAppIds, companyId) {
       data: { installCount: { increment: 1 } }
     });
   }
+
+  // 🛡️ Cleanup unbundled onboarding apps: ensure companies with a paid bundle
+  // only retain the apps belonging to their active bundle.
+  try {
+    const appsToClean = await prisma.companyApp.findMany({
+      where: {
+        companyId,
+        appId: { notIn: bundleAppIds },
+        installedInTrial: true,
+      },
+      select: { id: true, settings: true }
+    });
+    const idsToDelete = appsToClean
+      .filter((a) => {
+        const s = a.settings || {};
+        return (
+          s?.onboarding?.source === 'signup-specialty' ||
+          s?.onboarding?.source === 'clothing-landing-free-tier'
+        );
+      })
+      .map((a) => a.id);
+    if (idsToDelete.length > 0) {
+      await prisma.companyApp.deleteMany({
+        where: { id: { in: idsToDelete } }
+      });
+      console.log(`[MARKETPLACE] Cleaned up ${idsToDelete.length} unbundled onboarding apps for company ${companyId}`);
+    }
+  } catch (cleanErr) {
+    console.warn('[MARKETPLACE] Failed to clean up non-bundle signup apps:', cleanErr.message);
+  }
+
   return nextBillingAt;
 }
 

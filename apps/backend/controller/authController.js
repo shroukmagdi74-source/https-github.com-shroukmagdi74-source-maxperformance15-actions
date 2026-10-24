@@ -340,20 +340,25 @@ const register = async (req, res) => {
       });
     }
 
+    // For bundle-directed signups (e.g. store-complete-bundle), do NOT auto-install
+    // generic specialty apps (procurement, quantity-offers, ugc-reviews, etc.).
+    // Those apps are strictly installed upon paid bundle activation.
+    const isDedicatedLandingBundle = Boolean(landingBundle && String(landingBundle).trim().length > 0);
     const specialtyAppSlugs =
-      selectedSpecialty && selectedSpecialty.autoInstallOnSignup !== false
-        ? selectedSpecialty.appSlugs
-        : [];
+      isDedicatedLandingBundle
+        ? []
+        : (selectedSpecialty && selectedSpecialty.autoInstallOnSignup !== false
+            ? selectedSpecialty.appSlugs
+            : []);
+
     await initializeRegisteredCompany(company.id, totalTrialDays, {
       specialtyAppSlugs,
       specialtySlug: selectedSpecialty?.slug || null,
       themeId: selectedSpecialty?.themeId || null,
     });
 
-    // Integrated landing («باقة متجر الملابس»): auto-install the free tier
-    // (store + order workflow) for signups coming from that landing page.
-    // (landingBundle also arrives in the outer destructure from req.body.)
-    if (landingBundle === 'clothing-store-bundle' || landingBundle === 'store-complete-bundle' || landingBundle === 'complete-store-bundle') {
+    // Integrated landing («باقة متجر الملابس»): legacy free tier only
+    if (landingBundle === 'clothing-store-bundle') {
       try {
         const { initializeDefaultApps } = require('../utils/initializeCompanyDefaults');
         await initializeDefaultApps(company.id, {

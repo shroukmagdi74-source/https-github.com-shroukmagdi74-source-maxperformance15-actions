@@ -98,6 +98,18 @@ const SubscriptionSuccess: React.FC = () => {
                 {isStoreBundle ? "الأدوات والباقات المفعلة" : "تصفح الباقات"}
               </button>
             </div>
+            {isStoreBundle && (
+              <p className="text-xs text-teal-200/70 mt-5 leading-relaxed">
+                🎨 تم تجهيز متجرك بقالب افتراضي جاهز للعمل فوراً. يمكنك تخصيص الألوان والبنرات أو اختيار قالب متخصص لنشاطك في أي وقت من{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate("/marketplace/themes")}
+                  className="underline hover:text-white transition-colors text-teal-300 font-semibold"
+                >
+                  استوديو الثيمات (30+ ثيم)
+                </button>
+              </p>
+            )}
           </>
         ) : isFailure ? (
           <>
