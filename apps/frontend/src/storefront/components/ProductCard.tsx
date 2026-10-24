@@ -827,9 +827,9 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
     return (
       <span
         style={productCardBadgeStyles}
-        className={`inline-flex items-center gap-1 rounded-full bg-amber-500/95 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-sm animate-pulse ${className}`}
+        className={`inline-flex items-center gap-1 rounded-full bg-[#b84838]/90 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-sm tabular-nums ${className}`}
       >
-        <span>🔥</span>
+        <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
         <span>{isRtl ? `باقي ${stockQuantity} فقط!` : `Only ${stockQuantity} left!`}</span>
       </span>
     );

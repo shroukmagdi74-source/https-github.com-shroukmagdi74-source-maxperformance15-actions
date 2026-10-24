@@ -1748,7 +1748,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ section, settings }) => {
         )} 
 
         {isKhemetLuxe && isShopPage && (
-          <div className="mb-4 flex items-center justify-between" dir={theme.direction}>
+          <div className="mb-4 hidden sm:flex items-center justify-between" dir={theme.direction}>
             <span className="text-xs font-semibold text-[#8b7d75]">
               {theme.direction === 'rtl' ? 'عرض الكتالوج:' : 'Catalog view:'}
             </span>

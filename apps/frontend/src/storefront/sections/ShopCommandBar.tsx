@@ -634,7 +634,7 @@ const ShopCommandBar: React.FC<ShopCommandBarProps> = ({ section, settings }) =>
             ) : null}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             <select
               id={sortSelectId}
               name="catalogSort"

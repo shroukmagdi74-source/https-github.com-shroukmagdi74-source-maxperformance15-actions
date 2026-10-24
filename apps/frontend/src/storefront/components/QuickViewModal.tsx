@@ -235,8 +235,8 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
   return (
     <DialogPrimitive.Root open={isOpen} onOpenChange={onClose}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 animate-in fade-in duration-200" />
-        <DialogPrimitive.Popup dir={theme.direction} className="fixed inset-x-0 bottom-0 z-50 w-full max-h-[95vh] overflow-y-auto bg-card p-0 shadow-2xl rounded-t-2xl border-t border-border animate-in slide-in-from-bottom duration-300 md:inset-auto md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] md:max-w-4xl md:max-h-[90vh] md:rounded-xl md:border md:animate-in md:zoom-in-95" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <DialogPrimitive.Backdrop className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[90] animate-in fade-in duration-200" />
+        <DialogPrimitive.Popup dir={theme.direction} className="fixed inset-x-0 bottom-0 z-[90] w-full max-h-[95vh] overflow-y-auto bg-card p-0 shadow-2xl rounded-t-2xl border-t border-border animate-in slide-in-from-bottom duration-300 md:inset-auto md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] md:max-w-4xl md:max-h-[90vh] md:rounded-xl md:border md:animate-in md:zoom-in-95" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
             {/* Gallery Section */}
             <div className="h-44 sm:h-52 md:h-auto md:aspect-square bg-muted overflow-hidden">
@@ -283,7 +283,7 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
                     />
                     {fitNote ? (
                       <div className="flex items-center gap-2 rounded-[0.8rem] border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
-                        <span className="font-bold shrink-0">💡 {isRtl ? 'نصيحة المقاس:' : 'Fit tip:'}</span>
+                        <span className="font-bold shrink-0">{isRtl ? 'نصيحة المقاس:' : 'Fit tip:'}</span>
                         <span className="leading-snug">{fitNote}</span>
                       </div>
                     ) : null}
@@ -345,9 +345,8 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
 
                   <button 
                     onClick={handleQuickBuy}
-                    className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
+                    className="w-full py-3.5 bg-[#201915] hover:bg-[#342a24] text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
                   >
-                    <Zap size={18} className="fill-current" />
                     <span>{isRtl ? 'شراء فوري ومباشر' : 'Instant Checkout'}</span>
                   </button>
                 </div>
