@@ -31,8 +31,9 @@ export const PLATFORM_STATS = [
 ];
 
 export const OFFICIAL_WHATSAPP_NUMBER = "201123087745";
+export const WHATSAPP_DISPLAY_PHONE = "01123087745";
 export const WHATSAPP_CONSULT_URL = `https://wa.me/${OFFICIAL_WHATSAPP_NUMBER}?text=${encodeURIComponent(
-  "مرحباً، عايز أفاصيل باقة المتجر الكاملة (17 أداة بـ999 ج.م/شهر)"
+  "مرحباً، عايز تفاصيل باقة المتجر الكاملة (17 أداة بـ999 ج.م/شهر)"
 )}`;
 
 export const BUNDLE_SLUG = "store-complete-bundle";

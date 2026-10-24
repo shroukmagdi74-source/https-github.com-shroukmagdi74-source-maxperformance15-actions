@@ -12,6 +12,7 @@ const SEED_PAGES = [
   { slug: 'mg', title: 'MG Agency — تسويق عقاري', componentName: 'MgAgencyLeadLanding', sortOrder: 3, bundleSlug: null, activationType: 'both' },
   { slug: 'mg-agency', title: 'MG Agency Lead — تسويق عقاري', componentName: 'MgAgencyLeadLanding', sortOrder: 4, bundleSlug: null, activationType: 'both' },
   { slug: 'medical', title: 'النظام الطبي — الباقة الطبية الشاملة', componentName: 'MedicalLanding', sortOrder: 5, bundleSlug: 'medical-bundle', activationType: 'both' },
+  { slug: 'store-complete-bundle', title: 'باقة المتجر الكاملة — 17 أداة', componentName: 'StoreCompleteBundleLanding', sortOrder: 6, bundleSlug: 'store-complete-bundle', activationType: 'paid' },
 ];
 
 // "updatedAt"/"createdAt" are passed explicitly: when lp_pages is (re)created by

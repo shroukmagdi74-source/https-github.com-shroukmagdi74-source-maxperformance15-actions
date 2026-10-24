@@ -273,10 +273,19 @@ const Register: React.FC = () => {
     fetch(`${getApiUrl()}/auth/business-specialties`)
       .then((r) => r.json())
       .then((json) => {
-        if (json?.data?.items) setSpecialties(json.data.items);
+        if (json?.data?.items) {
+          const items: BusinessSpecialty[] = json.data.items;
+          setSpecialties(items);
+          if (landingBundle) {
+            const ecom = items.find((s) => s.slug === "ecommerce-retail" || s.slug === "retail" || s.slug === "store");
+            if (ecom) {
+              setFormData((prev) => ({ ...prev, businessSpecialtyId: ecom.id }));
+            }
+          }
+        }
       })
       .catch(() => {});
-  }, []);
+  }, [landingBundle]);
 
   const { register: registerUser } = useAuth();
   const navigate = useNavigate();
@@ -369,10 +378,14 @@ const Register: React.FC = () => {
           const checkoutEndpoint = bundleSlug === "store-complete-bundle"
             ? `${getApiUrl()}/marketplace/bundles/${bundleSlug}/checkout`
             : `${getApiUrl()}/platform-subscription/lp-checkout`;
+          const redirectSuccessUrl = `${window.location.origin}/subscription?status=success&bundle=${bundleSlug}`;
           const res = await fetch(checkoutEndpoint, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ bundleSlug: SOURCE_TO_BUNDLE[source] }),
+            body: JSON.stringify({
+              bundleSlug,
+              redirectUrl: redirectSuccessUrl,
+            }),
           });
           const data = await res.json();
           const targetSessionUrl = data.sessionUrl || data.data?.sessionUrl;
@@ -484,7 +497,7 @@ const Register: React.FC = () => {
           {fieldErrors.phone && <p className="elite-field-error">{fieldErrors.phone}</p>}
         </div>
 
-        {specialties.length > 0 && (
+        {specialties.length > 0 && !landingBundle && (
           <BusinessTypeSelect
             specialties={specialties}
             value={formData.businessSpecialtyId}

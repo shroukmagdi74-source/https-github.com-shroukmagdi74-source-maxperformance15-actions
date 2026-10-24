@@ -1,5 +1,5 @@
 import React from "react";
-import { ShieldCheck, XCircle, CreditCard, LifeBuoy } from "lucide-react";
+import { ShieldCheck, RotateCcw, Database, LifeBuoy } from "lucide-react";
 import { CSB_COMPARE } from "./csbData";
 
 export const CsbCompare: React.FC = () => {
@@ -30,12 +30,12 @@ export const CsbCompare: React.FC = () => {
           <span>أول ما الدفع يعدّي، الـ17 أداة بتشتغل على حسابك في نفس الدقيقة.</span>
         </div>
         <div className="csb-risk-item">
-          <XCircle size={18} strokeWidth={2} aria-hidden="true" />
+          <RotateCcw size={18} strokeWidth={2} aria-hidden="true" />
           <strong>إلغاء في أي وقت</strong>
           <span>من لوحة الاشتراكات، من غير مكالمات ولا إقناع.</span>
         </div>
         <div className="csb-risk-item">
-          <CreditCard size={18} strokeWidth={2} aria-hidden="true" />
+          <Database size={18} strokeWidth={2} aria-hidden="true" />
           <strong>بياناتك ملكك</strong>
           <span>أوردراتك وعملائك محفوظين — وتقدر تصدّرهم في أي وقت.</span>
         </div>

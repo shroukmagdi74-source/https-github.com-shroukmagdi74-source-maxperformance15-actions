@@ -64,10 +64,10 @@ export const CsbCalculator: React.FC<Props> = ({ spend, onSpendChange }) => {
             <>
               <div className="csb-calc-out-row">
                 <span>الرقم بتاعك أقل من سعر الباقة</span>
-                <strong style={{ fontSize: 18 }}>عادي — مش مجبوش عليك</strong>
+                <strong style={{ fontSize: 18 }}>عادي — مش مجبر عليها</strong>
               </div>
               <p className="csb-calc-note" style={{ fontSize: 13, color: "rgba(245,241,232,0.75)" }}>
-                الباقة بتحسب لما تجمع الوقت الضايع والأوردرات اللي بتقع بين الأنظمة المفروقة.
+                الباقة بتفرق لما تجمع الوقت الضايع والأوردرات اللي بتقع بين الأنظمة المتفرقة.
                 لو عايز رأي صريح في وضعك، كلمنا:
               </p>
               <a

@@ -77,6 +77,14 @@
   color: var(--csb-ink);
 }
 
+.csb-brand-logo {
+  height: 34px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+  display: block;
+}
+
 .csb-brand-mark {
   width: 34px;
   height: 34px;

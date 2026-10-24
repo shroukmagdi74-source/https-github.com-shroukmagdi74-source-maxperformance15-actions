@@ -26,6 +26,12 @@ const SubscriptionSuccess: React.FC = () => {
   const status = searchParams.get("status");
   const paymentStatus = searchParams.get("paymentStatus") || searchParams.get("statusCode");
   const billingId = searchParams.get("billingId");
+  const bundle = searchParams.get("bundle");
+
+  const isStoreBundle =
+    bundle === "store-complete-bundle" ||
+    bundle === "clothing-store-bundle" ||
+    bundle === "complete-store-bundle";
 
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 900);
@@ -58,24 +64,38 @@ const SubscriptionSuccess: React.FC = () => {
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold mb-3">باقة AI + Inbox مفعّلة!</h1>
+            <h1 className="text-2xl font-bold mb-3">
+              {isStoreBundle ? "باقة المتجر الكاملة مفعّلة!" : "باقة AI + Inbox مفعّلة!"}
+            </h1>
             <p className="text-sm opacity-80 mb-6 leading-relaxed">
-              تم إتمام الاشتراك وتفعيل الباقة بنجاح 🎉
-              <br />
-              جميع أدوات التواصل جاهزة الآن للاستخدام.
+              {isStoreBundle ? (
+                <>
+                  تم إتمام الاشتراك وتفعيل الـ 17 أداة بنجاح 🎉
+                  <br />
+                  متجرك الإلكتروني، إدارة الطلبات، بوالص الشحن، المخزون، والواتساب جاهزة للعمل الآن.
+                </>
+              ) : (
+                <>
+                  تم إتمام الاشتراك وتفعيل الباقة بنجاح 🎉
+                  <br />
+                  جميع أدوات التواصل جاهزة الآن للاستخدام.
+                </>
+              )}
             </p>
             <div className="flex flex-col gap-3">
               <button
-                onClick={() => { window.location.href = "/unified-inbox"; }}
+                onClick={() => {
+                  window.location.href = isStoreBundle ? "/store" : "/unified-inbox";
+                }}
                 className="px-8 py-3 rounded-full bg-teal-600 text-white font-bold text-sm hover:bg-teal-500 transition-colors"
               >
-                ابدأ الآن — صندوق الوارد
+                {isStoreBundle ? "ابدأ الآن — لوحة تحكم المتجر" : "ابدأ الآن — صندوق الوارد"}
               </button>
               <button
                 onClick={() => navigate("/marketplace/bundles")}
                 className="px-8 py-2 rounded-full bg-white/10 text-white font-semibold text-sm hover:bg-white/20 transition-colors border border-white/20"
               >
-                تصفح الباقات
+                {isStoreBundle ? "الأدوات والباقات المفعلة" : "تصفح الباقات"}
               </button>
             </div>
           </>
@@ -94,16 +114,18 @@ const SubscriptionSuccess: React.FC = () => {
             </p>
             <div className="flex flex-col gap-3">
               <button
-                onClick={() => navigate("/checkout/messaging")}
+                onClick={() =>
+                  navigate(isStoreBundle ? "/lp/store-complete-bundle" : "/checkout/messaging")
+                }
                 className="px-8 py-3 rounded-full bg-teal-600 text-white font-bold text-sm hover:bg-teal-500 transition-colors"
               >
                 إعادة محاولة الدفع
               </button>
               <button
-                onClick={() => navigate("/marketplace/bundles")}
+                onClick={() => navigate(isStoreBundle ? "/lp/store-complete-bundle" : "/marketplace/bundles")}
                 className="px-8 py-2 rounded-full bg-white/10 text-white font-semibold text-sm hover:bg-white/20 transition-colors border border-white/20"
               >
-                الرجوع للمتجر
+                الرجوع للباقة
               </button>
             </div>
           </>
@@ -122,10 +144,12 @@ const SubscriptionSuccess: React.FC = () => {
             </p>
             <div className="flex flex-col gap-3">
               <button
-                onClick={() => { window.location.href = "/unified-inbox"; }}
+                onClick={() => {
+                  window.location.href = isStoreBundle ? "/store" : "/unified-inbox";
+                }}
                 className="px-8 py-3 rounded-full bg-teal-600 text-white font-bold text-sm hover:bg-teal-500 transition-colors"
               >
-                متابعة لصندوق الوارد
+                {isStoreBundle ? "متابعة للمتجر" : "متابعة لصندوق الوارد"}
               </button>
               <button
                 onClick={() => navigate("/marketplace/bundles")}

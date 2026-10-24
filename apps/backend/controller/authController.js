@@ -215,8 +215,14 @@ const register = async (req, res) => {
       }
     }
 
+    const resolvedSpecialtyParam =
+      businessSpecialtyId ||
+      businessSpecialtySlug ||
+      specialtySlug ||
+      (landingBundle ? 'ecommerce-retail' : undefined);
+
     const selectedSpecialty = await businessSpecialtyService.resolveSpecialtyForRegistration(
-      businessSpecialtyId || businessSpecialtySlug || specialtySlug,
+      resolvedSpecialtyParam,
     );
     const trialSettings = await businessSpecialtyService.getOnboardingSettings();
 

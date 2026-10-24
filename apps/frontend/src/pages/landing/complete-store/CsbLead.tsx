@@ -61,7 +61,7 @@ export const CsbLead: React.FC<Props> = ({ utm }) => {
           </h2>
           <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.9, color: "rgba(245,241,232,0.72)" }}>
             سيب رقمك واسم متجرك — بنكلمك على واتساب، نشوف وضعك الحالي، ونقولك بصراحة
-            هل الباقة هتفيدك ولا لأ. من غير ضغط ولا مكالمات بيع متعرقة.
+            هل الباقة هتفيدك ولا لأ. من غير ضغط ولا مكالمات بيع مزعجة.
           </p>
           <a
             href={WHATSAPP_CONSULT_URL}
@@ -70,7 +70,7 @@ export const CsbLead: React.FC<Props> = ({ utm }) => {
             className="csb-btn csb-btn-sm"
             style={{ background: "transparent", color: "#9fd8bd", border: "1px solid rgba(127,208,174,0.4)", alignSelf: "flex-start" }}
           >
-            أو كلمنا انت على واتساب
+            أو كلمنا انت على واتساب (01123087745)
           </a>
         </div>
 

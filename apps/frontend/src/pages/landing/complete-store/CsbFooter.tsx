@@ -12,7 +12,7 @@ export const CsbFooter: React.FC<Props> = ({ onSubscribe, annualSaving }) => {
   const headline =
     annualSaving && annualSaving > 0
       ? `${csbFmt(annualSaving)} ج.م اللي هتدفعها زيادة في سنة لو فضلت على اشتراكاتك المتفرقة`
-      : "كل شهر تشتغل بأنظمة مفروقة = وقت ضايع وأوردرات بتقع بين الثنوب";
+      : "كل شهر تشتغل بأنظمة متفرقة = وقت ضايع وأوردرات بتقع بين الثقوب";
 
   const sub =
     annualSaving && annualSaving > 0

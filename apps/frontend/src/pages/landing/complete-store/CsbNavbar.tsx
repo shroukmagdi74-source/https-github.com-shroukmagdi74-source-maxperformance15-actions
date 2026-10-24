@@ -1,19 +1,31 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { CreditCard } from "lucide-react";
+import { CreditCard, MessageCircle } from "lucide-react";
+import { WHATSAPP_CONSULT_URL } from "./csbData";
 
 interface Props {
   onSubscribe: () => void;
 }
 
 export const CsbNavbar: React.FC<Props> = ({ onSubscribe }) => {
+  const [imgError, setImgError] = useState(false);
+
   return (
     <nav className="csb-nav">
       <div className="csb-nav-inner">
         <Link to="/" className="csb-brand" aria-label="MaxP — الصفحة الرئيسية">
-          <span className="csb-brand-mark" aria-hidden="true">
-            M
-          </span>
+          {!imgError ? (
+            <img
+              src="/logo.png"
+              alt="MaxP Logo"
+              className="csb-brand-logo"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <span className="csb-brand-mark" aria-hidden="true">
+              M
+            </span>
+          )}
           <span>
             <strong>MaxP</strong>
             <small>منظومة التجارة المتكاملة</small>
@@ -29,6 +41,17 @@ export const CsbNavbar: React.FC<Props> = ({ onSubscribe }) => {
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <a
+            href={WHATSAPP_CONSULT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="csb-btn csb-btn-ghost csb-btn-sm"
+            style={{ display: "inline-flex", gap: 5, alignItems: "center" }}
+            title="تواصل واتساب: 01123087745"
+          >
+            <MessageCircle size={14} strokeWidth={2.2} style={{ color: "#25D366" }} />
+            <span>واتساب</span>
+          </a>
           <Link to="/auth/login?redirect=/lp/store-complete-bundle" className="csb-btn csb-btn-ghost csb-btn-sm">
             دخول
           </Link>

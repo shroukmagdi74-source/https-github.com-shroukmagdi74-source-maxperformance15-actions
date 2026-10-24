@@ -2608,7 +2608,7 @@ exports.createBundleCheckout = async (req, res) => {
           reference: `bundle:${companyId}:${bundle.slug}`
         },
         description: `اشتراك شهري: ${bundle.name}`,
-        redirectUrl: req.body?.redirectUrl || `${req.headers.origin || 'https://maxp.online'}/lp/clothing-store-bundle?payment=success`,
+        redirectUrl: req.body?.redirectUrl || `${req.headers.origin || 'https://maxp.online'}/subscription?status=success&bundle=${bundle.slug}`,
         webhookUrl: `${process.env.PUBLIC_BASE_URL || 'https://maxp.online'}/api/v1/kashier/webhook`
       },
       companyId

@@ -149,11 +149,12 @@ export const CompleteStoreBundleLanding: React.FC = () => {
     if (isCheckingOut) return;
     setIsCheckingOut(true);
     try {
+      const redirectSuccessUrl = `${window.location.origin}/subscription?status=success&bundle=${BUNDLE_SLUG}`;
       const res = await fetch(`/api/v1/marketplace/bundles/${BUNDLE_SLUG}/checkout`, {
         method: "POST",
         headers: tokenManager.createAuthHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
-        body: JSON.stringify({ utm, redirectUrl: window.location.href }),
+        body: JSON.stringify({ utm, redirectUrl: redirectSuccessUrl }),
       });
       const data = await res.json();
       if (data?.success && data?.sessionUrl) {

@@ -18,9 +18,15 @@ const FALLBACK_BUNDLES: BundleOption[] = [
   { slug: "starter", name: "باقة رواد الأعمال", price: 299 },
   { slug: "growth", name: "باقة النمو السريع", price: 599 },
   { slug: "enterprise", name: "باقة الشركات والمنظومات", price: 1299 },
+  { slug: "store-complete-bundle", name: "باقة المتجر الكاملة (17 أداة)", price: 999 },
 ];
 
 const FALLBACK_PAGES: LpPage[] = [
+  {
+    id: "lp-00", slug: "store-complete-bundle", title: "باقة المتجر الكاملة — 17 أداة",
+    componentName: "StoreCompleteBundleLanding", isActive: true, bundleSlug: "store-complete-bundle", activationType: "paid",
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  },
   {
     id: "lp-01", slug: "ecommerce-platform", title: "منظومة التجارة الإلكترونية المتكاملة",
     componentName: "EcommerceLanding", isActive: true, bundleSlug: "growth", activationType: "both",
