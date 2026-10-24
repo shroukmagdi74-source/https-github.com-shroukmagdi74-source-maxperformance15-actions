@@ -2579,6 +2579,8 @@ declare module 'react-i18next' {
         noPageExplanations: string;
         allExplanations: string;
         watchVideo: string;
+        videoUnavailable: string;
+        videoUnavailableHint: string;
         watchHow: string;
         mobileVersion: string;
         desktopVersion: string;

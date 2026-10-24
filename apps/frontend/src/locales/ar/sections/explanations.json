@@ -3,6 +3,8 @@
   "noPageExplanations": "مفيش شرح مخصوص للصفحة دي",
   "allExplanations": "كل الشروحات",
   "watchVideo": "شاهد الفيديو التوضيحي",
+  "videoUnavailable": "الفيديو التوضيحي مش متاح حاليًا",
+  "videoUnavailableHint": "الشرح المكتوب تحت كامل — وإحنا بنرجّع الفيديو في أقرب وقت.",
   "watchHow": "شاهد الطريقة من:",
   "mobileVersion": "الموبايل",
   "desktopVersion": "اللابتوب",

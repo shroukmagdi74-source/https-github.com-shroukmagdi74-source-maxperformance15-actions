@@ -2574,6 +2574,8 @@
     "noPageExplanations": "No guide for this page yet",
     "allExplanations": "All guides",
     "watchVideo": "Watch the video",
+    "videoUnavailable": "This video is unavailable right now",
+    "videoUnavailableHint": "The written explanation below is complete — the video will be back shortly.",
     "watchHow": "Watch how to do it on:",
     "mobileVersion": "Mobile",
     "desktopVersion": "Desktop",

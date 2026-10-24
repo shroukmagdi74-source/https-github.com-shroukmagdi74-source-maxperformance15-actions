@@ -6,8 +6,18 @@
 /**
  * Extracts a privacy-friendly YouTube embed URL from various YouTube URL formats.
  * Uses youtube-nocookie.com with modestbranding and playsinline flags.
+ *
+ * `options.jsApi` adds `enablejsapi=1`, which makes the player post its events
+ * (`onError` included) to the parent window — needed to replace a removed or
+ * private video with a graceful message instead of YouTube's dead frame.
  */
-export function getYouTubeEmbedUrl(url: string): string | null {
+export function getYouTubeEmbedUrl(
+  url: string,
+  options: { jsApi?: boolean } = {},
+): string | null {
+  const embedSuffix = options.jsApi
+    ? "?rel=0&modestbranding=1&playsinline=1&enablejsapi=1"
+    : "?rel=0&modestbranding=1&playsinline=1";
   try {
     const u = new URL(url);
     const host = u.hostname.toLowerCase();
@@ -16,25 +26,25 @@ export function getYouTubeEmbedUrl(url: string): string | null {
     if (host.includes("youtube.com")) {
       const v = u.searchParams.get("v");
       if (v) {
-        return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(v)}?rel=0&modestbranding=1&playsinline=1`;
+        return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(v)}${embedSuffix}`;
       }
       if (u.pathname.startsWith("/shorts/")) {
         const id = u.pathname.split("/")[2];
         if (id) {
-          return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&modestbranding=1&playsinline=1`;
+          return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}${embedSuffix}`;
         }
       }
       if (u.pathname.startsWith("/embed/")) {
         const id = u.pathname.split("/")[2];
         if (id) {
-          return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&modestbranding=1&playsinline=1`;
+          return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}${embedSuffix}`;
         }
         return url;
       }
       if (u.pathname.startsWith("/live/")) {
         const id = u.pathname.split("/")[2];
         if (id) {
-          return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&modestbranding=1&playsinline=1`;
+          return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}${embedSuffix}`;
         }
       }
     }
@@ -43,7 +53,7 @@ export function getYouTubeEmbedUrl(url: string): string | null {
     if (host === "youtu.be") {
       const id = u.pathname.replace(/^\/+/, "").split("/")[0];
       if (id) {
-        return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?rel=0&modestbranding=1&playsinline=1`;
+        return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}${embedSuffix}`;
       }
     }
   } catch {

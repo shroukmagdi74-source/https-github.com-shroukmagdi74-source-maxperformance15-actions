@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { PlayCircle, ExternalLink } from "lucide-react";
+import { PlayCircle, ExternalLink, VideoOff } from "lucide-react";
 import {
   getYouTubeEmbedUrl,
   getDirectVideoUrl,
@@ -20,6 +20,60 @@ const useIsMobileViewport = (): boolean => {
   return isMobile;
 };
 
+const YOUTUBE_ORIGIN_RE = /^https:\/\/(www\.)?youtube(-nocookie)?\.com$/;
+
+/**
+ * A removed / private / embedding-disabled YouTube video keeps rendering a black
+ * player with an English «Video unavailable» banner inside the explanation modal.
+ * With `enablejsapi=1` the player reports those cases as an `onError` message, so
+ * we can swap the dead frame for an Arabic notice (the written explanation below
+ * stays the source of truth).
+ */
+const useYouTubeErrorState = (embedUrl: string | null) => {
+  const [failed, setFailed] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    setFailed(false);
+    if (!embedUrl || typeof window === "undefined") return;
+
+    const onMessage = (event: MessageEvent) => {
+      if (!YOUTUBE_ORIGIN_RE.test(event.origin || "")) return;
+      let payload: unknown = event.data;
+      if (typeof payload === "string") {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          return;
+        }
+      }
+      if (
+        payload &&
+        typeof payload === "object" &&
+        (payload as { event?: string }).event === "onError"
+      ) {
+        setFailed(true);
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [embedUrl]);
+
+  const handshake = () => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ event: "listening", id: iframeRef.current.id }),
+        "*",
+      );
+    } catch {
+      // cross-origin / jsdom — the error listener stays the only signal
+    }
+  };
+
+  return { failed, iframeRef, handshake };
+};
+
 export const VideoBlock: React.FC<{
   videoUrl: string | null;
   videoUrlMobile?: string | null;
@@ -35,8 +89,9 @@ export const VideoBlock: React.FC<{
       : override
     : !videoUrl && Boolean(videoUrlMobile);
   const activeUrl = (showMobile ? videoUrlMobile : videoUrl) || videoUrl || videoUrlMobile || "";
-  const embedUrl = getYouTubeEmbedUrl(activeUrl);
+  const embedUrl = getYouTubeEmbedUrl(activeUrl, { jsApi: true });
   const directVideoUrl = embedUrl ? null : getDirectVideoUrl(activeUrl);
+  const { failed: embedFailed, iframeRef, handshake } = useYouTubeErrorState(embedUrl);
 
   const frameClass = showMobile
     ? "w-full aspect-[9/16] max-h-[420px] mx-auto rounded-xl overflow-hidden bg-black shadow-md border border-border/80"
@@ -65,13 +120,33 @@ export const VideoBlock: React.FC<{
         </div>
       )}
 
-      {embedUrl && (
+      {embedUrl && embedFailed && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300/70 bg-amber-50 p-3.5 dark:border-amber-500/40 dark:bg-amber-500/10">
+          <VideoOff className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+          <div className="text-xs leading-relaxed">
+            <span className="block font-bold text-foreground">
+              {t("explanations.videoUnavailable", "الفيديو التوضيحي مش متاح حاليًا")}
+            </span>
+            <span className="block text-muted-foreground">
+              {t(
+                "explanations.videoUnavailableHint",
+                "الشرح المكتوب تحت كامل — وإحنا بنرجّع الفيديو في أقرب وقت.",
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {embedUrl && !embedFailed && (
         <div className="space-y-2 mb-4">
           <div className={frameClass}>
             <iframe
+              ref={iframeRef}
+              id={`yt-${activeUrl}`}
               className="w-full h-full border-0"
               src={embedUrl}
               title={title}
+              onLoad={handshake}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
             />
