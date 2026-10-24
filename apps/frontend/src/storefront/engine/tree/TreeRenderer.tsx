@@ -39,22 +39,22 @@ export function resolveSpacingValue(
 ): any {
   let val = rawSettings[prop];
   if (prop.startsWith("padding") && val === undefined) {
-    val = rawSettings.padding;
+    val = rawSettings["padding"];
   }
   if (prop.startsWith("margin") && val === undefined) {
-    val = rawSettings.margin;
+    val = rawSettings["margin"];
   }
 
-  const responsive = rawSettings.responsive;
+  const responsive = rawSettings["responsive"];
   if (responsive && typeof responsive === "object") {
     if (deviceMode === "tablet" || deviceMode === "mobile") {
-      const tab = responsive.tablet;
+      const tab = responsive["tablet"];
       if (tab && typeof tab === "object" && tab[prop] !== undefined) {
         val = tab[prop];
       }
     }
     if (deviceMode === "mobile") {
-      const mob = responsive.mobile;
+      const mob = responsive["mobile"];
       if (mob && typeof mob === "object" && mob[prop] !== undefined) {
         val = mob[prop];
       }
@@ -62,6 +62,116 @@ export function resolveSpacingValue(
   }
 
   return val;
+}
+
+export function resolveGridTemplateColumns(
+  rawSettings: Record<string, any>,
+  columns: number,
+  deviceMode?: StudioDeviceMode | "desktop" | "tablet" | "mobile"
+): string {
+  let fractions = rawSettings["columnFractions"];
+  let widths = rawSettings["columnWidths"];
+
+  const responsive = rawSettings["responsive"];
+  if (responsive && typeof responsive === "object" && deviceMode) {
+    if (deviceMode === "tablet" || deviceMode === "mobile") {
+      const tab = responsive["tablet"];
+      if (tab && typeof tab === "object") {
+        if (tab["columnFractions"] !== undefined) fractions = tab["columnFractions"];
+        if (tab["columnWidths"] !== undefined) widths = tab["columnWidths"];
+      }
+    }
+    if (deviceMode === "mobile") {
+      const mob = responsive["mobile"];
+      if (mob && typeof mob === "object") {
+        if (mob["columnFractions"] !== undefined) fractions = mob["columnFractions"];
+        if (mob["columnWidths"] !== undefined) widths = mob["columnWidths"];
+      }
+    }
+  }
+
+  // 1. Column fractions: [2, 1] or "2fr 1fr"
+  if (Array.isArray(fractions) && fractions.length > 0) {
+    return fractions
+      .map((f) => {
+        const trimmed = String(f).trim();
+        return trimmed.endsWith("fr") || trimmed.endsWith("%") || trimmed.endsWith("px")
+          ? trimmed
+          : `${trimmed}fr`;
+      })
+      .join(" ");
+  }
+  if (typeof fractions === "string" && fractions.trim() !== "") {
+    const trimmed = fractions.trim();
+    if (trimmed.includes("fr") || trimmed.includes("%") || trimmed.includes("px")) {
+      return trimmed;
+    }
+    const parts = trimmed.split(/[\s,]+/);
+    if (parts.length > 0 && parts.every((p) => /^-?\d+(\.\d+)?$/.test(p))) {
+      return parts.map((p) => `${p}fr`).join(" ");
+    }
+    return trimmed;
+  }
+
+  // 2. Column widths %: [30, 70] or "30% 70%"
+  if (Array.isArray(widths) && widths.length > 0) {
+    return widths
+      .map((w) => {
+        const trimmed = String(w).trim();
+        return trimmed.endsWith("%") || trimmed.endsWith("fr") || trimmed.endsWith("px")
+          ? trimmed
+          : `${trimmed}%`;
+      })
+      .join(" ");
+  }
+  if (typeof widths === "string" && widths.trim() !== "") {
+    const trimmed = widths.trim();
+    if (trimmed.includes("%") || trimmed.includes("fr") || trimmed.includes("px")) {
+      return trimmed;
+    }
+    const parts = trimmed.split(/[\s,]+/);
+    if (parts.length > 0 && parts.every((p) => /^-?\d+(\.\d+)?$/.test(p))) {
+      return parts.map((p) => `${p}%`).join(" ");
+    }
+    return trimmed;
+  }
+
+  // 3. Fallback: equal columns
+  return `repeat(${columns}, minmax(0, 1fr))`;
+}
+
+export function resolveChildLayout(
+  settings?: Record<string, any> | null
+): { order?: number; columnSpan?: string } {
+  if (!settings) return {};
+
+  let order: number | undefined = undefined;
+  const rawOrder = settings["order"];
+  if (rawOrder !== undefined && rawOrder !== null && rawOrder !== "") {
+    const num = Number(rawOrder);
+    if (!isNaN(num)) {
+      order = num;
+    }
+  }
+
+  let columnSpan: string | undefined = undefined;
+  const rawSpan = settings["columnSpan"];
+  if (rawSpan !== undefined && rawSpan !== null && rawSpan !== "") {
+    if (typeof rawSpan === "number") {
+      columnSpan = `span ${rawSpan}`;
+    } else {
+      const s = String(rawSpan).trim();
+      if (/^\d+$/.test(s)) {
+        columnSpan = `span ${s}`;
+      } else if (s.startsWith("span ")) {
+        columnSpan = s;
+      } else {
+        columnSpan = s;
+      }
+    }
+  }
+
+  return { order, columnSpan };
 }
 
 export const TreeRenderer: React.FC<TreeRendererProps> = ({
@@ -110,20 +220,28 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
           const mr = resolveSpacingValue(rawSettings, "marginRight", activeDeviceMode);
           const ml = resolveSpacingValue(rawSettings, "marginLeft", activeDeviceMode);
 
+          const { order: containerOrder, columnSpan: containerSpan } = resolveChildLayout(rawSettings);
+
           const wrapperStyle: React.CSSProperties = {
             marginTop: formatSpacingValue(mt),
             marginRight: formatSpacingValue(mr),
             marginBottom: formatSpacingValue(mb),
             marginLeft: formatSpacingValue(ml),
             width: "100%",
+            order: containerOrder,
+            gridColumn: containerSpan,
           };
 
           const containerStyle: React.CSSProperties = {
             display: isGrid ? "grid" : "flex",
             flexDirection: isGrid ? undefined : isRow ? "row" : "column",
             flexWrap: settings.wrap ? "wrap" : "nowrap",
-            gridTemplateColumns: isGrid ? `repeat(${settings.columns}, minmax(0, 1fr))` : undefined,
+            gridTemplateColumns: isGrid
+              ? resolveGridTemplateColumns(rawSettings, settings.columns || 1, activeDeviceMode)
+              : undefined,
             gap: gapVal,
+            order: containerOrder,
+            gridColumn: containerSpan,
             alignItems:
               settings.align === "start"
                 ? "flex-start"
@@ -158,9 +276,10 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
 
           // Responsive CSS for dynamic window resizing in live storefront
           let responsiveCss: string | null = null;
-          if (rawSettings.responsive?.mobile || rawSettings.responsive?.tablet) {
+          const rawResp = rawSettings["responsive"];
+          if (rawResp && typeof rawResp === "object") {
             const rules: string[] = [];
-            if (rawSettings.responsive?.tablet) {
+            if (rawResp["tablet"]) {
               const tab = resolveContainerSettings(rawSettings, "tablet");
               const tabIsGrid = Boolean(tab.columns && tab.columns > 1);
               const tabGap = typeof tab.gap === "number" ? `${tab.gap}px` : tab.gap;
@@ -175,10 +294,14 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
               const tabMr = resolveSpacingValue(rawSettings, "marginRight", "tablet");
               const tabMl = resolveSpacingValue(rawSettings, "marginLeft", "tablet");
 
+              const tabGridTemplate = tabIsGrid
+                ? resolveGridTemplateColumns(rawSettings, tab.columns || 1, "tablet")
+                : undefined;
+
               rules.push(`
                 @media (min-width: 640px) and (max-width: 1023.98px) {
                   [data-container-key="${nodeKey}"] {
-                    ${tabIsGrid ? `display: grid !important; grid-template-columns: repeat(${tab.columns}, minmax(0, 1fr)) !important;` : `display: flex !important; flex-direction: ${tab.direction === "row" ? "row" : "column"} !important;`}
+                    ${tabIsGrid ? `display: grid !important; grid-template-columns: ${tabGridTemplate} !important;` : `display: flex !important; flex-direction: ${tab.direction === "row" ? "row" : "column"} !important;`}
                     ${tab.wrap !== undefined ? `flex-wrap: ${tab.wrap ? "wrap" : "nowrap"} !important;` : ""}
                     ${tabGap ? `gap: ${tabGap} !important;` : ""}
                     ${tab.align ? `align-items: ${tab.align === "start" ? "flex-start" : tab.align === "end" ? "flex-end" : tab.align === "center" ? "center" : "stretch"} !important;` : ""}
@@ -199,7 +322,7 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
                 }
               `);
             }
-            if (rawSettings.responsive?.mobile) {
+            if (rawResp["mobile"]) {
               const mob = resolveContainerSettings(rawSettings, "mobile");
               const mobIsGrid = Boolean(mob.columns && mob.columns > 1);
               const mobGap = typeof mob.gap === "number" ? `${mob.gap}px` : mob.gap;
@@ -214,10 +337,14 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
               const mobMr = resolveSpacingValue(rawSettings, "marginRight", "mobile");
               const mobMl = resolveSpacingValue(rawSettings, "marginLeft", "mobile");
 
+              const mobGridTemplate = mobIsGrid
+                ? resolveGridTemplateColumns(rawSettings, mob.columns || 1, "mobile")
+                : undefined;
+
               rules.push(`
                 @media (max-width: 639.98px) {
                   [data-container-key="${nodeKey}"] {
-                    ${mobIsGrid ? `display: grid !important; grid-template-columns: repeat(${mob.columns}, minmax(0, 1fr)) !important;` : `display: flex !important; flex-direction: ${mob.direction === "row" ? "row" : "column"} !important;`}
+                    ${mobIsGrid ? `display: grid !important; grid-template-columns: ${mobGridTemplate} !important;` : `display: flex !important; flex-direction: ${mob.direction === "row" ? "row" : "column"} !important;`}
                     ${mob.wrap !== undefined ? `flex-wrap: ${mob.wrap ? "wrap" : "nowrap"} !important;` : ""}
                     ${mobGap ? `gap: ${mobGap} !important;` : ""}
                     ${mob.align ? `align-items: ${mob.align === "start" ? "flex-start" : mob.align === "end" ? "flex-end" : mob.align === "center" ? "center" : "stretch"} !important;` : ""}
@@ -285,6 +412,8 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
               data-storefront-wrapper="true"
               data-section-wrapper="true"
               data-wrapper-key={nodeKey}
+              data-order={containerOrder}
+              data-column-span={containerSpan}
               className="storefront-section-wrapper relative w-full"
               style={wrapperStyle}
             >
@@ -331,6 +460,8 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
         const leafMr = resolveSpacingValue(leafRawSettings, "marginRight", activeDeviceMode);
         const leafMl = resolveSpacingValue(leafRawSettings, "marginLeft", activeDeviceMode);
 
+        const { order: leafOrder, columnSpan: leafSpan } = resolveChildLayout(leafRawSettings);
+
         const hasLeafSpacing =
           leafPt !== undefined ||
           leafPb !== undefined ||
@@ -341,14 +472,39 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
           leafMr !== undefined ||
           leafMl !== undefined;
 
-        if (!renderSectionFrame && hasLeafSpacing) {
+        const hasChildLayout = leafOrder !== undefined || leafSpan !== undefined;
+        const hasLeafWrapper = hasLeafSpacing || hasChildLayout;
+
+        let renderedLeaf = leafElement;
+        if (React.isValidElement(leafElement) && hasChildLayout) {
+          const existingStyle = (leafElement.props as any)?.style || {};
+          renderedLeaf = React.cloneElement(leafElement as React.ReactElement<any>, {
+            style: {
+              ...existingStyle,
+              ...(leafOrder !== undefined ? { order: leafOrder } : {}),
+              ...(leafSpan !== undefined ? { gridColumn: leafSpan } : {}),
+            },
+            "data-order": leafOrder,
+            "data-column-span": leafSpan,
+          });
+        }
+
+        if (!renderSectionFrame && hasLeafWrapper) {
           const leafWrapperStyle: React.CSSProperties = {
             marginTop: formatSpacingValue(leafMt),
             marginRight: formatSpacingValue(leafMr),
             marginBottom: formatSpacingValue(leafMb),
             marginLeft: formatSpacingValue(leafMl),
             width: "100%",
+            order: leafOrder,
+            gridColumn: leafSpan,
           };
+
+          const hasPadding =
+            leafPt !== undefined ||
+            leafPb !== undefined ||
+            leafPl !== undefined ||
+            leafPr !== undefined;
 
           const leafContentStyle: React.CSSProperties = {
             paddingTop: formatSpacingValue(leafPt),
@@ -364,23 +520,29 @@ export const TreeRenderer: React.FC<TreeRendererProps> = ({
               data-storefront-wrapper="true"
               data-section-wrapper="true"
               data-wrapper-key={nodeKey}
+              data-order={leafOrder}
+              data-column-span={leafSpan}
               className="storefront-section-wrapper relative w-full"
               style={leafWrapperStyle}
             >
-              <div
-                data-storefront-section-content="true"
-                data-section-key={nodeKey}
-                style={leafContentStyle}
-              >
-                {leafElement}
-              </div>
+              {hasPadding ? (
+                <div
+                  data-storefront-section-content="true"
+                  data-section-key={nodeKey}
+                  style={leafContentStyle}
+                >
+                  {renderedLeaf}
+                </div>
+              ) : (
+                renderedLeaf
+              )}
             </div>
           );
         }
 
         return (
           <React.Fragment key={nodeKey}>
-            {leafElement}
+            {renderedLeaf}
           </React.Fragment>
         );
       })}
