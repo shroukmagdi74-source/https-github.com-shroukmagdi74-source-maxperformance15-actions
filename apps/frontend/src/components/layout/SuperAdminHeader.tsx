@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Menu, Lightbulb, LogOut, Building2 } from "lucide-react";
+import { Menu, Lightbulb, LogOut, Building2, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -49,6 +49,18 @@ const SuperAdminHeader: React.FC<SuperAdminHeaderProps> = ({
   const { t, i18n } = useTranslation();
   const { logout, user: authUser, switchCompany } = useAuth();
   const navigate = useNavigate();
+  // Phones cannot fit the inline search next to the action icons, so it moves
+  // into a full-width overlay opened from the magnifier button.
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileSearchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!mobileSearchOpen) return undefined;
+    const focusTimer = window.setTimeout(() => {
+      mobileSearchRef.current?.querySelector("input")?.focus();
+    }, 30);
+    return () => window.clearTimeout(focusTimer);
+  }, [mobileSearchOpen]);
 
   const handleGoToHQ = async () => {
     const targetHqCompanyId = "cmopgxu3a07i4jujj6f1oh32h";
@@ -65,34 +77,35 @@ const SuperAdminHeader: React.FC<SuperAdminHeaderProps> = ({
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 flex h-16 w-full items-center border-b backdrop-blur-xl bg-background/75 border-border/50 shrink-0 transition-all duration-300",
+        "relative sticky top-0 z-30 flex h-16 w-full items-center border-b backdrop-blur-xl bg-background/75 border-border/50 shrink-0 transition-all duration-300",
       )}
     >
-      <div className="flex w-full items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <Button variant="ghost" size="icon" onClick={onMobileMenuOpen} className="sm:hidden"><Menu className="size-5 text-muted-foreground" /></Button>
-          <Button variant="ghost" size="icon" onClick={onCollapseToggle} className="hidden sm:flex" aria-label={t("superAdmin.toggleSidebar")}><Menu className="size-5 text-muted-foreground" /></Button>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-base font-bold tracking-tight truncate max-w-[140px] lg:max-w-[220px] text-foreground">{title}</h1>
+      <div className="flex w-full min-w-0 items-center justify-between gap-2 px-3 sm:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          <Button variant="ghost" size="icon" onClick={onMobileMenuOpen} className="shrink-0 sm:hidden"><Menu className="size-5 text-muted-foreground" /></Button>
+          <Button variant="ghost" size="icon" onClick={onCollapseToggle} className="hidden shrink-0 sm:flex" aria-label={t("superAdmin.toggleSidebar")}><Menu className="size-5 text-muted-foreground" /></Button>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <h1 className="text-base font-bold tracking-tight truncate max-w-[112px] sm:max-w-[180px] lg:max-w-[220px] text-foreground">{title}</h1>
             <div className="hidden xl:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>الإنتاج v6.4 • نشط</span>
             </div>
           </div>
           <div className="hidden md:block"><GlobalTimer /></div>
-          <GlobalSearch />
+          <div className="hidden min-w-0 flex-1 sm:flex"><GlobalSearch /></div>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setMobileSearchOpen(true)} className="sm:hidden" aria-label="بحث في النظام"><Search className="size-5 text-muted-foreground" /></Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => void handleGoToHQ()}
             className="flex items-center gap-1.5 h-8 px-2.5 sm:px-3 text-xs font-semibold rounded-lg border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all shadow-sm"
             title="التبديل إلى كوكبيت الشركة التشغيلية (الطلبات، المنتجات، الميديا باير، المحادثات)"
+            aria-label="كوكبيت الشركة (HQ)"
           >
             <Building2 className="size-3.5 text-indigo-600 dark:text-indigo-400" />
             <span className="hidden sm:inline">كوكبيت الشركة (HQ)</span>
-            <span className="sm:hidden">الشركة</span>
           </Button>
 
           <TooltipProvider>
@@ -134,6 +147,17 @@ const SuperAdminHeader: React.FC<SuperAdminHeaderProps> = ({
           </DropdownMenu>
         </div>
       </div>
+      {mobileSearchOpen && (
+        <div
+          ref={mobileSearchRef}
+          className="absolute inset-x-0 top-0 z-50 flex h-16 items-center gap-1 border-b border-border/60 bg-background/95 px-2 backdrop-blur-xl sm:hidden"
+        >
+          <div className="min-w-0 flex-1"><GlobalSearch /></div>
+          <Button variant="ghost" size="icon" onClick={() => setMobileSearchOpen(false)} aria-label="إغلاق البحث">
+            <X className="size-5 text-muted-foreground" />
+          </Button>
+        </div>
+      )}
     </header>
   );
 };
