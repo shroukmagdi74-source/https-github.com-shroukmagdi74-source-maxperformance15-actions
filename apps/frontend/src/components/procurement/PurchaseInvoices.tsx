@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Eye, CreditCard, Search, AlertCircle } from "lucide-react";
+import { Plus, Eye, CreditCard, Search, AlertCircle, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../../services/apiClient";
@@ -125,9 +125,21 @@ const PurchaseInvoices: React.FC = () => {
             سجل فواتير التوريد ومتابعة المبالغ المستحقة والمسددة وتواريخ الاستحقاق
           </p>
         </div>
-        <Button onClick={() => navigate("/procurement/purchase-invoices/new")} className="gap-2">
-          <Plus className="size-4" /> {t("procurement.purchaseInvoices.createNew")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/procurement/settings")}
+            className="gap-1.5 h-9 text-xs"
+            title="تخصيص قوالب الطباعة والترويسة الضريبية"
+          >
+            <Settings className="size-4" />
+            <span className="hidden sm:inline">إعدادات القوالب</span>
+          </Button>
+          <Button onClick={() => navigate("/procurement/purchase-invoices/new")} className="gap-2 h-9">
+            <Plus className="size-4" /> {t("procurement.purchaseInvoices.createNew")}
+          </Button>
+        </div>
       </div>
 
       {error && (

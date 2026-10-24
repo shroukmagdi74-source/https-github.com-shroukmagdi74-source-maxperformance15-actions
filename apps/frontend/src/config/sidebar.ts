@@ -454,6 +454,8 @@ export const getSidebarConfig = (
                     { to: '/procurement/purchase-invoices', icon: ClipboardCheck, label: t('sidebar.purchaseInvoices') },
                     { to: '/procurement/supplier-payments', icon: Banknote, label: t('sidebar.supplierPayments') },
                     { to: '/procurement/reports', icon: FileBarChart, label: isEn ? 'Procurement Reports' : 'تقارير المشتريات' },
+                { to: '/procurement/settings', icon: Settings, label: isEn ? 'Procurement Settings' : 'إعدادات وقوالب المشتريات' },
+                    { to: '/procurement/settings', icon: Settings, label: isEn ? 'Procurement Settings' : 'إعدادات وقوالب المشتريات' },
                 ],
                 hidden: !isAnyAppActive(['procurement-pro', 'store-pro']),
             },

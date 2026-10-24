@@ -6,11 +6,17 @@ const purchaseOrderController = require('../controller/purchaseOrderController')
 const purchaseInvoiceController = require('../controller/purchaseInvoiceController');
 const supplierPaymentController = require('../controller/supplierPaymentController');
 const procurementReportsController = require('../controller/procurementReportsController');
+const procurementSettingsController = require('../controller/procurementSettingsController');
 const { checkAppAccess } = require('../middleware/checkAppAccess');
 
 router.use(verifyToken.authenticateToken);
 router.use(checkAppAccess('procurement-pro'));
 
+// Settings
+router.get('/settings', procurementSettingsController.getSettings);
+router.put('/settings', procurementSettingsController.updateSettings);
+
+// Suppliers
 router.post('/suppliers', supplierController.createSupplier);
 router.get('/suppliers', supplierController.getAllSuppliers);
 router.get('/suppliers/:id', supplierController.getSupplierById);
@@ -18,6 +24,7 @@ router.put('/suppliers/:id', supplierController.updateSupplier);
 router.delete('/suppliers/:id', supplierController.deleteSupplier);
 router.get('/suppliers/:id/stats', supplierController.getSupplierStats);
 
+// Purchase Orders
 router.get('/catalog-items', purchaseOrderController.getProcurementCatalogItems);
 router.post('/purchase-orders', purchaseOrderController.createPurchaseOrder);
 router.get('/purchase-orders', purchaseOrderController.getAllPurchaseOrders);
@@ -29,6 +36,7 @@ router.post('/purchase-orders/:id/receive', purchaseOrderController.receiveItems
 router.post('/purchase-orders/:id/cancel', purchaseOrderController.cancelPurchaseOrder);
 router.delete('/purchase-orders/:id', purchaseOrderController.deletePurchaseOrder);
 
+// Purchase Invoices
 router.post('/purchase-invoices', purchaseInvoiceController.createPurchaseInvoice);
 router.get('/purchase-invoices', purchaseInvoiceController.getAllPurchaseInvoices);
 router.get('/purchase-invoices/stats', purchaseInvoiceController.getPurchaseInvoiceStats);
@@ -37,6 +45,7 @@ router.put('/purchase-invoices/:id', purchaseInvoiceController.updatePurchaseInv
 router.delete('/purchase-invoices/:id', purchaseInvoiceController.deletePurchaseInvoice);
 router.post('/purchase-invoices/check-overdue', purchaseInvoiceController.checkOverdueInvoices);
 
+// Supplier Payments
 router.post('/supplier-payments', supplierPaymentController.createSupplierPayment);
 router.get('/supplier-payments', supplierPaymentController.getAllSupplierPayments);
 router.get('/supplier-payments/stats', supplierPaymentController.getSupplierPaymentStats);
@@ -44,6 +53,7 @@ router.get('/supplier-payments/:id', supplierPaymentController.getSupplierPaymen
 router.put('/supplier-payments/:id', supplierPaymentController.updateSupplierPayment);
 router.delete('/supplier-payments/:id', supplierPaymentController.deleteSupplierPayment);
 
+// Reports
 router.get('/reports/dashboard', procurementReportsController.getProcurementDashboard);
 router.get('/reports/suppliers', procurementReportsController.getSupplierReport);
 router.get('/reports/purchase-orders', procurementReportsController.getPurchaseOrderReport);

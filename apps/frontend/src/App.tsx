@@ -533,6 +533,9 @@ const ProcurementDashboard = React.lazy(
 const ProcurementReports = React.lazy(
   () => import("./components/procurement/ProcurementReports"),
 );
+const ProcurementSettings = React.lazy(
+  () => import("./components/procurement/ProcurementSettings"),
+);
 const RecipeManagementPage = React.lazy(
   () => import("./pages/cafe/RecipeManagementPage"),
 );
@@ -5605,6 +5608,16 @@ const AppContent = () => {
                     <Layout>
                       <AppAccessRoute requiredAppSlugs={['procurement-pro', 'store-pro']}>
                         <ProcurementReports />
+                      </AppAccessRoute>
+                    </Layout>
+                  }
+                />
+                <Route
+                  path="/procurement/settings"
+                  element={
+                    <Layout>
+                      <AppAccessRoute requiredAppSlugs={['procurement-pro', 'store-pro']}>
+                        <ProcurementSettings />
                       </AppAccessRoute>
                     </Layout>
                   }

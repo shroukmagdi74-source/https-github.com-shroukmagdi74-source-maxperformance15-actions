@@ -11,6 +11,7 @@ import {
   XCircle,
   Search,
   AlertCircle,
+  Settings,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -174,9 +175,21 @@ const PurchaseOrders: React.FC = () => {
             إدارة ومتابعة أوامر الشراء الصادرة للموردين وحالات الاستلام
           </p>
         </div>
-        <Button onClick={() => navigate("/procurement/purchase-orders/new")} className="gap-2">
-          <Plus className="size-4" /> {t("procurement.purchaseOrders.createNew")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/procurement/settings")}
+            className="gap-1.5 h-9 text-xs"
+            title="تخصيص قوالب الطباعة والترويسة الضريبية"
+          >
+            <Settings className="size-4" />
+            <span className="hidden sm:inline">إعدادات القوالب</span>
+          </Button>
+          <Button onClick={() => navigate("/procurement/purchase-orders/new")} className="gap-2 h-9">
+            <Plus className="size-4" /> {t("procurement.purchaseOrders.createNew")}
+          </Button>
+        </div>
       </div>
 
       {error && (

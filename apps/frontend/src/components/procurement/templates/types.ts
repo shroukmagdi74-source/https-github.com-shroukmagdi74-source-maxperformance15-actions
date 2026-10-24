@@ -59,6 +59,13 @@ export interface NormalizedProcurementData {
   status: string;
   statusLabel: string;
   companyName: string;
+  buyer?: {
+    name?: string;
+    taxNumber?: string | null;
+    crNumber?: string | null;
+    address?: string | null;
+    phone?: string | null;
+  };
   supplier: {
     id: string;
     name: string;
@@ -83,6 +90,13 @@ export interface NormalizedProcurementData {
   };
   notes?: string | null;
   paymentTerms?: string | null;
+  signatures?: {
+    purchasingTitle?: string;
+    financeTitle?: string;
+    warehouseTitle?: string;
+    showStamp?: boolean;
+    showBlock?: boolean;
+  };
 }
 
 export interface ProcurementTemplateProps {

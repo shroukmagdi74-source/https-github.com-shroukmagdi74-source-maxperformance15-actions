@@ -20,7 +20,7 @@ export const OfficialTaxTemplate: React.FC<ProcurementTemplateProps> = ({
           {/* Company / Buyer info */}
           <div className="space-y-1 text-start">
             <h1 className="text-xl font-black text-slate-900 tracking-tight">
-              {data.companyName}
+              {data.buyer?.name || data.companyName}
             </h1>
             <p className="text-xs font-semibold text-slate-600">
               {isInvoice
@@ -126,18 +126,25 @@ export const OfficialTaxTemplate: React.FC<ProcurementTemplateProps> = ({
             <span className="text-[10px] text-slate-500 font-normal font-mono">BUYER / BILL TO</span>
           </div>
           <div className="space-y-1">
-            <div className="font-bold text-sm text-slate-900">{data.companyName}</div>
-            <div className="text-slate-700">المقر: <span className="font-semibold">المقر الرئيسي المعتمد</span></div>
-            <div className="text-slate-600">
-              نوع المعاملة:{" "}
-              <span className="font-semibold">
-                {isInvoice
-                  ? data.linkedReference
-                    ? `بناءً على أمر الشراء ${data.linkedReference.number}`
-                    : "فاتورة شراء تجارية مباشرة"
-                  : "أمر شراء وتوريد رسمي صادر للمورد"}
-              </span>
+            <div className="font-bold text-sm text-slate-900">{data.buyer?.name || data.companyName}</div>
+            {data.buyer?.taxNumber && (
+              <div className="text-slate-700">
+                الرقم الضريبي: <span className="font-mono font-semibold">{data.buyer.taxNumber}</span>
+              </div>
+            )}
+            {data.buyer?.crNumber && (
+              <div className="text-slate-700">
+                السجل التجاري: <span className="font-mono font-semibold">{data.buyer.crNumber}</span>
+              </div>
+            )}
+            <div className="text-slate-700">
+              المقر: <span className="font-semibold">{data.buyer?.address || "المقر الرئيسي المعتمد"}</span>
             </div>
+            {data.buyer?.phone && (
+              <div className="text-slate-600">
+                الهاتف: <span className="font-mono">{data.buyer.phone}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -286,36 +293,40 @@ export const OfficialTaxTemplate: React.FC<ProcurementTemplateProps> = ({
       </div>
 
       {/* 3-Signature Official Approvals Block */}
-      <div className="border border-slate-300 rounded p-3 bg-slate-50/40 no-break">
-        <div className="text-[11px] font-bold text-slate-500 mb-4 pb-1 border-b border-slate-200 flex justify-between">
-          <span>الاعتمادات والتواقيع الرسمية</span>
-          <span className="font-mono">OFFICIAL APPROVALS & SIGNATURES</span>
+      {data.signatures?.showBlock !== false && (
+        <div className="border border-slate-300 rounded p-3 bg-slate-50/40 no-break">
+          <div className="text-[11px] font-bold text-slate-500 mb-4 pb-1 border-b border-slate-200 flex justify-between">
+            <span>الاعتمادات والتواقيع الرسمية</span>
+            <span className="font-mono">OFFICIAL APPROVALS & SIGNATURES</span>
+          </div>
+          <div className="grid grid-cols-3 gap-6 text-center text-xs text-slate-800">
+            <div>
+              <p className="font-bold text-slate-900 mb-8">
+                {data.signatures?.purchasingTitle || (isInvoice ? "إعداد المحاسب المسؤول" : "مسؤول المشتريات")}
+              </p>
+              <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
+                الاسم والتوقيع
+              </div>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 mb-8">
+                {data.signatures?.financeTitle || "اعتماد المدير المالي / الإدارة"}
+              </p>
+              <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
+                {data.signatures?.showStamp !== false ? "الختم الرسمي والاعتماد" : "الاعتماد والتاريخ"}
+              </div>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 mb-8">
+                {data.signatures?.warehouseTitle || (isInvoice ? "تأكيد واستلام المورد / المستودع" : "اعتماد المورد وتأكيد التوريد")}
+              </p>
+              <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
+                توقيع المستلم والتاريخ
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-6 text-center text-xs text-slate-800">
-          <div>
-            <p className="font-bold text-slate-900 mb-8">
-              {isInvoice ? "إعداد المحاسب المسؤول" : "مسؤول المشتريات"}
-            </p>
-            <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
-              الاسم والتوقيع
-            </div>
-          </div>
-          <div>
-            <p className="font-bold text-slate-900 mb-8">اعتماد المدير المالي / الإدارة</p>
-            <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
-              الختم الرسمي والاعتماد
-            </div>
-          </div>
-          <div>
-            <p className="font-bold text-slate-900 mb-8">
-              {isInvoice ? "تأكيد واستلام المورد / المستودع" : "اعتماد المورد وتأكيد التوريد"}
-            </p>
-            <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
-              توقيع المستلم والتاريخ
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Formal Footer */}
       <div className="mt-4 pt-2 border-t border-slate-200 text-center text-[10px] text-slate-500 flex justify-between">

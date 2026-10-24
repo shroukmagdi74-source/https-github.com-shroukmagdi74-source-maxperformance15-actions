@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FileText,
   ChevronDown,
@@ -8,6 +9,8 @@ import {
   Sparkles,
   Boxes,
   ShieldCheck,
+  Settings,
+  ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +58,7 @@ export const TemplateSelectorDropdown: React.FC<TemplateSelectorDropdownProps> =
   data,
   isRtl = true,
 }) => {
+  const navigate = useNavigate();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<ProcurementTemplateId>(selectedTemplate);
 
@@ -173,6 +177,20 @@ export const TemplateSelectorDropdown: React.FC<TemplateSelectorDropdownProps> =
                 </DropdownMenuItem>
               );
             })}
+
+            <DropdownMenuSeparator />
+
+            {/* Quick Link to Dedicated Settings Page */}
+            <DropdownMenuItem
+              onClick={() => navigate("/procurement/settings")}
+              className="p-2 rounded-lg cursor-pointer flex items-center justify-between text-xs text-primary hover:bg-primary/10 font-semibold"
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="size-3.5 text-primary" />
+                <span>إعدادات وتخصيص القوالب والترويسة</span>
+              </div>
+              <ChevronLeft className="size-3.5 text-muted-foreground" />
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
