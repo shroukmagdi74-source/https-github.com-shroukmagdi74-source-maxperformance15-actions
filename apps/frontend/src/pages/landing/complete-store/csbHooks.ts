@@ -1,16 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 
-/** Count-up animation for the receipt totals. Jumps instantly under prefers-reduced-motion. */
+/**
+ * Count-up animation for the receipt totals. Jumps instantly under prefers-reduced-motion.
+ *
+ * Starts from the REAL value, not 0: the landing page is prerendered to static HTML, so a
+ * zero initial state ships «الإجمالي = 0 ج.م» to every visitor whose hydration or
+ * IntersectionObserver never fires (seen live 2026-10-24). The first time the element is
+ * seen we replay the animation from 0 → target.
+ */
 export function useCountUp(target: number, durationMs = 900): { ref: React.RefObject<HTMLSpanElement | null>; value: number } {
   const ref = useRef<HTMLSpanElement | null>(null);
-  const [value, setValue] = useState(0);
+  const [value, setValue] = useState(target);
   const started = useRef(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) {
+    if (reduced || typeof IntersectionObserver === "undefined") {
+      setValue(target);
+      return;
+    }
+    // Already on screen at mount (above-the-fold / prerendered view): keep the real
+    // number instead of flashing 2936 → 0 before counting back up.
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      started.current = true;
       setValue(target);
       return;
     }
