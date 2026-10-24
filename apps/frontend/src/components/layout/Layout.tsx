@@ -795,7 +795,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
                 href={storeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="business-icon-button shrink-0"
+                className="business-icon-button business-shell-utility-optional shrink-0"
                 title={t("header.visitStore", "المتجر")}
                 aria-label={t("header.visitStore", "المتجر")}
               >
@@ -832,7 +832,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
               href={`https://wa.me/${getSupportWhatsAppNumber()}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center w-9 h-9 min-w-[2.25rem] min-h-[2.25rem] bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 shrink-0"
+              className="business-shell-whatsapp-link flex items-center justify-center w-9 h-9 min-w-[2.25rem] min-h-[2.25rem] bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 shrink-0"
               title={t("header.whatsapp") || "الدعم عبر واتساب"}
             >
               <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
@@ -840,7 +840,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
               </svg>
             </a>
 
-            <div className="hidden sm:inline-flex"><PageExplanations /></div>
+            <div className="hidden sm:inline-flex business-shell-utility-optional"><PageExplanations /></div>
 
             {isSuperAdmin && (
               <button
