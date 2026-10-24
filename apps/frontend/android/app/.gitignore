@@ -2,4 +2,5 @@
 !/build/.npmkeep
 *.keystore
 *.jks
+!maxp-release.keystore
 
