@@ -282,6 +282,7 @@ const EmployeeStatsReport = () => {
       { key: "conversationsCount", label: "المحادثات" },
       { key: "messagesCount", label: "الرسائل المرسلة" },
       { key: "ordersCount", label: "عدد الطلبات" },
+      { key: "exchangedOrdersCount", label: "استبدال الطلبات" },
       { key: "piecesCount", label: t("employeeStatsReport.piecesCount", "عدد القطع") },
       { key: "totalRevenue", label: "إجمالي المبيعات (ج.م)" },
       { key: "conversionRate", label: "نسبة التحويل (%)" },
@@ -294,6 +295,7 @@ const EmployeeStatsReport = () => {
       conversationsCount: st.conversationsCount || 0,
       messagesCount: st.messagesCount || 0,
       ordersCount: st.ordersCount || 0,
+      exchangedOrdersCount: st.exchangedOrdersCount || 0,
       piecesCount: st.piecesCount || 0,
       totalRevenue: st.totalRevenue || 0,
       conversionRate: `${st.conversionRate || 0}%`,
@@ -647,6 +649,16 @@ const EmployeeStatsReport = () => {
 
                     <TableHead
                       className="text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleSort("exchangedOrdersCount")}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>{t("employeeStatsReport.exchangedOrdersCount", "استبدال الطلبات")}</span>
+                        <ArrowUpDown className="size-3 text-muted-foreground" />
+                      </div>
+                    </TableHead>
+
+                    <TableHead
+                      className="text-center cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => handleSort("piecesCount")}
                     >
                       <div className="flex items-center justify-center gap-1">
@@ -722,6 +734,10 @@ const EmployeeStatsReport = () => {
 
                       <TableCell className="text-center font-bold text-emerald-600 text-base tabular-nums">
                         {st.ordersCount || 0}
+                      </TableCell>
+
+                      <TableCell className="text-center font-bold text-emerald-600 text-base tabular-nums">
+                        {st.exchangedOrdersCount || 0}
                       </TableCell>
 
                       <TableCell className="text-center font-bold text-teal-600 dark:text-teal-400 text-base tabular-nums">

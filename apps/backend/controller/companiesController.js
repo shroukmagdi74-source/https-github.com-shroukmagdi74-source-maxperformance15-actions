@@ -3762,6 +3762,7 @@ const getUsersStatistics = async (req, res) => {
           conversationsCount: 0,
           messagesCount: 0,
           ordersCount: 0,
+          exchangedOrdersCount: 0,
           piecesCount: 0,
           convertedConversations: 0,
           totalRevenue: 0,
@@ -3798,6 +3799,7 @@ const getUsersStatistics = async (req, res) => {
           conversationsCount: 0,
           messagesCount: 0,
           ordersCount: 0,
+          exchangedOrdersCount: 0,
           piecesCount: 0,
           convertedConversations: 0,
           totalRevenue: 0,
@@ -3861,6 +3863,22 @@ const getUsersStatistics = async (req, res) => {
       GROUP BY COALESCE(o."createdBy", c."assignedUserId")
     `;
 
+    // 6.1. Database-level aggregation: Exchanged Orders
+    const exchangedOrderStats = await prisma.$queryRaw`
+      SELECT 
+        COALESCE(o."createdBy", c."assignedUserId") AS "userId",
+        COUNT(o.id)::int AS "exchangedOrdersCount"
+      FROM "orders" o
+      LEFT JOIN "conversations" c ON c.id = o."conversationId"
+      WHERE o."companyId" = ${companyId}
+        AND o.status::text = 'EXCHANGED'
+        ${startUtc ? PrismaModule.sql`AND o."createdAt" >= ${startUtc}` : PrismaModule.empty}
+        ${endUtc ? PrismaModule.sql`AND o."createdAt" <= ${endUtc}` : PrismaModule.empty}
+        ${normalizedChannel ? PrismaModule.sql`AND c."channel" = ${normalizedChannel}` : PrismaModule.empty}
+        AND (o."createdBy" IS NOT NULL OR c."assignedUserId" IS NOT NULL)
+      GROUP BY COALESCE(o."createdBy", c."assignedUserId")
+    `;
+
     // 7. Merge aggregation results into usersMap
     (messageStats || []).forEach((row) => {
       if (row.userId && usersMap.has(row.userId)) {
@@ -3877,6 +3895,13 @@ const getUsersStatistics = async (req, res) => {
         u.piecesCount = row.piecesCount || 0;
         u.convertedConversations = row.convertedConversations || 0;
         u.totalRevenue = Math.round((row.totalRevenue || 0) * 100) / 100;
+      }
+    });
+
+    (exchangedOrderStats || []).forEach((row) => {
+      if (row.userId && usersMap.has(row.userId)) {
+        const u = usersMap.get(row.userId);
+        u.exchangedOrdersCount = row.exchangedOrdersCount || 0;
       }
     });
 
