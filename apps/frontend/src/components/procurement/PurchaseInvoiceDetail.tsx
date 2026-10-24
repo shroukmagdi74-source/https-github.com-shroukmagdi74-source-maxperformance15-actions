@@ -16,6 +16,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { apiClient } from "../../services/apiClient";
+import CompanyContext from "../../contexts/CompanyContext";
 import { formatCurrency } from "../../utils/currency";
 import { formatShortDate } from "../../utils/dateFormat";
 import { Button } from "@/components/ui/button";
@@ -187,89 +188,63 @@ export const PurchaseInvoiceDetail: React.FC = () => {
   const canPay = invoice.status !== "PAID" && invoice.status !== "CANCELLED";
   const canEdit = invoice.status !== "PAID";
 
+  const companyContext = React.useContext(CompanyContext);
+  const companyName = companyContext?.company?.name || "منصة MaxP للتجارة المتكاملة";
+
   return (
-    <div className="p-3 sm:p-6 max-w-6xl mx-auto space-y-5 print:p-0 purchase-invoice-detail-container">
+    <div className="purchase-invoice-detail-container">
       {/* Print-specific style rules */}
       <style>{`
         @media print {
           @page {
-            size: A4;
-            margin: 15mm 10mm;
+            size: A4 portrait;
+            margin: 10mm 12mm 12mm 12mm;
           }
           body, html {
-            background: white !important;
-            color: black !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", sans-serif !important;
+            font-size: 12px !important;
+            line-height: 1.4 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          header, nav, aside, [role="navigation"], .sidebar, button, .print\\:hidden, #app-header, .app-sidebar, [data-sonner-toaster], .fixed {
+          header, nav, aside, [role="navigation"], .sidebar, .app-sidebar, #app-header, button, .print\\:hidden, [data-sonner-toaster], .fixed {
             display: none !important;
           }
           .purchase-invoice-detail-container {
             padding: 0 !important;
             margin: 0 !important;
             max-width: 100% !important;
+            width: 100% !important;
             box-shadow: none !important;
             border: none !important;
+            background: transparent !important;
           }
-          .print-only {
+          .printable-commercial-sheet {
             display: block !important;
-          }
-          .border-border\\/70, .border {
-            border-color: rgb(209, 213, 219) !important;
-          }
-          table {
             width: 100% !important;
-            border-collapse: collapse !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
           }
-          th, td {
-            border: 1px solid rgb(209, 213, 219) !important;
-            padding: 6px 8px !important;
-            color: black !important;
-          }
-          th {
-            background-color: rgb(243, 244, 246) !important;
+          .no-break {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           tr {
-            page-break-inside: avoid;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
         }
         @media screen {
-          .print-only {
+          .printable-commercial-sheet {
             display: none !important;
           }
         }
       `}</style>
 
-      {/* Printable Document Official Header */}
-      <div className="print-only border-b-2 border-black pb-4 mb-4 text-black">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight">فاتورة شراء توريد / PURCHASE INVOICE</h1>
-            <p className="text-sm font-semibold text-gray-800 mt-1">
-              رقم الفاتورة: <strong className="font-mono text-base">{invoice.invoiceNumber}</strong>
-            </p>
-            <p className="text-xs text-gray-600">
-              حالة الفاتورة: <strong>{statusLabels[invoice.status] ?? invoice.status}</strong>
-            </p>
-            {invoice.supplier && (
-              <p className="text-xs text-gray-700 mt-1">
-                المورد: <strong>{invoice.supplier.name}</strong> {invoice.supplier.phone ? `(${invoice.supplier.phone})` : ""}
-              </p>
-            )}
-          </div>
-          <div className="text-end text-xs space-y-1">
-            <p className="font-bold text-sm">منصة MaxP للتجارة المتكاملة</p>
-            <p>تاريخ الفاتورة: <strong className="font-mono">{formatShortDate(invoice.invoiceDate, i18n.language)}</strong></p>
-            {invoice.dueDate && (
-              <p>تاريخ الاستحقاق: <strong className="font-mono">{formatShortDate(invoice.dueDate, i18n.language)}</strong></p>
-            )}
-            {invoice.purchaseOrder && (
-              <p>أمر الشراء المرتبط: <strong className="font-mono">{invoice.purchaseOrder.orderNumber}</strong></p>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* 1. SCREEN ONLY VIEW: Interactive Dashboard */}
+      <div className="print:hidden p-3 sm:p-6 max-w-6xl mx-auto space-y-5">
 
       {/* Top Action Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-border/70 print:hidden">
@@ -598,21 +573,252 @@ export const PurchaseInvoiceDetail: React.FC = () => {
           )}
         </CardContent>
       </Card>
-      {/* Printable Signature & Approvals Block */}
-      <div className="print-only pt-8 mt-6 border-t border-gray-300">
-        <div className="grid grid-cols-3 gap-6 text-center text-xs text-black">
-          <div>
-            <p className="font-bold mb-10 text-gray-800">إعداد المحاسب المسؤول</p>
-            <div className="border-t border-dashed border-gray-400 pt-1 text-[11px] text-gray-600">التوقيع والاسم</div>
+      </div>
+
+      {/* 2. PRINT ONLY VIEW: Standalone Official Commercial Purchase Invoice (A4 Standard) */}
+      <div className="hidden print:block printable-commercial-sheet text-slate-900 bg-white" dir={isRtl ? "rtl" : "ltr"}>
+        {/* A. Formal Commercial Header */}
+        <div className="border-b-2 border-slate-900 pb-3 mb-4">
+          <div className="flex justify-between items-start">
+            {/* Company / Buyer info */}
+            <div className="space-y-1 text-start">
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">
+                {companyName}
+              </h1>
+              <p className="text-xs font-semibold text-slate-600">
+                فاتورة شراء وتوريد رسمية معتمدة
+              </p>
+              <div className="text-[11px] text-slate-500 space-y-0.5 pt-0.5">
+                <p>تاريخ الطباعة: <span className="font-mono">{formatShortDate(new Date().toISOString(), i18n.language)}</span></p>
+              </div>
+            </div>
+
+            {/* Document Title & Reference Box */}
+            <div className="text-end">
+              <div className="inline-block text-end">
+                <div className="text-lg font-black text-slate-900">
+                  فاتورة شراء توريد
+                </div>
+                <div className="text-[11px] font-bold tracking-widest text-slate-500 uppercase font-mono">
+                  TAX PURCHASE INVOICE
+                </div>
+                <div className="mt-1.5 border border-slate-300 rounded px-2.5 py-1 bg-slate-50 text-xs space-y-0.5 min-w-[210px] text-start">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-600">رقم الفاتورة:</span>
+                    <span className="font-mono font-bold text-slate-900">{invoice.invoiceNumber}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-600">تاريخ الفاتورة:</span>
+                    <span className="font-mono tabular-nums">{formatShortDate(invoice.invoiceDate, i18n.language)}</span>
+                  </div>
+                  {invoice.dueDate && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-slate-600">تاريخ الاستحقاق:</span>
+                      <span className="font-mono tabular-nums">{formatShortDate(invoice.dueDate, i18n.language)}</span>
+                    </div>
+                  )}
+                  {invoice.purchaseOrder && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-slate-600">أمر الشراء المرتبط:</span>
+                      <span className="font-mono font-semibold text-slate-900">{invoice.purchaseOrder.orderNumber}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-600">حالة السداد:</span>
+                    <span className="font-semibold">{statusLabels[invoice.status] ?? invoice.status}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="font-bold mb-10 text-gray-800">اعتماد المدير المالي / الإدارة</p>
-            <div className="border-t border-dashed border-gray-400 pt-1 text-[11px] text-gray-600">الختم والتوقيع</div>
+        </div>
+
+        {/* B. Parties Information Strip (Compact 2-Column Box) */}
+        <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
+          {/* Supplier Data */}
+          <div className="border border-slate-300 rounded p-2.5 bg-slate-50/50 text-start">
+            <div className="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-1.5 flex justify-between">
+              <span>بيانات المورّد (المُسلِّم):</span>
+              <span className="text-[10px] text-slate-500 font-normal">SUPPLIER</span>
+            </div>
+            <div className="space-y-1">
+              <div className="font-bold text-sm text-slate-900">{invoice.supplier.name}</div>
+              {invoice.supplier.phone && (
+                <div className="text-slate-700">الهاتف: <span className="font-mono font-semibold">{invoice.supplier.phone}</span></div>
+              )}
+              {invoice.supplier.email && (
+                <div className="text-slate-600">البريد: <span>{invoice.supplier.email}</span></div>
+              )}
+            </div>
           </div>
-          <div>
-            <p className="font-bold mb-10 text-gray-800">تأكيد واستلام المورد / المستودع</p>
-            <div className="border-t border-dashed border-gray-400 pt-1 text-[11px] text-gray-600">توقيع المستلم / التاريخ</div>
+
+          {/* Buyer & Billing Data */}
+          <div className="border border-slate-300 rounded p-2.5 bg-slate-50/50 text-start">
+            <div className="font-bold text-slate-800 border-b border-slate-200 pb-1 mb-1.5 flex justify-between">
+              <span>بيانات المشتري (الفوترة والاستلام):</span>
+              <span className="text-[10px] text-slate-500 font-normal">BUYER / BILL TO</span>
+            </div>
+            <div className="space-y-1">
+              <div className="font-bold text-sm text-slate-900">{companyName}</div>
+              <div className="text-slate-700">المقر: <span className="font-semibold">المقر الرئيسي المعتمد</span></div>
+              <div className="text-slate-600">
+                نوع القيد: <span className="font-semibold">{invoice.purchaseOrder ? `بناءً على أمر الشراء ${invoice.purchaseOrder.orderNumber}` : "فاتورة شراء مباشرة"}</span>
+              </div>
+            </div>
           </div>
+        </div>
+
+        {/* C. Accounting Items Table */}
+        <div className="mb-4">
+          <table className="w-full text-xs border border-slate-300">
+            <thead>
+              <tr className="bg-slate-100 border-b border-slate-300 text-slate-800 font-bold">
+                <th className="py-1.5 px-2 text-center w-8 border-e border-slate-300">#</th>
+                <th className="py-1.5 px-2 text-start border-e border-slate-300">بيان الصنف والمواصفات</th>
+                <th className="py-1.5 px-2 text-center w-24 border-e border-slate-300">كود / SKU</th>
+                <th className="py-1.5 px-2 text-center w-16 border-e border-slate-300">الكمية</th>
+                <th className="py-1.5 px-2 text-center w-24 border-e border-slate-300">سعر الوحدة</th>
+                <th className="py-1.5 px-2 text-center w-16 border-e border-slate-300">الخصم</th>
+                <th className="py-1.5 px-2 text-center w-16 border-e border-slate-300">الضريبة</th>
+                <th className="py-1.5 px-2 text-end w-24">الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, idx) => (
+                <tr key={item.id} className="border-b border-slate-200 even:bg-slate-50/50">
+                  <td className="py-1.5 px-2 text-center font-mono border-e border-slate-200">{idx + 1}</td>
+                  <td className="py-1.5 px-2 font-medium border-e border-slate-200 text-start">
+                    <div>{item.productName || item.product?.name || "صنف بدون اسم"}</div>
+                    {item.description && <div className="text-[10px] text-slate-500">{item.description}</div>}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-mono text-[11px] text-slate-600 border-e border-slate-200">
+                    {item.product?.sku || "—"}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-mono font-bold border-e border-slate-200">{item.quantity}</td>
+                  <td className="py-1.5 px-2 text-center font-mono tabular-nums border-e border-slate-200">
+                    {formatCurrency(item.unitPrice, { locale: i18n.language })}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-mono border-e border-slate-200 text-slate-500">
+                    {Number(item.discountRate) > 0 ? `${item.discountRate}%` : "—"}
+                  </td>
+                  <td className="py-1.5 px-2 text-center font-mono border-e border-slate-200 text-slate-500">
+                    {Number(item.taxRate) > 0 ? `${item.taxRate}%` : "—"}
+                  </td>
+                  <td className="py-1.5 px-2 text-end font-mono font-bold tabular-nums">
+                    {formatCurrency(item.totalPrice, { locale: i18n.language })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* D. Totals & Notes Summary (Side-by-Side Compact) */}
+        <div className="grid grid-cols-2 gap-4 mb-6 no-break">
+          {/* Terms & Notes */}
+          <div className="border border-slate-300 rounded p-2.5 bg-slate-50/30 text-xs space-y-1.5 text-start">
+            <div className="font-bold text-slate-800 border-b border-slate-200 pb-1">
+              ملاحظات الفاتورة والتسوية:
+            </div>
+            <p className="text-[11px] text-slate-700 leading-relaxed">
+              {invoice.notes || "تعتبر هذه الفاتورة سند التزام مالي معتمد بعد اكتمال التوريد ومطابقة الأصناف."}
+            </p>
+            {invoice.dueDate && (
+              <p className="text-[11px] text-slate-700 pt-1 border-t border-slate-200">
+                <strong>تاريخ الاستحقاق النهائي:</strong> {formatShortDate(invoice.dueDate, i18n.language)}
+              </p>
+            )}
+          </div>
+
+          {/* Financial Summary Box */}
+          <div className="border border-slate-300 rounded overflow-hidden text-xs">
+            <table className="w-full">
+              <tbody>
+                <tr className="border-b border-slate-200">
+                  <td className="py-1 px-3 text-slate-600 text-start">المجموع قبل الخصم:</td>
+                  <td className="py-1 px-3 text-end font-mono font-medium tabular-nums">
+                    {formatCurrency(invoice.subtotal, { locale: i18n.language })}
+                  </td>
+                </tr>
+                {Number(invoice.discountAmount) > 0 && (
+                  <tr className="border-b border-slate-200 text-rose-700">
+                    <td className="py-1 px-3 text-start">الخصم التجاري:</td>
+                    <td className="py-1 px-3 text-end font-mono font-medium tabular-nums">
+                      -{formatCurrency(invoice.discountAmount, { locale: i18n.language })}
+                    </td>
+                  </tr>
+                )}
+                {Number(invoice.taxAmount) > 0 && (
+                  <tr className="border-b border-slate-200 text-slate-700">
+                    <td className="py-1 px-3 text-start">ضريبة القيمة المضافة:</td>
+                    <td className="py-1 px-3 text-end font-mono font-medium tabular-nums">
+                      +{formatCurrency(invoice.taxAmount, { locale: i18n.language })}
+                    </td>
+                  </tr>
+                )}
+                {Number(invoice.shippingCost) > 0 && (
+                  <tr className="border-b border-slate-200 text-slate-700">
+                    <td className="py-1 px-3 text-start">مصاريف الشحن / النقل:</td>
+                    <td className="py-1 px-3 text-end font-mono font-medium tabular-nums">
+                      +{formatCurrency(invoice.shippingCost, { locale: i18n.language })}
+                    </td>
+                  </tr>
+                )}
+                <tr className="bg-slate-100 font-black text-sm border-t-2 border-slate-800">
+                  <td className="py-1.5 px-3 text-slate-900 text-start">المبلغ الإجمالي للفاتورة:</td>
+                  <td className="py-1.5 px-3 text-end font-mono text-slate-900 tabular-nums">
+                    {formatCurrency(invoice.totalAmount, { locale: i18n.language })}
+                  </td>
+                </tr>
+                <tr className="border-t border-slate-200 text-emerald-700 font-semibold">
+                  <td className="py-1 px-3 text-start">المبلغ المدفوع:</td>
+                  <td className="py-1 px-3 text-end font-mono tabular-nums">
+                    {formatCurrency(invoice.paidAmount, { locale: i18n.language })}
+                  </td>
+                </tr>
+                <tr className="border-t border-slate-200 text-rose-700 font-bold">
+                  <td className="py-1 px-3 text-start">المبلغ المتبقي:</td>
+                  <td className="py-1 px-3 text-end font-mono tabular-nums">
+                    {formatCurrency(invoice.remainingAmount, { locale: i18n.language })}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* E. 3-Signature Official Approvals Block */}
+        <div className="border border-slate-300 rounded p-3 bg-slate-50/40 no-break">
+          <div className="text-[11px] font-bold text-slate-500 mb-4 pb-1 border-b border-slate-200 flex justify-between">
+            <span>الاعتمادات والتواقيع الرسمية</span>
+            <span className="font-mono">OFFICIAL APPROVALS & SIGNATURES</span>
+          </div>
+          <div className="grid grid-cols-3 gap-6 text-center text-xs text-slate-800">
+            <div>
+              <p className="font-bold text-slate-900 mb-8">إعداد المحاسب المسؤول</p>
+              <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
+                الاسم والتوقيع
+              </div>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 mb-8">اعتماد المدير المالي / الإدارة</p>
+              <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
+                الختم الرسمي والاعتماد
+              </div>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 mb-8">تأكيد واستلام المورد / المستودع</p>
+              <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-600">
+                توقيع المستلم والتاريخ
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* F. Formal Footer */}
+        <div className="mt-4 pt-2 border-t border-slate-200 text-center text-[10px] text-slate-500 flex justify-between">
+          <span>فاتورة شراء رسمية صادرة إلكترونياً من منصة MaxP لإدارة التجارة والمشتريات</span>
+          <span>صفحة 1 من 1</span>
         </div>
       </div>
     </div>
