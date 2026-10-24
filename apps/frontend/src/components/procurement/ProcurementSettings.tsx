@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  FileText,
   Save,
   ShieldCheck,
   Sparkles,
@@ -19,7 +18,11 @@ import {
   ZoomOut,
   Maximize2,
   Check,
-  Layers,
+  MapPin,
+  Phone,
+  Mail,
+  CreditCard,
+  FileText,
 } from "lucide-react";
 import { apiClient } from "../../services/apiClient";
 import { Button } from "@/components/ui/button";
@@ -170,8 +173,7 @@ export const ProcurementSettings: React.FC = () => {
 
   // Active Template being viewed live on the canvas
   const [activeTemplate, setActiveTemplate] = useState<ProcurementTemplateId>("commercial_factory");
-  const [zoomScale, setZoomScale] = useState<number>(0.8);
-  const [mobileTab, setMobileTab] = useState<"canvas" | "controls">("canvas");
+  const [zoomScale, setZoomScale] = useState<number>(0.85);
   const [controlsTab, setControlsTab] = useState<"templates" | "company" | "terms">("templates");
 
   const [settings, setSettings] = useState<ProcurementSettingsData>({
@@ -311,7 +313,7 @@ export const ProcurementSettings: React.FC = () => {
 
   return (
     <div
-      className="p-2 sm:p-4 lg:p-6 max-w-[1600px] mx-auto space-y-4 font-sans print:p-0"
+      className="p-3 sm:p-5 lg:p-6 max-w-[1700px] mx-auto space-y-4 font-sans print:p-0"
       dir={isRtl ? "rtl" : "ltr"}
     >
       {/* Hidden print stylesheet and root for exact paper printing */}
@@ -329,15 +331,15 @@ export const ProcurementSettings: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-black tracking-tight text-foreground">
-                استوديو قوالب وطباعة المشتريات
+                استوديو قوالب وطباعة فواتير المشتريات
               </h1>
               <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 font-semibold">
                 <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                معاينة مباشرة حية (بدون نوافذ منبثقة)
+                معاينة مباشرة في الوقت الفعلي
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              غيّر القوالب وحرر بيانات الترويسة وشاهد التغيير فورياً على الورقة المطبوعة أمامك مباشرة.
+              اختر القالب، عدل بيانات الترويسة والاعتمادات، وشاهد النتيجة الحقيقية للورقة أمامك مباشرة قبل الطباعة.
             </p>
           </div>
         </div>
@@ -379,48 +381,16 @@ export const ProcurementSettings: React.FC = () => {
         </div>
       )}
 
-      {/* Mobile/Tablet View Switcher (Controls vs Canvas) */}
-      <div className="lg:hidden flex items-center bg-muted/60 p-1 rounded-xl border border-border print:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileTab("canvas")}
-          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-            mobileTab === "canvas"
-              ? "bg-background text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Receipt className="size-3.5" />
-          <span>الورقة المباشرة</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileTab("controls")}
-          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-            mobileTab === "controls"
-              ? "bg-background text-foreground shadow-xs"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Layers className="size-3.5" />
-          <span>القوالب والبيانات</span>
-        </button>
-      </div>
-
-      {/* MAIN STUDIO GRID: Split Screen (Side-by-Side: Controls Cockpit + Live Canvas) */}
+      {/* MAIN STUDIO GRID: Split Screen (Side-by-Side: Controls Cockpit on Right + Live Canvas on Left) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start print:hidden">
-        {/* PANEL 1: CONTROLS & TEMPLATES PICKER (4 Cols on lg, 33%) */}
-        <div
-          className={`lg:col-span-4 xl:col-span-4 space-y-4 ${
-            mobileTab === "controls" ? "block" : "hidden lg:block"
-          }`}
-        >
+        {/* PANEL 1: CONTROLS & TEMPLATES PICKER (Right on RTL, 4 Cols on lg) */}
+        <div className="lg:col-span-4 space-y-3">
           {/* Subtabs for Controls */}
           <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs">
             <button
               type="button"
               onClick={() => setControlsTab("templates")}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 controlsTab === "templates"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -432,7 +402,7 @@ export const ProcurementSettings: React.FC = () => {
             <button
               type="button"
               onClick={() => setControlsTab("company")}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 controlsTab === "company"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -444,7 +414,7 @@ export const ProcurementSettings: React.FC = () => {
             <button
               type="button"
               onClick={() => setControlsTab("terms")}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${
+              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                 controlsTab === "terms"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -485,8 +455,8 @@ export const ProcurementSettings: React.FC = () => {
                           {templateIcons[tmpl.id]}
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-foreground leading-tight flex items-center gap-1.5">
-                            <span>{tmpl.nameAr}</span>
+                          <div className="text-xs font-bold text-foreground leading-tight">
+                            {tmpl.nameAr}
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
                             {tmpl.descriptionAr}
@@ -549,65 +519,65 @@ export const ProcurementSettings: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">الاسم التجاري للمنشأة</Label>
+                <Label className="text-[11px] font-semibold text-start block">الاسم التجاري للمنشأة</Label>
                 <Input
                   value={settings.companyLegalName}
                   onChange={(e) => setSettings({ ...settings, companyLegalName: e.target.value })}
                   placeholder="مثال: مصنع هونزو للملابس الرياضية"
-                  className="h-8 text-xs"
+                  className="h-8 text-xs text-start"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold">الرقم الضريبي (VAT)</Label>
+                  <Label className="text-[11px] font-semibold text-start block">الرقم الضريبي (VAT)</Label>
                   <Input
                     value={settings.taxNumber}
                     onChange={(e) => setSettings({ ...settings, taxNumber: e.target.value })}
                     placeholder="300-998-877-665"
-                    className="h-8 text-xs font-mono"
+                    className="h-8 text-xs tabular-nums text-start"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold">السجل التجاري (CR)</Label>
+                  <Label className="text-[11px] font-semibold text-start block">السجل التجاري (CR)</Label>
                   <Input
                     value={settings.crNumber}
                     onChange={(e) => setSettings({ ...settings, crNumber: e.target.value })}
                     placeholder="1010998877"
-                    className="h-8 text-xs font-mono"
+                    className="h-8 text-xs tabular-nums text-start"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">عنوان المقر الرئيسي / الاستلام</Label>
+                <Label className="text-[11px] font-semibold text-start block">عنوان المقر الرئيسي / الاستلام</Label>
                 <Input
                   value={settings.billingAddress}
                   onChange={(e) => setSettings({ ...settings, billingAddress: e.target.value })}
                   placeholder="شارع الصفا والمروة، جسر السويس، القاهرة"
-                  className="h-8 text-xs"
+                  className="h-8 text-xs text-start"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold">رقم الهاتف</Label>
+                  <Label className="text-[11px] font-semibold text-start block">رقم الهاتف</Label>
                   <Input
                     value={settings.phone}
                     onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
                     placeholder="01012345678"
-                    className="h-8 text-xs font-mono"
+                    className="h-8 text-xs tabular-nums text-start"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold">البريد الإلكتروني</Label>
+                  <Label className="text-[11px] font-semibold text-start block">البريد الإلكتروني</Label>
                   <Input
                     value={settings.email}
                     onChange={(e) => setSettings({ ...settings, email: e.target.value })}
                     placeholder="procurement@huinzo.com"
-                    className="h-8 text-xs font-mono"
+                    className="h-8 text-xs text-start"
                   />
                 </div>
               </div>
@@ -632,23 +602,23 @@ export const ProcurementSettings: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">شروط الدفع الافتراضية</Label>
+                <Label className="text-[11px] font-semibold text-start block">شروط الدفع الافتراضية</Label>
                 <Input
                   value={settings.defaultPaymentTerms}
                   onChange={(e) => setSettings({ ...settings, defaultPaymentTerms: e.target.value })}
                   placeholder="سداد بعد 30 يوم من تاريخ استلام البضاعة"
-                  className="h-8 text-xs"
+                  className="h-8 text-xs text-start"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold">نص الملاحظات الافتراضية</Label>
+                <Label className="text-[11px] font-semibold text-start block">نص الملاحظات الافتراضية</Label>
                 <Textarea
                   rows={2}
                   value={settings.defaultNotes}
                   onChange={(e) => setSettings({ ...settings, defaultNotes: e.target.value })}
                   placeholder="يرجى فحص ومطابقة الكميات قبل الاستلام والتوقيع."
-                  className="text-xs leading-relaxed"
+                  className="text-xs leading-relaxed text-start"
                 />
               </div>
 
@@ -683,35 +653,35 @@ export const ProcurementSettings: React.FC = () => {
               {settings.showSignatureBlock && (
                 <div className="space-y-2 pt-2 border-t border-border/50">
                   <div className="space-y-0.5">
-                    <Label className="text-[10px] text-muted-foreground">خانة 1 (المشتريات)</Label>
+                    <Label className="text-[10px] text-muted-foreground text-start block">خانة 1 (المشتريات)</Label>
                     <Input
                       value={settings.signaturePurchasingTitle}
                       onChange={(e) =>
                         setSettings({ ...settings, signaturePurchasingTitle: e.target.value })
                       }
-                      className="h-7 text-xs"
+                      className="h-7 text-xs text-start"
                     />
                   </div>
 
                   <div className="space-y-0.5">
-                    <Label className="text-[10px] text-muted-foreground">خانة 2 (المالية / الإدارة)</Label>
+                    <Label className="text-[10px] text-muted-foreground text-start block">خانة 2 (المالية / الإدارة)</Label>
                     <Input
                       value={settings.signatureFinanceTitle}
                       onChange={(e) =>
                         setSettings({ ...settings, signatureFinanceTitle: e.target.value })
                       }
-                      className="h-7 text-xs"
+                      className="h-7 text-xs text-start"
                     />
                   </div>
 
                   <div className="space-y-0.5">
-                    <Label className="text-[10px] text-muted-foreground">خانة 3 (المستلم / المستودع)</Label>
+                    <Label className="text-[10px] text-muted-foreground text-start block">خانة 3 (المستلم / المستودع)</Label>
                     <Input
                       value={settings.signatureWarehouseTitle}
                       onChange={(e) =>
                         setSettings({ ...settings, signatureWarehouseTitle: e.target.value })
                       }
-                      className="h-7 text-xs"
+                      className="h-7 text-xs text-start"
                     />
                   </div>
                 </div>
@@ -730,12 +700,8 @@ export const ProcurementSettings: React.FC = () => {
           )}
         </div>
 
-        {/* PANEL 2: LIVE DRAFTING CANVAS (8 Cols on lg, 67%) */}
-        <div
-          className={`lg:col-span-8 xl:col-span-8 space-y-3 ${
-            mobileTab === "canvas" ? "block" : "hidden lg:block"
-          }`}
-        >
+        {/* PANEL 2: LIVE DRAFTING CANVAS (Left on RTL, 8 Cols on lg) */}
+        <div className="lg:col-span-8 space-y-3">
           {/* Canvas Floating Top Toolbar */}
           <div className="bg-card border border-border rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 shadow-xs">
             <div className="flex items-center gap-2">
@@ -765,7 +731,7 @@ export const ProcurementSettings: React.FC = () => {
                 >
                   <ZoomOut className="size-3" />
                 </button>
-                <span className="px-2 font-mono text-[11px] font-semibold">
+                <span className="px-2 font-mono text-[11px] font-semibold tabular-nums">
                   {Math.round(zoomScale * 100)}%
                 </span>
                 <button
@@ -778,7 +744,7 @@ export const ProcurementSettings: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setZoomScale(0.8)}
+                  onClick={() => setZoomScale(0.85)}
                   className="px-2 py-0.5 text-[10px] font-medium hover:bg-background rounded text-muted-foreground"
                   title="إعادة ضبط المقياس"
                 >
@@ -814,7 +780,7 @@ export const ProcurementSettings: React.FC = () => {
           </div>
 
           {/* Interactive Live Canvas Board (No Popups!) */}
-          <div className="p-3 sm:p-6 bg-slate-200/90 dark:bg-slate-900/60 rounded-2xl border border-slate-300 dark:border-slate-800 overflow-x-auto overflow-y-auto flex justify-center min-h-[580px] shadow-inner">
+          <div className="p-4 sm:p-8 bg-slate-200/90 dark:bg-slate-900/60 rounded-2xl border border-slate-300 dark:border-slate-800 overflow-x-auto flex justify-center min-h-[640px] shadow-inner">
             <div
               style={{
                 transform: `scale(${zoomScale})`,

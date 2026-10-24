@@ -13,7 +13,7 @@ export const OfficialTaxTemplate: React.FC<ProcurementTemplateProps> = ({
   const locale = isRtl ? "ar" : "en";
 
   return (
-    <div className="printable-commercial-sheet text-slate-900 bg-white" dir={isRtl ? "rtl" : "ltr"}>
+    <div className="printable-commercial-sheet relative text-slate-900 bg-white p-6 sm:p-8 min-w-[700px] w-full max-w-[210mm] mx-auto font-sans" dir={isRtl ? "rtl" : "ltr"}>
       {/* Formal Commercial Header */}
       <div className="border-b-2 border-slate-900 pb-3 mb-4">
         <div className="flex justify-between items-start">

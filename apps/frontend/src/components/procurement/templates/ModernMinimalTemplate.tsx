@@ -13,7 +13,7 @@ export const ModernMinimalTemplate: React.FC<ProcurementTemplateProps> = ({
   const locale = isRtl ? "ar" : "en";
 
   return (
-    <div className="printable-commercial-sheet text-slate-800 bg-white" dir={isRtl ? "rtl" : "ltr"}>
+    <div className="printable-commercial-sheet relative text-slate-800 bg-white p-6 sm:p-8 min-w-[700px] w-full max-w-[210mm] mx-auto font-sans" dir={isRtl ? "rtl" : "ltr"}>
       {/* Sleek Modern Header */}
       <div className="pb-4 mb-4 border-b border-slate-200 flex justify-between items-end">
         <div>
