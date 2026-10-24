@@ -3969,21 +3969,6 @@ select {
     gap: clamp(0.35rem, 1.8vw, 0.65rem);
     justify-content: space-between;
     align-items: center;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  [data-theme="business-os-enterprise"]
-    .business-shell-header[data-mobile="true"]
-    .business-shell-utility-row::-webkit-scrollbar {
-    display: none;
-  }
-
-  [data-theme="business-os-enterprise"]
-    .business-shell-header[data-mobile="true"]
-    .business-shell-utility-row > * {
-    flex: 0 0 auto;
   }
 
   [data-theme="business-os-enterprise"]
@@ -4332,6 +4317,12 @@ select {
     .business-mobile-menu-toggle svg {
     width: 0.95rem;
     height: 0.95rem;
+  }
+
+  [data-theme="business-os-enterprise"]
+    .business-shell-header[data-mobile="true"]
+    .business-shell-company-name {
+    display: none;
   }
 }
 
