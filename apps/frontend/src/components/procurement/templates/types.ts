@@ -22,12 +22,12 @@ export interface ProcurementTemplateOption {
 export const AVAILABLE_PROCUREMENT_TEMPLATES: ProcurementTemplateOption[] = [
   {
     id: "commercial_factory",
-    nameAr: "نموذج المصانع والمؤسسات (هونزو التجاري)",
-    nameEn: "Factory & Commercial Pro (Huinzo Edition)",
+    nameAr: "نموذج المصانع والمؤسسات التجارية",
+    nameEn: "Factory & Commercial Pro Edition",
     badgeAr: "الأكثر طلباً للمصانع",
     paperSize: "A4",
     paperSizeLabelAr: "A4 كاملة",
-    descriptionAr: "تصميم أنيق بالهوية التجارية مع بطاقتي المورد والفاتورة، تفصيل تعبئة الوحدة (كرتونة/كيس/باكت)، وشريط إجمالي مالي عريض.",
+    descriptionAr: "تصميم أنيق بالهوية التجارية مع بطاقتي المورد والفاتورة، تفصيل تعبئة الوحدة، وشريط إجمالي مالي عريض.",
     accentColor: "#DC2626",
   },
   {
@@ -106,7 +106,9 @@ export interface NormalizedProcurementData {
     crNumber?: string | null;
     address?: string | null;
     phone?: string | null;
+    email?: string | null;
     logoUrl?: string | null;
+    slogan?: string | null;
   };
   supplier: {
     id: string;

@@ -44,6 +44,7 @@ import { OfficialTaxTemplate } from "./templates/OfficialTaxTemplate";
 import { ModernMinimalTemplate } from "./templates/ModernMinimalTemplate";
 import { GoodsReceiptTemplate } from "./templates/GoodsReceiptTemplate";
 import { ProcurementPrintStyles } from "./templates/ProcurementPrintStyles";
+import CompanyContext from "../../contexts/CompanyContext";
 
 interface ProcurementSettingsData {
   defaultTemplate: ProcurementTemplateId;
@@ -78,22 +79,22 @@ const samplePreviewData: NormalizedProcurementData = {
   dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   status: "APPROVED",
   statusLabel: "معتمد للتوريد",
-  companyName: "مصنع هونزو للملابس الرياضية",
-  warehouseName: "المخزن الرئيسي",
+  companyName: "مؤسسة التوريدات التجارية",
+  warehouseName: "المستودع الرئيسي",
   buyer: {
-    name: "مصنع هونزو للملابس الرياضية",
-    taxNumber: "300-998-877-665",
-    crNumber: "1010998877",
-    address: "شارع الصفا و المروة، جسر السويس، القاهرة، مصر",
-    phone: "01012345678",
+    name: "مؤسسة التوريدات التجارية",
+    taxNumber: "300-123-456-789",
+    crNumber: "1010123456",
+    address: "المنطقة الصناعية، القاهرة، مصر",
+    phone: "01000000000",
   },
   supplier: {
     id: "sup-001",
     code: "001",
-    name: "مجموعة التوريدات الغذائية والملابس (مني مو)",
-    phone: "01012345678",
-    email: "supply@honzo.com",
-    address: "منطقة المصانع، العاشر من رمضان، مصر",
+    name: "مجموعة التوريدات العامة المعتمدة",
+    phone: "01100000000",
+    email: "supply@example.com",
+    address: "منطقة التوريدات المركزية",
     taxNumber: "998-112-445",
   },
   linkedReference: {
@@ -166,6 +167,13 @@ export const ProcurementSettings: React.FC = () => {
   const { i18n } = useTranslation();
   const isRtl = i18n.language !== "en";
 
+  const companyContext = React.useContext(CompanyContext);
+  const company = companyContext?.company;
+  const initialCompanyName = company?.name || "منصة MaxP للتجارة المتكاملة";
+  const initialAddress = (company as any)?.address || "";
+  const initialPhone = (company as any)?.phone || "";
+  const initialEmail = company?.email || "";
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,12 +186,12 @@ export const ProcurementSettings: React.FC = () => {
 
   const [settings, setSettings] = useState<ProcurementSettingsData>({
     defaultTemplate: DEFAULT_PROCUREMENT_TEMPLATE,
-    companyLegalName: "مصنع هونزو للملابس الرياضية",
-    taxNumber: "300-998-877-665",
-    crNumber: "1010998877",
-    billingAddress: "شارع الصفا و المروة، جسر السويس، القاهرة، مصر",
-    phone: "01012345678",
-    email: "procurement@huinzo.com",
+    companyLegalName: initialCompanyName,
+    taxNumber: "",
+    crNumber: "",
+    billingAddress: initialAddress,
+    phone: initialPhone,
+    email: initialEmail,
     defaultNotes: "يرجى التأكد من مطابقة الكميات والمواصفات القياسية المعتمدة قبل التوقيع والاستلام.",
     defaultPaymentTerms: "سداد بعد 30 يوم من تاريخ استلام البضاعة",
     signaturePurchasingTitle: "مسؤول المشتريات / المدير المسؤول",
@@ -201,7 +209,14 @@ export const ProcurementSettings: React.FC = () => {
         "/procurement/settings"
       );
       if (response.data?.data) {
-        setSettings(response.data.data);
+        const fetched = response.data.data;
+        setSettings({
+          ...fetched,
+          companyLegalName: fetched.companyLegalName || initialCompanyName,
+          billingAddress: fetched.billingAddress || initialAddress,
+          phone: fetched.phone || initialPhone,
+          email: fetched.email || initialEmail,
+        });
         if (response.data.data.defaultTemplate) {
           setActiveTemplate(response.data.data.defaultTemplate);
           try {
@@ -317,7 +332,7 @@ export const ProcurementSettings: React.FC = () => {
       dir={isRtl ? "rtl" : "ltr"}
     >
       {/* Hidden print stylesheet and root for exact paper printing */}
-      <div className="hidden print:block">
+      <div className="procurement-print-root hidden print:block">
         <ProcurementPrintStyles paperSize={currentTmplObj.paperSize} />
         {renderLiveTemplate()}
       </div>

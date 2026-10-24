@@ -116,12 +116,53 @@ export const PurchaseInvoiceDetail: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<ProcurementTemplateId>(() => {
     try {
       const saved = localStorage.getItem(PROCUREMENT_TEMPLATE_STORAGE_KEY) as ProcurementTemplateId;
-      if (saved && ["official_tax", "modern_minimal", "goods_receipt"].includes(saved)) {
+      if (saved) {
         return saved;
       }
     } catch {}
     return DEFAULT_PROCUREMENT_TEMPLATE;
   });
+
+  const [procurementSettings, setProcurementSettings] = useState<{
+    companyLegalName?: string;
+    taxNumber?: string;
+    crNumber?: string;
+    billingAddress?: string;
+    phone?: string;
+    email?: string;
+    logoUrl?: string;
+    slogan?: string;
+    signaturePurchasingTitle?: string;
+    signatureFinanceTitle?: string;
+    signatureWarehouseTitle?: string;
+    showCompanyStamp?: boolean;
+    showSignatureBlock?: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    apiClient
+      .get<{ success: boolean; data: any }>("/procurement/settings")
+      .then((res) => {
+        if (isMounted && res.data?.data) {
+          setProcurementSettings(res.data.data);
+          if (res.data.data.defaultTemplate) {
+            setSelectedTemplate((prev) => {
+              try {
+                const local = localStorage.getItem(PROCUREMENT_TEMPLATE_STORAGE_KEY);
+                return (local as ProcurementTemplateId) || res.data.data.defaultTemplate;
+              } catch {
+                return res.data.data.defaultTemplate;
+              }
+            });
+          }
+        }
+      })
+      .catch((e) => console.warn("Could not fetch procurement settings:", e));
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const statusLabels: Record<string, string> = {
     PENDING: t("procurement.purchaseInvoices.statusPending", "غير مدفوعة"),
@@ -206,7 +247,10 @@ export const PurchaseInvoiceDetail: React.FC = () => {
   const canEdit = invoice.status !== "PAID";
 
   const companyContext = React.useContext(CompanyContext);
-  const companyName = companyContext?.company?.name || "منصة MaxP للتجارة المتكاملة";
+  const buyerName = procurementSettings?.companyLegalName || companyContext?.company?.name || "منصة MaxP للتجارة المتكاملة";
+  const buyerAddress = procurementSettings?.billingAddress || (companyContext?.company as any)?.address || "";
+  const buyerPhone = procurementSettings?.phone || (companyContext?.company as any)?.phone || "";
+  const buyerEmail = procurementSettings?.email || companyContext?.company?.email || "";
 
   const normalizedData: NormalizedProcurementData = {
     documentType: "PI",
@@ -215,12 +259,30 @@ export const PurchaseInvoiceDetail: React.FC = () => {
     dueDate: invoice.dueDate,
     status: invoice.status,
     statusLabel: statusLabels[invoice.status] ?? invoice.status,
-    companyName,
+    companyName: buyerName,
+    buyer: {
+      name: buyerName,
+      taxNumber: procurementSettings?.taxNumber || "",
+      crNumber: procurementSettings?.crNumber || "",
+      address: buyerAddress,
+      phone: buyerPhone,
+      email: buyerEmail,
+      logoUrl: procurementSettings?.logoUrl || null,
+      slogan: procurementSettings?.slogan || null,
+    },
+    signatures: {
+      purchasingTitle: procurementSettings?.signaturePurchasingTitle,
+      financeTitle: procurementSettings?.signatureFinanceTitle,
+      warehouseTitle: procurementSettings?.signatureWarehouseTitle,
+      showStamp: procurementSettings?.showCompanyStamp ?? true,
+      showBlock: procurementSettings?.showSignatureBlock ?? true,
+    },
     supplier: {
       id: invoice.supplier.id,
       name: invoice.supplier.name,
       phone: invoice.supplier.phone,
       email: invoice.supplier.email,
+      address: invoice.supplier.address,
     },
     linkedReference: invoice.purchaseOrder
       ? { type: "PO", number: invoice.purchaseOrder.orderNumber }
