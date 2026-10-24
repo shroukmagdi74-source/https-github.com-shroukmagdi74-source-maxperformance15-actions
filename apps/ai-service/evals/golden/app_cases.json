@@ -816,6 +816,336 @@
       ],
       "forbidden_capabilities": [],
       "expect_approval": true
+    },
+    {
+      "id": "store-g1",
+      "app": "store",
+      "question": "عايز أبحث عن المنتجات المعروضة في المتجر الإلكتروني حالياً",
+      "expected_capabilities": [
+        "product_search"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "store-g2",
+      "app": "store",
+      "question": "وريني إعدادات وأدوات التحويل المعروضة في واجهة المتجر",
+      "expected_capabilities": [
+        "conversion_tools_read"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "store-g3",
+      "app": "store",
+      "question": "أضف منتج جديد للمتجر باسم قميص صيفي بسعر 350 جنيه",
+      "expected_capabilities": [
+        "product_create"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "order-workflow-g1",
+      "app": "order-workflow",
+      "question": "وريني أحدث الطلبات اللي محتاجة مراجعة وتأكيد في مسار الطلبات",
+      "expected_capabilities": [
+        "order_recent_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-workflow-g2",
+      "app": "order-workflow",
+      "question": "ابحث عن بيانات الأوردر رقم 1045 عشان أشوف مرحلته في مسار الطلب",
+      "expected_capabilities": [
+        "order_lookup"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-workflow-g3",
+      "app": "order-workflow",
+      "question": "حدّث حالة الأوردرات رقم 101 و 102 لمرحلة تم الشحن",
+      "expected_capabilities": [
+        "orders_bulk_status_update"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "bot-automation-g1",
+      "app": "bot-automation",
+      "question": "فعل رسالة الترحيب التلقائية في بوت المحادثات واكتب أهلا بك في متجرنا",
+      "expected_capabilities": [
+        "bot_automation_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "bot-automation-g2",
+      "app": "bot-automation",
+      "question": "اضبط الرد الافتراضي للبوت لما العميل يسأل برة مواعيد العمل الرسمية",
+      "expected_capabilities": [
+        "bot_automation_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "bot-automation-g3",
+      "app": "bot-automation",
+      "question": "حدّث قنوات أتمتة المحادثات وخلي البوت شغال على واتساب وفيسبوك",
+      "expected_capabilities": [
+        "bot_automation_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "bulk-orders-g1",
+      "app": "bulk-orders",
+      "question": "استعرض قائمة أحدث الطلبات عشان اختار منها للتحديث الجماعي",
+      "expected_capabilities": [
+        "order_recent_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "bulk-orders-g2",
+      "app": "bulk-orders",
+      "question": "غيّر حالة الـ 20 أوردر المحددين إلى تم التأكيد دفعة واحدة",
+      "expected_capabilities": [
+        "orders_bulk_status_update"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "bulk-orders-g3",
+      "app": "bulk-orders",
+      "question": "حدّث مجموعة الطلبات رقم 501 و 502 وخلي حالتهم تم الشحن فورا",
+      "expected_capabilities": [
+        "orders_bulk_status_update"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "order-preparation-hold-g1",
+      "app": "order-preparation-hold",
+      "question": "افحص المخزون المتاح للمنتجات المطلوبة في طابور تجهيز الطلبات",
+      "expected_capabilities": [
+        "inventory_check"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "order-preparation-hold-g2",
+      "app": "order-preparation-hold",
+      "question": "علّق الأوردر رقم 3042 وخلي حالته معلق في طابور الانتظار بسبب نقص المخزون",
+      "expected_capabilities": [
+        "order_set_preparation_hold"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "order-preparation-hold-g3",
+      "app": "order-preparation-hold",
+      "question": "انقل الأوردر رقم 3042 إلى مرحلة التجهيز في المستودع بعد توفر البضاعة",
+      "expected_capabilities": [
+        "order_set_preparation_hold"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "returns-settings-g1",
+      "app": "returns-settings",
+      "question": "حدّث فترة السماح بالمرتجعات وخليها 14 يوم في إعدادات المرتجعات",
+      "expected_capabilities": [
+        "returns_settings_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "returns-settings-g2",
+      "app": "returns-settings",
+      "question": "اقفل استقبال طلبات المرتجعات في المتجر من إعدادات السياسة",
+      "expected_capabilities": [
+        "returns_settings_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "returns-settings-g3",
+      "app": "returns-settings",
+      "question": "عدل شروط وإعدادات سياسة الإرجاع وخلي مدة الاسترجاع 30 يوم",
+      "expected_capabilities": [
+        "returns_settings_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "returns-reasons-analytics-g1",
+      "app": "returns-reasons-analytics",
+      "question": "استعرض قائمة أسباب المرتجعات المسجلة لتحليل أسباب رجوع الطلبات",
+      "expected_capabilities": [
+        "returns_settings_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "returns-reasons-analytics-g2",
+      "app": "returns-reasons-analytics",
+      "question": "وريني تفاصيل أسباب الإرجاع المسجلة في النظام لمعرفة سبب رجوع الشحنات",
+      "expected_capabilities": [
+        "returns_settings_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "returns-reasons-analytics-g3",
+      "app": "returns-reasons-analytics",
+      "question": "حدّث أسباب وسياسات المرتجعات بناءً على تقرير تحليل الجودة الأخير",
+      "expected_capabilities": [
+        "returns_settings_manage"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "orders-analytics-g1",
+      "app": "orders-analytics",
+      "question": "عايز ملخص تحليلي لأداء الطلبات ومعدل الإلغاء والتسليم هذا الشهر",
+      "expected_capabilities": [
+        "order_summary"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "orders-analytics-g2",
+      "app": "orders-analytics",
+      "question": "احسبلي إجمالي إيرادات المبيعات والتحصيلات من الطلبات خلال آخر 30 يوم",
+      "expected_capabilities": [
+        "sales_revenue"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "orders-analytics-g3",
+      "app": "orders-analytics",
+      "question": "طلعلي تقرير شامل عن أداء المتجر والطلبات ومعدل التحويل العام",
+      "expected_capabilities": [
+        "company_snapshot"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "profit-analytics-g1",
+      "app": "profit-analytics",
+      "question": "كام صافي أرباح المتجر بعد خصم تكاليف الشحن وتكلفة المنتجات هذا الشهر؟",
+      "expected_capabilities": [
+        "sales_revenue"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "profit-analytics-g2",
+      "app": "profit-analytics",
+      "question": "وريني أداء المنتجات وأرباح كل صنف عشان أعرف إيه أكتر منتج بيكسبني",
+      "expected_capabilities": [
+        "product_performance"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "profit-analytics-g3",
+      "app": "profit-analytics",
+      "question": "عايز ملخص مالي وتحليلي للأرباح والإيرادات الإجمالية للمتجر",
+      "expected_capabilities": [
+        "company_snapshot"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "campaign-attribution-analytics-g1",
+      "app": "campaign-attribution-analytics",
+      "question": "طلعلي تقرير إسناد الحملات عشان أعرف كل أوردر جه من أنهي إعلان بالضبط",
+      "expected_capabilities": [
+        "orders_campaign_attribution_report"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "campaign-attribution-analytics-g2",
+      "app": "campaign-attribution-analytics",
+      "question": "وريني بيانات حساب الإعلانات وصرف الحملات مقارنة بعدد الطلبات المنسوبة",
+      "expected_capabilities": [
+        "facebook_ad_account_info"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "campaign-attribution-analytics-g3",
+      "app": "campaign-attribution-analytics",
+      "question": "حلل أداء إعلانات المنتجات والحملات اللي شغالة واعرف تكلفة الأوردر لكل حملة",
+      "expected_capabilities": [
+        "facebook_ad_analyze_product"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "facebook-ads-pro-g1",
+      "app": "facebook-ads-pro",
+      "question": "استعرض صفحات فيسبوك وحسابات الإعلانات المربوطة بالمتجر حالياً",
+      "expected_capabilities": [
+        "facebook_pages_connected_list"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": false
+    },
+    {
+      "id": "facebook-ads-pro-g2",
+      "app": "facebook-ads-pro",
+      "question": "أنشئ مسودة إعلان كامل على فيسبوك لمنتج الحذاء الرياضي بميزانية 200 جنيه يومياً",
+      "expected_capabilities": [
+        "facebook_ad_create_full_draft"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
+    },
+    {
+      "id": "facebook-ads-pro-g3",
+      "app": "facebook-ads-pro",
+      "question": "حدّث ميزانية الحملة الإعلانية رقم 8820 وخليها 500 جنيه في اليوم",
+      "expected_capabilities": [
+        "facebook_ad_update_budget"
+      ],
+      "forbidden_capabilities": [],
+      "expect_approval": true
     }
   ]
 }
