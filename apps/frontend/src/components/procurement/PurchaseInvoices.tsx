@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Eye, CreditCard, Search, AlertCircle, Settings } from "lucide-react";
+import { Plus, Eye, CreditCard, Search, AlertCircle, Printer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../../services/apiClient";
@@ -133,8 +133,8 @@ const PurchaseInvoices: React.FC = () => {
             className="gap-1.5 h-9 text-xs"
             title="تخصيص قوالب الطباعة والترويسة الضريبية"
           >
-            <Settings className="size-4" />
-            <span className="hidden sm:inline">إعدادات القوالب</span>
+            <Printer className="size-4" />
+            <span className="hidden sm:inline">قوالب الفواتير والطباعة</span>
           </Button>
           <Button onClick={() => navigate("/procurement/purchase-invoices/new")} className="gap-2 h-9">
             <Plus className="size-4" /> {t("procurement.purchaseInvoices.createNew")}

@@ -5622,6 +5622,16 @@ const AppContent = () => {
                     </Layout>
                   }
                 />
+                <Route
+                  path="/procurement/templates"
+                  element={
+                    <Layout>
+                      <AppAccessRoute requiredAppSlugs={['procurement-pro', 'store-pro']}>
+                        <ProcurementSettings />
+                      </AppAccessRoute>
+                    </Layout>
+                  }
+                />
                 {/* Cafe & Restaurant Pro Routes */}
                 <Route
                   path="/cafe"
