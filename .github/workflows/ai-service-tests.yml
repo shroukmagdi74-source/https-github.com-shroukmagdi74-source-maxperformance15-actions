@@ -55,6 +55,9 @@ jobs:
       - name: Request Prompt Binding Tests (AGENT-FIX-0e)
         run: python apps/ai-service/tests/tools/test_request_prompt_binding.py
 
+      - name: Store Suite Safe Endpoint Parsing Tests (AGENT-FIX-0d)
+        run: python apps/ai-service/tests/tools/test_store_suite.py
+
       - name: App Cards Tests (COV-4 if present)
         run: |
           if [ -f "apps/ai-service/tests/tools/test_app_cards.py" ]; then

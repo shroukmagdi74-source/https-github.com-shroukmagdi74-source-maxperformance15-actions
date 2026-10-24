@@ -116,7 +116,8 @@ async def bot_automation_manage(input_data: BotAutomationManageInput) -> dict[st
     try:
         if input_data.action == "READ":
             res = await client._request("GET", "/api/v1/bot-automation/settings", params=params)
-            return {"success": True, "action": "READ", "settings": res.get("data", res)}
+            data = res.get("data", res) if isinstance(res, dict) else res
+            return {"success": True, "action": "READ", "settings": data}
 
         update_payload: dict[str, Any] = {}
         if input_data.welcome_enabled is not None:
@@ -168,10 +169,14 @@ async def returns_settings_manage(input_data: ReturnsSettingsManageInput) -> dic
     try:
         if input_data.action == "GET_SETTINGS":
             res = await client._request("GET", "/api/v1/returns/settings", params=params)
-            return {"success": True, "action": "GET_SETTINGS", "settings": res.get("data", res)}
+            data = res.get("data", res) if isinstance(res, dict) else res
+            return {"success": True, "action": "GET_SETTINGS", "settings": data}
         elif input_data.action == "GET_REASONS":
             res = await client._request("GET", "/api/v1/returns/reasons", params=params)
-            return {"success": True, "action": "GET_REASONS", "reasons": res.get("data", res)}
+            data = res.get("data", res) if isinstance(res, dict) else res
+            if isinstance(data, dict):
+                data = data.get("reasons") or data.get("items") or data
+            return {"success": True, "action": "GET_REASONS", "reasons": data if isinstance(data, list) else []}
         else:
             payload: dict[str, Any] = {}
             if input_data.allow_returns is not None:
@@ -216,10 +221,12 @@ async def unified_inbox_manage(input_data: UnifiedInboxManageInput) -> dict[str,
     try:
         if input_data.action == "GET_STATS":
             res = await client._request("GET", "/api/v1/unified-inbox/stats", params=params)
-            return {"success": True, "action": "GET_STATS", "stats": res.get("data", res)}
+            data = res.get("data", res) if isinstance(res, dict) else res
+            return {"success": True, "action": "GET_STATS", "stats": data}
         else:
             res = await client._request("GET", "/api/v1/unified-inbox/conversations", params=params)
-            return {"success": True, "action": "LIST_CONVERSATIONS", "conversations": res.get("data", res)}
+            data = res.get("data", res) if isinstance(res, dict) else res
+            return {"success": True, "action": "LIST_CONVERSATIONS", "conversations": data}
     except Exception as exc:
         logger.error("unified_inbox_manage_failed", error=str(exc))
         return {
@@ -244,7 +251,12 @@ async def facebook_pages_connected_list(input_data: FacebookPagesConnectedListIn
             res = await client._request("GET", "/api/v1/facebook/connected", params=params)
         except Exception:
             res = await client._request("GET", "/api/v1/integrations/facebook/connected", params=params)
-        pages = res.get("pages") if isinstance(res.get("pages"), list) else (res.get("data") if isinstance(res.get("data"), list) else res)
+        if isinstance(res, dict):
+            pages = res.get("pages") if isinstance(res.get("pages"), list) else (res.get("data") if isinstance(res.get("data"), list) else res)
+        elif isinstance(res, list):
+            pages = res
+        else:
+            pages = []
         return {
             "success": True,
             "pages": pages,
