@@ -694,7 +694,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
             >
               <Bars3Icon className="h-5 w-5" />
             </button>
-            {(isMobile || location.pathname === '/apps') && (
+            {(location.pathname === '/apps') && (
               <Link to="/apps" className="flex items-center gap-2 select-none min-w-0" aria-label="Apps">
                 <CompanyLogo
                   src={currentCompany?.logo}
@@ -743,18 +743,6 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
           <div className="business-shell-utility-row flex items-center gap-1.5">
             <div className="hidden sm:flex items-center gap-1.5">
               <HeaderWalletShortcut />
-              {hasStore && (
-                <a
-                  href={storeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="business-icon-button"
-                  title={t("header.visitStore", "المتجر")}
-                  aria-label={t("header.visitStore", "المتجر")}
-                >
-                  <BuildingStorefrontIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-                </a>
-              )}
               {showSearchInHeader && (
                 <div className="relative flex items-center">
                   {isOrderSearchOpen ? (
@@ -800,18 +788,32 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
                   )}
                 </div>
               )}
-              <LanguageSwitcher
-                className="business-shell-language-switcher"
-              />
             </div>
 
+            {hasStore && (
+              <a
+                href={storeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="business-icon-button shrink-0"
+                title={t("header.visitStore", "المتجر")}
+                aria-label={t("header.visitStore", "المتجر")}
+              >
+                <BuildingStorefrontIcon className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+              </a>
+            )}
+
             <ThemeToggle />
+
+            <LanguageSwitcher
+              className="business-shell-language-switcher shrink-0"
+            />
 
             <AppUpdateIndicator />
             <button
               type="button"
               onClick={toggleMerchantCopilot}
-              className="business-icon-button relative group flex items-center justify-center sm:w-auto sm:px-3 sm:py-1.5 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-white bg-slate-100/80 hover:bg-indigo-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-750 rounded-xl border border-slate-200/80 hover:border-indigo-300 dark:border-slate-700/80 dark:hover:border-slate-600 transition-all duration-160 active:scale-95 shadow-2xs cursor-pointer"
+              className="hidden sm:flex business-icon-button relative group items-center justify-center sm:w-auto sm:px-3 sm:py-1.5 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-white bg-slate-100/80 hover:bg-indigo-50/70 dark:bg-slate-800/80 dark:hover:bg-slate-750 rounded-xl border border-slate-200/80 hover:border-indigo-300 dark:border-slate-700/80 dark:hover:border-slate-600 transition-all duration-160 active:scale-95 shadow-2xs cursor-pointer"
               title="المساعد التنفيذي للمتجر (Ctrl + J)"
               aria-label="المساعد التنفيذي للمتجر"
             >
@@ -830,7 +832,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
               href={`https://wa.me/${getSupportWhatsAppNumber()}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:flex items-center justify-center w-9 h-9 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200"
+              className="flex items-center justify-center w-9 h-9 min-w-[2.25rem] min-h-[2.25rem] bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-full shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 shrink-0"
               title={t("header.whatsapp") || "الدعم عبر واتساب"}
             >
               <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
