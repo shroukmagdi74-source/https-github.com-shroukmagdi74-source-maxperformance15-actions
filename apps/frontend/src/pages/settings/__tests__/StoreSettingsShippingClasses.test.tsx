@@ -23,13 +23,17 @@ vi.mock("react-router-dom", () => ({
   ],
 }));
 
-vi.mock("sonner", () => ({
-  __esModule: true,
-  default: {
+vi.mock("sonner", () => {
+  const toast = {
     success: (...args: unknown[]) => mockToastSuccess(...args),
     error: (...args: unknown[]) => mockToastError(...args),
-  },
-}));
+  };
+  return {
+    __esModule: true,
+    default: toast,
+    toast,
+  };
+});
 
 vi.mock("../../../hooks/useAuthSimple", () => ({
   useAuth: () => ({
