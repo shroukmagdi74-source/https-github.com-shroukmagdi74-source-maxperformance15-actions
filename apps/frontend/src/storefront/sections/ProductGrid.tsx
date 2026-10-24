@@ -1015,7 +1015,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ section, settings }) => {
   }
 
   return (
-      <section className={`w-full pt-4 pb-28 md:py-12 ${
+      <section className={`w-full pt-1 pb-24 md:py-12 ${
       isBiteRush
         ? 'bg-[linear-gradient(180deg,#fff8f3_0%,#fff4ec_52%,#fffdfb_100%)]'
         : isAnyElessiBagGrid

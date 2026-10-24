@@ -2939,9 +2939,9 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
     return (
       <>
         <CardShell className="group relative flex h-full flex-col overflow-hidden rounded-[0.55rem] bg-transparent p-0 text-card-foreground transition-transform duration-300 hover:-translate-y-0.5">
-          <div className="relative mb-3 overflow-hidden rounded-[0.55rem] border border-[#efe4df] bg-[#f8f4f1] shadow-[0_14px_34px_-30px_rgba(59,33,28,0.12)]">
+          <div className="relative mb-2 sm:mb-3 overflow-hidden rounded-[0.55rem] border border-[#efe4df] bg-[#f8f4f1] shadow-[0_14px_34px_-30px_rgba(59,33,28,0.12)]">
             {discountPercentage ? (
-              <span className="absolute start-2.5 top-2.5 z-20 inline-flex items-center rounded-full bg-[#1e1916]/85 backdrop-blur-sm border border-white/10 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm tabular-nums">
+              <span className="absolute start-2 top-2 z-20 inline-flex items-center rounded-full bg-[#1e1916]/85 backdrop-blur-sm border border-white/10 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white shadow-sm tabular-nums">
                 -{discountPercentage}%
               </span>
             ) : null}
@@ -2949,17 +2949,17 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
             {features.wishlistEnabled ? (
               <button
                 onClick={handleWishlist}
-                className={`absolute end-2.5 top-2.5 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#ece2dc] bg-white/96 text-[#9b8881] shadow-sm transition-colors hover:text-[#201915] ${
+                className={`absolute end-2 top-2 z-20 inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full border border-[#ece2dc] bg-white/96 text-[#9b8881] shadow-sm transition-colors hover:text-[#201915] ${
                   isWishlisted ? 'text-[#d45463]' : ''
                 }`}
                 title={finalWishlistLabel}
                 aria-label={finalWishlistLabel}
               >
-                <Heart size={14} className={isWishlisted ? 'fill-current' : ''} />
+                <Heart size={13} className={isWishlisted ? 'fill-current' : ''} />
               </button>
             ) : null}
 
-            <div className="aspect-[3/4] overflow-hidden p-3 md:p-4">
+            <div className="aspect-[3/4] overflow-hidden p-1.5 sm:p-3">
               <StorefrontProductImage
                 candidates={imageCandidates}
                 alt={name}
@@ -2976,48 +2976,48 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
             </div>
           </div>
 
-          <div className="flex flex-1 flex-col items-center text-center px-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9b8d88]">
+          <div className="flex flex-1 flex-col items-center text-center px-0.5 sm:px-1">
+            <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9b8d88]">
               {categoryLabel}
             </span>
-            <h3 className="line-clamp-1 font-heading text-[0.95rem] font-bold leading-snug text-[#201915] mt-0.5">
+            <h3 className="line-clamp-1 font-heading text-[0.88rem] sm:text-[0.95rem] font-bold leading-snug text-[#201915] mt-0.5">
               {name}
             </h3>
 
-            <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-xs">
-              <div dir="ltr" className="flex items-center gap-1.5 font-sans">
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-xs">
+              <div dir="ltr" className="flex items-center gap-1 font-sans">
                 {formattedComparePrice ? (
-                  <span className="text-[#a89b94] line-through text-[11px] tabular-nums">
+                  <span className="text-[#a89b94] line-through text-[10px] sm:text-[11px] tabular-nums">
                     {formattedComparePrice}
                   </span>
                 ) : null}
-                <span className="text-[0.96rem] font-bold text-[#b84838] tabular-nums">
+                <span className="text-[0.92rem] sm:text-[0.96rem] font-bold text-[#b84838] tabular-nums">
                   {formattedPrice}
                 </span>
               </div>
             </div>
 
             {(ratingValue || reviewCount) ? (
-              <div className="mt-1 flex items-center justify-center gap-1 text-[#f4c94d]">
+              <div className="mt-0.5 flex items-center justify-center gap-0.5 text-[#f4c94d]">
                 {Array.from({ length: 5 }).map((_, index) => (
                   <Star
                     key={`boutique-star-${index}`}
-                    size={10}
+                    size={9}
                     fill={ratingValue && index < Math.round(ratingValue) ? 'currentColor' : 'none'}
                   />
                 ))}
                 {reviewCount ? (
-                  <span className="ms-1 text-[10px] font-medium text-[#b49c94]">
+                  <span className="ms-1 text-[9px] font-medium text-[#b49c94]">
                     ({reviewCount})
                   </span>
                 ) : null}
               </div>
             ) : null}
 
-            <div className="mt-2.5 flex w-full flex-col px-0.5">
+            <div className="mt-2 flex w-full flex-col px-0.5">
               <button
                 onClick={handleAddToCart}
-                className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#201915] hover:bg-black text-white px-3 py-2 text-xs font-semibold shadow-sm transition-transform duration-150 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-[#201915]/40"
+                className="flex w-full items-center justify-center gap-1 rounded-full bg-[#201915] hover:bg-black text-white px-2.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold shadow-sm transition-transform duration-150 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-[#201915]/40"
                 title={actionLabel}
                 aria-label={actionLabel}
               >

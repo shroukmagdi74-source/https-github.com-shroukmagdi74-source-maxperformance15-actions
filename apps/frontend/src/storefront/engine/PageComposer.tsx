@@ -687,11 +687,11 @@ export const PageComposer: React.FC<PageComposerProps> = ({
     const sidebarSection = pageConfig.sections[sidebarIndex]!;
     const mainSections = indexedSections.filter(({ index }) => index !== sidebarIndex);
     return (
-      <div className="storefront-page-composer w-full px-4 py-8 md:px-6">
+      <div className="storefront-page-composer w-full px-3 py-2 sm:px-4 md:px-6 sm:py-8">
         {!renderSectionFrame && (
-          <div className="mb-6 lg:hidden">{renderSection(sidebarSection, sidebarIndex)}</div>
+          <div className="mb-2 lg:hidden">{renderSection(sidebarSection, sidebarIndex)}</div>
         )}
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid grid-cols-1 gap-3 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
           <aside className={renderSectionFrame ? "order-first lg:order-last block" : "hidden lg:block"}>
             {renderSection(sidebarSection, sidebarIndex)}
           </aside>

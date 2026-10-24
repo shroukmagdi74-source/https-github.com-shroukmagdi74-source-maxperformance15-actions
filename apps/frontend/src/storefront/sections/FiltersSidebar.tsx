@@ -927,7 +927,7 @@ const FiltersSidebar: React.FC<FiltersSidebarProps> = ({ settings }) => {
     return (
       <section className="w-full">
         <div className="lg:hidden">
-          <div dir="ltr" className="mb-4 grid grid-cols-2 gap-3">
+          <div dir="ltr" className="mb-2 grid grid-cols-2 gap-2">
             <label htmlFor={`${fieldPrefix}-simple-sort`} className="sr-only">
               {prefersArabicCopy ? 'ترتيب المنتجات' : 'Sort products'}
             </label>
@@ -938,7 +938,7 @@ const FiltersSidebar: React.FC<FiltersSidebarProps> = ({ settings }) => {
               onChange={(event) =>
                 handleSortChange(event.target.value as typeof selectedSort)
               }
-              className="h-11 rounded-md border border-[#ddd3c9] bg-white px-4 text-sm font-medium text-[#241d18] outline-none transition-colors focus:border-[#b69b73]"
+              className="h-9 rounded-full border border-[#ddd3c9] bg-white px-3 text-xs font-semibold text-[#241d18] outline-none transition-colors focus:border-[#201915]"
               dir={theme.direction}
             >
               {sortOptions.map((option) => (
@@ -951,10 +951,10 @@ const FiltersSidebar: React.FC<FiltersSidebarProps> = ({ settings }) => {
             <button
               type="button"
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="flex h-11 items-center justify-between rounded-md border border-[#ddd3c9] bg-white px-4 text-sm font-medium text-[#241d18]"
+              className="flex h-9 items-center justify-between rounded-full border border-[#ddd3c9] bg-white px-3.5 text-xs font-semibold text-[#241d18] active:scale-95 transition-transform"
             >
               <span>{mobileOpen ? hideMobileLabel : showMobileLabel}</span>
-              <span className="text-xs text-[#8a7d70]">
+              <span className="text-[11px] text-[#8a7d70]">
                 {mobileOpen ? '−' : activeFilterCount > 0 ? activeFilterCount : '+'}
               </span>
             </button>
