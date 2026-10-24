@@ -229,7 +229,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
   // Insert draft text when provided from TextGallery or QuickReplies
   React.useEffect(() => {
     if (draftMessage !== undefined && draftMessage !== null && draftMessage !== "") {
-      setMessage((prev) => (prev ? `${prev}\n${draftMessage}` : draftMessage));
+      setMessage((prev) => {
+        if (!prev) return draftMessage;
+        if (prev === draftMessage || prev.includes(draftMessage)) return prev;
+        return `${prev}\n${draftMessage}`;
+      });
       if (onDraftMessageHandled) {
         onDraftMessageHandled();
       }
