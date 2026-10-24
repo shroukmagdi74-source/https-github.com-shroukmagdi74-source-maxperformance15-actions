@@ -27,10 +27,6 @@ export const CsbNavbar: React.FC<Props> = ({ onSubscribe, bundlePrice = BUNDLE_P
               M
             </span>
           )}
-          <span>
-            <strong>MaxP</strong>
-            <small>منظومة التجارة المتكاملة</small>
-          </span>
         </Link>
 
         <div className="csb-nav-links">
@@ -41,24 +37,31 @@ export const CsbNavbar: React.FC<Props> = ({ onSubscribe, bundlePrice = BUNDLE_P
           <a href="#faq">أسئلة شائعة</a>
         </div>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="csb-nav-actions">
           <a
             href={WHATSAPP_CONSULT_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="csb-btn csb-btn-ghost csb-btn-sm"
-            style={{ display: "inline-flex", gap: 5, alignItems: "center" }}
+            className="csb-btn csb-btn-ghost csb-btn-sm csb-nav-whatsapp"
             title="تواصل واتساب: 01123087745"
           >
-            <MessageCircle size={14} strokeWidth={2.2} style={{ color: "#25D366" }} />
+            <MessageCircle size={15} strokeWidth={2.2} style={{ color: "#25D366" }} />
             <span>واتساب</span>
           </a>
-          <Link to="/auth/login?redirect=/lp/store-complete-bundle" className="csb-btn csb-btn-ghost csb-btn-sm">
+          <Link
+            to="/auth/login?redirect=/lp/store-complete-bundle"
+            className="csb-btn csb-btn-ghost csb-btn-sm csb-nav-login"
+          >
             دخول
           </Link>
-          <button type="button" className="csb-btn csb-btn-primary csb-btn-sm" onClick={onSubscribe}>
-            <CreditCard size={13} strokeWidth={2.2} />
-            اشترك — {csbFmt(bundlePrice)}/شهر
+          <button
+            type="button"
+            className="csb-btn csb-btn-primary csb-btn-sm csb-nav-subscribe"
+            onClick={onSubscribe}
+          >
+            <CreditCard size={14} strokeWidth={2.2} />
+            <span className="csb-nav-sub-desktop">اشترك — {csbFmt(bundlePrice)}/شهر</span>
+            <span className="csb-nav-sub-mobile">اشترك</span>
           </button>
         </div>
       </div>

@@ -218,25 +218,24 @@ export const CompleteStoreBundleLanding: React.FC = () => {
           </b>
           تفعيل فوري · إلغاء في أي وقت
         </div>
-        <div style={{ display: "flex", gap: 6, flex: "none" }}>
+        <div className="csb-sticky-actions">
           <a
             href={WHATSAPP_CONSULT_URL}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="استشارة واتساب"
-            className="csb-btn csb-btn-ghost csb-btn-sm"
-            style={{ minHeight: 38, minWidth: 38, padding: 0 }}
+            className="csb-sticky-whatsapp"
+            title="تواصل واتساب: 01123087745"
           >
-            <MessageCircle size={16} strokeWidth={2.2} />
+            <MessageCircle size={20} strokeWidth={2.3} />
           </a>
           <button
             type="button"
             onClick={handleSubscribe}
-            className="csb-btn csb-btn-primary csb-btn-sm"
-            style={{ minHeight: 38 }}
+            className="csb-btn csb-btn-primary csb-sticky-cta"
           >
             اشترك الآن
-            <ArrowLeft size={14} strokeWidth={2.4} />
+            <ArrowLeft size={15} strokeWidth={2.4} />
           </button>
         </div>
       </div>

@@ -111,6 +111,16 @@
   line-height: 1.2;
 }
 
+.csb-nav-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.csb-nav-sub-mobile {
+  display: none;
+}
+
 .csb-nav-links {
   display: flex;
   gap: 22px;
@@ -133,15 +143,17 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 10px;
+  border-radius: 12px;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 14.5px;
   cursor: pointer;
   text-decoration: none;
   border: 1px solid transparent;
-  transition: transform 160ms ease-out, background 160ms ease-out, border-color 160ms ease-out;
-  min-height: 42px;
+  transition: transform 160ms ease-out, background 160ms ease-out, border-color 160ms ease-out, box-shadow 160ms ease-out;
+  min-height: 44px;
   padding: 0 20px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .csb-btn:active {
@@ -155,28 +167,31 @@
 
 .csb-btn-primary {
   background: var(--csb-green);
-  color: #fdfcf8;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  box-shadow: 0 4px 14px -2px rgba(14, 92, 63, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .csb-btn-primary:hover {
   background: #0b4e35;
+  box-shadow: 0 6px 18px -2px rgba(14, 92, 63, 0.45);
 }
 
 .csb-btn-ghost {
-  background: transparent;
+  background: rgba(22, 19, 15, 0.04);
   color: var(--csb-ink);
   border-color: var(--csb-line);
 }
 
 .csb-btn-ghost:hover {
+  background: rgba(22, 19, 15, 0.08);
   border-color: var(--csb-ink);
 }
 
 .csb-btn-sm {
-  min-height: 36px;
+  min-height: 38px;
   padding: 0 14px;
   font-size: 13px;
+  border-radius: 10px;
 }
 
 /* الهيرو */
@@ -579,20 +594,21 @@
 .csb-video-frame {
   position: relative;
   width: 100%;
-  max-width: 320px;
+  max-width: 340px;
   margin: 0 auto;
   aspect-ratio: 9 / 16;
-  border-radius: 22px;
+  border-radius: 20px;
   overflow: hidden;
   border: 1px solid var(--csb-line);
   box-shadow: 0 30px 60px -30px rgba(22, 19, 15, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  background: var(--csb-dark);
+  background: #000;
 }
 
 .csb-video-frame video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #000;
   display: block;
 }
 
@@ -1428,18 +1444,19 @@
 @media (max-width: 900px) {
   .csb-video-wrap {
     grid-template-columns: 1fr;
-    gap: 24px;
+    gap: 20px;
     text-align: center;
   }
 
   .csb-video-frame {
-    max-width: 300px;
+    max-width: min(100%, 350px);
+    border-radius: 18px;
   }
 
   .csb-hero {
     grid-template-columns: 1fr;
-    gap: 36px;
-    padding-top: 40px;
+    gap: 32px;
+    padding-top: 24px;
   }
 
   .csb-nav-links {
@@ -1503,20 +1520,128 @@
 }
 
 @media (max-width: 640px) {
+  /* تناغم الأقسام على الموبايل */
+  .csb-section {
+    padding: 36px 14px;
+  }
+
+  .csb-hero {
+    padding: 20px 14px 28px;
+    gap: 24px;
+  }
+
+  .csb-hero h1 {
+    font-size: clamp(24px, 6.5vw, 32px);
+    line-height: 1.25;
+    margin-bottom: 14px;
+  }
+
+  .csb-hero-sub {
+    font-size: 14px;
+    line-height: 1.75;
+    margin-bottom: 20px;
+  }
+
+  .csb-hero-ctas {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .csb-hero-ctas .csb-btn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+    justify-content: center;
+  }
+
+  /* النافبار على الموبايل */
+  .csb-nav-inner {
+    height: 54px;
+    padding: 0 14px;
+  }
+
+  .csb-brand-logo {
+    height: 30px;
+  }
+
+  .csb-nav-whatsapp {
+    display: none !important;
+  }
+
+  .csb-nav-sub-desktop {
+    display: none;
+  }
+
+  .csb-nav-sub-mobile {
+    display: inline;
+  }
+
+  /* أرقام المنصة في صف واحد متناسق */
   .csb-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .csb-stat {
-    border-left: 0;
-    border-top: 1px solid var(--csb-line-soft);
-    padding: 16px 20px;
-  }
-
-  .csb-stat:first-child {
+    border-left: 1px solid var(--csb-line-soft);
     border-top: 0;
+    padding: 12px 6px;
   }
 
+  .csb-stat:last-child {
+    border-left: 0;
+  }
+
+  .csb-stat strong {
+    font-size: 19px;
+  }
+
+  .csb-stat span {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  /* الفاتورة على الموبايل */
+  .csb-receipt-head {
+    padding: 16px 20px 12px;
+  }
+
+  .csb-row-btn {
+    padding: 10px 18px;
+  }
+
+  .csb-receipt-foot {
+    padding: 10px 18px 12px;
+    font-size: 11.5px;
+  }
+
+  .csb-receipt-ctas {
+    padding: 0 18px 16px;
+  }
+
+  /* الفيديو على الموبايل */
+  .csb-video-wrap {
+    gap: 16px;
+  }
+
+  .csb-video-copy h2 {
+    font-size: 20px;
+    line-height: 1.35;
+  }
+
+  .csb-video-copy p {
+    font-size: 13.5px;
+    line-height: 1.7;
+  }
+
+  .csb-video-frame {
+    max-width: min(100%, 350px);
+    border-radius: 16px;
+  }
+
+  /* مقارنة الأدوات على الموبايل */
   .csb-lead-grid {
     grid-template-columns: 1fr;
   }
@@ -1535,6 +1660,32 @@
     padding: 12px 16px;
   }
 
+  /* القسم النهائي */
+  .csb-final {
+    padding: 26px 16px;
+    text-align: center;
+  }
+
+  .csb-final h2 {
+    font-size: 20px;
+  }
+
+  .csb-final p {
+    font-size: 13px;
+  }
+
+  .csb-final > div:last-child {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .csb-final .csb-btn {
+    width: 100%;
+  }
+
+  /* الشريط اللاصق أسفل الموبايل */
   .csb-sticky-mobile {
     display: flex;
     position: fixed;
@@ -1545,27 +1696,64 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(250, 247, 242, 0.96);
-    backdrop-filter: blur(8px);
+    padding: 10px 14px max(10px, env(safe-area-inset-bottom));
+    background: rgba(250, 247, 242, 0.98);
+    backdrop-filter: blur(12px);
     border-top: 1px solid var(--csb-line);
+    box-shadow: 0 -8px 24px -6px rgba(22, 19, 15, 0.08);
   }
 
   .csb-root {
-    padding-bottom: 74px;
+    padding-bottom: 76px;
   }
 
   .csb-sticky-mobile .csb-sticky-meta {
     font-size: 11px;
     color: var(--csb-ink-soft);
-    line-height: 1.5;
+    line-height: 1.45;
     min-width: 0;
   }
 
   .csb-sticky-mobile .csb-sticky-meta b {
     display: block;
-    font-size: 13px;
+    font-size: 13.5px;
     color: var(--csb-ink);
+    font-weight: 800;
+  }
+
+  .csb-sticky-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: none;
+  }
+
+  .csb-sticky-whatsapp {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+    background: #25D366;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35);
+    transition: transform 160ms ease-out, background 160ms ease-out;
+  }
+
+  .csb-sticky-whatsapp:active {
+    transform: scale(0.95);
+  }
+
+  .csb-sticky-cta {
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 800;
   }
 }
 

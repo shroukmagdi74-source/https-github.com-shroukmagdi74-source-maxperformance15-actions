@@ -29,24 +29,30 @@ export const CsbVideo: React.FC = () => {
             poster="/videos/csb-explainer-poster.jpg"
             src="/videos/csb-explainer-vertical.mp4"
             onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
             aria-label="فيديو شرح باقة المتجر الكاملة — 3 دقايق و36 ثانية"
           />
           {!playing && (
-            <button
-              type="button"
-              className="csb-video-playbtn"
-              aria-label="شغّل الفيديو"
-              onClick={(e) => {
-                const v = e.currentTarget.previousElementSibling as HTMLVideoElement;
-                setPlaying(true);
-                v.play().catch(() => setPlaying(false));
-              }}
-            >
-              <Play size={30} strokeWidth={2.4} fill="currentColor" />
-              <span>شغّل الفيديو — 3:36</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="csb-video-playbtn"
+                aria-label="شغّل الفيديو"
+                onClick={(e) => {
+                  const frame = e.currentTarget.parentElement;
+                  const v = frame?.querySelector("video") as HTMLVideoElement | null;
+                  if (v) {
+                    setPlaying(true);
+                    v.play().catch(() => setPlaying(false));
+                  }
+                }}
+              >
+                <Play size={30} strokeWidth={2.4} fill="currentColor" />
+                <span>شغّل الفيديو — 3:36</span>
+              </button>
+              <span className="csb-video-badge">من متجر حقيقي شغال على MaxP</span>
+            </>
           )}
-          <span className="csb-video-badge">من متجر حقيقي شغال على MaxP</span>
         </div>
       </div>
     </section>
