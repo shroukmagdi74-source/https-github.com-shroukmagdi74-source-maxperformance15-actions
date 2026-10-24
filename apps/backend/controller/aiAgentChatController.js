@@ -42,6 +42,15 @@ async function sendMessage(req, res) {
       return res.status(400).json({ success: false, error: 'message is required' });
     }
 
+    // Defensive encoding guard: reject garbled messages consisting purely of question marks from unencoded terminal curls
+    const isGarbledMessage = /^[\s\?\.\,\!\؟\-\_]+$/.test(trimmedMessage);
+    if (isGarbledMessage && !hasImages) {
+      return res.status(400).json({
+        success: false,
+        error: 'الرسالة المستلمة غير قابلة للقراءة (رموز استفهام فقط ????). يرجى التأكد من إرسال النص بترميز UTF-8 سليم.',
+      });
+    }
+
     const effectiveMessage = trimmedMessage || 'يرجى مراجعة وفحص الصورة المرفقة والإفادة بالتحليل والإجراء المقترح.';
 
     const requestId = (req.headers && (req.headers['x-request-id'] || req.headers['X-Request-Id'])) || `req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -114,9 +123,11 @@ async function sendMessage(req, res) {
         }
       }
 
-      // Fetch other recent historical sessions for this merchant so agent is aware of past conversations across sessions
-      try {
-        const allSessions = await agentStudioSessionService.listSessions(companyId, 'copilot', 10);
+      // Fetch other recent historical sessions ONLY if the merchant explicitly asks about past conversations/sessions
+      const asksAboutPastSessions = /(المحادثات|الجلسات|حوارات|اتكلمنا|سوابق|محادثة سابقة|جلسة سابقة)/i.test(effectiveMessage);
+      if (asksAboutPastSessions) {
+        try {
+          const allSessions = await agentStudioSessionService.listSessions(companyId, 'copilot', 10);
         if (Array.isArray(allSessions) && allSessions.length > 0) {
           pastSessionsSummary = allSessions
             .filter(s => s.id !== activeSessionId)
@@ -137,6 +148,7 @@ async function sendMessage(req, res) {
         }
       } catch (sessListErr) {
         // non-blocking
+      }
       }
     } catch (memErr) {
       console.warn('[AI-CHAT-CTRL] Could not load prior messages for context:', memErr.message);

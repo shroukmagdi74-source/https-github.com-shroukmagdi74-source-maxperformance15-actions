@@ -566,7 +566,9 @@ You are continuing an existing conversation on Facebook Messenger that was previ
 
             # Anchor Past Sessions Summary (Cross-Session Historical Awareness)
             past_sessions = session_state.get("pastSessionsSummary")
-            if isinstance(past_sessions, list) and past_sessions:
+            import re as _re_hist
+            _is_querying_history = bool(_re_hist.search(r'(محادث|جلس|سابق|قديم|اتكلم|حوار)', getattr(ctx, 'message', '') or ''))
+            if isinstance(past_sessions, list) and past_sessions and _is_querying_history:
                 working_memory_lines.append("  <merchant_past_sessions>")
                 for p_idx, p_text in enumerate(past_sessions, 1):
                     working_memory_lines.append(f"    {p_idx}. {p_text}")

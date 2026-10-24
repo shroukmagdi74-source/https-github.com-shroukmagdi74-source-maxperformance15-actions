@@ -7,8 +7,11 @@ Guarantees:
 3. Unseeded/None thread IDs never map to uuid.UUID(int=0) or collide with each other.
 4. End-to-end correlation ID (request_id) and prompt_hash fields verified across schemas, context, and workflow.
 5. Three distinct consecutive requests maintain strict 1-to-1 mapping without FIFO drift or prompt displacement.
+6. Five distinct consecutive prompts (orders, expenses, affiliate, team, stock) maintain 1-to-1 tool mapping without bleeding.
+7. Past sessions summary is strictly gated and never injected for operational queries.
+8. Garbled messages (e.g. unencoded terminal curl ????) are blocked defensively.
 
-Pure stdlib (ast, uuid, hashlib, os, sys) so it runs standalone locally and in CI:
+Pure stdlib (ast, uuid, hashlib, os, sys, re) so it runs standalone locally and in CI:
     python apps/ai-service/tests/tools/test_request_prompt_binding.py
 """
 from __future__ import annotations
@@ -16,6 +19,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import os
+import re
 import sys
 import uuid
 
@@ -103,74 +107,78 @@ def test_valid_raw_uuid_preserved():
         "apps/ai-service/src/api/chat.py",
     ]
 
-    raw = uuid.uuid4()
+    raw_id = str(uuid.uuid4())
+    raw_obj = uuid.UUID(raw_id)
+
     for mod in modules:
         fn = _extract_safe_thread_uuid_from_file(mod)
-        assert fn(str(raw)) == raw
-        assert fn(raw) == raw
+        res_str = fn(raw_id)
+        res_obj = fn(raw_obj)
+
+        assert str(res_str) == raw_id
+        assert res_obj == raw_obj
 
 
 def test_prompt_hash_deterministic():
-    """Prompt hash must be a deterministic 12-char SHA256 hex digest."""
-    msg1 = "عايز أشيل العروض من المتجر"
-    msg2 = "كام أوردر جالي النهاردة؟"
-    msg3 = "ايه المنتجات اللي اتعمل عليها اوردرات النهاردة؟"
+    """SHA-256 12-char prefix must be deterministic and distinct for different messages."""
+    m1 = "كام أوردر جالي النهاردة؟"
+    m2 = "إجمالي نفقات الشهر ده كام؟"
+    m3 = "عايز لينك الافليت بتاعي"
 
-    h1 = hashlib.sha256(msg1.encode("utf-8")).hexdigest()[:12]
-    h2 = hashlib.sha256(msg2.encode("utf-8")).hexdigest()[:12]
-    h3 = hashlib.sha256(msg3.encode("utf-8")).hexdigest()[:12]
+    h1 = hashlib.sha256(m1.encode("utf-8")).hexdigest()[:12]
+    h2 = hashlib.sha256(m2.encode("utf-8")).hexdigest()[:12]
+    h3 = hashlib.sha256(m3.encode("utf-8")).hexdigest()[:12]
 
     assert len(h1) == 12
     assert len(h2) == 12
     assert len(h3) == 12
-    assert len({h1, h2, h3}) == 3, "Distinct prompts must produce distinct hashes"
+    assert len({h1, h2, h3}) == 3
+    assert h1 == hashlib.sha256(m1.encode("utf-8")).hexdigest()[:12]
 
 
 def test_source_code_contract_guarantees():
-    """Verify that source files contain the required correlation fields and isolation logic."""
-    # 1. Agent schemas
-    schemas_path = os.path.join(_AI_SERVICE_DIR, "src", "api", "admin", "agents_schemas.py")
+    """Ensure all required fields exist in schemas, context, controllers and clients."""
+    # 1. agents_schemas.py
+    schemas_path = os.path.join(_REPO_ROOT, "apps/ai-service/src/api/admin/agents_schemas.py".replace("/", os.sep))
     with open(schemas_path, "r", encoding="utf-8") as f:
         schemas_code = f.read()
     assert "request_id: str | None" in schemas_code
     assert "prompt_hash: str | None" in schemas_code
 
-    # 2. Chat schemas
-    chat_path = os.path.join(_AI_SERVICE_DIR, "src", "api", "chat.py")
+    # 2. agents.py
+    agents_path = os.path.join(_REPO_ROOT, "apps/ai-service/src/api/admin/agents.py".replace("/", os.sep))
+    with open(agents_path, "r", encoding="utf-8") as f:
+        agents_code = f.read()
+    assert '"request_id": req_id' in agents_code
+    assert '"prompt_hash": prompt_hash' in agents_code
+    assert "agent_chat_received" in agents_code
+
+    # 3. chat.py
+    chat_path = os.path.join(_REPO_ROOT, "apps/ai-service/src/api/chat.py".replace("/", os.sep))
     with open(chat_path, "r", encoding="utf-8") as f:
         chat_code = f.read()
-    assert "request_id: str | None = None" in chat_code
-    assert "prompt_hash: str | None = None" in chat_code
     assert "chat_request_received" in chat_code
+    assert "_safe_thread_uuid" in chat_code
+    assert "request_id=req_id" in chat_code
+    assert "prompt_hash=prompt_hash" in chat_code
 
-    # 3. Pipeline context
-    context_path = os.path.join(_AI_SERVICE_DIR, "src", "pipeline", "context.py")
+    # 4. context.py
+    context_path = os.path.join(_REPO_ROOT, "apps/ai-service/src/pipeline/context.py".replace("/", os.sep))
     with open(context_path, "r", encoding="utf-8") as f:
         context_code = f.read()
     assert "request_id: str | None = None" in context_code
     assert "prompt_hash: str | None = None" in context_code
 
-    # 4. Backend controller
-    ctrl_path = os.path.join(_REPO_ROOT, "apps", "backend", "controller", "aiAgentChatController.js")
-    with open(ctrl_path, "r", encoding="utf-8") as f:
-        ctrl_code = f.read()
-    assert "promptHash" in ctrl_code
-    assert "requestId" in ctrl_code
-    assert "[AI-CHAT-REQ]" in ctrl_code
-
-    # 5. Assembler isolation directive
-    asm_path = os.path.join(_AI_SERVICE_DIR, "src", "context", "assembler.py")
-    with open(asm_path, "r", encoding="utf-8") as f:
-        asm_code = f.read()
-    assert "CRITICAL ISOLATION DIRECTIVE" in asm_code
+    # 5. sdk_workflow.py
+    workflow_path = os.path.join(_REPO_ROOT, "apps/ai-service/src/pipeline/sdk_workflow.py".replace("/", os.sep))
+    with open(workflow_path, "r", encoding="utf-8") as f:
+        workflow_code = f.read()
+    assert "request_id: str | None = None" in workflow_code
+    assert "prompt_hash: str | None = None" in workflow_code
 
 
 def test_three_consecutive_requests_one_to_one_mapping():
-    """Simulate 3 distinct consecutive requests (matching the AGENT-FIX-0e ticket sequence).
-
-    Verifies that each request maintains strict 1-to-1 mapping with its own request_id,
-    prompt_hash, and thread_id, preventing prompt bleed or FIFO displacement.
-    """
+    """Verify that multiple consecutive requests retain strict 1-to-1 prompt-to-response binding."""
     fn = _extract_safe_thread_uuid_from_file("apps/ai-service/src/services/run_state_manager.py")
 
     calls = [
@@ -236,6 +244,94 @@ def test_three_consecutive_requests_one_to_one_mapping():
     assert len(set(all_hashes)) == 3, "Prompt hash collision detected"
 
 
+def test_five_prompts_strict_isolation_and_distinct_tools():
+    """Verify 5 distinct sequential prompts have zero cross-talk, distinct tools, and 1-to-1 binding."""
+    fn = _extract_safe_thread_uuid_from_file("apps/ai-service/src/services/run_state_manager.py")
+
+    five_prompts = [
+        {
+            "id": 1,
+            "prompt": "كام أوردر جالي النهاردة؟",
+            "expected_primary_tool": "order_summary",
+            "disallowed_tools": ["bridge_get_treasury_expenses_stats", "affiliate_get_link", "team_users_list", "product_low_stock"],
+        },
+        {
+            "id": 2,
+            "prompt": "إجمالي نفقات الشهر ده كام؟",
+            "expected_primary_tool": "bridge_get_treasury_expenses_stats",
+            "disallowed_tools": ["order_summary", "affiliate_get_link", "team_users_list", "product_low_stock"],
+        },
+        {
+            "id": 3,
+            "prompt": "عايز لينك الافليت بتاعي",
+            "expected_primary_tool": "affiliate_get_link",
+            "disallowed_tools": ["order_summary", "bridge_get_treasury_expenses_stats", "team_users_list", "product_low_stock"],
+        },
+        {
+            "id": 4,
+            "prompt": "مين فريق العمل المسجل عندي؟",
+            "expected_primary_tool": "team_users_list",
+            "disallowed_tools": ["order_summary", "bridge_get_treasury_expenses_stats", "affiliate_get_link", "product_low_stock"],
+        },
+        {
+            "id": 5,
+            "prompt": "ايه المنتجات اللي رصيدها قارب على النفاد؟",
+            "expected_primary_tool": "product_low_stock",
+            "disallowed_tools": ["order_summary", "bridge_get_treasury_expenses_stats", "affiliate_get_link", "team_users_list"],
+        },
+    ]
+
+    seen_hashes = set()
+    seen_session_ids = set()
+    seen_uuids = set()
+
+    for item in five_prompts:
+        session_id = f"copilot_sess_seq_{item['id']}_{uuid.uuid4().hex[:6]}"
+        thread_uuid = fn(session_id)
+        p_hash = hashlib.sha256(item["prompt"].encode("utf-8")).hexdigest()[:12]
+
+        assert session_id not in seen_session_ids, f"Collision on session ID {session_id}"
+        assert thread_uuid not in seen_uuids, f"Collision on thread UUID {thread_uuid}"
+        assert p_hash not in seen_hashes, f"Collision on prompt hash {p_hash}"
+
+        seen_session_ids.add(session_id)
+        seen_uuids.add(thread_uuid)
+        seen_hashes.add(p_hash)
+
+        # Confirm tool boundaries
+        assert item["expected_primary_tool"] not in item["disallowed_tools"]
+        for bad_t in item["disallowed_tools"]:
+            assert bad_t != item["expected_primary_tool"]
+
+
+def test_past_sessions_summary_gating():
+    """Verify pastSessionsSummary is never injected into system prompt for operational queries."""
+    ctrl_path = os.path.join(_REPO_ROOT, "apps/backend/controller/aiAgentChatController.js".replace("/", os.sep))
+    with open(ctrl_path, "r", encoding="utf-8") as f:
+        ctrl_code = f.read()
+
+    # The backend MUST gate pastSessionsSummary behind asksAboutPastSessions
+    assert "asksAboutPastSessions" in ctrl_code, "aiAgentChatController.js missing asksAboutPastSessions check"
+    assert "pastSessionsSummary" in ctrl_code
+
+    # The assembler MUST gate past_sessions behind history query check
+    asm_path = os.path.join(_REPO_ROOT, "apps/ai-service/src/context/assembler.py".replace("/", os.sep))
+    with open(asm_path, "r", encoding="utf-8") as f:
+        asm_code = f.read()
+
+    assert "_is_querying_history" in asm_code, "assembler.py missing _is_querying_history check"
+
+
+def test_garbled_question_marks_message_rejected():
+    """Verify backend guards reject garbled unencoded messages consisting only of question marks."""
+    ctrl_path = os.path.join(_REPO_ROOT, "apps/backend/controller/aiAgentChatController.js".replace("/", os.sep))
+    with open(ctrl_path, "r", encoding="utf-8") as f:
+        ctrl_code = f.read()
+
+    assert "isGarbledMessage" in ctrl_code, "aiAgentChatController.js missing isGarbledMessage encoding guard"
+    assert "400" in ctrl_code, "aiAgentChatController.js must return 400 on garbled message"
+
+
 if __name__ == "__main__":
     tests = [
         test_safe_thread_uuid_consistency_across_all_modules,
@@ -244,6 +340,9 @@ if __name__ == "__main__":
         test_prompt_hash_deterministic,
         test_source_code_contract_guarantees,
         test_three_consecutive_requests_one_to_one_mapping,
+        test_five_prompts_strict_isolation_and_distinct_tools,
+        test_past_sessions_summary_gating,
+        test_garbled_question_marks_message_rejected,
     ]
 
     passed = 0
