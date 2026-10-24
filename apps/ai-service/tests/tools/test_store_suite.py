@@ -72,6 +72,30 @@ except ImportError:
     sys.modules["agent_framework"] = _af_mod
 
 try:
+    import httpx
+except ImportError:
+    _httpx_mod = types.ModuleType("httpx")
+
+    class _DummyHTTPStatusError(Exception):
+        pass
+
+    class _DummyRequestError(Exception):
+        pass
+
+    class _DummyAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def aclose(self):
+            pass
+
+    _httpx_mod.HTTPStatusError = _DummyHTTPStatusError
+    _httpx_mod.RequestError = _DummyRequestError
+    _httpx_mod.HTTPError = Exception
+    _httpx_mod.AsyncClient = _DummyAsyncClient
+    sys.modules["httpx"] = _httpx_mod
+
+try:
     import pydantic
 except ImportError:
     _p_mod = types.ModuleType("pydantic")
@@ -93,6 +117,7 @@ except ImportError:
 
     _p_mod.BaseModel = _DummyBaseModel
     _p_mod.Field = _dummy_field
+    _p_mod.model_validator = lambda *args, **kwargs: (lambda fn: fn)
     sys.modules["pydantic"] = _p_mod
     pydantic = _p_mod
 
