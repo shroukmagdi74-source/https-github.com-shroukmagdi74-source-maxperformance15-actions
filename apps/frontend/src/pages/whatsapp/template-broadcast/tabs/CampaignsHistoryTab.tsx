@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Megaphone } from 'lucide-react';
+import { AlertCircle, Loader2, Megaphone } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Campaign } from '../types';
@@ -89,6 +89,16 @@ export const CampaignsHistoryTab: React.FC<CampaignsHistoryTabProps> = ({
                   {c.status === 'sent' ? 'تم' : c.status === 'failed' ? 'فشل' : c.status}
                 </Badge>
               </div>
+
+              {(c.status === 'failed' || c.failedCount > 0) && c.failureReason && (
+                <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-2 text-xs text-destructive">
+                  <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <span className="font-semibold">سبب الفشل: </span>
+                    <span className="font-mono text-[11px] break-words">{c.failureReason}</span>
+                  </div>
+                </div>
+              )}
 
               {isExpanded && (
                 <div

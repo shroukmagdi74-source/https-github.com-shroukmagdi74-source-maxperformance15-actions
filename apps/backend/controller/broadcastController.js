@@ -249,17 +249,35 @@ exports.getCampaigns = async (req, res) => {
             select: {
               name: true
             }
+          },
+          broadcastRecipients: {
+            where: {
+              status: 'failed'
+            },
+            take: 1,
+            select: {
+              failureReason: true
+            }
           }
         }
       }),
       getSharedPrismaClient().broadcastCampaign.count({ where })
     ]);
 
+    const formattedCampaigns = campaigns.map(c => {
+      const failureReason = c.broadcastRecipients?.[0]?.failureReason || null;
+      const { broadcastRecipients, ...rest } = c;
+      return {
+        ...rest,
+        failureReason
+      };
+    });
+
     console.log(`✅ [GET CAMPAIGNS] تم جلب ${campaigns.length} حملة من أصل ${total} حملة`);
 
     res.json({
       success: true,
-      campaigns,
+      campaigns: formattedCampaigns,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -320,9 +338,14 @@ exports.getCampaign = async (req, res) => {
 
     console.log(`✅ [GET CAMPAIGN] تم العثور على الحملة - الاسم: ${campaign.name}, الحالة: ${campaign.status}, المستلمين: ${campaign.broadcastRecipients?.length || 0}`);
 
+    const failureReason = campaign.broadcastRecipients?.find(r => r.failureReason)?.failureReason || null;
+
     res.json({
       success: true,
-      data: campaign
+      data: {
+        ...campaign,
+        failureReason
+      }
     });
 
   } catch (error) {
@@ -1046,7 +1069,13 @@ exports.sendCampaign = async (req, res) => {
 
           // header يأتي أولاً في components (إن كان قالب الحملة هيدره وسائط ولها صورة/وسيط)
           const components = [];
-          if (templateHeaderFormat?.hasMedia && campaign.waHeaderMedia) {
+          if (templateHeaderFormat?.hasMedia) {
+            if (!campaign.waHeaderMedia) {
+              throw new Error(`القالب "${campaign.waTemplateName}" يتطلب صورة أو وسيط (${templateHeaderFormat.format}) في الترويسة، ولم يتم تحديد وسيط للحملة`);
+            }
+            if (String(campaign.waHeaderMedia).startsWith('4:')) {
+              throw new Error('مقبض الوسائط هذا غير صالح للإرسال (خاص بإنشاء القوالب فقط). يُرجى إعادة رفع الصورة كصورة حملة');
+            }
             const headerParam = buildBroadcastHeaderParams(campaign.waHeaderMedia, templateHeaderFormat.format.toLowerCase());
             if (headerParam) components.push(headerParam);
           }
@@ -1538,13 +1567,16 @@ exports.sendCampaign = async (req, res) => {
 
     console.log(`✅ [SEND CAMPAIGN] تم إرسال الحملة بنجاح - المستلمين: ${recipients.length}, نجح: ${sentCount}, فشل: ${failedCount}`);
 
+    const firstFailureReason = sendResults.find(r => !r.success)?.error || null;
+
     res.json({
       success: true,
-      message: sentCount > 0 ? 'تم إرسال الحملة بنجاح' : 'فشل إرسال الحملة',
+      message: sentCount > 0 ? 'تم إرسال الحملة بنجاح' : (firstFailureReason ? `فشل إرسال الحملة: ${firstFailureReason}` : 'فشل إرسال الحملة'),
       campaignId: campaign.id,
       recipientCount: recipients.length,
       sentCount: sentCount,
       failedCount: failedCount,
+      failureReason: firstFailureReason,
       details: sendResults
     });
 

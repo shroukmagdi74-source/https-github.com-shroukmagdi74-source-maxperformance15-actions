@@ -38,12 +38,15 @@ async function listMetaTemplates(req, res) {
   }
 }
 
-// رفع وسيط (صورة/فيديو/مستند) لاستخدامه في HEADER قالب ميتا — يرجع الـ handle المطلوب
-// في example.header_handle عند إنشاء القالب، أو كـ header parameter عند الإرسال.
+// رفع وسيط (صورة/فيديو/مستند) لاستخدامه في HEADER قالب ميتا —
+// - للبث والإرسال (purpose === 'broadcast'): يرفع عبر WhatsApp Media API (/{phone-number-id}/media) ويرجع media id رقمي.
+// - لإنشاء القوالب (الافتراضي): يرجع الـ handle المطلوب في example.header_handle عبر Resumable Upload API.
 async function uploadTemplateMedia(req, res) {
   try {
     const { companyId } = req.user;
-    const { sessionId } = req.body;
+    const { sessionId, purpose } = req.body;
+    const queryPurpose = req.query.purpose;
+    const isBroadcast = purpose === 'broadcast' || purpose === 'send' || queryPurpose === 'broadcast' || queryPurpose === 'send';
 
     if (!sessionId) {
       return res.status(400).json({ error: 'sessionId مطلوب' });
@@ -61,20 +64,33 @@ async function uploadTemplateMedia(req, res) {
       return res.status(404).json({ error: 'الجلسة غير موجودة' });
     }
 
-    const handle = await MetaCloudProvider.uploadTemplateMedia(
-      targetSessionId,
-      req.file.buffer,
-      req.file.mimetype,
-      req.file.originalname
-    );
+    let mediaIdentifier = null;
 
-    if (!handle) {
+    if (isBroadcast) {
+      // 🚀 للبث الجماعي وإرسال الرسائل: ميتا تطلب media id رقمي
+      mediaIdentifier = await MetaCloudProvider.uploadMediaFile(
+        targetSessionId,
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname
+      );
+    } else {
+      // 📝 لإنشاء القالب في ميتا: ميتا تطلب handle من Resumable Upload
+      mediaIdentifier = await MetaCloudProvider.uploadTemplateMedia(
+        targetSessionId,
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname
+      );
+    }
+
+    if (!mediaIdentifier) {
       return res.status(500).json({ error: 'فشل رفع الوسائط إلى ميتا' });
     }
 
     res.json({
       success: true,
-      mediaId: handle,
+      mediaId: mediaIdentifier,
       mediaType: req.file.mimetype,
       fileName: req.file.originalname,
       size: req.file.size

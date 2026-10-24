@@ -373,6 +373,16 @@ export function useWhatsAppTemplateBroadcastController({
       tToast.error('WhatsAppTemplateBroadcast.msg_03ea');
       return;
     }
+
+    const currentTpl = templates.find((t) => t.name === selectedTemplate);
+    const headerComp = currentTpl?.components?.find((c: any) => (c.type || '').toUpperCase() === 'HEADER');
+    const headerRequiresMedia = headerComp && headerComp.format && headerComp.format !== 'TEXT';
+
+    if (headerRequiresMedia && !waHeaderMedia) {
+      toast.error(`القالب "${selectedTemplate}" يتطلب صورة أو وسيط (${headerComp.format}) في الترويسة (Header). يُرجى اختيار صورة أولاً`);
+      return;
+    }
+
     try {
       setSending(true);
       setResult(null);
@@ -414,9 +424,16 @@ export function useWhatsAppTemplateBroadcastController({
 
       const sendRes = await broadcastService.sendCampaign(campaignId, recipients);
       setResult(sendRes);
-      toast.success(
-        sendRes.sentCount > 0 ? `تم إرسال ${sendRes.sentCount} رسالة` : 'تم الإرسال'
-      );
+      if (sendRes.sentCount > 0) {
+        toast.success(`تم إرسال ${sendRes.sentCount} رسالة بنجاح`);
+      } else {
+        const errorMsg =
+          (sendRes as any).failureReason ||
+          sendRes.details?.[0]?.error ||
+          (sendRes as any).message ||
+          'فشل إرسال الحملة';
+        toast.error(`فشل إرسال الحملة: ${errorMsg}`);
+      }
       setActiveTab('campaigns');
       fetchCampaigns();
     } catch (err: any) {
@@ -432,6 +449,7 @@ export function useWhatsAppTemplateBroadcastController({
   }, [
     campaignName,
     selectedTemplate,
+    templates,
     languageCode,
     recipients,
     selectedListId,
@@ -453,6 +471,7 @@ export function useWhatsAppTemplateBroadcastController({
         const formData = new FormData();
         formData.append('file', file);
         formData.append('sessionId', selectedSessionId);
+        formData.append('purpose', 'broadcast');
         const res = await apiClient.post<{
           success?: boolean;
           mediaId?: string;

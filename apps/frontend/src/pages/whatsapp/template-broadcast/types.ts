@@ -11,6 +11,13 @@ export interface MetaTemplate {
   status: string;
   category: string;
   language: string;
+  components?: Array<{
+    type: string;
+    format?: string;
+    text?: string;
+    example?: any;
+    buttons?: any[];
+  }>;
 }
 
 export interface CustomerList {
@@ -47,6 +54,7 @@ export interface Campaign {
   targetAudience: string;
   waTemplateName?: string;
   waLanguageCode?: string;
+  failureReason?: string | null;
   sentAt?: string;
   createdAt: string;
 }

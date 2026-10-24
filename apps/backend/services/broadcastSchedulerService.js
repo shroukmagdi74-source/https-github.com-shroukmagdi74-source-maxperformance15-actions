@@ -575,7 +575,13 @@ class BroadcastSchedulerService {
 
           // header يأتي أولاً في components (إن كان قالب الحملة هيدره وسائط ولها وسيط)
           const components = [];
-          if (templateHeaderFormat?.hasMedia && campaign.waHeaderMedia) {
+          if (templateHeaderFormat?.hasMedia) {
+            if (!campaign.waHeaderMedia) {
+              throw new Error(`القالب "${campaign.waTemplateName}" يتطلب صورة أو وسيط (${templateHeaderFormat.format}) في الترويسة، ولم يتم تحديد وسيط للحملة`);
+            }
+            if (String(campaign.waHeaderMedia).startsWith('4:')) {
+              throw new Error('مقبض الوسائط هذا غير صالح للإرسال (خاص بإنشاء القوالب فقط). يُرجى إعادة رفع الصورة كصورة حملة');
+            }
             const headerParam = buildBroadcastHeaderParams(campaign.waHeaderMedia, templateHeaderFormat.format.toLowerCase());
             if (headerParam) components.push(headerParam);
           }

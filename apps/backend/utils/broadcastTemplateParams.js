@@ -164,6 +164,10 @@ function getTemplateHeaderFormat(templateDef) {
 function buildBroadcastHeaderParams(media, kind = 'image') {
   if (!media) return null;
 
+  if (typeof media === 'string' && media.startsWith('4:')) {
+    throw new Error('مقبض الوسائط هذا غير صالح للإرسال (خاص بإنشاء القوالب). يُرجى إعادة رفع الصورة من الجهاز كصورة حملة للحصول على mediaId صالح.');
+  }
+
   const normalizedKind = String(kind).toLowerCase();
   const validKinds = ['image', 'video', 'document'];
   const type = validKinds.includes(normalizedKind) ? normalizedKind : 'image';

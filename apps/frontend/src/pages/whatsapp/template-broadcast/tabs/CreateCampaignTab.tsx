@@ -176,53 +176,73 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
             </div>
 
             {/* Header Media */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">صورة الرأس (اختياري — لقوالب هيدر IMAGE)</Label>
-              {waHeaderMedia ? (
-                <div className="flex h-8 items-center gap-2 rounded-lg border border-border/50 bg-muted/40 px-3">
-                  <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 truncate text-xs font-mono text-muted-foreground" dir="ltr">
-                    {headerMediaName || waHeaderMedia}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs text-destructive hover:bg-destructive/10"
-                    onClick={() => {
-                      setWaHeaderMedia('');
-                      setHeaderMediaName('');
-                    }}
-                  >
-                    إزالة
-                  </Button>
-                </div>
-              ) : (
-                <label className="flex h-8 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/20 text-xs text-muted-foreground hover:bg-muted/40 transition-colors">
-                  {headerUploading ? (
-                    <>
-                      <RefreshCw className="size-3.5 animate-spin" />
-                      <span>جاري الرفع إلى ميتا...</span>
-                    </>
+            {(() => {
+              const selectedTplObj = templates.find((t) => t.name === selectedTemplate);
+              const headerComp = selectedTplObj?.components?.find((c: any) => (c.type || '').toUpperCase() === 'HEADER');
+              const headerFormat = headerComp?.format;
+              const requiresMedia = headerFormat && headerFormat !== 'TEXT';
+
+              return (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium flex items-center justify-between">
+                    <span>صورة الرأس</span>
+                    {requiresMedia ? (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">
+                        (مطلوبة لهذا القالب — هيدر {headerFormat})
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground font-normal">(اختياري)</span>
+                    )}
+                  </Label>
+                  {waHeaderMedia ? (
+                    <div className="flex h-8 items-center gap-2 rounded-lg border border-border/50 bg-muted/40 px-3">
+                      <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="flex-1 truncate text-xs font-mono text-muted-foreground" dir="ltr">
+                        {headerMediaName || waHeaderMedia}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          setWaHeaderMedia('');
+                          setHeaderMediaName('');
+                        }}
+                      >
+                        إزالة
+                      </Button>
+                    </div>
                   ) : (
-                    <>
-                      <ImageIcon className="size-3.5" />
-                      <span>اختر صورة لتضمينها في ترويسة القالب</span>
-                    </>
+                    <label className={`flex h-8 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed text-xs transition-colors ${
+                      requiresMedia ? 'border-amber-500/50 bg-amber-500/5 text-foreground hover:bg-amber-500/10' : 'border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40'
+                    }`}>
+                      {headerUploading ? (
+                        <>
+                          <RefreshCw className="size-3.5 animate-spin" />
+                          <span>جاري الرفع إلى ميتا...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="size-3.5" />
+                          <span>{requiresMedia ? 'اختر صورة الترويسة المطلوبة للقالب' : 'اختر صورة لتضمينها في ترويسة القالب'}</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={headerUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadHeaderMedia(file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
                   )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={headerUploading}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUploadHeaderMedia(file);
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-              )}
-            </div>
+                </div>
+              );
+            })()}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
