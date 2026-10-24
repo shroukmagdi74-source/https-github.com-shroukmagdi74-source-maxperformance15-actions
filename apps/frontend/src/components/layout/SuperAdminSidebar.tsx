@@ -560,9 +560,12 @@ const SuperAdminSidebar: React.FC<SuperAdminSidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Three-Tier Dual-Rail Sidebar */}
+      {/* Desktop Three-Tier Dual-Rail Sidebar - phones use the mobile drawer instead.
+          The `super-admin-desktop-shell` marker lets sidebar-elite.css hide this shell
+          below 640px: its unlayered `.business-sidebar-shell{display:flex}` rule beats
+          Tailwind's `hidden` utility, which lives in @layer utilities. */}
       <aside
-        className="hidden sm:flex shrink-0 h-full business-sidebar-shell select-none"
+        className="hidden sm:flex shrink-0 h-full business-sidebar-shell super-admin-desktop-shell select-none"
         dir={i18n.dir()}
         aria-label="Super Admin Navigation"
       >

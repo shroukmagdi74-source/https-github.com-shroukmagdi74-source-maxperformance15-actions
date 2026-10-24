@@ -410,6 +410,17 @@
    Mobile Sidebar - Professional Responsive Drawer
    ========================================== */
 
+/* Desktop dual-rail shell must never render on phones.
+   `.business-sidebar-shell` (below) sets `display:flex` as an UNLAYERED rule, so it wins
+   over Tailwind utilities (`hidden` lives in @layer utilities) and the plain
+   `hidden sm:flex` on the super-admin aside never hid the 336px rail+panel on mobile -
+   that left ~76px for page content on a 412px screen. Phones use the drawer instead. */
+@media (max-width: 639.98px) {
+  .business-sidebar-shell.super-admin-desktop-shell {
+    display: none;
+  }
+}
+
 /* Overlay container - always rendered, visibility controlled by data-open */
 .business-mobile-overlay {
   position: fixed;
