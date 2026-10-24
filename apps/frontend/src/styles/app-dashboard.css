@@ -634,3 +634,37 @@ body.app-shell-mobile-open {
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   }
 }
+
+
+/* Print styles: allow document to grow and paginate; hide shell chrome */
+@media print {
+  html,
+  body,
+  #root,
+  .app-dashboard-root,
+  .app-dashboard-app-root,
+  .app-shell-root,
+  .app-shell-body,
+  .app-shell-main,
+  .app-shell-content {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .app-shell-sidebar,
+  .app-shell-body > .hidden.lg\:block,
+  .app-shell-mobile-header,
+  .admin-bottom-nav,
+  .app-shell-bottom-nav,
+  #app-shell-mobile-drawer,
+  .app-shell-mobile-backdrop,
+  [data-slot="merchant-copilot-floating-container"] {
+    display: none !important;
+  }
+
+  .app-shell-content {
+    padding-bottom: 0 !important;
+  }
+}
