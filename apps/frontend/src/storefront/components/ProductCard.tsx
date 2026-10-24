@@ -2938,18 +2938,18 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
   if (variant === 'boutique-air') {
     return (
       <>
-        <CardShell className="group relative flex h-full flex-col overflow-hidden rounded-[0.45rem] bg-transparent p-0 text-card-foreground transition-transform duration-300 hover:-translate-y-0.5">
-          <div className="relative mb-4 overflow-hidden rounded-[0.45rem] border border-[#efe4df] bg-[#f8f4f1] shadow-[0_18px_42px_-38px_rgba(59,33,28,0.12)]">
+        <CardShell className="group relative flex h-full flex-col overflow-hidden rounded-[0.55rem] bg-transparent p-0 text-card-foreground transition-transform duration-300 hover:-translate-y-0.5">
+          <div className="relative mb-3 overflow-hidden rounded-[0.55rem] border border-[#efe4df] bg-[#f8f4f1] shadow-[0_14px_34px_-30px_rgba(59,33,28,0.12)]">
             {discountPercentage ? (
-              <span className="absolute start-3 top-3 z-20 inline-flex min-w-[1.7rem] items-center justify-center rounded-full bg-[#f15f66] px-2 py-0.5 text-[10px] font-bold text-white shadow-[0_10px_22px_-18px_rgba(241,95,102,0.9)]">
-                {discountPercentage}%
+              <span className="absolute start-2.5 top-2.5 z-20 inline-flex items-center rounded-full bg-[#1e1916]/85 backdrop-blur-sm border border-white/10 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm tabular-nums">
+                -{discountPercentage}%
               </span>
             ) : null}
 
             {features.wishlistEnabled ? (
               <button
                 onClick={handleWishlist}
-                className={`absolute end-3 top-3 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#ece2dc] bg-white/96 text-[#9b8881] shadow-[0_14px_28px_-24px_rgba(59,33,28,0.22)] transition-colors hover:text-[#201915] ${
+                className={`absolute end-2.5 top-2.5 z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-[#ece2dc] bg-white/96 text-[#9b8881] shadow-sm transition-colors hover:text-[#201915] ${
                   isWishlisted ? 'text-[#d45463]' : ''
                 }`}
                 title={finalWishlistLabel}
@@ -2959,7 +2959,7 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
               </button>
             ) : null}
 
-            <div className="aspect-square overflow-hidden p-4 md:p-5">
+            <div className="aspect-[3/4] overflow-hidden p-3 md:p-4">
               <StorefrontProductImage
                 candidates={imageCandidates}
                 alt={name}
@@ -2967,39 +2967,42 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
                 fetchpriority={imageFetchPriority}
                 responsiveWidths={[240, 320, 420, 520]}
                 responsiveSizes="(max-width: 767px) 68vw, (max-width: 1279px) 28vw, 20vw"
-                imageQuality={72}
+                imageQuality={75}
                 width="420"
-                height="420"
-                className="h-full w-full object-contain object-center transition-transform duration-500 group-hover:scale-[1.02]"
+                height="560"
+                className="h-full w-full object-contain object-center transition-transform duration-500 group-hover:scale-[1.03]"
                 fallback={renderImageFallback('rounded-[0.35rem] bg-[#eee5e0]')}
               />
             </div>
           </div>
 
-          <div className="flex flex-1 flex-col items-center text-center">
-            <h3 className="line-clamp-2 font-heading text-[1.02rem] font-semibold leading-7 text-[#241c19]">
+          <div className="flex flex-1 flex-col items-center text-center px-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9b8d88]">
+              {categoryLabel}
+            </span>
+            <h3 className="line-clamp-1 font-heading text-[0.95rem] font-bold leading-snug text-[#201915] mt-0.5">
               {name}
             </h3>
 
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs">
-              <div dir="ltr" className="flex items-center gap-2 font-sans">
+            <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-xs">
+              <div dir="ltr" className="flex items-center gap-1.5 font-sans">
                 {formattedComparePrice ? (
-                  <span className="text-[#b9aca6] line-through">
+                  <span className="text-[#a89b94] line-through text-[11px] tabular-nums">
                     {formattedComparePrice}
                   </span>
                 ) : null}
-                <span className="text-[0.98rem] font-semibold text-[#df6670]">
+                <span className="text-[0.96rem] font-bold text-[#b84838] tabular-nums">
                   {formattedPrice}
                 </span>
               </div>
             </div>
 
             {(ratingValue || reviewCount) ? (
-              <div className="mt-2 flex items-center justify-center gap-1 text-[#f4c94d]">
+              <div className="mt-1 flex items-center justify-center gap-1 text-[#f4c94d]">
                 {Array.from({ length: 5 }).map((_, index) => (
                   <Star
                     key={`boutique-star-${index}`}
-                    size={11}
+                    size={10}
                     fill={ratingValue && index < Math.round(ratingValue) ? 'currentColor' : 'none'}
                   />
                 ))}
@@ -3011,30 +3014,17 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
               </div>
             ) : null}
 
-            <div className="mt-3.5 flex w-full flex-col gap-1.5 px-1 sm:px-2">
+            <div className="mt-2.5 flex w-full flex-col px-0.5">
               <button
                 onClick={handleAddToCart}
-                className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#201915] hover:bg-[#352a23] text-white px-3 py-2 text-xs font-bold shadow-sm transition-all active:scale-95"
+                className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#201915] hover:bg-black text-white px-3 py-2 text-xs font-semibold shadow-sm transition-transform duration-150 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-[#201915]/40"
                 title={actionLabel}
                 aria-label={actionLabel}
               >
-                <ShoppingCart size={14} />
-                <span>{hasVariantChoices ? (isRtl ? 'اختيار المقاس / أضف' : 'Select Size') : (isRtl ? 'أضف للسلة' : 'Add to Cart')}</span>
-              </button>
-              <button
-                onClick={handleQuickBuy}
-                className="flex w-full items-center justify-center gap-1 rounded-full border border-amber-500/40 bg-amber-50 hover:bg-amber-100 text-amber-900 px-3 py-1.5 text-[11px] font-bold shadow-sm transition-all active:scale-95"
-                title={isRtl ? 'طلب سريع' : 'Fast Order'}
-                aria-label={isRtl ? 'طلب سريع' : 'Fast Order'}
-              >
-                <Zap size={13} className="fill-amber-500 text-amber-500" />
-                <span>{isRtl ? 'طلب سريع' : 'Quick Order'}</span>
+                <ShoppingCart size={13} />
+                <span>{hasVariantChoices ? (isRtl ? 'اختيار المقاس والطلب' : 'Select Size & Order') : (isRtl ? 'أضف للسلة' : 'Add to Cart')}</span>
               </button>
             </div>
-
-            <span className="mt-3 text-[10px] font-medium tracking-[0.14em] text-[#9b8d88]">
-              {categoryLabel}
-            </span>
           </div>
         </CardShell>
 
@@ -3099,24 +3089,15 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
                 </span>
               </div>
 
-              <div className="mt-3 flex w-full flex-col gap-1.5 pt-1">
+              <div className="mt-3 flex w-full flex-col pt-1">
                 <button
                   onClick={handleAddToCart}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-[#090b0e] hover:bg-black text-white px-3.5 py-2 text-xs font-semibold shadow-sm transition-transform duration-150 active:scale-[0.97]"
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-[#090b0e] hover:bg-black text-white px-3.5 py-2 text-xs font-semibold shadow-sm transition-transform duration-150 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-black/40"
                   title={actionLabel}
                   aria-label={actionLabel}
                 >
                   <ShoppingCart size={13} />
-                  <span>{hasVariantChoices ? (isRtl ? 'اختيار المقاس' : 'Select Size') : (isRtl ? 'أضف للسلة' : 'Add to Cart')}</span>
-                </button>
-                <button
-                  onClick={handleQuickBuy}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-800 px-3 py-1.5 text-[11px] font-semibold transition-transform duration-150 active:scale-[0.97]"
-                  title={isRtl ? 'طلب سريع' : 'Fast Order'}
-                  aria-label={isRtl ? 'طلب سريع' : 'Fast Order'}
-                >
-                  <Zap size={12} className="text-amber-600 fill-amber-500" />
-                  <span>{isRtl ? 'طلب سريع' : 'Quick Order'}</span>
+                  <span>{hasVariantChoices ? (isRtl ? 'اختيار المقاس والطلب' : 'Select Size & Order') : (isRtl ? 'أضف للسلة' : 'Add to Cart')}</span>
                 </button>
               </div>
             </div>
@@ -3622,22 +3603,14 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
                 <Plus size={20} />
               </button>
             ) : (
-              <div className="relative z-10 flex flex-col sm:flex-row items-center gap-1.5 w-full mt-1">
+              <div className="relative z-10 flex items-center w-full mt-1">
                 <button
                   onClick={handleAddToCart}
                   className="flex flex-1 w-full items-center justify-center gap-1.5 rounded-[var(--button-radius,0.375rem)] py-2 px-3 text-xs font-bold bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-all active:scale-95"
                   title={actionLabel}
                 >
                   <ShoppingCart size={14} />
-                  <span>{hasVariantChoices ? (isRtl ? 'اختر المقاس / أضف' : 'Select Size') : (isRtl ? 'أضف للسلة' : 'Add to Cart')}</span>
-                </button>
-                <button
-                  onClick={handleQuickBuy}
-                  className="flex w-full sm:w-auto items-center justify-center gap-1 rounded-[var(--button-radius,0.375rem)] py-2 px-2.5 text-[11px] font-bold border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-300 hover:bg-amber-500/20 transition-all active:scale-95 shrink-0"
-                  title={isRtl ? 'طلب سريع' : 'Fast Order'}
-                >
-                  <Zap size={13} className="fill-amber-500 text-amber-500" />
-                  <span>{isRtl ? 'طلب سريع' : 'Buy Now'}</span>
+                  <span>{hasVariantChoices ? (isRtl ? 'اختيار المقاس والطلب' : 'Select Size & Order') : (isRtl ? 'أضف للسلة' : 'Add to Cart')}</span>
                 </button>
               </div>
             )}

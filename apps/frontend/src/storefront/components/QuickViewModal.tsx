@@ -239,13 +239,13 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
         <DialogPrimitive.Popup dir={theme.direction} className="fixed inset-x-0 bottom-0 z-50 w-full max-h-[95vh] overflow-y-auto bg-card p-0 shadow-2xl rounded-t-2xl border-t border-border animate-in slide-in-from-bottom duration-300 md:inset-auto md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] md:max-w-4xl md:max-h-[90vh] md:rounded-xl md:border md:animate-in md:zoom-in-95" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
             {/* Gallery Section */}
-            <div className="aspect-square bg-muted">
+            <div className="h-44 sm:h-52 md:h-auto md:aspect-square bg-muted overflow-hidden">
               <StorefrontProductImage
                 candidates={imageCandidates}
                 alt={name}
                 width="800"
                 height="800"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain md:object-cover"
                 fallback={(
                   <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,hsl(var(--background)),hsl(var(--muted))_68%)] px-6 text-center text-sm font-medium text-muted-foreground">
                     No Image Available
@@ -255,7 +255,7 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
             </div>
 
             {/* Info Section */}
-            <div className="p-6 md:p-8 flex flex-col h-full relative">
+            <div className="p-4 sm:p-6 md:p-8 flex flex-col h-full relative">
               <DialogPrimitive.Close className="absolute top-4 p-2 rounded-full hover:bg-muted transition-colors cursor-pointer" style={isRtl ? { left: '1rem' } : { right: '1rem' }}>
                 <X size={20} />
               </DialogPrimitive.Close>
@@ -345,10 +345,10 @@ const QuickViewModal: React.FC<QuickViewModalProps> = ({
 
                   <button 
                     onClick={handleQuickBuy}
-                    className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
+                    className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md"
                   >
                     <Zap size={18} className="fill-current" />
-                    <span>{isRtl ? '⚡ شراء فوري الآن' : '⚡ Buy Now'}</span>
+                    <span>{isRtl ? 'شراء فوري ومباشر' : 'Instant Checkout'}</span>
                   </button>
                 </div>
                 

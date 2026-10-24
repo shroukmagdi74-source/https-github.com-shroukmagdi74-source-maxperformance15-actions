@@ -581,39 +581,80 @@ const ShopCommandBar: React.FC<ShopCommandBarProps> = ({ section, settings }) =>
 
   if (simpleToolbar) {
     return (
-      <section className="mb-6 hidden border-b border-[#e8ddd2] pb-4 lg:block">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <select
-            id={sortSelectId}
-            name="catalogSort"
-            value={selectedSort}
-            onChange={(event) =>
-              setSearchParams(
-                applyCatalogFilters(searchParams, {
-                  sortValue: event.target.value as typeof selectedSort,
-                }),
-              )
-            }
-            className="h-11 min-w-[190px] rounded-md border border-[#ddd3c9] bg-white px-4 text-sm font-medium text-[#241d18] outline-none transition-colors focus:border-[#b69b73]"
-          >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-
-          {hasActiveControls ? (
+      <section className="mb-6 w-full border-b border-[#e8ddd2] pb-4" dir={theme.direction}>
+        {/* Horizontal Category Ribbon (Mobile & Desktop) */}
+        {categories && categories.length > 0 && (
+          <div className="mb-4 -mx-2 px-2 sm:mx-0 sm:px-0 flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
             <button
               type="button"
-              onClick={handleClearFilters}
-              className="inline-flex h-11 items-center justify-center rounded-md border border-[#ddd3c9] bg-white px-4 text-sm font-medium text-[#5d5147] transition-colors hover:border-[#b69b73] hover:text-[#241d18]"
+              onClick={() => {
+                setSearchParams(applyCatalogFilters(searchParams, { categoryId: null }));
+              }}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                selectedCategory === 'all'
+                  ? 'bg-[#201915] text-white shadow-sm'
+                  : 'border border-[#ddd2c5] bg-white text-[#5c4a3e] hover:border-[#201915]'
+              }`}
             >
-              {clearButtonText}
+              {allCategoriesLabel || (prefersArabicCopy ? 'كل الأحذية' : 'All Shoes')}
             </button>
-          ) : (
-            <div />
-          )}
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => {
+                  setSearchParams(applyCatalogFilters(searchParams, { categoryId: category.id }));
+                }}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 ${
+                  selectedCategory === category.id
+                    ? 'bg-[#201915] text-white shadow-sm'
+                    : 'border border-[#ddd2c5] bg-white text-[#5c4a3e] hover:border-[#201915]'
+                }`}
+              >
+                {category.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Compact Controls Row */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-bold text-[#6f5e52] tabular-nums">
+              {isLoading ? '...' : pagination.total} {prefersArabicCopy ? 'حذاء متوفر' : 'items'}
+            </span>
+            {hasActiveControls ? (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="text-xs font-semibold text-[#b84838] underline underline-offset-4 hover:opacity-80 transition-opacity"
+              >
+                {clearButtonText || (prefersArabicCopy ? 'مسح الفلاتر' : 'Clear')}
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              id={sortSelectId}
+              name="catalogSort"
+              value={selectedSort}
+              onChange={(event) =>
+                setSearchParams(
+                  applyCatalogFilters(searchParams, {
+                    sortValue: event.target.value as typeof selectedSort,
+                  }),
+                )
+              }
+              className="h-9 sm:h-10 rounded-full border border-[#ddd3c9] bg-white px-3.5 text-xs font-semibold text-[#241d18] outline-none transition-colors focus:border-[#201915]"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </section>
     );

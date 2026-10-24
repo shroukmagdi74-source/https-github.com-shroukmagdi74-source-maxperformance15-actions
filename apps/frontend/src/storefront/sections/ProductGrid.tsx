@@ -1015,7 +1015,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ section, settings }) => {
   }
 
   return (
-      <section className={`w-full py-8 md:py-12 ${
+      <section className={`w-full pt-4 pb-28 md:py-12 ${
       isBiteRush
         ? 'bg-[linear-gradient(180deg,#fff8f3_0%,#fff4ec_52%,#fffdfb_100%)]'
         : isAnyElessiBagGrid
@@ -1748,29 +1748,40 @@ const ProductGrid: React.FC<ProductGridProps> = ({ section, settings }) => {
         )} 
 
         {isKhemetLuxe && isShopPage && (
-          <div className="mb-4 flex items-center gap-2" dir={theme.direction}>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
-                viewMode === 'grid'
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border text-muted-foreground hover:border-primary/40'
-              }`}
-            >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
-              {theme.direction === 'rtl' ? 'شبكة' : 'Grid'}
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
-                viewMode === 'list'
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border text-muted-foreground hover:border-primary/40'
-              }`}
-            >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="18" height="3.5" rx="1"/><rect x="3" y="10.25" width="18" height="3.5" rx="1"/><rect x="3" y="16.5" width="18" height="3.5" rx="1"/></svg>
-              {theme.direction === 'rtl' ? 'قائمة' : 'List'}
-            </button>
+          <div className="mb-4 flex items-center justify-between" dir={theme.direction}>
+            <span className="text-xs font-semibold text-[#8b7d75]">
+              {theme.direction === 'rtl' ? 'عرض الكتالوج:' : 'Catalog view:'}
+            </span>
+            <div className="inline-flex items-center rounded-lg border border-[#e2d6ca] bg-white p-0.5 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-[#201915] text-white shadow-sm'
+                    : 'text-[#6f5e52] hover:text-[#201915]'
+                }`}
+                title={theme.direction === 'rtl' ? 'عرض شبكة' : 'Grid view'}
+                aria-label={theme.direction === 'rtl' ? 'عرض شبكة' : 'Grid view'}
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+                <span>{theme.direction === 'rtl' ? 'شبكة' : 'Grid'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-[#201915] text-white shadow-sm'
+                    : 'text-[#6f5e52] hover:text-[#201915]'
+                }`}
+                title={theme.direction === 'rtl' ? 'عرض قائمة' : 'List view'}
+                aria-label={theme.direction === 'rtl' ? 'عرض قائمة' : 'List view'}
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="18" height="3.5" rx="1"/><rect x="3" y="10.25" width="18" height="3.5" rx="1"/><rect x="3" y="16.5" width="18" height="3.5" rx="1"/></svg>
+                <span>{theme.direction === 'rtl' ? 'قائمة' : 'List'}</span>
+              </button>
+            </div>
           </div>
         )}
 

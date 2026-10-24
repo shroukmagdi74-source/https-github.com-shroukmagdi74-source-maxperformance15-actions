@@ -1563,7 +1563,7 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
               ? "h-24 md:hidden"
               : isMenShoes
                 ? "h-24 md:hidden"
-                : "h-16 md:hidden"
+                : "h-24 md:hidden"
           }
           aria-hidden="true"
         />

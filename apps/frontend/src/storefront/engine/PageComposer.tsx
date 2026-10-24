@@ -692,12 +692,12 @@ export const PageComposer: React.FC<PageComposerProps> = ({
           <div className="mb-6 lg:hidden">{renderSection(sidebarSection, sidebarIndex)}</div>
         )}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="flex flex-col w-full">
-            {mainSections.map(({ sectionEntry, index }) => renderSection(sectionEntry, index))}
-          </div>
-          <aside className={renderSectionFrame ? "block" : "hidden lg:block"}>
+          <aside className={renderSectionFrame ? "order-first lg:order-last block" : "hidden lg:block"}>
             {renderSection(sidebarSection, sidebarIndex)}
           </aside>
+          <div className="flex flex-col w-full order-last lg:order-first">
+            {mainSections.map(({ sectionEntry, index }) => renderSection(sectionEntry, index))}
+          </div>
         </div>
       </div>
     );

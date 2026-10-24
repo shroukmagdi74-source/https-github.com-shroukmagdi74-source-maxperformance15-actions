@@ -1039,6 +1039,8 @@ const FiltersSidebar: React.FC<FiltersSidebarProps> = ({ settings }) => {
               ? 'rounded-[1.25rem] border border-[#e4d8b3] bg-[linear-gradient(180deg,#fffefb,#fff6dc)] px-4 py-3 text-[#1f242c] shadow-[0_20px_44px_-36px_rgba(31,36,44,0.32)] hover:border-[#f3ca53]'
             : isRoseBoutique
               ? 'rounded-[1.25rem] border border-[#ead8cf] bg-[linear-gradient(180deg,#fffdfb,#fff6f2)] px-4 py-3 text-[#3d2a2f] shadow-[0_20px_44px_-36px_rgba(76,42,44,0.2)] hover:border-[#d86b55]'
+            : isKhemetLuxe
+              ? 'rounded-[1.25rem] border border-[#e4d8cd] bg-[linear-gradient(180deg,#fffdfa,#fbf6ef)] px-4 py-3 text-[#201915] shadow-sm hover:border-[#201915]'
               : 'text-foreground hover:text-primary'
           }`}
         >
@@ -1049,6 +1051,8 @@ const FiltersSidebar: React.FC<FiltersSidebarProps> = ({ settings }) => {
                   ? 'bg-[#1f242c] text-[#fff4d1]'
                   : isRoseBoutique
                     ? 'bg-[#3d2a2f] text-[#fff6f4]'
+                  : isKhemetLuxe
+                    ? 'bg-[#201915] text-[#fff6f0]'
                     : ''
               }`}
             >
