@@ -1,37 +1,40 @@
+/* @vitest-environment jsdom */
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import RatingSettingsManager from "../RatingSettingsManager";
 import { returnService } from "../../../services/returnService";
 
 // Mock returnService
-jest.mock("../../../services/returnService", () => ({
+vi.mock("../../../services/returnService", () => ({
   returnService: {
-    getSettings: jest.fn(),
-    updateSettings: jest.fn(),
-    getRatingHealth: jest.fn(),
+    getSettings: vi.fn(),
+    updateSettings: vi.fn(),
+    getRatingHealth: vi.fn(),
   },
 }));
 
 // Mock i18n-toast
-jest.mock("../../../utils/i18n-toast", () => ({
+vi.mock("../../../utils/i18n-toast", () => ({
   tToast: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 // Mock sonner
-jest.mock("sonner", () => ({
+vi.mock("sonner", () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
 describe("RatingSettingsManager - Automated Order Settings & Health Guard", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (returnService.getSettings as jest.Mock).mockResolvedValue({
+    vi.clearAllMocks();
+    (returnService.getSettings as any).mockResolvedValue({
       data: {
         excellentThreshold: 90,
         goodThreshold: 75,
@@ -42,7 +45,7 @@ describe("RatingSettingsManager - Automated Order Settings & Health Guard", () =
       },
     });
 
-    (returnService.getRatingHealth as jest.Mock).mockResolvedValue({
+    (returnService.getRatingHealth as any).mockResolvedValue({
       data: {
         success: true,
         data: {
@@ -64,6 +67,10 @@ describe("RatingSettingsManager - Automated Order Settings & Health Guard", () =
         },
       },
     });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("loads and displays all 4 automated rating threshold fields and live health telemetry report", async () => {
@@ -90,7 +97,7 @@ describe("RatingSettingsManager - Automated Order Settings & Health Guard", () =
   });
 
   it("calls updateSettings with updated thresholds on save without manual buttons", async () => {
-    (returnService.updateSettings as jest.Mock).mockResolvedValue({ data: {} });
+    (returnService.updateSettings as any).mockResolvedValue({ data: {} });
     render(<RatingSettingsManager />);
 
     await waitFor(() => {
@@ -113,7 +120,7 @@ describe("RatingSettingsManager - Automated Order Settings & Health Guard", () =
   });
 
   it("warns and disables saving when thresholds are disordered (e.g. good >= excellent)", async () => {
-    (returnService.getSettings as jest.Mock).mockResolvedValue({
+    (returnService.getSettings as any).mockResolvedValue({
       data: {
         excellentThreshold: 80,
         goodThreshold: 85, // Disordered: good > excellent
