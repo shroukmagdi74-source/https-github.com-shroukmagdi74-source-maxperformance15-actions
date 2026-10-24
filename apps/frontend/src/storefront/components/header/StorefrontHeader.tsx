@@ -292,9 +292,7 @@ const StorefrontHeader: React.FC<{
     khemetFreeShippingThreshold > 0;
   const khemetFreeShippingThresholdText =
     storefrontCurrency === "EGP"
-      ? `${new Intl.NumberFormat("ar-EG", {
-          maximumFractionDigits: 0,
-        }).format(khemetFreeShippingThreshold)} جنيه`
+      ? `${khemetFreeShippingThreshold.toLocaleString("en-US")} جنيه`
       : formatStorefrontCurrency(khemetFreeShippingThreshold, storefrontCurrency);
   const khemetUtilityShopPath = buildStorefrontPath(
     location.pathname,
@@ -304,23 +302,23 @@ const StorefrontHeader: React.FC<{
   const hideUtilityBar = settings?.storefrontSettings?.hideUtilityBar === true;
   const khemetUtilityBar = isKhemetLuxe && !isMinimal && !hideUtilityBar ? (
     <div className="border-t border-white/10 bg-[#090b0e] text-white" dir="rtl">
-      <div className="container px-4 md:px-6">
-        <div className="flex min-h-9 items-center justify-between text-xs text-white/80 [scrollbar-width:none]">
-          <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto py-1">
+      <div className="container px-3 sm:px-6">
+        <div className="flex min-h-9 items-center justify-center sm:justify-between text-[11px] sm:text-xs text-white/80">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 overflow-x-auto py-1 no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden w-full sm:w-auto">
             {showKhemetFreeShippingSignal ? (
               <span className="font-semibold text-white tracking-wide shrink-0">
-                شحن مجاني فوق <span className="tabular-nums">{khemetFreeShippingThresholdText}</span>
+                شحن مجاني فوق <span className="tabular-nums font-medium text-white">{khemetFreeShippingThresholdText}</span>
               </span>
             ) : null}
-            <span className="hidden sm:inline text-white/30 shrink-0">·</span>
-            <span className="shrink-0 text-white/70">معاينة واستبدال المقاس عند الاستلام</span>
+            <span className="text-white/40 shrink-0">·</span>
+            <span className="shrink-0 text-white/80">معاينة واستبدال المقاس عند الاستلام</span>
             <span className="hidden md:inline text-white/30 shrink-0">·</span>
             <span className="hidden md:inline text-white/70">تأكيد الطلب قبل التجهيز</span>
           </div>
           <Link
             to={khemetUtilityShopPath}
             reloadDocument={shouldForceDocumentNavigation}
-            className="inline-flex shrink-0 items-center rounded-full bg-white px-3.5 py-1 text-[11px] font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.97]"
+            className="hidden sm:inline-flex shrink-0 items-center rounded-full bg-white px-3.5 py-1 text-[11px] font-bold text-black transition-all hover:bg-neutral-200 active:scale-[0.97]"
           >
             ابدئي الطلب
           </Link>

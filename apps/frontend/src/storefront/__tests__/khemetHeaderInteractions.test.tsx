@@ -230,8 +230,14 @@ describe('KHEMET LUXE storefront header interactions', () => {
 
     const orderLink = await screen.findByRole('link', { name: 'ابدئي الطلب' });
     expect(orderLink).toHaveAttribute('href', `/shop?companyId=${companyId}`);
-    expect(screen.getByText(/شحن مجاني فوق .* جنيه/)).toBeInTheDocument();
-    expect(screen.getByText('تبديل مقاس خلال 14 يوم')).toBeInTheDocument();
+    expect(
+      screen.getByText((_, element) =>
+        element?.tagName.toLowerCase() === 'span' &&
+        element.className.includes('font-semibold') &&
+        element.textContent?.includes('شحن مجاني فوق') === true,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/معاينة واستبدال المقاس عند الاستلام|تبديل مقاس خلال 14 يوم/)).toBeInTheDocument();
   });
 
   it('opens menu, search, and empty cart controls from the KHEMET product page header', async () => {
