@@ -259,6 +259,27 @@ const normalizeThemeDesignTokens = (designTokens, { themeId, company, manifest }
     next.storefrontPageAssignments = current.storefrontPageAssignments;
   }
 
+  // ✅ MERCHANT-CONTENT PRESERVATION (2026-10-23):
+  // Switching theme must NOT destroy the merchant's own work. These keys hold
+  // authored pages, per-page style scopes, global header/footer, typography,
+  // translations and the saved-sections library — keep them exactly as they are.
+  // (The theme's own defaults only fill the design keys the merchant never set.)
+  const MERCHANT_CONTENT_KEYS = [
+    'pages',
+    'pageOverrides',
+    'pageStyles',
+    'global',
+    'typography',
+    'i18n',
+    'savedSections',
+    'navigation',
+  ];
+  for (const key of MERCHANT_CONTENT_KEYS) {
+    if (current[key] !== undefined) {
+      next[key] = current[key];
+    }
+  }
+
   return next;
 };
 
