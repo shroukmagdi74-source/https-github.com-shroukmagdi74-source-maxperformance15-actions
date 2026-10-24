@@ -23,7 +23,7 @@ const DEFAULT_PROCUREMENT_SETTINGS = {
  */
 async function getSettings(req, res) {
   try {
-    const companyId = req.companyId;
+    const companyId = req.user?.companyId || req.companyId;
     if (!companyId) {
       return res.status(400).json({ success: false, message: "Company ID is required" });
     }
@@ -85,7 +85,7 @@ async function getSettings(req, res) {
  */
 async function updateSettings(req, res) {
   try {
-    const companyId = req.companyId;
+    const companyId = req.user?.companyId || req.companyId;
     if (!companyId) {
       return res.status(400).json({ success: false, message: "Company ID is required" });
     }
