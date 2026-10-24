@@ -1,7 +1,11 @@
 import React from 'react';
 import { useStorefrontTheme } from '../../engine/ThemeProvider';
+import {
+  buildElementTypographyStyle,
+  type ElementTypographySettings,
+} from './elementTypography';
 
-export interface TextElementSettings {
+export interface TextElementSettings extends ElementTypographySettings {
   content?: string;
   align?: 'start' | 'center' | 'end' | 'left' | 'right' | string;
   size?: 'sm' | 'md' | 'lg' | string;
@@ -51,6 +55,8 @@ const TextElement: React.FC<TextElementProps> = ({ section, settings: directSett
     // Safe fallback outside provider
   }
 
+  const typoStyle = buildElementTypographyStyle(mergedSettings, content);
+
   const customStyle: React.CSSProperties = {
     fontFamily: themeContext?.pageStyleVars?.['--store-font-family'] || 'var(--store-font-family, inherit)',
     fontSize: themeContext?.pageStyleVars?.['--store-font-size-base'] || 'var(--store-font-size-base, inherit)',
@@ -59,11 +65,9 @@ const TextElement: React.FC<TextElementProps> = ({ section, settings: directSett
       ? Number(themeContext.pageStyleVars['--store-body-weight'])
       : ('var(--store-body-weight, 400)' as any),
     letterSpacing: themeContext?.pageStyleVars?.['--store-letter-spacing'] ?? '0',
+    ...(color ? { color: color === 'accent' ? 'var(--store-accent, #2563eb)' : color } : {}),
+    ...typoStyle,
   };
-
-  if (color) {
-    customStyle.color = color === 'accent' ? 'var(--store-accent, #2563eb)' : color;
-  }
 
   return (
     <div

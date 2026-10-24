@@ -1,6 +1,10 @@
 import React from 'react';
+import {
+  buildElementTypographyStyle,
+  type ElementTypographySettings,
+} from './elementTypography';
 
-export interface ButtonElementSettings {
+export interface ButtonElementSettings extends ElementTypographySettings {
   label?: string;
   href?: string;
   variant?: 'primary' | 'outline' | 'ghost' | string;
@@ -69,6 +73,12 @@ const ButtonElement: React.FC<ButtonElementProps> = ({ section, settings: direct
     alignClass = 'justify-end';
   }
 
+  const typoStyle = buildElementTypographyStyle(mergedSettings, label);
+  const finalButtonStyle: React.CSSProperties = {
+    ...buttonStyle,
+    ...typoStyle,
+  };
+
   const baseButtonClasses = `inline-flex items-center justify-center text-center cursor-pointer select-none transition-all duration-150 active:scale-[0.98] ${
     fullWidth ? 'w-full' : 'w-auto'
   } ${sizeClasses} ${variantClasses} ${customClass}`.trim();
@@ -84,7 +94,7 @@ const ButtonElement: React.FC<ButtonElementProps> = ({ section, settings: direct
       <a
         href={href}
         className={baseButtonClasses}
-        style={buttonStyle}
+        style={finalButtonStyle}
       >
         {label}
       </a>

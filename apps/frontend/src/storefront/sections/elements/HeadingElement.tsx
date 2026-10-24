@@ -1,7 +1,11 @@
 import React from 'react';
 import { useStorefrontTheme } from '../../engine/ThemeProvider';
+import {
+  buildElementTypographyStyle,
+  type ElementTypographySettings,
+} from './elementTypography';
 
-export interface HeadingElementSettings {
+export interface HeadingElementSettings extends ElementTypographySettings {
   text?: string;
   level?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | string;
   align?: 'start' | 'center' | 'end' | 'left' | 'right' | string;
@@ -66,17 +70,17 @@ const HeadingElement: React.FC<HeadingElementProps> = ({ section, settings: dire
     // Safe fallback outside provider
   }
 
+  const typoStyle = buildElementTypographyStyle(mergedSettings, text);
+
   const customStyle: React.CSSProperties = {
     fontFamily: themeContext?.pageStyleVars?.['--store-font-family'] || 'var(--store-font-family, inherit)',
     fontWeight: themeContext?.pageStyleVars?.['--store-heading-weight']
       ? Number(themeContext.pageStyleVars['--store-heading-weight'])
       : ('var(--store-heading-weight, 700)' as any),
     letterSpacing: themeContext?.pageStyleVars?.['--store-letter-spacing'] ?? '0',
+    ...(color ? { color: color === 'accent' ? 'var(--store-accent, #2563eb)' : color } : {}),
+    ...typoStyle,
   };
-
-  if (color) {
-    customStyle.color = color === 'accent' ? 'var(--store-accent, #2563eb)' : color;
-  }
 
   return (
     <Tag
