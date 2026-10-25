@@ -1,386 +1,55 @@
-import React, { useState, useEffect } from "react";
-import {
-  Clock,
-  Plus,
-  Check,
-  X,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Eye,
-  AlertCircle,
-  History,
-  Zap,
-  Timer,
-  Receipt,
-  RefreshCcw,
-  ArrowRight,
-  RotateCcw,
-  Loader2,
-  FileText,
-  Trash2,
-} from "lucide-react";
-import { useLocation } from "react-router-dom";
-import { Card, CardContent } from "../../components/ui/card";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Badge } from "../../components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "../../components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../components/ui/table";
-import { Label } from "../../components/ui/label";
-import { Textarea } from "../../components/ui/textarea";
-import { Checkbox } from "../../components/ui/checkbox";
-import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import React from "react";
+import { Clock, History, Download, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import api from "../../services/api";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  usePermissionsController,
+  PermissionStatsCards,
+  PermissionFilters,
+  PermissionTable,
+  AddPermissionDialog,
+  PermissionDetailsDialog,
+  PermissionRejectDialog,
+  PermissionDeleteDialog,
+} from "./permissions/index";
 
-interface PermissionRequest {
-  id: string;
-  type: "DEDUCTIBLE" | "NON_DEDUCTIBLE" | "FIXED_HOURS" | "COMPENSATORY";
-  date: string;
-  startTime: string;
-  endTime: string;
-  totalHours: number;
-  status: "PENDING" | "APPROVED" | "REJECTED";
-  reason: string;
-  details?: string;
-  notes?: string;
-  isUrgent: boolean;
-  isCompensated: boolean;
-  compensationDate?: string;
-  compensationNotes?: string;
-  createdAt: string;
-  attachments?: string;
-  employee: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    avatar: string;
-    employeeNumber: string;
-    department: { name: string } | null;
-  };
-  approvedBy?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-  } | null;
-  rejectionReason?: string;
-}
-
-const permissionTypeConfig: Record<
-  string,
-  { labelKey: string; icon: any; color: string; descKey: string }
-> = {
-  DEDUCTIBLE: {
-    labelKey: "exitDeductible",
-    icon: Receipt,
-    color: "bg-red-100 text-red-800 border-red-200",
-    descKey: "exitDeductibleDesc",
-  },
-  NON_DEDUCTIBLE: {
-    labelKey: "emergencyNonDeductible",
-    icon: Zap,
-    color: "bg-blue-100 text-blue-800 border-blue-200",
-    descKey: "emergencyNonDeductibleDesc",
-  },
-  FIXED_HOURS: {
-    labelKey: "externalAssignment",
-    icon: Timer,
-    color: "bg-purple-100 text-purple-800 border-purple-200",
-    descKey: "externalAssignmentDesc",
-  },
-  COMPENSATORY: {
-    labelKey: "compensatory",
-    icon: RefreshCcw,
-    color: "bg-green-100 text-green-800 border-green-200",
-    descKey: "compensatoryDesc",
-  },
-};
-
-const statusConfig: Record<
-  string,
-  { labelKey: string; color: string; icon: any }
-> = {
-  PENDING: {
-    labelKey: "pendingTab",
-    color: "bg-yellow-100 text-yellow-800",
-    icon: Clock,
-  },
-  APPROVED: {
-    labelKey: "approvedStatus",
-    color: "bg-green-100 text-green-800",
-    icon: Check,
-  },
-  REJECTED: { labelKey: "rejectedStatus", color: "bg-red-100 text-red-800", icon: X },
-};
-
-const Permissions: React.FC = () => {
+export const Permissions: React.FC = () => {
   const { t } = useTranslation();
-  const location = useLocation();
-  const isMyPermissions = location.pathname === "/my-permissions";
-
-  const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<PermissionRequest[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 20,
-    total: 0,
-    totalPages: 0,
-  });
-
-  // Filters
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [activeTab, setActiveTab] = useState("all");
-
-  // Dialog states
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-  const [showRejectDialog, setShowRejectDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [selectedRequest, setSelectedRequest] =
-    useState<PermissionRequest | null>(null);
-  const [rejectionReason, setRejectionReason] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    employeeId: "",
-    type: "DEDUCTIBLE",
-    date: new Date().toISOString().split("T")[0],
-    startTime: "09:00",
-    endTime: "11:00",
-    reason: "",
-    details: "",
-    isUrgent: false,
-    isCompensated: false,
-    compensationDate: "",
-    compensationNotes: "",
-    attachments: "",
-  });
-
-  useEffect(() => {
-    fetchPermissions();
-    fetchStats();
-    if (!isMyPermissions) fetchEmployees();
-  }, [pagination.page, typeFilter, activeTab, isMyPermissions]);
-
-  const fetchEmployees = async () => {
-    try {
-      const response = await api.get("/hr/employees?limit=100");
-      setEmployees(response.data.employees || []);
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-    }
-  };
-
-  const fetchPermissions = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-      });
-
-      if (activeTab === "pending") {
-        params.append("status", "PENDING");
-      } else if (activeTab === "approved") {
-        params.append("status", "APPROVED");
-      } else if (activeTab === "rejected") {
-        params.append("status", "REJECTED");
-      }
-
-      if (typeFilter && typeFilter !== "all") params.append("type", typeFilter);
-      if (isMyPermissions) {
-        params.append("mine", "true");
-      }
-
-      const response = await api.get(`/hr/permissions?${params}`);
-      setRequests(response.data.requests);
-      setPagination((prev) => ({
-        ...prev,
-        total: response.data.pagination.total,
-        totalPages: response.data.pagination.totalPages,
-      }));
-    } catch (error) {
-      console.error("Error fetching permissions:", error);
-      toast.error(t("employee.permissions.fetchError"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const url = isMyPermissions ? "/hr/permissions/stats?mine=true" : "/hr/permissions/stats";
-      const response = await api.get(url);
-      setStats(response.data.data);
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
-  };
-
-  const calculateHours = (start: string, end: string) => {
-    if (!start || !end) return 0;
-    const [h1, m1] = start.split(":").map(Number);
-    const [h2, m2] = end.split(":").map(Number);
-    let diff = h2 * 60 + m2 - (h1 * 60 + m1);
-    if (diff < 0) diff += 24 * 60;
-    return (diff / 60).toFixed(2);
-  };
-
-  const handleCreate = async () => {
-    // Validation
-    if (!isMyPermissions && !formData.employeeId) {
-      toast.error(t("employee.permissions.employeeRequired"));
-      return;
-    }
-
-    if (!formData.reason || formData.reason.trim() === "") {
-      toast.error(t("employee.permissions.reasonRequired"));
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setFieldErrors({});
-
-      const totalHoursStr = calculateHours(
-        formData.startTime,
-        formData.endTime,
-      );
-      const payload = {
-        ...formData,
-        totalHours: parseFloat(totalHoursStr),
-      };
-
-      console.log("🚀 Sending permission request:", payload);
-      const response = await api.post("/hr/permissions", payload);
-
-      if (response.data.success) {
-        toast.success(t("employee.permissions.createSuccess"));
-        setShowAddDialog(false);
-        resetForm();
-        await Promise.all([fetchPermissions(), fetchStats()]);
-      }
-    } catch (error: any) {
-      console.error("❌ Error creating permission:", error);
-      const errorMessage =
-        error.response?.data?.message || t("employee.permissions.createError");
-
-      if (
-        error.response?.data?.errors &&
-        Array.isArray(error.response.data.errors)
-      ) {
-        const errors: Record<string, string> = {};
-        error.response.data.errors.forEach((err: any) => {
-          errors[err.field] = err.message;
-        });
-        setFieldErrors(errors);
-        toast.error(t("employee.permissions.validationError"));
-      } else {
-        toast.error(errorMessage);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleApprove = async (requestId: string) => {
-    try {
-      await api.post(`/hr/permissions/${requestId}/approve`);
-      toast.success(t("employee.permissions.approveSuccess"));
-      fetchPermissions();
-      fetchStats();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || t("employee.permissions.approveError"));
-    }
-  };
-
-  const handleReject = async () => {
-    if (!selectedRequest || !rejectionReason) {
-      toast.error(t("employee.permissions.rejectReasonRequired"));
-      return;
-    }
-    try {
-      await api.post(`/hr/permissions/${selectedRequest.id}/reject`, {
-        reason: rejectionReason,
-      });
-      toast.success(t("employee.permissions.rejectSuccess"));
-      setShowRejectDialog(false);
-      setRejectionReason("");
-      fetchPermissions();
-      fetchStats();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || t("employee.permissions.rejectError"));
-    }
-  };
-
-  const handleDelete = (request: PermissionRequest) => {
-    setSelectedRequest(request);
-    setShowDeleteDialog(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!selectedRequest) return;
-
-    try {
-      setSubmitting(true);
-      await api.delete(`/hr/permissions/${selectedRequest.id}`);
-      toast.success(t("employee.permissions.deleteSuccess"));
-      setShowDeleteDialog(false);
-      setSelectedRequest(null);
-      fetchPermissions();
-      fetchStats();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || t("employee.permissions.deleteError"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      employeeId: "",
-      type: "DEDUCTIBLE",
-      date: new Date().toISOString().split("T")[0],
-      startTime: "09:00",
-      endTime: "11:00",
-      reason: "",
-      details: "",
-      isUrgent: false,
-      isCompensated: false,
-      compensationDate: "",
-      compensationNotes: "",
-      attachments: "",
-    });
-  };
+  const {
+    isMyPermissions,
+    loading,
+    requests,
+    employees,
+    stats,
+    pagination,
+    setPagination,
+    typeFilter,
+    setTypeFilter,
+    activeTab,
+    setActiveTab,
+    showAddDialog,
+    setShowAddDialog,
+    showDetailsDialog,
+    setShowDetailsDialog,
+    showRejectDialog,
+    setShowRejectDialog,
+    showDeleteDialog,
+    setShowDeleteDialog,
+    selectedRequest,
+    setSelectedRequest,
+    rejectionReason,
+    setRejectionReason,
+    submitting,
+    formData,
+    setFormData,
+    resetForm,
+    handleCreate,
+    handleApprove,
+    handleReject,
+    handleDelete,
+    confirmDelete,
+  } = usePermissionsController();
 
   const pendingCount = stats?.pendingCount || 0;
 
@@ -401,7 +70,11 @@ const Permissions: React.FC = () => {
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1 flex items-center gap-1.5 text-xs sm:text-sm">
               <History className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-              <span>{t("employee.permissions.totalRecords", { count: pagination.total })}</span>
+              <span>
+                {t("employee.permissions.totalRecords", {
+                  count: pagination.total,
+                })}
+              </span>
             </p>
           </div>
         </div>
@@ -414,7 +87,10 @@ const Permissions: React.FC = () => {
             {t("employee.permissions.export")}
           </Button>
           <Button
-            onClick={() => setShowAddDialog(true)}
+            onClick={() => {
+              resetForm();
+              setShowAddDialog(true);
+            }}
             className="flex-1 sm:flex-initial bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 dark:shadow-none text-xs sm:text-sm h-9 sm:h-10 px-3 sm:px-4"
           >
             <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1.5" />
@@ -424,1075 +100,85 @@ const Permissions: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        <Card className="border-none shadow-sm bg-gradient-to-br from-amber-500 to-amber-600 text-white overflow-hidden relative group">
-          <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform">
-            <Clock className="h-20 w-20 sm:h-24 sm:w-24" />
-          </div>
-          <CardContent className="p-3.5 sm:p-6 relative">
-            <p className="text-amber-100 text-xs sm:text-sm font-medium">
-              {t("employee.permissions.pendingApproval")}
-            </p>
-            <div className="flex items-baseline gap-1.5 mt-1 sm:mt-2">
-              <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold">{pendingCount}</h3>
-              <span className="text-amber-100 text-xs sm:text-sm mb-0.5">{t("employee.permissions.request")}</span>
-            </div>
-            <div className="mt-2 sm:mt-4 flex items-center gap-1.5 text-[10px] sm:text-xs text-amber-100 bg-white/10 w-fit px-2 py-0.5 sm:py-1 rounded-full">
-              <AlertCircle className="h-3 w-3 shrink-0" />
-              <span className="truncate">{t("employee.permissions.respondQuickly")}</span>
-            </div>
-          </CardContent>
-        </Card>
+      <PermissionStatsCards stats={stats} />
 
-        <Card className="border-none shadow-sm bg-white dark:bg-gray-900 overflow-hidden relative group">
-          <CardContent className="p-3.5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium">
-                  {t("employee.permissions.totalHours")}
-                </p>
-                <div className="flex items-baseline gap-1.5 mt-1 sm:mt-2">
-                  <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">
-                    {stats?.totalHours || 0}
-                  </h3>
-                  <span className="text-gray-500 text-xs sm:text-sm mb-0.5">{t("employee.permissions.hour")}</span>
-                </div>
-              </div>
-              <div className="p-2.5 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl sm:rounded-2xl shrink-0">
-                <Timer className="h-5 w-5 sm:h-8 sm:w-8 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-            <div className="mt-2.5 sm:mt-4 h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 w-[65%]" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white dark:bg-gray-900">
-          <CardContent className="p-3.5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium">
-                  {t("employee.permissions.deductedPermissions")}
-                </p>
-                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 sm:mt-2 text-red-600 dark:text-red-400">
-                  {stats?.byType?.DEDUCTIBLE || 0}
-                </h3>
-              </div>
-              <div className="p-2.5 sm:p-4 bg-red-50 dark:bg-red-900/20 rounded-xl sm:rounded-2xl shrink-0">
-                <Receipt className="h-5 w-5 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" />
-              </div>
-            </div>
-            <p className="text-[10px] sm:text-xs text-gray-400 mt-2 sm:mt-4 truncate">{t("employee.permissions.deductedFromSalary")}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-white dark:bg-gray-900">
-          <CardContent className="p-3.5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium">
-                  {t("employee.permissions.officialWorkHours")}
-                </p>
-                <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-1 sm:mt-2 text-purple-600 dark:text-purple-400">
-                  {stats?.byType?.FIXED_HOURS || 0}
-                </h3>
-              </div>
-              <div className="p-2.5 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl sm:rounded-2xl shrink-0">
-                <Timer className="h-5 w-5 sm:h-8 sm:w-8 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-            <p className="text-[10px] sm:text-xs text-gray-400 mt-2 sm:mt-4 truncate">{t("employee.permissions.assignments")}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content: Tabs and Table */}
+      {/* Main Content: Filters and Table */}
       <Card className="border-none shadow-sm bg-white dark:bg-gray-900 overflow-hidden">
         <CardContent className="p-0">
-          <div className="p-3 sm:p-4 border-b border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-            <Tabs
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="w-full sm:w-auto"
-            >
-              <TabsList className="bg-gray-100/50 dark:bg-gray-800/50 p-1 w-full sm:w-auto grid grid-cols-4 sm:flex h-auto">
-                <TabsTrigger
-                  value="all"
-                  className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm text-xs sm:text-sm py-1.5 px-2 sm:px-3"
-                >
-                  {t("employee.permissions.all")}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="pending"
-                  className="relative data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-sm text-xs sm:text-sm py-1.5 px-2 sm:px-3"
-                >
-                  {t("employee.permissions.pendingTab")}
-                  {pendingCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white font-bold ring-2 ring-white dark:ring-gray-900 animate-pulse">
-                      {pendingCount}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="approved"
-                  className="text-xs sm:text-sm py-1.5 px-2 sm:px-3"
-                >
-                  {t("employee.permissions.approvedTab")}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="rejected"
-                  className="text-xs sm:text-sm py-1.5 px-2 sm:px-3"
-                >
-                  {t("employee.permissions.rejectedTab")}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <div className="w-full sm:w-auto flex items-center gap-3">
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-full sm:w-[180px] bg-gray-50/50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 h-9 sm:h-10 text-xs sm:text-sm">
-                  <SelectValue placeholder={t("employee.permissions.typePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("employee.permissions.allTypes")}</SelectItem>
-                  {Object.entries(permissionTypeConfig).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      <div className="flex items-center gap-2">
-                        <config.icon className="h-4 w-4" />
-                        <span>{t(`employee.permissions.${config.labelKey}`)}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            {loading ? (
-              <div className="flex flex-col items-center justify-center h-80 gap-3">
-                <div className="animate-spin rounded-full h-10 w-10 border-[3px] border-blue-600 border-t-transparent"></div>
-                <p className="text-gray-500 text-sm animate-pulse">
-                  {t("employee.permissions.loading")}
-                </p>
-              </div>
-            ) : requests.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-80 text-gray-400 p-4 text-center">
-                <div className="p-5 sm:p-6 bg-gray-50 dark:bg-gray-800/50 rounded-full mb-3 sm:mb-4">
-                  <Calendar className="h-10 w-10 sm:h-12 sm:w-12 opacity-20" />
-                </div>
-                <p className="text-base sm:text-lg">{t("employee.permissions.noPermissions")}</p>
-                <Button variant="link" onClick={() => setShowAddDialog(true)} className="text-sm mt-1">
-                  {t("employee.permissions.noPermissionsHint")}
-                </Button>
-              </div>
-            ) : (
-              <>
-                {/* Mobile View: Cards */}
-                <div className="block md:hidden divide-y divide-gray-100 dark:divide-gray-800">
-                  {requests.map((request) => {
-                    const typeConfig =
-                      permissionTypeConfig[request.type] ||
-                      permissionTypeConfig["DEDUCTIBLE"];
-                    const TypeIcon = typeConfig.icon;
-                    const status = statusConfig[request.status];
-
-                    return (
-                      <div
-                        key={request.id}
-                        className="p-3.5 space-y-2.5 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors"
-                      >
-                        {/* Top row: Employee (if admin) or Type badge + Status badge */}
-                        <div className="flex items-start justify-between gap-2">
-                          {!isMyPermissions && (
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <Avatar className="h-9 w-9 border border-gray-100 dark:border-gray-800 shrink-0">
-                                <AvatarImage src={request.employee?.avatar} />
-                                <AvatarFallback className="bg-blue-50 text-blue-600 font-bold text-xs">
-                                  {request.employee?.firstName?.[0]}
-                                  {request.employee?.lastName?.[0]}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0">
-                                <p className="font-bold text-sm text-gray-900 dark:text-white truncate">
-                                  {request.employee?.firstName} {request.employee?.lastName}
-                                </p>
-                                <p className="text-[11px] text-gray-500 truncate">
-                                  {request.employee?.department?.name ||
-                                    t("employee.permissions.noDepartment")}{" "}
-                                  • {request.employee?.employeeNumber}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-1.5 shrink-0 ms-auto">
-                            <span
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold ${status.color}`}
-                            >
-                              <status.icon className="h-3 w-3" />
-                              {t(`employee.permissions.${status.labelKey}`)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Middle row: Type, Urgency, Date */}
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${typeConfig.color}`}
-                          >
-                            <TypeIcon className="h-3.5 w-3.5" />
-                            {t(`employee.permissions.${typeConfig.labelKey}`)}
-                          </span>
-                          {request.isUrgent && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                              {t("employee.permissions.urgent")}
-                            </span>
-                          )}
-                          <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400 ms-auto text-xs font-medium">
-                            <Calendar className="h-3.5 w-3.5 text-gray-400" />
-                            <span>
-                              {new Date(request.date).toLocaleDateString("ar-EG", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Time & Duration Box */}
-                        <div className="flex items-center justify-between text-xs bg-gray-50/80 dark:bg-gray-800/40 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800">
-                          <div className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300">
-                            <Clock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                            <span className="font-bold">{request.startTime}</span>
-                            <span className="text-[10px] text-gray-400">{t("employee.permissions.timeDelimiter")}</span>
-                            <span className="font-bold">{request.endTime}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-bold">
-                              {request.totalHours}
-                            </span>
-                            <span className="text-[11px] text-gray-500">{t("employee.permissions.hour")}</span>
-                          </div>
-                        </div>
-
-                        {/* Reason snippet */}
-                        {request.reason && (
-                          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 bg-white/50 dark:bg-gray-900/50 px-2 py-1 rounded">
-                            {request.reason}
-                          </p>
-                        )}
-
-                        {/* Footer actions */}
-                        <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-gray-100/60 dark:border-gray-800/60">
-                          {request.status === "PENDING" && !isMyPermissions && (
-                            <>
-                              <Button
-                                size="sm"
-                                className="h-8 px-2.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-1"
-                                onClick={() => handleApprove(request.id)}
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                <span>{t("employee.permissions.approve")}</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="h-8 px-2.5 text-xs rounded-lg flex items-center gap-1"
-                                onClick={() => {
-                                  setSelectedRequest(request);
-                                  setShowRejectDialog(true);
-                                }}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                                <span>{t("employee.permissions.reject")}</span>
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-2.5 text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg flex items-center gap-1"
-                            onClick={() => {
-                              setSelectedRequest(request);
-                              setShowDetailsDialog(true);
-                            }}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            <span>{t("employee.permissions.detailsButton", "تفاصيل")}</span>
-                          </Button>
-                          {(!isMyPermissions || request.status === "PENDING") && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 rounded-lg"
-                              onClick={() => handleDelete(request)}
-                              title={t("employee.permissions.delete")}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Desktop View: Table */}
-                <div className="hidden md:block overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-gray-50/50 dark:bg-gray-800/20">
-                      <TableRow className="border-none">
-                        {!isMyPermissions && (
-                          <TableHead className="text-right font-bold py-4">
-                            {t("employee.permissions.colEmployee")}
-                          </TableHead>
-                        )}
-                        <TableHead className="text-right font-bold">
-                          {t("employee.permissions.colType")}
-                        </TableHead>
-                        <TableHead className="text-right font-bold">
-                          {t("employee.permissions.colDate")}
-                        </TableHead>
-                        <TableHead className="text-right font-bold">
-                          {t("employee.permissions.colTime")}
-                        </TableHead>
-                        <TableHead className="text-right font-bold">
-                          {t("employee.permissions.colDuration")}
-                        </TableHead>
-                        <TableHead className="text-right font-bold">
-                          {t("employee.permissions.colStatus")}
-                        </TableHead>
-                        <TableHead className="text-left font-bold pl-6">
-                          {t("employee.permissions.colActions")}
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {requests.map((request) => {
-                        const typeConfig =
-                          permissionTypeConfig[request.type] ||
-                          permissionTypeConfig["DEDUCTIBLE"];
-                        const TypeIcon = typeConfig.icon;
-                        const status = statusConfig[request.status];
-
-                        return (
-                          <TableRow
-                            key={request.id}
-                            className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors border-gray-100 dark:border-gray-800"
-                          >
-                            {!isMyPermissions && (
-                              <TableCell className="py-4">
-                                <div className="flex items-center gap-3">
-                                  <Avatar className="h-10 w-10 border-2 border-white dark:border-gray-800 ring-1 ring-gray-100 dark:ring-gray-800 shadow-sm">
-                                    <AvatarImage src={request.employee?.avatar} />
-                                    <AvatarFallback className="bg-blue-50 text-blue-600 font-bold">
-                                      {request.employee?.firstName?.[0]}
-                                      {request.employee?.lastName?.[0]}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <p className="font-bold text-gray-900 dark:text-white leading-tight">
-                                      {request.employee?.firstName}{" "}
-                                      {request.employee?.lastName}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      {request.employee?.department?.name ||
-                                        t("employee.permissions.noDepartment")}{" "}
-                                      • {request.employee?.employeeNumber}
-                                    </p>
-                                  </div>
-                                </div>
-                              </TableCell>
-                            )}
-                            <TableCell>
-                              <div
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg w-fit text-xs font-semibold border ${typeConfig.color}`}
-                              >
-                                <TypeIcon className="h-4 w-4" />
-                                {t(`employee.permissions.${typeConfig.labelKey}`)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {new Date(request.date).toLocaleDateString("ar-EG", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                                <span className="font-bold text-gray-900 dark:text-white">
-                                  {request.startTime}
-                                </span>
-                                <span className="text-xs">{t("employee.permissions.timeDelimiter")}</span>
-                                <span className="font-bold text-gray-900 dark:text-white">
-                                  {request.endTime}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1.5">
-                                <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded font-bold">
-                                  {request.totalHours}
-                                </span>
-                                <span className="text-xs text-gray-500">{t("employee.permissions.hour")}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full w-fit text-[10px] uppercase tracking-wider font-bold ${status.color}`}
-                              >
-                                <status.icon className="h-3.5 w-3.5" />
-                                {t(`employee.permissions.${status.labelKey}`)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="pl-6">
-                              <div className="flex items-center justify-start gap-2">
-                                {request.status === "PENDING" &&
-                                  !isMyPermissions && (
-                                    <>
-                                      <Button
-                                        size="sm"
-                                        className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 rounded-lg shadow-sm"
-                                        onClick={() => handleApprove(request.id)}
-                                        title={t("employee.permissions.approve")}
-                                      >
-                                        <Check className="h-4 w-4 text-white" />
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        className="h-8 w-8 p-0 rounded-lg shadow-sm"
-                                        onClick={() => {
-                                          setSelectedRequest(request);
-                                          setShowRejectDialog(true);
-                                        }}
-                                        title={t("employee.permissions.reject")}
-                                      >
-                                        <X className="h-4 w-4 text-white" />
-                                      </Button>
-                                    </>
-                                  )}
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 rounded-lg"
-                                  onClick={() => {
-                                    setSelectedRequest(request);
-                                    setShowDetailsDialog(true);
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                {(!isMyPermissions || request.status === "PENDING") && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 rounded-lg"
-                                    onClick={() => handleDelete(request)}
-                                    title={t("employee.permissions.delete")}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-6 bg-gray-50/50 dark:bg-gray-800/10 border-t border-gray-100 dark:border-gray-800">
-              <p className="text-xs sm:text-sm text-gray-500 text-center sm:text-right">
-                {t("employee.permissions.showing", {
-                  from: (pagination.page - 1) * pagination.limit + 1,
-                  to: Math.min(pagination.page * pagination.limit, pagination.total),
-                  total: pagination.total,
-                })}
-              </p>
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-white dark:bg-gray-900 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg text-xs sm:text-sm"
-                  disabled={pagination.page === 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                >
-                  <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 ml-1" />
-                  {t("employee.permissions.previous")}
-                </Button>
-
-                {/* Mobile page count */}
-                <span className="sm:hidden text-xs text-gray-600 dark:text-gray-400 font-medium px-2">
-                  {pagination.page} / {pagination.totalPages}
-                </span>
-
-                {/* Desktop page buttons */}
-                <div className="hidden sm:flex items-center gap-1">
-                  {Array.from(
-                    { length: pagination.totalPages },
-                    (_, i) => i + 1,
-                  ).map((p) => (
-                    <Button
-                      key={p}
-                      variant={p === pagination.page ? "default" : "ghost"}
-                      size="sm"
-                      className="h-9 w-9 p-0"
-                      onClick={() =>
-                        setPagination((prev) => ({ ...prev, page: p }))
-                      }
-                    >
-                      {p}
-                    </Button>
-                  ))}
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-white dark:bg-gray-900 h-8 sm:h-9 px-2.5 sm:px-4 rounded-lg text-xs sm:text-sm"
-                  disabled={pagination.page === pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                >
-                  {t("employee.permissions.next")}
-                  <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <PermissionFilters
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            typeFilter={typeFilter}
+            setTypeFilter={setTypeFilter}
+            pendingCount={pendingCount}
+          />
+          <PermissionTable
+            loading={loading}
+            requests={requests}
+            isMyPermissions={isMyPermissions}
+            pagination={pagination}
+            setPagination={setPagination}
+            onApprove={handleApprove}
+            onRejectClick={(request) => {
+              setSelectedRequest(request);
+              setShowRejectDialog(true);
+            }}
+            onDetailsClick={(request) => {
+              setSelectedRequest(request);
+              setShowDetailsDialog(true);
+            }}
+            onDeleteClick={handleDelete}
+            onOpenAddDialog={() => {
+              resetForm();
+              setShowAddDialog(true);
+            }}
+          />
         </CardContent>
       </Card>
 
       {/* Dialogs */}
+      <AddPermissionDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        formData={formData}
+        setFormData={setFormData}
+        employees={employees}
+        isMyPermissions={isMyPermissions}
+        submitting={submitting}
+        onSubmit={handleCreate}
+        onCancel={() => setShowAddDialog(false)}
+      />
 
-      {/* Create Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="w-[95vw] sm:max-w-[600px] max-h-[90vh] flex flex-col bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 p-0 overflow-hidden rounded-2xl shadow-2xl">
-          <div className="bg-blue-600 p-4 sm:p-6 text-white text-right relative overflow-hidden shrink-0">
-            <div className="relative z-10">
-              <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-end gap-2">
-                <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-                {t("employee.permissions.dialogTitle")}
-              </DialogTitle>
-              <DialogDescription className="text-blue-100 mt-1 text-xs sm:text-sm">
-                {t("employee.permissions.dialogDesc")}
-              </DialogDescription>
-            </div>
-            <Clock className="absolute -left-10 -bottom-10 h-32 w-32 sm:h-40 sm:w-40 text-blue-500 opacity-20 rotate-12" />
-          </div>
+      <PermissionDetailsDialog
+        open={showDetailsDialog}
+        onOpenChange={setShowDetailsDialog}
+        selectedRequest={selectedRequest}
+        isMyPermissions={isMyPermissions}
+        onApprove={handleApprove}
+        onRejectClick={(request) => {
+          setSelectedRequest(request);
+          setShowRejectDialog(true);
+        }}
+      />
 
-          <div className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto flex-1">
-            {!isMyPermissions && (
-              <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
-                  {t("employee.permissions.employeeLabel")}
-                </Label>
-                <Select
-                  value={formData.employeeId}
-                  onValueChange={(v) =>
-                    setFormData({ ...formData, employeeId: v })
-                  }
-                >
-                  <SelectTrigger className="bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 h-11 sm:h-12 text-right text-xs sm:text-sm">
-                    <SelectValue placeholder={t("employee.permissions.employeePlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[250px] p-2">
-                    {employees.map((e) => (
-                      <SelectItem
-                        key={e.id}
-                        value={e.id}
-                        className="rounded-lg mb-1 focus:bg-blue-50 dark:focus:bg-blue-900/20"
-                      >
-                        <div className="flex items-center gap-3 flex-row-reverse px-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={e.avatar} />
-                            <AvatarFallback>{e.firstName?.[0]}</AvatarFallback>
-                          </Avatar>
-                          <div className="text-right">
-                            <p className="font-bold text-sm">
-                              {e.firstName} {e.lastName}
-                            </p>
-                            <p className="text-[10px] text-gray-500">
-                              {e.department?.name}
-                            </p>
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+      <PermissionRejectDialog
+        open={showRejectDialog}
+        onOpenChange={setShowRejectDialog}
+        rejectionReason={rejectionReason}
+        setRejectionReason={setRejectionReason}
+        onConfirmReject={handleReject}
+      />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div className="col-span-1 sm:col-span-2 space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
-                  {t("employee.permissions.typeLabel")}
-                </Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                  {Object.entries(permissionTypeConfig).map(([key, config]) => (
-                    <div
-                      key={key}
-                      onClick={() =>
-                        setFormData({ ...formData, type: key as any })
-                      }
-                      className={`p-2.5 sm:p-3 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-1 text-right ${formData.type === key
-                        ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 ring-4 ring-blue-500/5"
-                        : "border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700"
-                        }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        {formData.type === key ? (
-                          <Check className="h-4 w-4 text-blue-600" />
-                        ) : (
-                          <div className="h-4 w-4" />
-                        )}
-                        <config.icon
-                          className={`h-5 w-5 sm:h-6 sm:w-6 ${formData.type === key ? "text-blue-600" : "text-gray-400"}`}
-                        />
-                      </div>
-                      <p
-                        className={`font-bold text-xs sm:text-sm mt-0.5 sm:mt-1 ${formData.type === key ? "text-blue-700 dark:text-blue-400" : "text-gray-700 dark:text-gray-300"}`}
-                      >
-                        {t(`employee.permissions.${config.labelKey}`)}
-                      </p>
-                      <p className="text-[10px] text-gray-400 leading-tight">
-                        {t(`employee.permissions.${config.descKey}`)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
-                  {t("employee.permissions.dateLabel")}
-                </Label>
-                <Input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, date: e.target.value })
-                  }
-                  className="h-11 sm:h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right text-xs sm:text-sm"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
-                  {t("employee.permissions.urgencyLabel")}
-                </Label>
-                <div className="flex gap-2 h-11 sm:h-12">
-                  <Button
-                    type="button"
-                    variant={formData.isUrgent ? "default" : "outline"}
-                    className={`flex-1 rounded-xl h-full border-gray-100 dark:border-gray-800 text-xs sm:text-sm ${formData.isUrgent ? "bg-red-600 hover:bg-red-700" : ""}`}
-                    onClick={() =>
-                      setFormData({ ...formData, isUrgent: !formData.isUrgent })
-                    }
-                  >
-                    {formData.isUrgent ? t("employee.permissions.urgent") : t("employee.permissions.normal")}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
-                  {t("employee.permissions.exitTime")}
-                </Label>
-                <Input
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startTime: e.target.value })
-                  }
-                  className="h-11 sm:h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right font-bold text-xs sm:text-sm"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
-                  {t("employee.permissions.returnTime")}
-                </Label>
-                <Input
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endTime: e.target.value })
-                  }
-                  className="h-11 sm:h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right font-bold text-xs sm:text-sm"
-                />
-              </div>
-
-              <div className="col-span-1 sm:col-span-2 p-3 sm:p-4 bg-gray-50 dark:bg-gray-900 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-gray-800">
-                <div className="flex items-center gap-3">
-                  <p className="text-2xl sm:text-3xl font-black text-blue-600">
-                    {calculateHours(formData.startTime, formData.endTime)}
-                  </p>
-                  <p className="text-[11px] sm:text-xs text-gray-500 font-bold uppercase tracking-widest">
-                    {t("employee.permissions.totalHoursLabel")}
-                  </p>
-                </div>
-                <Timer className="h-8 w-8 sm:h-10 sm:w-10 text-gray-200 dark:text-gray-800" />
-              </div>
-
-              <div className="col-span-1 sm:col-span-2 space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
-                  {t("employee.permissions.reasonLabel")}
-                </Label>
-                <Textarea
-                  placeholder={t("employee.permissions.reasonPlaceholder")}
-                  value={formData.reason}
-                  onChange={(e) =>
-                    setFormData({ ...formData, reason: e.target.value })
-                  }
-                  className="min-h-[90px] sm:min-h-[100px] bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right resize-none rounded-2xl p-3 sm:p-4 text-xs sm:text-sm"
-                />
-              </div>
-
-              <div className="col-span-1 sm:col-span-2 space-y-2">
-                <Label className="text-right block font-bold text-gray-700 dark:text-gray-300 text-xs sm:text-sm">
-                  {t("employee.permissions.documentsLink")}
-                </Label>
-                <Input
-                  placeholder={t("employee.permissions.documentsPlaceholder")}
-                  value={formData.attachments}
-                  onChange={(e) =>
-                    setFormData({ ...formData, attachments: e.target.value })
-                  }
-                  className="h-11 sm:h-12 bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-right rounded-2xl p-3 sm:p-4 text-xs sm:text-sm"
-                />
-                <p className="text-[10px] text-gray-400 text-right pr-2">
-                  {t("employee.permissions.documentsHint")}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3.5 sm:p-6 bg-gray-50 dark:bg-gray-900/50 flex gap-2 sm:gap-4 border-t border-gray-100 dark:border-gray-800 shrink-0">
-            <Button
-              variant="outline"
-              className="flex-1 h-10 sm:h-12 rounded-xl text-gray-500 text-xs sm:text-sm"
-              onClick={() => setShowAddDialog(false)}
-              disabled={submitting}
-            >
-              {t("employee.permissions.cancelButton")}
-            </Button>
-            <Button
-              className={`flex-1 h-10 sm:h-12 rounded-xl shadow-xl transition-all text-xs sm:text-sm ${submitting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200 dark:shadow-none font-bold"}`}
-              onClick={handleCreate}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                  <span>{t("employee.permissions.sending")}</span>
-                </div>
-              ) : (
-                t("employee.permissions.submitButton")
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Details Dialog */}
-      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="w-[95vw] sm:max-w-[500px] max-h-[90vh] flex flex-col bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 p-0 overflow-hidden rounded-2xl shadow-2xl">
-          {selectedRequest && (
-            <>
-              <div
-                className={`p-4 sm:p-6 text-white text-right relative overflow-hidden shrink-0 ${selectedRequest.status === "APPROVED"
-                  ? "bg-green-600"
-                  : selectedRequest.status === "REJECTED"
-                    ? "bg-red-600"
-                    : "bg-amber-600"
-                  }`}
-              >
-                <div className="relative z-10">
-                  <div className="flex justify-between items-start mb-3 sm:mb-4">
-                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none text-xs">
-                      {t(`employee.permissions.${statusConfig[selectedRequest.status].labelKey}`)}
-                    </Badge>
-                    <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-end gap-2">
-                      {t("employee.permissions.detailsTitle")}
-                    </DialogTitle>
-                  </div>
-                  <div className="flex items-center gap-3 sm:gap-4 justify-end">
-                    <div className="text-right">
-                      <p className="font-bold text-base sm:text-lg">
-                        {selectedRequest.employee?.firstName}{" "}
-                        {selectedRequest.employee?.lastName}
-                      </p>
-                      <p className="text-blue-100 text-xs sm:text-sm">
-                        {selectedRequest.employee?.employeeNumber} •{" "}
-                        {selectedRequest.employee?.department?.name}
-                      </p>
-                    </div>
-                    <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 sm:border-4 border-white/20 shadow-xl shrink-0">
-                      <AvatarImage src={selectedRequest.employee?.avatar} />
-                      <AvatarFallback className="bg-white/10 text-white text-base sm:text-xl">
-                        {selectedRequest.employee?.firstName?.[0]}
-                        {selectedRequest.employee?.lastName?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                  </div>
-                </div>
-                <div className="absolute -left-10 -bottom-10 h-32 w-32 sm:h-40 sm:w-40 text-white opacity-10 rotate-12">
-                  {React.createElement(
-                    permissionTypeConfig[selectedRequest.type]?.icon || History,
-                    { className: "h-full w-full" },
-                  )}
-                </div>
-              </div>
-
-              <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1" dir="rtl">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="bg-gray-50 dark:bg-gray-900 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                    <p className="text-[11px] sm:text-xs text-gray-500 mb-1">{t("employee.permissions.requestDate")}</p>
-                    <p className="font-bold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
-                      <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500 shrink-0" />
-                      <span className="truncate">
-                        {new Date(selectedRequest.date).toLocaleDateString(
-                          "ar-EG",
-                          {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          },
-                        )}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800">
-                    <p className="text-[11px] sm:text-xs text-gray-500 mb-1">{t("employee.permissions.permissionType")}</p>
-                    <p className="font-bold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
-                      {React.createElement(
-                        permissionTypeConfig[selectedRequest.type]?.icon ||
-                        History,
-                        { className: "h-3.5 w-3.5 sm:h-4 sm:w-4 text-purple-500 shrink-0" },
-                      )}
-                      <span className="truncate">
-                        {t(`employee.permissions.${permissionTypeConfig[selectedRequest.type]?.labelKey}`)}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50/50 dark:bg-blue-900/10 p-3.5 sm:p-5 rounded-2xl border border-blue-100 dark:border-blue-900/30">
-                  <div className="flex items-center justify-between mb-3 sm:mb-4">
-                    <Timer className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                    <p className="font-bold text-xs sm:text-sm text-blue-900 dark:text-blue-100">
-                      {t("employee.permissions.permissionPeriod")}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-center gap-4 sm:gap-8 py-1 sm:py-2">
-                    <div className="text-center">
-                      <p className="text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">{t("employee.permissions.exitTimeLabel")}</p>
-                      <p className="text-xl sm:text-2xl font-black text-blue-600">
-                        {selectedRequest.startTime}
-                      </p>
-                    </div>
-                    <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 text-gray-300 rotate-180 shrink-0" />
-                    <div className="text-center">
-                      <p className="text-[11px] sm:text-xs text-gray-500 mb-0.5 sm:mb-1">{t("employee.permissions.returnTimeLabel")}</p>
-                      <p className="text-xl sm:text-2xl font-black text-blue-600">
-                        {selectedRequest.endTime}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-blue-100 dark:border-blue-900/30 flex justify-between items-center">
-                    <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium text-right">
-                      {t("employee.permissions.totalHoursLabel")}
-                    </span>
-                    <span className="bg-blue-600 text-white px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold">
-                      {selectedRequest.totalHours} {t("employee.permissions.hour")}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="text-right">
-                    <Label className="text-gray-500 text-[11px] sm:text-xs mb-1.5 sm:mb-2 block">
-                      {t("employee.permissions.reasonDetail")}
-                    </Label>
-                    <div className="bg-gray-50 dark:bg-gray-900 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800 text-xs sm:text-sm font-medium leading-relaxed">
-                      {selectedRequest.reason}
-                    </div>
-                  </div>
-
-                  {selectedRequest.attachments && (
-                    <div className="text-right">
-                      <Label className="text-gray-500 text-[11px] sm:text-xs mb-1.5 sm:mb-2 block">
-                        {t("employee.permissions.attachments")}
-                      </Label>
-                      <a
-                        href={selectedRequest.attachments}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-xs sm:text-sm font-bold bg-blue-50 dark:bg-blue-900/20 p-2.5 sm:p-3 rounded-xl border border-blue-100 dark:border-blue-800 transition-colors"
-                      >
-                        <FileText className="h-4 w-4" />
-                        {t("employee.permissions.viewFile")}
-                      </a>
-                    </div>
-                  )}
-
-                  {selectedRequest.status === "REJECTED" &&
-                    selectedRequest.rejectionReason && (
-                      <div className="text-right">
-                        <Label className="text-red-500 text-[11px] sm:text-xs mb-1.5 sm:mb-2 block">
-                          {t("employee.permissions.rejectReason")}
-                        </Label>
-                        <div className="bg-red-50 dark:bg-red-900/20 p-3 sm:p-4 rounded-xl border border-red-100 dark:border-red-800 text-red-700 dark:text-red-400 text-xs sm:text-sm font-bold">
-                          {selectedRequest.rejectionReason}
-                        </div>
-                      </div>
-                    )}
-
-                  {selectedRequest.approvedBy && (
-                    <div className="flex items-center justify-end gap-1.5 text-xs text-gray-500 mt-3 sm:mt-4">
-                      <span>
-                        {t("employee.permissions.reviewedBy", { name: `${selectedRequest.approvedBy.firstName} ${selectedRequest.approvedBy.lastName}` })}
-                      </span>
-                      <Check className="h-3 w-3 text-green-500" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-3.5 sm:p-6 bg-gray-50 dark:bg-gray-900/50 flex flex-wrap sm:flex-nowrap gap-2 sm:gap-4 border-t border-gray-100 dark:border-gray-800 shrink-0">
-                <Button
-                  variant="outline"
-                  className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
-                  onClick={() => setShowDetailsDialog(false)}
-                >
-                  {t("employee.permissions.closeButton")}
-                </Button>
-                {selectedRequest.status === "PENDING" && !isMyPermissions && (
-                  <div className="flex gap-2 flex-1 sm:flex-[2]">
-                    <Button
-                      variant="destructive"
-                      className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
-                      onClick={() => {
-                        setShowDetailsDialog(false);
-                        setShowRejectDialog(true);
-                      }}
-                    >
-                      {t("employee.permissions.rejectButton")}
-                    </Button>
-                    <Button
-                      className="flex-1 h-10 sm:h-11 rounded-xl bg-green-600 hover:bg-green-700 font-bold text-xs sm:text-sm"
-                      onClick={() => {
-                        handleApprove(selectedRequest.id);
-                        setShowDetailsDialog(false);
-                      }}
-                    >
-                      {t("employee.permissions.approveButton")}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
-        <DialogContent className="w-[95vw] sm:max-w-[400px] rounded-2xl bg-white dark:bg-gray-950 p-4 sm:p-6">
-          <DialogHeader className="text-right">
-            <div className="mx-auto bg-red-100 dark:bg-red-900/20 p-2.5 sm:p-3 rounded-full w-fit mb-3 sm:mb-4">
-              <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" />
-            </div>
-            <DialogTitle className="text-center font-bold text-lg sm:text-xl">
-              {t("employee.permissions.rejectDialogTitle")}
-            </DialogTitle>
-            <DialogDescription className="text-center text-xs sm:text-sm">
-              {t("employee.permissions.rejectDialogDesc")}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <Textarea
-              placeholder={t("employee.permissions.rejectPlaceholder")}
-              className="text-right h-28 sm:h-32 rounded-xl bg-gray-50/50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-xs sm:text-sm"
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-            />
-          </div>
-          <DialogFooter className="flex-row-reverse gap-2 sm:gap-3 mt-3 sm:mt-4">
-            <Button
-              variant="destructive"
-              className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
-              onClick={handleReject}
-            >
-              {t("employee.permissions.confirmReject")}
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
-              onClick={() => setShowRejectDialog(false)}
-            >
-              {t("employee.permissions.backButton")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="w-[95vw] sm:max-w-[400px] rounded-2xl bg-white dark:bg-gray-950 p-4 sm:p-6">
-          <DialogHeader className="text-right">
-            <div className="mx-auto bg-red-100 dark:bg-red-900/20 p-2.5 sm:p-3 rounded-full w-fit mb-3 sm:mb-4">
-              <Trash2 className="h-6 w-6 sm:h-8 sm:w-8 text-red-600 dark:text-red-400" />
-            </div>
-            <DialogTitle className="text-center font-bold text-lg sm:text-xl">
-              {t("employee.permissions.deleteTitle")}
-            </DialogTitle>
-            <DialogDescription className="text-center text-xs sm:text-sm">
-              {t("employee.permissions.deleteConfirm")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-row-reverse gap-2 sm:gap-3 mt-3 sm:mt-4">
-            <Button
-              variant="destructive"
-              className="flex-1 h-10 sm:h-11 rounded-xl font-bold text-xs sm:text-sm"
-              onClick={confirmDelete}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>{t("employee.permissions.deleting")}</span>
-                </div>
-              ) : (
-                t("employee.permissions.confirmDelete")
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1 h-10 sm:h-11 rounded-xl text-xs sm:text-sm"
-              onClick={() => {
-                setShowDeleteDialog(false);
-                setSelectedRequest(null);
-              }}
-              disabled={submitting}
-            >
-              {t("employee.permissions.cancelDelete")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PermissionDeleteDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        submitting={submitting}
+        onConfirmDelete={confirmDelete}
+        onCancel={() => {
+          setShowDeleteDialog(false);
+          setSelectedRequest(null);
+        }}
+      />
     </div>
   );
 };
