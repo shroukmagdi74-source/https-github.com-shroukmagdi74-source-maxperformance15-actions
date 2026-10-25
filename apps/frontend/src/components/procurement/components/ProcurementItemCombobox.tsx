@@ -19,6 +19,7 @@ interface ProcurementItemComboboxProps {
     sku?: string;
     description?: string;
   }) => void;
+  onAddNewProduct?: (typedName: string) => void;
   initialCatalog?: ProcurementCatalogItem[];
   placeholder?: string;
   className?: string;
@@ -30,6 +31,7 @@ interface ProcurementItemComboboxProps {
 export const ProcurementItemCombobox: React.FC<ProcurementItemComboboxProps> = ({
   value,
   onSelect,
+  onAddNewProduct,
   initialCatalog = [],
   placeholder = "اختر صنفاً أو اكتب اسمه...",
   className = "",
@@ -243,24 +245,55 @@ export const ProcurementItemCombobox: React.FC<ProcurementItemComboboxProps> = (
             }}
             className="max-h-72 overflow-y-auto rounded-xl border border-border bg-white dark:bg-card shadow-2xl p-2 text-foreground overscroll-contain animate-in fade-in-0 zoom-in-95 space-y-2"
           >
-            {/* Free item option */}
+            {/* Add as new product option or free item option */}
             {value.trim() && !hasExactMatch && (
-              <button
-                type="button"
-                onClick={handleSelectFree}
-                className="w-full flex items-center gap-2 p-2 text-xs rounded-lg text-primary hover:bg-primary/10 border border-primary/20 bg-primary/5 transition-colors text-start font-medium"
-              >
-                <Plus className="size-3.5 shrink-0" />
-                <span className="truncate">
-                  استخدام كصنف حر: <strong>«{value}»</strong>
-                </span>
-              </button>
+              onAddNewProduct ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onAddNewProduct(value.trim());
+                  }}
+                  className="w-full flex items-center gap-2 p-2.5 text-xs rounded-lg text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15 border border-emerald-500/30 bg-emerald-500/10 transition-colors text-start font-semibold shadow-sm"
+                >
+                  <Plus className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span className="truncate">
+                    غير مسجل بالمخزن — اضغط لإضافة <strong>«{value.trim()}»</strong> كمنتج جديد
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSelectFree}
+                  className="w-full flex items-center gap-2 p-2 text-xs rounded-lg text-primary hover:bg-primary/10 border border-primary/20 bg-primary/5 transition-colors text-start font-medium"
+                >
+                  <Plus className="size-3.5 shrink-0" />
+                  <span className="truncate">
+                    استخدام كصنف حر: <strong>«{value}»</strong>
+                  </span>
+                </button>
+              )
             )}
 
             {/* Grouped Catalog items */}
             {groupedCatalog.length === 0 ? (
-              <div className="p-4 text-center text-xs text-muted-foreground">
-                {loading ? "جاري البحث..." : "لا توجد منتجات مطابقة في الكتالوج"}
+              <div className="p-4 text-center space-y-2">
+                <div className="text-xs text-muted-foreground">
+                  {loading ? "جاري البحث..." : "لا توجد منتجات مطابقة في كتالوج المخزن"}
+                </div>
+                {value.trim() && onAddNewProduct && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      onAddNewProduct(value.trim());
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors shadow-sm"
+                  >
+                    <Plus className="size-3.5" />
+                    إضافة «{value.trim()}» كمنتج جديد في المخزن الآن
+                  </button>
+                )}
               </div>
             ) : (
               groupedCatalog.map((group) => (

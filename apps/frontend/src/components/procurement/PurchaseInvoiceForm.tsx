@@ -56,6 +56,7 @@ import {
   ProcurementCatalogItem,
   fetchProcurementCatalog,
 } from "./components";
+import { QuickAddProductModal } from "../../pages/products/components/QuickAddProductModal";
 
 interface Supplier {
   id: string;
@@ -124,6 +125,65 @@ const PurchaseInvoiceForm: React.FC = () => {
   const [customPaidAmount, setCustomPaidAmount] = useState<number>(0);
   const [treasuryAccounts, setTreasuryAccounts] = useState<TreasuryAccount[]>([]);
   const [treasuryAccountId, setTreasuryAccountId] = useState<string>("");
+
+  // Quick Add Product Modal State
+  const [quickProductModalOpen, setQuickProductModalOpen] = useState(false);
+  const [quickProductTargetIndex, setQuickProductTargetIndex] = useState<number>(-1);
+  const [quickProductInitialName, setQuickProductInitialName] = useState("");
+
+  const handleOpenQuickAddProduct = (index: number, initialName: string) => {
+    setQuickProductTargetIndex(index);
+    setQuickProductInitialName(initialName);
+    setQuickProductModalOpen(true);
+  };
+
+  const handleProductCreatedSuccess = async (createdProduct: any) => {
+    try {
+      const freshCatalog = await fetchProcurementCatalog("");
+      setCatalogItems(freshCatalog);
+
+      const displayName = createdProduct?.name || quickProductInitialName || "منتج جديد";
+      const costPrice = Number(createdProduct?.cost || createdProduct?.price || 0);
+
+      if (quickProductTargetIndex >= 0 && quickProductTargetIndex < items.length) {
+        updateItemDetails(quickProductTargetIndex, {
+          productId: createdProduct.id,
+          variantId: null,
+          productName: displayName,
+          unitPrice: costPrice,
+          description: createdProduct.category?.name || (createdProduct.sku ? `SKU: ${createdProduct.sku}` : ""),
+        });
+      } else {
+        setItems((prev) => {
+          const isEmptySingleItem =
+            prev.length === 1 &&
+            !prev[0].productName.trim() &&
+            prev[0].unitPrice === 0;
+
+          const newRow: InvoiceItem = {
+            productId: createdProduct.id,
+            variantId: null,
+            productName: displayName,
+            description: createdProduct.category?.name || (createdProduct.sku ? `SKU: ${createdProduct.sku}` : ""),
+            quantity: 1,
+            unitPrice: costPrice,
+            taxRate: 0,
+            discountRate: 0,
+            totalPrice: costPrice,
+            notes: "",
+          };
+
+          return isEmptySingleItem ? [newRow] : [...prev, newRow];
+        });
+      }
+
+      toast.success(`تم إنشاء المنتج "${displayName}" واختياره في الفاتورة بنجاح`);
+    } catch (err) {
+      console.error("Error refreshing catalog after product creation:", err);
+    } finally {
+      setQuickProductModalOpen(false);
+    }
+  };
 
   // Quick Supplier Modal
   const [isQuickSupplierOpen, setIsQuickSupplierOpen] = useState(false);
@@ -633,6 +693,16 @@ const PurchaseInvoiceForm: React.FC = () => {
       return;
     }
 
+    const unlinkedItems = items.filter((item) => !item.productId);
+    if (unlinkedItems.length > 0) {
+      const firstUnlinked = unlinkedItems[0];
+      toast.error(
+        `الصنف "${firstUnlinked.productName || 'المحدد'}" غير مسجل في قائمة المنتجات بالمخزن. يرجى اختياره من القائمة أو إضافته كمنتج جديد أولاً ليتمكن النظام من تحديث المخزون.`,
+        { duration: 6000 },
+      );
+      return;
+    }
+
     const totals = calculateTotals();
 
     try {
@@ -1082,6 +1152,7 @@ const PurchaseInvoiceForm: React.FC = () => {
                                 "procurement.purchaseInvoiceForm.itemPlaceholder",
                                 "اختر صنفاً أو اكتب اسمه...",
                               )}
+                              onAddNewProduct={(typedName) => handleOpenQuickAddProduct(index, typedName)}
                               onSelect={(selected) => {
                                 updateItemDetails(index, {
                                   productId: selected.productId,
@@ -1095,6 +1166,16 @@ const PurchaseInvoiceForm: React.FC = () => {
                                 });
                               }}
                             />
+                            {!item.productId && item.productName.trim() && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenQuickAddProduct(index, item.productName)}
+                                className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 mt-1 font-medium transition-colors"
+                              >
+                                <AlertCircle className="size-3 shrink-0" />
+                                <span>غير مسجل بالمخزن — اضغط هنا لإضافته كمنتج جديد</span>
+                              </button>
+                            )}
                           </TableCell>
 
                             {/* Quantity */}
@@ -1203,6 +1284,7 @@ const PurchaseInvoiceForm: React.FC = () => {
                           value={item.productName}
                           initialCatalog={catalogItems}
                           placeholder="ابحث أو اكتب اسم الصنف..."
+                          onAddNewProduct={(typedName) => handleOpenQuickAddProduct(index, typedName)}
                           onSelect={(selected) => {
                             updateItemDetails(index, {
                               productId: selected.productId,
@@ -1216,6 +1298,16 @@ const PurchaseInvoiceForm: React.FC = () => {
                             });
                           }}
                         />
+                        {!item.productId && item.productName.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenQuickAddProduct(index, item.productName)}
+                            className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 mt-1 font-medium transition-colors"
+                          >
+                            <AlertCircle className="size-3 shrink-0" />
+                            <span>غير مسجل بالمخزن — اضغط لإضافته كمنتج جديد</span>
+                          </button>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
@@ -1274,6 +1366,16 @@ const PurchaseInvoiceForm: React.FC = () => {
                   >
                     <PackageCheck className="w-4 h-4 text-primary" />
                     استعراض منتجات وخامات المتجر
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleOpenQuickAddProduct(-1, "")}
+                    className="w-full sm:w-auto rounded-xl gap-2 active:scale-[0.98] transition-transform duration-100 text-sm h-10 font-semibold border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                  >
+                    <Plus className="size-4" />
+                    إضافة منتج جديد للمخزن
                   </Button>
                 </div>
               </CardContent>
@@ -1631,6 +1733,17 @@ const PurchaseInvoiceForm: React.FC = () => {
         onSelectItems={handleAddCatalogItems}
         initialItems={catalogItems}
       />
+
+      {/* Quick Add Product Modal */}
+      {quickProductModalOpen && (
+        <QuickAddProductModal
+          open={quickProductModalOpen}
+          initialName={quickProductInitialName}
+          onClose={() => setQuickProductModalOpen(false)}
+          onSuccess={handleProductCreatedSuccess}
+          showWarehouseSelect={true}
+        />
+      )}
     </div>
   );
 };

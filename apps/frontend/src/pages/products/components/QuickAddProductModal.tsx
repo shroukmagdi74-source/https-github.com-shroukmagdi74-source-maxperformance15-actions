@@ -61,6 +61,7 @@ export interface QuickAddProductModalProps {
   warehouses?: WarehouseOption[];
   defaultWarehouseId?: string;
   showWarehouseSelect?: boolean;
+  initialName?: string;
 }
 
 interface AttributeTemplate {
@@ -111,6 +112,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
   warehouses,
   defaultWarehouseId,
   showWarehouseSelect = false,
+  initialName,
 }) => {
   const navigate = useNavigate();
   const { currency } = useCurrency();
@@ -119,7 +121,13 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
   const titleId = useId();
 
   // Basic Form Fields
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialName || "");
+
+  useEffect(() => {
+    if (open && initialName) {
+      setName(initialName);
+    }
+  }, [open, initialName]);
   const [price, setPrice] = useState("");
   const [comparePrice, setComparePrice] = useState("");
   const [categoryId, setCategoryId] = useState("");

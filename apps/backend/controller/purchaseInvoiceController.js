@@ -5,6 +5,99 @@ const {
 const { recordSupplierPayment } = require("../services/supplierPaymentService");
 const { logProcurementActivity } = require("../services/procurementAuditService");
 
+const syncInvoiceItemsStock = async ({ companyId, items, direction = 1 }) => {
+  if (!Array.isArray(items) || items.length === 0) return;
+  const prisma = getSharedPrismaClient();
+
+  const defaultWarehouse = await safeQuery(() =>
+    prisma.warehouse.findFirst({
+      where: { companyId, isActive: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  );
+
+  for (const item of items) {
+    const rawQty = parseFloat(item.quantity || 0);
+    const unitPrice = parseFloat(item.unitPrice || 0);
+    const productId = item.productId;
+    if (!productId || isNaN(rawQty) || rawQty <= 0) continue;
+
+    // Model Product.stock, ProductVariant.stock, and Inventory.quantity are Int fields
+    const intChangeQty = Math.round(rawQty) * direction;
+    if (intChangeQty === 0) continue;
+
+    try {
+      // 1. Update product stock and cost
+      await safeQuery(() =>
+        prisma.product.update({
+          where: { id: productId },
+          data: {
+            stock: { increment: intChangeQty },
+            ...(direction > 0 && unitPrice > 0 ? { cost: unitPrice } : {}),
+          },
+        }),
+      );
+
+      // 2. If variant exists, update variant stock & cost
+      const variantId =
+        item.variantId ||
+        (item.notes || "").match(/\[variantId:([^\]]+)\]/)?.[1] ||
+        null;
+
+      if (variantId) {
+        await safeQuery(() =>
+          prisma.productVariant.update({
+            where: { id: variantId },
+            data: {
+              stock: { increment: intChangeQty },
+              ...(direction > 0 && unitPrice > 0 ? { cost: unitPrice } : {}),
+            },
+          }),
+        );
+      }
+
+      // 3. Update warehouse inventory record if warehouse exists
+      if (defaultWarehouse) {
+        const existingInv = await safeQuery(() =>
+          prisma.inventory.findFirst({
+            where: {
+              productId,
+              warehouseId: defaultWarehouse.id,
+            },
+          }),
+        );
+
+        if (existingInv) {
+          await safeQuery(() =>
+            prisma.inventory.update({
+              where: { id: existingInv.id },
+              data: {
+                quantity: { increment: intChangeQty },
+                available: { increment: intChangeQty },
+                ...(direction > 0 && unitPrice > 0 ? { cost: unitPrice } : {}),
+              },
+            }),
+          );
+        } else if (direction > 0) {
+          await safeQuery(() =>
+            prisma.inventory.create({
+              data: {
+                productId,
+                warehouseId: defaultWarehouse.id,
+                quantity: Math.max(0, intChangeQty),
+                available: Math.max(0, intChangeQty),
+                cost: unitPrice > 0 ? unitPrice : 0,
+              },
+            }),
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(`[Procurement Stock Sync] Error adjusting stock for product ${productId}:`, err.message);
+    }
+  }
+};
+
 const normalizePurchaseInvoice = (invoice) => {
   if (!invoice) return invoice;
 
@@ -238,6 +331,13 @@ exports.createPurchaseInvoice = async (req, res) => {
           },
         }),
       );
+    }
+
+    // Synchronize inventory stock for invoice items
+    try {
+      await syncInvoiceItemsStock({ companyId, items: invoiceItems, direction: 1 });
+    } catch (syncErr) {
+      console.warn("[Procurement Stock Sync] Create invoice sync error:", syncErr.message);
     }
 
     // Accounting Auto-Posting Hook (Non-blocking & Zero Blast-Radius)
@@ -636,6 +736,16 @@ exports.updatePurchaseInvoice = async (req, res) => {
       }),
     );
 
+    // Synchronize inventory stock changes if items were updated
+    if (newItemsToCreate) {
+      try {
+        await syncInvoiceItemsStock({ companyId, items: existingInvoice.purchaseInvoiceItems, direction: -1 });
+        await syncInvoiceItemsStock({ companyId, items: newItemsToCreate, direction: 1 });
+      } catch (syncErr) {
+        console.warn("[Procurement Stock Sync] Update invoice sync error:", syncErr.message);
+      }
+    }
+
     // Audit Log Activity
     await logProcurementActivity({
       companyId,
@@ -767,6 +877,13 @@ exports.deletePurchaseInvoice = async (req, res) => {
         }
       }),
     );
+
+    // Revert inventory stock that was added by this invoice
+    try {
+      await syncInvoiceItemsStock({ companyId, items: invoice.purchaseInvoiceItems, direction: -1 });
+    } catch (syncErr) {
+      console.warn("[Procurement Stock Sync] Delete invoice sync error:", syncErr.message);
+    }
 
     // Audit logging
     await logProcurementActivity({
