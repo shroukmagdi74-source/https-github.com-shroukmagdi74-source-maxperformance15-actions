@@ -2,6 +2,7 @@ import React from 'react';
 import { useStorefrontTheme } from '../../engine/ThemeProvider';
 import {
   buildElementTypographyStyle,
+  useElementTypographyRef,
   type ElementTypographySettings,
 } from './elementTypography';
 
@@ -25,7 +26,7 @@ export interface TextElementProps {
 
 const TextElement: React.FC<TextElementProps> = ({ section, settings: directSettings }) => {
   const mergedSettings = { ...section?.settings, ...directSettings };
-  const content = mergedSettings?.content ?? '';
+  const content = mergedSettings?.content ?? mergedSettings?.text ?? '';
   const rawAlign = String(mergedSettings?.align || 'start').trim().toLowerCase();
   const rawSize = String(mergedSettings?.size || 'md').trim().toLowerCase();
   const color = mergedSettings?.color?.trim();
@@ -56,6 +57,7 @@ const TextElement: React.FC<TextElementProps> = ({ section, settings: directSett
   }
 
   const typoStyle = buildElementTypographyStyle(mergedSettings, content);
+  const elementRef = useElementTypographyRef(typoStyle.letterSpacing);
 
   const customStyle: React.CSSProperties = {
     fontFamily: themeContext?.pageStyleVars?.['--store-font-family'] || 'var(--store-font-family, inherit)',
@@ -64,13 +66,14 @@ const TextElement: React.FC<TextElementProps> = ({ section, settings: directSett
     fontWeight: themeContext?.pageStyleVars?.['--store-body-weight']
       ? Number(themeContext.pageStyleVars['--store-body-weight'])
       : ('var(--store-body-weight, 400)' as any),
-    letterSpacing: themeContext?.pageStyleVars?.['--store-letter-spacing'] ?? '0',
+
     ...(color ? { color: color === 'accent' ? 'var(--store-accent, #2563eb)' : color } : {}),
     ...typoStyle,
   };
 
   return (
     <div
+      ref={elementRef as any}
       data-storefront-element="text"
       data-element="text"
       data-text-size={rawSize}

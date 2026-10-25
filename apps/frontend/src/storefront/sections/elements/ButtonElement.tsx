@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   buildElementTypographyStyle,
+  useElementTypographyRef,
   type ElementTypographySettings,
 } from './elementTypography';
 
@@ -74,6 +75,7 @@ const ButtonElement: React.FC<ButtonElementProps> = ({ section, settings: direct
   }
 
   const typoStyle = buildElementTypographyStyle(mergedSettings, label);
+  const elementRef = useElementTypographyRef(typoStyle.letterSpacing);
   const finalButtonStyle: React.CSSProperties = {
     ...buttonStyle,
     ...typoStyle,
@@ -92,6 +94,7 @@ const ButtonElement: React.FC<ButtonElementProps> = ({ section, settings: direct
       className={`storefront-button-wrapper flex w-full ${alignClass}`}
     >
       <a
+        ref={elementRef as any}
         href={href}
         className={baseButtonClasses}
         style={finalButtonStyle}

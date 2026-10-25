@@ -100,14 +100,15 @@ export function buildElementTypographyStyle(
 
   // Determine text content for Arabic check
   const textContent =
-    textOverride ??
-    (typeof settings?.text === 'string'
-      ? settings.text
-      : typeof settings?.content === 'string'
-      ? settings.content
-      : typeof settings?.label === 'string'
-      ? settings.label
-      : '');
+    (typeof textOverride === 'string' && textOverride.trim() !== ''
+      ? textOverride
+      : (typeof settings?.text === 'string' && settings.text.trim() !== ''
+        ? settings.text
+        : (typeof settings?.content === 'string' && settings.content.trim() !== ''
+          ? settings.content
+          : (typeof settings?.label === 'string' && settings.label.trim() !== ''
+            ? settings.label
+            : ''))));
 
   const isArabicText = ARABIC_CHAR_REGEX.test(textContent);
 
@@ -175,4 +176,47 @@ export function buildElementTypographyStyle(
   }
 
   return style;
+}
+
+/**
+ * Applies letter-spacing with 'important' priority to a DOM element,
+ * protecting against global CSS resets such as `[dir="rtl"] * { letter-spacing: normal !important; }`.
+ */
+export function applyElementLetterSpacing(
+  node: HTMLElement | null,
+  letterSpacing?: string | number,
+): void {
+  if (!node) return;
+  if (letterSpacing !== undefined && letterSpacing !== null && letterSpacing !== '') {
+    const val = typeof letterSpacing === 'number' ? `${letterSpacing}px` : String(letterSpacing);
+    node.style.setProperty('letter-spacing', val, 'important');
+  } else {
+    node.style.removeProperty('letter-spacing');
+  }
+}
+
+/**
+ * React hook that returns a ref callback to synchronize letter-spacing with !important priority
+ * on the DOM element, ensuring compatibility with RTL global stylesheets and computed style inspections.
+ */
+export function useElementTypographyRef(letterSpacing?: string | number) {
+  const nodeRef = React.useRef<HTMLElement | null>(null);
+
+  const refCallback = React.useCallback(
+    (node: HTMLElement | null) => {
+      nodeRef.current = node;
+      if (node) {
+        applyElementLetterSpacing(node, letterSpacing);
+      }
+    },
+    [letterSpacing],
+  );
+
+  React.useEffect(() => {
+    if (nodeRef.current) {
+      applyElementLetterSpacing(nodeRef.current, letterSpacing);
+    }
+  }, [letterSpacing]);
+
+  return refCallback;
 }

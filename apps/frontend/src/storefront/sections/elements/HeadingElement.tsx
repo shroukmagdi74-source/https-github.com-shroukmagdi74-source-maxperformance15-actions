@@ -2,6 +2,7 @@ import React from 'react';
 import { useStorefrontTheme } from '../../engine/ThemeProvider';
 import {
   buildElementTypographyStyle,
+  useElementTypographyRef,
   type ElementTypographySettings,
 } from './elementTypography';
 
@@ -33,7 +34,7 @@ const HeadingElement: React.FC<HeadingElementProps> = ({ section, settings: dire
 
   // Safe HTML heading tag
   const validLevels = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
-  const Tag = (validLevels.has(rawLevel) ? rawLevel : 'h2') as keyof JSX.IntrinsicElements;
+  const Tag = (validLevels.has(rawLevel) ? rawLevel : 'h2') as any;
 
   // Responsive font size & weights based on level
   let sizeClasses = 'text-2xl sm:text-3xl font-bold tracking-tight';
@@ -71,19 +72,21 @@ const HeadingElement: React.FC<HeadingElementProps> = ({ section, settings: dire
   }
 
   const typoStyle = buildElementTypographyStyle(mergedSettings, text);
+  const elementRef = useElementTypographyRef(typoStyle.letterSpacing);
 
   const customStyle: React.CSSProperties = {
     fontFamily: themeContext?.pageStyleVars?.['--store-font-family'] || 'var(--store-font-family, inherit)',
     fontWeight: themeContext?.pageStyleVars?.['--store-heading-weight']
       ? Number(themeContext.pageStyleVars['--store-heading-weight'])
       : ('var(--store-heading-weight, 700)' as any),
-    letterSpacing: themeContext?.pageStyleVars?.['--store-letter-spacing'] ?? '0',
+
     ...(color ? { color: color === 'accent' ? 'var(--store-accent, #2563eb)' : color } : {}),
     ...typoStyle,
   };
 
   return (
     <Tag
+      ref={elementRef as any}
       data-storefront-element="heading"
       data-element="heading"
       data-heading-level={Tag}
