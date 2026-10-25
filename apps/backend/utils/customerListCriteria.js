@@ -8,6 +8,7 @@
  * Supported criteria types:
  *   all, active (hours), inactive (days), tag,
  *   orderStatus (status + days), returnRequest (status + days),
+ *   product (productId + orderStatus),
  *   latest (limit), oldest (limit), minTotalSpent (amount),
  *   minOrdersCount (count), paymentStatus (status + days),
  *   city, customerRating, combo (AND of conditions),
@@ -222,6 +223,24 @@ function buildCustomerListWhere(companyId, rawCriteria) {
         where: {
           ...base,
           orders: { some: { city } },
+        },
+      };
+    }
+
+    case 'product': {
+      const productId = criteria.productId;
+      if (!productId) return { where: { ...base, status: 'ACTIVE' } };
+      const orderFilter = {
+        orderItems: { some: { productId } },
+      };
+      const orderStatus = criteria.orderStatus || criteria.status;
+      if (orderStatus) {
+        orderFilter.status = orderStatus;
+      }
+      return {
+        where: {
+          ...base,
+          orders: { some: orderFilter },
         },
       };
     }
@@ -460,6 +479,13 @@ function criteriaToSummary(criteria) {
     case 'city':
       summary = `من مدينة: ${c.city || ''}`;
       break;
+    case 'product': {
+      const statusLabel = c.orderStatus || c.status;
+      summary = statusLabel
+        ? `طلب منتج (${c.productId}) بحالة ${statusLabel}`
+        : `طلب منتج (${c.productId})`;
+      break;
+    }
     case 'customerRating':
       summary = `التقييم: ${c.rating || ''}`;
       break;

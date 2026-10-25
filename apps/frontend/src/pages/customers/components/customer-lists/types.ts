@@ -99,6 +99,7 @@ export const CRITERIA_TYPES = [
   { value: "returnRequest", label: "طلبات مرتجع", icon: FileText, hint: "عملاء قاموا بطلب مرتجع" },
   { value: "paymentStatus", label: "حالة الدفع", icon: Wallet, hint: "عملاء بحالة دفع لطلباتهم" },
   { value: "city", label: "المدينة", icon: Landmark, hint: "عملاء من مدينة معينة" },
+  { value: "product", label: "طلب منتج محدد", icon: ShoppingBag, hint: "عملاء اشتروا منتجاً معيناً بحالة طلب محددة" },
   { value: "customerRating", label: "التقييم", icon: Star, hint: "عملاء بتقييم محدد" },
   { value: "latest", label: "الأحدث", icon: ArrowDownUp, hint: "أحدث N عملاء" },
   { value: "oldest", label: "الأقدم", icon: ArrowDownUp, hint: "أقدم N عملاء" },
@@ -143,3 +144,69 @@ export interface CustomerListsStats {
   active24h: number;
   newThisMonth: number;
 }
+
+export type RuleFieldV2 =
+  | "receivedProduct"
+  | "orderedInPeriod"
+  | "ordersCount"
+  | "totalSpent"
+  | "lastOrderBefore"
+  | "lastOrderAfter"
+  | "tags"
+  | "customerStatus"
+  | "city"
+  | "governorate"
+  | "deliveryRate"
+  | "customerRating";
+
+export type RuleOpV2 =
+  | "eq"
+  | "neq"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "between"
+  | "in"
+  | "notIn"
+  | "contains"
+  | "notContains";
+
+export interface RuleV2 {
+  id?: string;
+  field: RuleFieldV2;
+  op?: RuleOpV2;
+  value?: any;
+  value2?: any;
+  sku?: string;
+  statuses?: string[];
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface GroupV2 {
+  id?: string;
+  operator: "AND" | "OR";
+  rules: RuleV2[];
+}
+
+export interface CriteriaContainerV2 {
+  operator: "AND" | "OR";
+  groups: GroupV2[];
+}
+
+export interface CriteriaV2 {
+  version: 2;
+  include: CriteriaContainerV2;
+  exclude?: CriteriaContainerV2;
+  excludeListIds?: string[];
+  excludeContactedInDays?: number;
+}
+
+export interface PreviewCountData {
+  before: number;
+  after: number;
+  excluded: number;
+  count: number;
+}
+

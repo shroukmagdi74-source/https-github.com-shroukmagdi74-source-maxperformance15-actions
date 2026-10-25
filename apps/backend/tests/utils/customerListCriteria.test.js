@@ -310,4 +310,15 @@ describe('applyContactExclusion — استثناء المراسَلين', () => 
     expect(criteriaToSummary({ type: 'all', excludeContactedInDays: 14 }))
       .toContain('بدون مراسلة خلال آخر 14 يوم');
   });
+
+  test('product criteria → orders.some.orderItems.some.productId مع حالة الطلب', () => {
+    const { where } = buildCustomerListWhere('c1', {
+      type: 'product',
+      productId: 'prod_sw84',
+      orderStatus: 'DELIVERED',
+    });
+    expect(where.companyId).toBe('c1');
+    expect(where.orders.some.orderItems.some.productId).toBe('prod_sw84');
+    expect(where.orders.some.status).toBe('DELIVERED');
+  });
 });

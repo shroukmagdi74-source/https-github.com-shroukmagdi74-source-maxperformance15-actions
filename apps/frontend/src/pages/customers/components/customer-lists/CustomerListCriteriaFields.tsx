@@ -139,6 +139,39 @@ export const CustomerListCriteriaFields: React.FC<CustomerListCriteriaFieldsProp
               />
             </div>
           )}
+          {formCriteriaType === "product" && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>معرّف المنتج (Product ID)</Label>
+                <Input
+                  value={formCriteria.productId || ""}
+                  onChange={(e) => onCriteriaFieldChange("productId", e.target.value)}
+                  placeholder="معرّف المنتج"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>حالة الطلب</Label>
+                <Select
+                  value={formCriteria.orderStatus || formCriteria.status || "DELIVERED"}
+                  onValueChange={(v) => {
+                    onCriteriaFieldChange("orderStatus", v);
+                    onCriteriaFieldChange("status", v);
+                  }}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORDER_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {STATUS_LABELS[s] || s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {formCriteriaType === "customerRating" && (
             <div className="space-y-1.5">
               <Label>التقييم</Label>
