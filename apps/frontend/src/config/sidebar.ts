@@ -1,8 +1,9 @@
 import { WhatsAppIcon, TelegramIcon, FacebookIcon, InstagramIcon } from '../components/icons/brands';
-import { AlertTriangle, Archive, ArrowLeftRight, Award, BadgePercent, Ban, Banknote, BarChart3, Bell, BellPlus, BellRing, BookOpen, Bot, Box, Briefcase, Building, Building2, Calculator, Calendar, CalendarDays, CheckCircle2, HelpCircle, CircleUser, ClipboardCheck, ClipboardList, Clock, Cog, CreditCard, DollarSign, DoorOpen, Download, Eye, FileBarChart, FileText, Filter, FlaskConical, FolderOpen, FolderTree, Gift, GitBranch, Globe, GraduationCap, Grid3x3, HardDrive, Heart, Home, Dna, Image, Inbox, Key, LayoutDashboard, Lightbulb, LineChart, Link, ListChecks, ListOrdered, ListTree, MapPin, Megaphone, MessageSquare, Monitor, Network, Paintbrush, Palette, Package, PackageCheck, Percent, Plus, PlugZap, Printer, Radio, Receipt, RefreshCcw, Rocket, Ruler, ScanLine, Search, Send, Settings, Settings2, ShieldAlert, ShieldCheck, ShoppingBag, ShoppingCart, Sparkles, Volume2, SquarePen, Star, Store, Table2, Tag, Target, Terminal, Ticket, TrendingUp, Trophy, Truck, Undo2, UserPlus, Users, Wallet, Wrench, XCircle, Zap, Radiation, Landmark, Stethoscope, Coffee, Sliders, Trash2, History, Factory, Layers } from 'lucide-react'
+import { AlertTriangle, Archive, ArrowLeftRight, Award, BadgePercent, Ban, Banknote, BarChart3, Bell, BellPlus, BellRing, BookOpen, Bot, Box, Briefcase, Building, Building2, Calculator, Calendar, CalendarDays, CheckCircle2, HelpCircle, CircleUser, ClipboardCheck, ClipboardList, Clock, Cog, CreditCard, DollarSign, DoorOpen, Download, Eye, FileBarChart, FileText, Filter, FlaskConical, FolderOpen, FolderTree, Gift, GitBranch, Globe, GraduationCap, Grid3x3, Heart, Home, Dna, Image, Inbox, Key, LayoutDashboard, Lightbulb, LineChart, Link, ListChecks, ListOrdered, ListTree, MapPin, Megaphone, MessageSquare, Monitor, Network, Paintbrush, Palette, Package, PackageCheck, Percent, Plus, PlugZap, Printer, Radio, Receipt, RefreshCcw, Rocket, Ruler, ScanLine, Search, Send, Settings, Settings2, ShieldAlert, ShieldCheck, ShoppingBag, ShoppingCart, Sparkles, Volume2, SquarePen, Star, Store, Table2, Tag, Target, Terminal, Ticket, TrendingUp, Trophy, Truck, Undo2, UserPlus, Users, Wallet, Wrench, XCircle, Zap, Radiation, Landmark, Stethoscope, Coffee, Sliders, Trash2, History, Factory, Layers } from 'lucide-react'
 import { SidebarManagementData, SidebarSection, SidebarSectionSettings } from '../types/layout';
 import { APP_REGISTRY } from './appRegistry';
 import { STORE_APP_SLUGS } from '../utils/storeShortcut';
+import { getSuperAdminMenuGroups, type SuperAdminMenuGroup } from './superAdminMenuConfig';
 
 type SidebarCompany = {
     activeApps?: unknown[];
@@ -199,6 +200,27 @@ const applySidebarOverrides = (
             return aOrder - bOrder;
         });
 };
+
+/**
+ * Adapter: maps Super Admin menu groups into SidebarSections.
+ * Used for the unified shell platform navigation (ARCH-1B).
+ */
+export function mapSuperAdminGroupsToSidebarSections(
+    groups: SuperAdminMenuGroup[]
+): SidebarSection[] {
+    return groups.map((group) => ({
+        id: `platform-${group.id}`,
+        title: group.title,
+        icon: group.icon,
+        requiredRoles: ['SUPER_ADMIN'],
+        items: group.items.map((i) => ({
+            to: i.path,
+            icon: i.icon,
+            label: i.text,
+            requiredRoles: ['SUPER_ADMIN'],
+        })),
+    }));
+}
 
 export const getSidebarConfig = (
     t: (key: string) => string,
@@ -1722,17 +1744,10 @@ export const getSidebarConfig = (
             ]
         },
 
-        // 1️⃣5️⃣ إدارة النظام (للسوبر أدمن)
-        ...(user?.role === 'SUPER_ADMIN' ? [{
-            id: 'system',
-            title: isEn ? 'System Management' : (t('sidebar.systemManagementSection') || 'إدارة النظام'),
-            icon: Building,
-            items: [
-                { to: '/super-admin/dashboard', icon: LayoutDashboard, label: isEn ? 'Super Admin Dashboard' : 'لوحة تحكم السوبر أدمن' },
-                { to: '/super-admin/companies-v2', icon: Building, label: isEn ? 'Companies Management' : (t('sidebar.companiesManagement') || 'إدارة الشركات') },
-                { to: '/super-admin/server-usage', icon: HardDrive, label: isEn ? 'Server Usage & Monitoring' : 'استهلاك الخوادم والمراقبة' },
-            ]
-        }] : []),
+        // 1️⃣5️⃣ أقسام إدارة المنصة (للسوبر أدمن - الشل الموحد ARCH-1B)
+        ...(user?.role === 'SUPER_ADMIN'
+            ? mapSuperAdminGroupsToSidebarSections(getSuperAdminMenuGroups(t))
+            : []),
 
     ];
 
@@ -1747,6 +1762,9 @@ export const getSidebarConfig = (
         const normalizedAssigned = assignedApps.map((a) => a.trim().toLowerCase()).filter(Boolean);
         const isAssigned = (section: SidebarSection): boolean => {
             if (['OWNER', 'SUPER_ADMIN'].includes(user?.role || '') && ['company', 'settings', 'my-account', 'marketplace'].includes(section.id)) {
+                return true;
+            }
+            if (user?.role === 'SUPER_ADMIN' && section.id.startsWith('platform-') && section.requiredRoles?.includes('SUPER_ADMIN')) {
                 return true;
             }
             const slugs = resolveSectionAppSlugs(section.id);

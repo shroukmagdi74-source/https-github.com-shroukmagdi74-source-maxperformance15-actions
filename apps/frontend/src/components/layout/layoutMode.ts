@@ -1,7 +1,14 @@
+export const FEATURE_UNIFIED_SUPERADMIN_SHELL =
+  import.meta.env['VITE_LEGACY_SUPERADMIN_SHELL'] !== 'true';
+
 export const shouldUseSuperAdminShell = (
   role?: string | null,
   pathname?: string | null,
 ): boolean => {
+  if (FEATURE_UNIFIED_SUPERADMIN_SHELL) {
+    return false;
+  }
+
   if (role !== "SUPER_ADMIN" || !pathname) {
     return false;
   }
