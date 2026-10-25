@@ -1,5 +1,5 @@
 import React, { Suspense, useState, useEffect } from "react";
-import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "./hooks/useAuthSimple";
 import tokenManager from "./utils/tokenManager";
 import { shouldBootstrapStorefront } from "./bootstrap/requestTarget";
@@ -2490,6 +2490,15 @@ const AppContent = () => {
             {isAuthenticated && (
               <>
             <Route
+              path="/demo/theme-engine"
+              element={<Navigate to="/settings/store" replace />}
+            />
+            <Route
+              path="/preview/theme/:id"
+              element={<Navigate to="/settings/store" replace />}
+            />
+            <Route element={<RoleProtectedRoute allowedRoles={['SUPER_ADMIN']}><Outlet /></RoleProtectedRoute>}>
+            <Route
               path="/super-admin"
               element={<Navigate to="/super-admin/dashboard" replace />}
             />
@@ -2672,14 +2681,6 @@ const AppContent = () => {
             <Route
               path="/super-admin/theme-factory"
               element={<Navigate to="/super-admin/dashboard" replace />}
-            />
-            <Route
-              path="/demo/theme-engine"
-              element={<Navigate to="/settings/store" replace />}
-            />
-            <Route
-              path="/preview/theme/:id"
-              element={<Navigate to="/settings/store" replace />}
             />
             <Route
               path="/super-admin/product-embeddings"
@@ -3172,6 +3173,7 @@ const AppContent = () => {
               path="/super-admin/storefront/structure-manager"
               element={<Navigate to="/super-admin/dashboard" replace />}
             />
+            </Route>
               </>
             )}
             {/* Public Payment Routes */}
@@ -8422,7 +8424,9 @@ const AppContent = () => {
                   path="/super-admin/dev-leaderboard"
                   element={
                     <Layout>
-                      <DevLeaderboard />
+                      <RoleProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                        <DevLeaderboard />
+                      </RoleProtectedRoute>
                     </Layout>
                   }
                 />
@@ -8430,7 +8434,9 @@ const AppContent = () => {
                   path="/super-admin/dev-evaluations"
                   element={
                     <Layout>
-                      <DevEvaluation />
+                      <RoleProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                        <DevEvaluation />
+                      </RoleProtectedRoute>
                     </Layout>
                   }
                 />
@@ -8438,7 +8444,9 @@ const AppContent = () => {
                   path="/super-admin/dev-evaluations/member/:memberId"
                   element={
                     <Layout>
-                      <DevEvaluationMember />
+                      <RoleProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                        <DevEvaluationMember />
+                      </RoleProtectedRoute>
                     </Layout>
                   }
                 />
