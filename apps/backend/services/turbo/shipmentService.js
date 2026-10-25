@@ -321,8 +321,11 @@ class ShipmentService {
 
       const methodStr = String(orderData.paymentMethod || paymentMethod || '').trim().toUpperCase();
       const paymentStatusStr = String(orderData.paymentStatus || '').trim().toUpperCase();
-      const isPrepaid = ['PAID', 'ONLINE', 'CARD', 'PAYMOB', 'FAWRY', 'CREDIT_CARD', 'VISA', 'WALLET', 'INSTAPAY', 'PREPAID'].includes(methodStr) ||
-        ['PAID', 'COMPLETED'].includes(paymentStatusStr);
+      const isPaidStatus = ['PAID', 'COMPLETED'].includes(paymentStatusStr);
+      const isUnpaidStatus = ['PENDING', 'UNPAID', 'FAILED', 'REFUNDED', 'CANCELLED'].includes(paymentStatusStr);
+      const isExplicitPrepaid = ['PAID', 'PREPAID'].includes(methodStr) && !isUnpaidStatus;
+      const isLegacyImplicitPrepaid = !paymentStatusStr && ['PAID', 'PREPAID', 'PAYMOB', 'FAWRY', 'ONLINE', 'CARD', 'CREDIT_CARD', 'VISA'].includes(methodStr);
+      const isPrepaid = isPaidStatus || isExplicitPrepaid || isLegacyImplicitPrepaid;
       let codAmount = (isOrderVal === 2 || isPrepaid) ? 0 : parseFloat(totalValue || orderData.total || 0);
       if (codAmount > 0 && orderData.codDepositPaid && Number(orderData.codDepositAmount) > 0) {
         codAmount = Math.max(0, codAmount - Number(orderData.codDepositAmount));
@@ -520,8 +523,11 @@ class ShipmentService {
 
       const methodStr = String(formattedData.paymentMethod || '').trim().toUpperCase();
       const paymentStatusStr = String(formattedData.paymentStatus || '').trim().toUpperCase();
-      const isPrepaid = ['PAID', 'ONLINE', 'CARD', 'PAYMOB', 'FAWRY', 'CREDIT_CARD', 'VISA', 'WALLET', 'INSTAPAY', 'PREPAID'].includes(methodStr) ||
-        ['PAID', 'COMPLETED'].includes(paymentStatusStr);
+      const isPaidStatus = ['PAID', 'COMPLETED'].includes(paymentStatusStr);
+      const isUnpaidStatus = ['PENDING', 'UNPAID', 'FAILED', 'REFUNDED', 'CANCELLED'].includes(paymentStatusStr);
+      const isExplicitPrepaid = ['PAID', 'PREPAID'].includes(methodStr) && !isUnpaidStatus;
+      const isLegacyImplicitPrepaid = !paymentStatusStr && ['PAID', 'PREPAID', 'PAYMOB', 'FAWRY', 'ONLINE', 'CARD', 'CREDIT_CARD', 'VISA'].includes(methodStr);
+      const isPrepaid = isPaidStatus || isExplicitPrepaid || isLegacyImplicitPrepaid;
       const codAmount = (isOrderVal === 2 || isPrepaid) ? 0 : totalValue;
       let rawPhoneDigits = String(formattedData.customerPhone || '').replace(/\D/g, '');
       let validPhone = rawPhoneDigits;

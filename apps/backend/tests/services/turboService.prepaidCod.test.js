@@ -110,4 +110,36 @@ describe('Turbo ShipmentService - Prepaid COD amount', () => {
     );
     axios.post.mockRestore();
   });
+  test('sets amount_to_be_collected to totalValue when paymentMethod is CARD, INSTAPAY, or WALLET but paymentStatus is PENDING (unpaid online order)', async () => {
+    const axios = require('axios');
+    jest.spyOn(axios, 'post').mockResolvedValueOnce({
+      data: {
+        success: 1,
+        result: { code: 'TB-104', bar_code: '38129996' },
+      },
+    });
+
+    const service = new ShipmentService(dummyApiClient);
+    const result = await service.createShipment({
+      orderId: 'ord-unpaid-online-1',
+      orderNumber: 'ORD-022739-825',
+      customerName: 'Customer Unpaid Online',
+      customerPhone: '01012345678',
+      shippingAddress: 'شارع التحرير الدقي',
+      governorate: 'الجيزة',
+      totalValue: 650,
+      paymentMethod: 'CREDIT_CARD',
+      paymentStatus: 'PENDING',
+    });
+
+    expect(result.success).toBe(true);
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/add-order'),
+      expect.objectContaining({
+        amount_to_be_collected: 650,
+      }),
+      expect.any(Object)
+    );
+    axios.post.mockRestore();
+  });
 });

@@ -22,22 +22,20 @@ function calculateCollectableCodAmount(order) {
   const status = String(order.paymentStatus || '').trim().toUpperCase();
 
   // 1. فحص هل الأوردر مسدد إلكترونياً أو تم دفعه بالكامل
-  const isPrepaid =
-    ['PAID', 'COMPLETED'].includes(status) ||
-    [
-      'CREDIT_CARD',
-      'CARD',
-      'ONLINE',
-      'WALLET',
-      'FAWRY',
-      'INSTAPAY',
-      'PREPAID',
-      'KASHIER',
-      'VODAFONE_CASH',
-      'ORANGE_CASH',
-      'ETISALAT_CASH',
-      'WE_PAY',
-    ].includes(method);
+  // وسيلة الدفع الإلكترونية (فيزا / محفظة / إنستاباي) لا تُعتبر مدفوعة مسبقاً إلا إذا كانت حالة الدفع COMPLETED أو PAID فعلياً
+  const isPaidStatus = ['PAID', 'COMPLETED'].includes(status);
+  const isUnpaidStatus = ['PENDING', 'UNPAID', 'FAILED', 'REFUNDED', 'CANCELLED'].includes(status);
+  const isExplicitPrepaid = ['PAID', 'PREPAID'].includes(method) && !isUnpaidStatus;
+  const isLegacyImplicitPrepaid = !status && [
+    'CREDIT_CARD',
+    'CARD',
+    'ONLINE',
+    'FAWRY',
+    'PAYMOB',
+    'PREPAID',
+    'KASHIER',
+  ].includes(method);
+  const isPrepaid = isPaidStatus || isExplicitPrepaid || isLegacyImplicitPrepaid;
 
   if (isPrepaid) {
     return 0;

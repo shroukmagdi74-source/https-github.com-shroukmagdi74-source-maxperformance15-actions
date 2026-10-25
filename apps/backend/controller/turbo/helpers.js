@@ -70,6 +70,7 @@ async function findOrderByNumber(orderNumber, companyId) {
     company,
     companyId,
     status: 'CONFIRMED',
+    paymentStatus: guestOrder.paymentStatus || 'PENDING',
     paymentMethod: guestOrder.paymentMethod || 'CASH',
     notes: guestOrder.notes || '',
     turboShipmentId: guestOrder.turboShipmentId || null,
