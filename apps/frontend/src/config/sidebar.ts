@@ -852,9 +852,10 @@ export const getSidebarConfig = (
             icon: Users,
             items: [
                 { to: '/customers', icon: Users, label: t('sidebar.customers') },
+                { to: '/customers/lists', icon: Layers, label: isEn ? 'Customer Lists' : (t('sidebar.customerLists') || 'قوائم العملاء') },
+                { to: '/customers/segments', icon: Filter, label: isEn ? 'Customer Segments' : (t('sidebar.customerSegments') || 'شرائح وتصنيف العملاء') },
                 { to: '/whatsapp/customer-journey', icon: RefreshCcw, label: isEn ? 'Customer Journeys & Re-order' : (t('sidebar.whatsappCustomerJourney') || 'رحلات زيادة الطلب والتكرار') },
                 { to: '/customers/points-center', icon: Trophy, label: isEn ? 'Loyalty Members & Points' : (t('sidebar.customerPointsCenter') || 'أعضاء ونقاط الولاء') },
-                { to: '/customers/segments', icon: Filter, label: isEn ? 'Segments & Customer Lists' : (t('sidebar.customerSegments') || 'الشرائح وقوائم العملاء') },
                 { to: '/customers/customer-notifications', icon: Bell, label: isEn ? 'Customer Notifications & Campaigns' : (t('sidebar.customerNotifications') || 'إشعارات وحملات العملاء') },
                 { to: '/customers/settings', icon: Settings2, label: isEn ? 'Loyalty & Discount Settings' : (t('sidebar.customerLoyaltySettings') || 'إعدادات الولاء والخصم') },
                 ...(user?.role === 'CUSTOMER' ? [{ to: '/wallet', icon: Wallet, label: t('sidebar.wallet') }] : []),
