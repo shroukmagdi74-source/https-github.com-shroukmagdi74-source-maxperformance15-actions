@@ -67,6 +67,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ invoice, onClose }) => {
           @media print {
             html, body { margin: 0 !important; padding: 0 !important; background: #fff; }
             body * { visibility: hidden; }
+            *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             .print\\:max-w-none, .print\\:max-w-none * { visibility: visible; }
             .print\\:max-w-none { position: absolute; left: 0; top: 0; width: 100%; }
             @page { margin: 0; size: A5; }

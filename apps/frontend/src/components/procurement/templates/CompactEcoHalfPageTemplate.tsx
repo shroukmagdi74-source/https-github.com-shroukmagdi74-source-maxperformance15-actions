@@ -27,7 +27,7 @@ export const CompactEcoHalfPageTemplate: React.FC<ProcurementTemplateProps> = ({
       <div className="flex items-center justify-between pb-2 mb-2 border-b-2 border-slate-800">
         {/* Company & Document Title */}
         <div className="flex items-center gap-2">
-          <div className="bg-emerald-600 text-white font-black px-2 py-0.5 rounded text-[10px] tracking-wide flex items-center gap-1 print:bg-slate-100 print:text-slate-900 print:border print:border-slate-800">
+          <div className="bg-emerald-600 text-white font-black px-2 py-0.5 rounded text-[10px] tracking-wide flex items-center gap-1">
             <Leaf className="size-3" />
             <span>{docTitle}</span>
           </div>
@@ -85,7 +85,7 @@ export const CompactEcoHalfPageTemplate: React.FC<ProcurementTemplateProps> = ({
       <div className="border border-slate-300 rounded overflow-hidden mb-2 print:border-slate-400">
         <table className="w-full text-start border-collapse text-[10.5px]">
           <thead>
-            <tr className="bg-slate-800 text-white font-bold print:bg-slate-100 print:text-slate-900 print:border-b-2 print:border-slate-800">
+            <tr className="bg-slate-800 text-white font-bold print:border-b-2 print:border-slate-800">
               <th className="py-1 px-2 text-center w-8">#</th>
               <th className="py-1 px-2 text-start">الصنف والمواصفات</th>
               <th className="py-1 px-2 text-center w-16">الكمية</th>
@@ -142,7 +142,7 @@ export const CompactEcoHalfPageTemplate: React.FC<ProcurementTemplateProps> = ({
               <span className="font-semibold">+{formatCurrency(taxAmount)}</span>
             </div>
           )}
-          <div className="bg-slate-900 text-white print:bg-white print:text-slate-900 print:border print:border-slate-800 px-2 py-0.5 rounded font-black text-xs">
+          <div className="bg-slate-900 text-white px-2 py-0.5 rounded font-black text-xs">
             {formatCurrency(totalAmount)}
           </div>
         </div>

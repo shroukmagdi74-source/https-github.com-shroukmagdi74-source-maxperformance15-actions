@@ -30,7 +30,7 @@ export const GoodsReceiptTemplate: React.FC<ProcurementTemplateProps> = ({
       <div className="flex justify-between items-center pb-4 mb-4 border-b-2 border-slate-800">
         <div className="space-y-1 text-start">
           <div className="flex items-center gap-2">
-            <span className="bg-amber-600 text-white px-2.5 py-0.5 rounded text-xs font-black tracking-wide flex items-center gap-1 print:bg-slate-100 print:text-slate-900 print:border print:border-slate-800">
+            <span className="bg-amber-600 text-white px-2.5 py-0.5 rounded text-xs font-black tracking-wide flex items-center gap-1">
               <PackageCheck className="size-3.5" />
               <span>إذن استلام وفحص بضاعة</span>
             </span>
@@ -102,15 +102,15 @@ export const GoodsReceiptTemplate: React.FC<ProcurementTemplateProps> = ({
             <span className="text-slate-400 font-mono">STATUS</span>
           </div>
           <div className="flex items-center gap-3 mt-1.5 font-bold text-[11px]">
-            <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 print:border-slate-400 print:text-slate-900">
+            <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
               <span className="size-2 bg-emerald-600 rounded-full inline-block" />
               مطابق
             </span>
-            <span className="inline-flex items-center gap-1.5 text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 print:border-slate-400 print:text-slate-900">
+            <span className="inline-flex items-center gap-1.5 text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
               <span className="size-2 bg-amber-600 rounded-full inline-block" />
               جزئي
             </span>
-            <span className="inline-flex items-center gap-1.5 text-rose-800 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 print:border-slate-400 print:text-slate-900">
+            <span className="inline-flex items-center gap-1.5 text-rose-800 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
               <span className="size-2 bg-rose-600 rounded-full inline-block" />
               تالف
             </span>
@@ -122,15 +122,15 @@ export const GoodsReceiptTemplate: React.FC<ProcurementTemplateProps> = ({
       <div className="border border-slate-300 rounded-lg overflow-hidden mb-4 print:border-slate-400">
         <table className="w-full text-xs border-collapse">
           <thead>
-            <tr className="bg-slate-800 text-white font-bold print:bg-slate-100 print:text-slate-900 print:border-b-2 print:border-slate-800">
+            <tr className="bg-slate-800 text-white font-bold print:border-b-2 print:border-slate-800">
               <th className="py-2 px-2 text-center w-8">#</th>
               <th className="py-2 px-3 text-start">بيان الصنف والمواصفات</th>
               <th className="py-2 px-2 text-center w-24">كود الصنف SKU</th>
               <th className="py-2 px-2 text-center w-20">الكمية المطلوبة</th>
-              <th className="py-2 px-2 text-center w-20 bg-emerald-700 text-white print:bg-slate-100 print:text-slate-900">
+              <th className="py-2 px-2 text-center w-20 bg-emerald-700 text-white">
                 المستلم فعلياً
               </th>
-              <th className="py-2 px-2 text-center w-20 bg-rose-700 text-white print:bg-slate-100 print:text-slate-900">
+              <th className="py-2 px-2 text-center w-20 bg-rose-700 text-white">
                 الفارق / التالف
               </th>
               <th className="py-2 px-2 text-center w-24">موقع التخزين (Bin)</th>
@@ -158,10 +158,10 @@ export const GoodsReceiptTemplate: React.FC<ProcurementTemplateProps> = ({
                   <td className="py-2 px-2 text-center font-bold text-slate-900 tabular-nums">
                     {reqQty}
                   </td>
-                  <td className="py-2 px-2 text-center font-black text-emerald-900 bg-emerald-50/60 tabular-nums text-sm print:bg-transparent">
+                  <td className="py-2 px-2 text-center font-black text-emerald-900 bg-emerald-50/60 tabular-nums text-sm">
                     {recQty}
                   </td>
-                  <td className="py-2 px-2 text-center font-bold text-rose-800 bg-rose-50/60 tabular-nums print:bg-transparent">
+                  <td className="py-2 px-2 text-center font-bold text-rose-800 bg-rose-50/60 tabular-nums">
                     {diffQty > 0 ? diffQty : "0"}
                   </td>
                   <td className="py-2 px-2 text-center text-slate-600 font-mono">
@@ -173,8 +173,8 @@ export const GoodsReceiptTemplate: React.FC<ProcurementTemplateProps> = ({
                     <span
                       className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
                         diffQty === 0
-                          ? "bg-emerald-100 text-emerald-900 print:bg-transparent"
-                          : "bg-amber-100 text-amber-900 print:bg-transparent"
+                          ? "bg-emerald-100 text-emerald-900"
+                          : "bg-amber-100 text-amber-900"
                       }`}
                     >
                       {diffQty === 0 ? "مطابق" : "عجز جزئي"}

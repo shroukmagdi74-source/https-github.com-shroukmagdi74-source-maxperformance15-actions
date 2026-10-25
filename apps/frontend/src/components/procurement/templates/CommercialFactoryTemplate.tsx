@@ -41,8 +41,8 @@ export const CommercialFactoryTemplate: React.FC<ProcurementTemplateProps> = ({
       className="printable-commercial-sheet relative text-slate-900 bg-white p-6 sm:p-8 min-w-[700px] w-full max-w-[210mm] mx-auto overflow-hidden font-sans print:p-2 print:border-none print:shadow-none"
       dir={isRtl ? "rtl" : "ltr"}
     >
-      {/* Decorative Brand Accent (Top Corner Angles) - SCREEN ONLY to avoid black ink blocks on physical paper */}
-      <div className="absolute top-0 end-0 w-36 h-8 pointer-events-none overflow-hidden print:hidden">
+      {/* Decorative Brand Accent (Top Corner Angles) - Preserved in Print */}
+      <div className="absolute top-0 end-0 w-36 h-8 pointer-events-none overflow-hidden">
         <div className="absolute -top-6 -end-6 w-24 h-24 bg-red-600 rotate-45 transform origin-bottom-left" />
         <div className="absolute -top-8 -end-12 w-24 h-24 bg-slate-800 rotate-45 transform origin-bottom-left opacity-80" />
       </div>
@@ -56,7 +56,7 @@ export const CommercialFactoryTemplate: React.FC<ProcurementTemplateProps> = ({
           </h1>
           {data.buyer?.address && (
             <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-              <MapPin className="size-3.5 text-red-600 shrink-0 print:text-slate-800" />
+              <MapPin className="size-3.5 text-red-600 shrink-0" />
               <span>{data.buyer.address}</span>
             </div>
           )}
@@ -91,7 +91,7 @@ export const CommercialFactoryTemplate: React.FC<ProcurementTemplateProps> = ({
             />
           ) : (
             <div className="flex flex-col items-center">
-              <div className="size-11 rounded-lg bg-slate-900 text-white font-black text-sm flex items-center justify-center mb-1 shadow-xs print:border print:border-slate-800 print:bg-white print:text-slate-900">
+              <div className="size-11 rounded-lg bg-slate-900 text-white font-black text-sm flex items-center justify-center mb-1 shadow-xs">
                 {buyerInitials}
               </div>
               <div className="text-xs font-black tracking-wide text-slate-900 text-center max-w-[170px] truncate">
@@ -124,13 +124,13 @@ export const CommercialFactoryTemplate: React.FC<ProcurementTemplateProps> = ({
           </div>
         </div>
 
-        {/* Right: Order Banner (Clean in Print) */}
-        <div className="bg-red-600 text-white print:bg-slate-100 print:text-slate-900 print:border print:border-slate-300 rounded-lg px-4 py-2 text-end shadow-xs print:shadow-none min-w-[220px]">
+        {/* Right: Order Banner */}
+        <div className="bg-red-600 text-white rounded-lg px-4 py-2 text-end shadow-xs print:shadow-none min-w-[220px]">
           <div className="flex items-center justify-end gap-1.5 font-bold text-sm">
             <FileText className="size-4" />
             <span>{docTitle}</span>
           </div>
-          <div className="text-[10px] text-red-100 print:text-slate-600 font-normal">
+          <div className="text-[10px] text-red-100 font-normal">
             مستند معتمد من نظام إدارة المشتريات والمخزون
           </div>
         </div>
@@ -142,7 +142,7 @@ export const CommercialFactoryTemplate: React.FC<ProcurementTemplateProps> = ({
         <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs print:shadow-none print:border-slate-300">
           <div className="bg-slate-50 border-b border-slate-200 px-3.5 py-2 flex items-center justify-between font-bold text-slate-800 print:border-slate-300">
             <span className="flex items-center gap-1.5">
-              <Calendar className="size-3.5 text-red-600 print:text-slate-800" />
+              <Calendar className="size-3.5 text-red-600" />
               <span>{isInvoice ? "بيانات الفاتورة" : "بيانات أمر الشراء"}</span>
             </span>
             <span className="text-[10px] text-slate-500 font-mono">DOC DETAILS</span>
@@ -188,7 +188,7 @@ export const CommercialFactoryTemplate: React.FC<ProcurementTemplateProps> = ({
         <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs print:shadow-none print:border-slate-300">
           <div className="bg-slate-50 border-b border-slate-200 px-3.5 py-2 flex items-center justify-between font-bold text-slate-800 print:border-slate-300">
             <span className="flex items-center gap-1.5">
-              <User className="size-3.5 text-red-600 print:text-slate-800" />
+              <User className="size-3.5 text-red-600" />
               <span>بيانات المورد</span>
             </span>
             <span className="text-[10px] text-slate-500 font-mono">SUPPLIER INFO</span>
@@ -224,7 +224,7 @@ export const CommercialFactoryTemplate: React.FC<ProcurementTemplateProps> = ({
       <div className="border border-slate-200 rounded-xl overflow-hidden mb-4 shadow-2xs print:shadow-none print:border-slate-300">
         <table className="w-full text-xs text-start border-collapse">
           <thead>
-            <tr className="bg-[#1E293B] text-white print:bg-slate-100 print:text-slate-900 print:border-b-2 print:border-slate-800">
+            <tr className="bg-[#1E293B] text-white print:border-b-2 print:border-slate-800">
               <th className="py-2.5 px-3 text-center w-10 font-bold">م</th>
               <th className="py-2.5 px-3 text-start font-bold">الصنف</th>
               <th className="py-2.5 px-3 text-center w-20 font-bold">الكمية</th>
@@ -309,16 +309,16 @@ export const CommercialFactoryTemplate: React.FC<ProcurementTemplateProps> = ({
           </div>
         </div>
 
-        {/* Grand Total Card (Highlighted Dark on Screen, Crisp White with Dark Border in Print) */}
-        <div className="bg-[#1E293B] text-white print:bg-white print:text-slate-900 print:border-2 print:border-slate-800 rounded-lg p-2.5 flex items-center justify-between shadow-xs print:shadow-none">
-          <div className="size-8 rounded-md bg-white/10 print:bg-slate-100 print:text-slate-800 flex items-center justify-center text-amber-400">
+        {/* Grand Total Card */}
+        <div className="bg-[#1E293B] text-white rounded-lg p-2.5 flex items-center justify-between shadow-xs print:shadow-none">
+          <div className="size-8 rounded-md bg-white/10 flex items-center justify-center text-amber-400">
             <Coins className="size-4" />
           </div>
           <div className="text-end">
-            <div className="text-[10px] text-slate-300 print:text-slate-600 font-medium">
+            <div className="text-[10px] text-slate-300 font-medium">
               {isInvoice ? "إجمالي الفاتورة" : "إجمالي أمر الشراء"}
             </div>
-            <div className="text-base sm:text-lg font-black font-mono text-white print:text-slate-900 tracking-tight">
+            <div className="text-base sm:text-lg font-black font-mono text-white tracking-tight">
               {formatCurrency(totalAmount)}
             </div>
           </div>
