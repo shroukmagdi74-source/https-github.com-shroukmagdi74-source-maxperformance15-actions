@@ -14,8 +14,10 @@ import {
   DollarSign,
   AlertCircle,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { apiClient } from "../../services/apiClient";
+import { toast } from "sonner";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import CompanyContext from "../../contexts/CompanyContext";
 import { ReceiveItemsDialog } from "./ReceiveItemsDialog";
@@ -117,6 +119,7 @@ export const PurchaseOrderDetail: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const [selectedTemplate, setSelectedTemplate] = useState<ProcurementTemplateId>(() => {
     try {
@@ -248,6 +251,26 @@ export const PurchaseOrderDetail: React.FC = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!id) return;
+    setActionLoading(true);
+    try {
+      await apiClient.delete(`/procurement/purchase-orders/${id}`);
+      setDeleteDialogOpen(false);
+      toast.success(t("procurement.purchaseOrderDetail.deleteSuccess", "تم حذف أمر الشراء بنجاح"));
+      navigate("/procurement/purchase-orders");
+    } catch (err: unknown) {
+      console.error("Error deleting order:", err);
+      const errResp = err as { response?: { data?: { message?: string } }; message?: string };
+      const errMsg = errResp.response?.data?.message || t("procurement.purchaseOrderDetail.deleteError", "فشل حذف أمر الشراء");
+      setError(errMsg);
+      toast.error(errMsg);
+      setDeleteDialogOpen(false);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center p-12 min-h-[400px]">
@@ -290,6 +313,7 @@ export const PurchaseOrderDetail: React.FC = () => {
   const canApprove = order.status === "DRAFT" || order.status === "PENDING";
   const canReceive = order.status === "ORDERED" || order.status === "PARTIALLY_RECEIVED";
   const canCancel = order.status !== "RECEIVED" && order.status !== "CANCELLED";
+  const canDelete = order.status === "DRAFT" || order.status === "CANCELLED";
   const canCreateInvoice = order.status !== "CANCELLED";
 
   const companyContext = React.useContext(CompanyContext);
@@ -428,6 +452,19 @@ export const PurchaseOrderDetail: React.FC = () => {
               >
                 <XCircle className="size-4" />
                 {t("procurement.purchaseOrderDetail.cancelBtn", "إلغاء الأمر")}
+              </Button>
+            )}
+
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDeleteDialogOpen(true)}
+                disabled={actionLoading}
+                className="gap-1.5 text-destructive hover:bg-destructive/10 border-destructive/30"
+              >
+                <Trash2 className="size-4" />
+                {t("procurement.purchaseOrderDetail.deleteBtn", "حذف أمر الشراء")}
               </Button>
             )}
 
@@ -716,17 +753,31 @@ export const PurchaseOrderDetail: React.FC = () => {
       {/* Cancel Dialog */}
       <ConfirmDialog
         open={cancelDialogOpen}
-        onOpenChange={setCancelDialogOpen}
         title={t("procurement.purchaseOrderDetail.cancelConfirmTitle", "إلغاء أمر الشراء")}
-        description={t(
+        content={t(
           "procurement.purchaseOrderDetail.cancelConfirmDesc",
           "هل أنت متأكد من رغبتك في إلغاء أمر الشراء هذا؟ لا يمكن التراجع عن هذا الإجراء.",
         )}
         confirmLabel={t("procurement.purchaseOrderDetail.cancelConfirmBtn", "نعم، إلغاء الأمر")}
         cancelLabel={t("common.cancel", "تراجع")}
-        variant="destructive"
+        confirmColor="error"
         onConfirm={handleCancel}
-        loading={actionLoading}
+        onCancel={() => setCancelDialogOpen(false)}
+      />
+
+      {/* Delete Dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        title={t("procurement.purchaseOrderDetail.deleteConfirmTitle", "تأكيد حذف أمر الشراء")}
+        content={t(
+          "procurement.purchaseOrderDetail.deleteConfirmDesc",
+          "هل أنت متأكد من رغبتك في حذف أمر الشراء نهائياً؟ سيتم حذف الأمر وجميع بنوده ولا يمكن التراجع عن هذا الإجراء.",
+        )}
+        confirmLabel={t("procurement.purchaseOrderDetail.deleteConfirmBtn", "نعم، حذف الأمر نهائياً")}
+        cancelLabel={t("common.cancel", "تراجع")}
+        confirmColor="error"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteDialogOpen(false)}
       />
     </div>
   );

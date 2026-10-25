@@ -12,9 +12,11 @@ import {
   Search,
   AlertCircle,
   Printer,
+  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { apiClient } from "../../services/apiClient";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
 import { formatCurrency } from "../../utils/currency";
@@ -157,6 +159,30 @@ const PurchaseOrders: React.FC = () => {
           fetchOrders();
         } catch (error) {
           console.error("Error cancelling order:", error);
+        } finally {
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+        }
+      },
+    });
+  };
+
+  const handleDelete = (id: string, orderNumber: string) => {
+    setConfirmDialog({
+      open: true,
+      title: t("procurement.purchaseOrders.confirmDeleteTitle", "تأكيد حذف أمر الشراء"),
+      content: t(
+        "procurement.purchaseOrders.confirmDelete",
+        `هل أنت متأكد من حذف أمر الشراء (${orderNumber}) نهائياً؟ لا يمكن التراجع عن هذه الخطوة.`
+      ),
+      confirmColor: "error",
+      onConfirm: async () => {
+        try {
+          await apiClient.delete(`/procurement/purchase-orders/${id}`);
+          toast.success(t("procurement.purchaseOrders.deleteSuccess", "تم حذف أمر الشراء بنجاح"));
+          await fetchOrders();
+        } catch (error: any) {
+          console.error("Error deleting order:", error);
+          toast.error(error.response?.data?.message || t("procurement.purchaseOrders.deleteError", "تعذر حذف أمر الشراء"));
         } finally {
           setConfirmDialog((prev) => ({ ...prev, open: false }));
         }
@@ -347,6 +373,17 @@ const PurchaseOrders: React.FC = () => {
                           <XCircle className="size-4 text-red-600" />
                         </Button>
                       )}
+                    {(order.status === "DRAFT" || order.status === "CANCELLED") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(order.id, order.orderNumber)}
+                        title={t("procurement.purchaseOrders.delete", "حذف أمر الشراء")}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -446,6 +483,17 @@ const PurchaseOrders: React.FC = () => {
                         <XCircle className="size-4 text-red-600" />
                       </Button>
                     )}
+                  {(order.status === "DRAFT" || order.status === "CANCELLED") && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(order.id, order.orderNumber)}
+                      title={t("procurement.purchaseOrders.delete", "حذف أمر الشراء")}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
                 </>
               }
             />

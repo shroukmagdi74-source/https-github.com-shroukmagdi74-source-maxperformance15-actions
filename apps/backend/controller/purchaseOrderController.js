@@ -1087,10 +1087,15 @@ exports.deletePurchaseOrder = async (req, res) => {
   try {
     const { companyId } = req.user;
     const { id } = req.params;
+    const prisma = getSharedPrismaClient();
 
     const order = await safeQuery(() =>
-      getSharedPrismaClient().purchaseOrder.findFirst({
+      prisma.purchaseOrder.findFirst({
         where: { id, companyId },
+        include: {
+          purchaseOrderItems: true,
+          purchaseInvoices: { select: { id: true, invoiceNumber: true, status: true } },
+        },
       }),
     );
 
@@ -1101,16 +1106,73 @@ exports.deletePurchaseOrder = async (req, res) => {
     if (order.status !== "DRAFT" && order.status !== "CANCELLED") {
       return res
         .status(400)
-        .json({ message: "يمكن حذف المسودات والأوامر الملغاة فقط" });
+        .json({ message: "يمكن حذف المسودات والأوامر الملغاة فقط. يُرجى إلغاء الأمر أولاً إذا كنت ترغب في حذفه." });
     }
 
+    // Integrity Check 1: Do not delete orders where goods have already been partially received into warehouse inventory
+    const hasReceivedItems = (order.purchaseOrderItems || []).some(
+      (item) => Number(item.receivedQuantity || 0) > 0,
+    );
+    if (hasReceivedItems) {
+      return res.status(400).json({
+        message: "لا يمكن حذف أمر شراء تم استلام بضائع منه جزئياً حفاظاً على سلامة سجلات المخزون والجرد.",
+      });
+    }
+
+    // Integrity Check 2: Do not delete orders that have active purchase invoices
+    const activeInvoices = (order.purchaseInvoices || []).filter(
+      (inv) => inv.status !== "CANCELLED",
+    );
+    if (activeInvoices.length > 0) {
+      return res.status(400).json({
+        message: `لا يمكن حذف أمر الشراء لوجود فواتير شراء مرتبطة به (${activeInvoices.map((i) => i.invoiceNumber).join(", ")}). يُرجى معالجة فواتير الشراء أولاً.`,
+      });
+    }
+
+    // Atomic database transaction to prevent orphaned line items or broken references
     await safeQuery(() =>
-      getSharedPrismaClient().purchaseOrder.delete({
-        where: { id },
+      prisma.$transaction(async (tx) => {
+        // 1. Unlink cancelled purchase invoices if any
+        await tx.purchaseInvoice.updateMany({
+          where: { purchaseOrderId: id, companyId },
+          data: { purchaseOrderId: null },
+        });
+
+        // 2. Delete line items
+        await tx.purchaseOrderItem.deleteMany({
+          where: { purchaseOrderId: id },
+        });
+
+        // 3. Delete order
+        await tx.purchaseOrder.delete({
+          where: { id, companyId },
+        });
       }),
     );
 
-    res.json({ message: "تم حذف أمر الشراء بنجاح" });
+    // Audit Logging
+    try {
+      await logProcurementActivity({
+        companyId,
+        userId: req.user.id,
+        action: "DELETE_PURCHASE_ORDER",
+        targetType: "PURCHASE_ORDER",
+        targetId: order.id,
+        targetName: order.orderNumber,
+        description: `حذف أمر الشراء ${order.orderNumber} (الحالة السابقة: ${order.status})`,
+        metadata: {
+          orderNumber: order.orderNumber,
+          status: order.status,
+          totalAmount: order.totalAmount,
+          supplierId: order.supplierId,
+        },
+        severity: "MEDIUM",
+      });
+    } catch (logErr) {
+      console.warn("[Procurement Audit] Failed to log order deletion:", logErr.message);
+    }
+
+    res.json({ message: "تم حذف أمر الشراء بنجاح", success: true });
   } catch (error) {
     console.error("Error deleting purchase order:", error);
     res.status(500).json({ message: "حدث خطأ أثناء حذف أمر الشراء" });
