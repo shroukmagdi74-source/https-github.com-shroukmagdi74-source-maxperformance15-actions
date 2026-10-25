@@ -73,6 +73,7 @@ const PrintMultipleInvoices: React.FC = () => {
         @media print {
           html, body { margin: 0 !important; padding: 0 !important; background: #fff; }
           .no-print { display: none !important; }
+          *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           ${printCSS}
           .invoice-header, .invoice-totals { page-break-inside: avoid; }
           .invoice-number-text { display: none !important; }

@@ -103,6 +103,15 @@ export const ProcurementPrintStyles: React.FC<ProcurementPrintStylesProps> = ({
           border: none !important;
           margin: 0 auto !important;
           padding: 0 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+
+        .printable-commercial-sheet * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
         }
 
         /* 6. AVOID AWKWARD PAGE BREAKS */

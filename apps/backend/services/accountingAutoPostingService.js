@@ -74,10 +74,7 @@ class AccountingAutoPostingService {
         const app = await prisma.companyApp.findFirst({
           where: {
             companyId,
-            OR: [
-              { slug: { in: ['accounting', 'accounting-app'] } },
-              { app: { slug: { in: ['accounting', 'accounting-app'] } } },
-            ],
+            app: { slug: { in: ['accounting', 'accounting-app'] } },
             status: { in: ['ACTIVE', 'TRIAL'] },
           },
         });
@@ -596,7 +593,8 @@ class AccountingAutoPostingService {
       }
 
       const taxAmount = round2(invoice.taxAmount || 0);
-      const subtotal = round2(invoice.subtotal || totalAmount - taxAmount);
+      const shippingCost = round2(invoice.shippingCost || 0);
+      const discountAmount = round2(invoice.discountAmount || 0);
       const txDate = invoice.invoiceDate ? new Date(invoice.invoiceDate) : (invoice.createdAt ? new Date(invoice.createdAt) : new Date());
       const documentNo = invoice.invoiceNumber || `PI-${purchaseInvoiceId}`;
 
@@ -610,7 +608,7 @@ class AccountingAutoPostingService {
           amount: totalAmount,
           date: txDate,
           reason: 'PERIOD_CLOSED',
-          payload: { purchaseInvoiceId, totalAmount, subtotal, taxAmount },
+          payload: { purchaseInvoiceId, totalAmount, taxAmount },
         });
         return { success: true, pending: true, reason: 'PERIOD_CLOSED' };
       }
@@ -626,20 +624,33 @@ class AccountingAutoPostingService {
         return { success: false, skipped: true, reason: 'REQUIRED_ACCOUNTS_MISSING' };
       }
 
+      // Under EAS 2 / standard accounting, recoverable VAT is debited to VAT Input;
+      // If no VAT account exists, tax is non-recoverable and capitalized directly into inventory.
+      const vatDebit = (taxAmount > 0 && vatInputAccountId) ? taxAmount : 0;
+      const netInventory = round2(totalAmount - vatDebit);
+
       const supplierName = invoice.supplier?.name ? ` - المورد: ${invoice.supplier.name}` : '';
+      let narrationDetails = '';
+      if (shippingCost > 0 || discountAmount > 0) {
+        const parts = [];
+        if (shippingCost > 0) parts.push(`شحن: ${shippingCost}`);
+        if (discountAmount > 0) parts.push(`خصم: ${discountAmount}`);
+        narrationDetails = ` (${parts.join('، ')})`;
+      }
+
       const lines = [
         {
           accountId: inventoryAccountId,
-          debit: subtotal,
+          debit: netInventory,
           credit: 0,
-          narration: `مشتريات خامات ومستلزمات فاتورة ${documentNo}${supplierName}`,
+          narration: `مشتريات خامات ومستلزمات فاتورة ${documentNo}${supplierName}${narrationDetails}`,
         },
       ];
 
-      if (taxAmount > 0 && vatInputAccountId) {
+      if (vatDebit > 0 && vatInputAccountId) {
         lines.push({
           accountId: vatInputAccountId,
-          debit: taxAmount,
+          debit: vatDebit,
           credit: 0,
           narration: `ضريبة القيمة المضافة مدخلات فاتورة ${documentNo}`,
         });
@@ -987,6 +998,62 @@ class AccountingAutoPostingService {
       failed: results.filter((r) => !r.success).length,
       results,
     };
+  }
+  /**
+   * Sync all unposted purchase invoices and supplier payments to General Ledger
+   */
+  static async syncHistoricalPurchases(companyId, options = {}) {
+    const { userId = null } = options;
+    const prisma = getSharedPrismaClient();
+
+    const results = {
+      invoicesPosted: 0,
+      invoicesFailed: 0,
+      paymentsPosted: 0,
+      paymentsFailed: 0,
+      errors: [],
+    };
+
+    // 1. Invoices
+    if (prisma.purchaseInvoice) {
+      const invoices = await prisma.purchaseInvoice.findMany({
+        where: {
+          companyId,
+          status: { not: 'CANCELLED' },
+        },
+        include: { supplier: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      for (const inv of invoices) {
+        const res = await this.postPurchaseInvoice(companyId, inv.id, { userId, invoiceData: inv });
+        if (res.posted) results.invoicesPosted++;
+        else if (res.error) {
+          results.invoicesFailed++;
+          results.errors.push(`Invoice ${inv.invoiceNumber}: ${res.error}`);
+        }
+      }
+    }
+
+    // 2. Payments
+    if (prisma.supplierPayment) {
+      const payments = await prisma.supplierPayment.findMany({
+        where: { companyId },
+        include: { supplier: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      for (const sp of payments) {
+        const res = await this.postSupplierPayment(companyId, sp.id, { userId, paymentData: sp });
+        if (res.posted) results.paymentsPosted++;
+        else if (res.error) {
+          results.paymentsFailed++;
+          results.errors.push(`Payment ${sp.paymentNumber}: ${res.error}`);
+        }
+      }
+    }
+
+    return results;
   }
 }
 

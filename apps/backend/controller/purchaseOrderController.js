@@ -984,6 +984,19 @@ exports.receiveItems = async (req, res) => {
                 },
               }),
             );
+
+            // Accounting Auto-Posting Hook (Non-blocking & Zero Blast-Radius)
+            try {
+              const AccountingAutoPostingService = require("../services/accountingAutoPostingService");
+              AccountingAutoPostingService.postPurchaseInvoice(companyId, autoInvoice.id, {
+                userId: req.user?.id || order.createdBy,
+                invoiceData: { ...autoInvoice, supplier: order.supplier },
+              }).catch((err) =>
+                console.error("[Accounting Auto-Posting] Automated PO Invoice async error:", err.message),
+              );
+            } catch (autoErr) {
+              console.error("[Accounting Auto-Posting] Automated PO Invoice hook error:", autoErr.message);
+            }
           }
         }
       } catch (invError) {
