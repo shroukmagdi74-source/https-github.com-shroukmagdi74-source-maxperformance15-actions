@@ -1,199 +1,39 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { apiClient } from "../../../services/apiClient";
-import { useAuth } from "../../../hooks/useAuthSimple";
-import { toast } from "sonner";
-import { tToast } from "../../../utils/i18n-toast";
-import { ConfirmDialog } from "../../../components/hr/ConfirmDialog";
-import {
-  canUserApproveReward,
-  canUserDeleteReward,
-  canUserEditReward,
-  normalizeRewardStatus,
-  type RewardUiStatus,
-} from "./rewardRecordUtils";
+import React from "react";
 import {
   Award,
   ArrowLeft,
-  User,
-  Calendar,
-  DollarSign,
-  FileText,
   CheckCircle,
   XCircle,
-  Clock,
   Edit,
   Trash2,
   AlertCircle,
   RefreshCw,
-  Info,
-  Ban,
 } from "lucide-react";
-
-interface RewardDetails {
-  id: string;
-  rewardName: string;
-  rewardCategory: string;
-  calculatedValue: number;
-  calculationDetails?: string;
-  status: string;
-  appliedMonth: number;
-  appliedYear: number;
-  periodStart: string;
-  periodEnd: string;
-  reason?: string;
-  eligibilityMet?: string;
-  isIncludedInPayroll: boolean;
-  isLocked: boolean;
-  approvedBy?: string;
-  approvedAt?: string;
-  appliedAt?: string;
-  voidedBy?: string;
-  voidedAt?: string;
-  voidReason?: string;
-  createdAt: string;
-  updatedAt: string;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    employeeNumber: string;
-    phone?: string;
-    departmentRelation?: { name: string };
-    positionRelation?: { title: string };
-  };
-  rewardType?: {
-    id: string;
-    name: string;
-    nameAr?: string;
-    description?: string;
-    category: string;
-    calculationMethod: string;
-    value: number;
-    frequency: string;
-    triggerType: string;
-  } | null;
-}
+import { ConfirmDialog } from "../../../components/hr/ConfirmDialog";
+import {
+  useRewardDetailsController,
+  RewardDetailsMainContent,
+  RewardDetailsSidebar,
+} from "./details";
 
 const RewardDetails: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [reward, setReward] = useState<RewardDetails | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
-  useEffect(() => {
-    if (id) {
-      fetchRewardDetails();
-    }
-  }, [id]);
-
-  const fetchRewardDetails = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await apiClient.get(`/hr/rewards/records/${id}`);
-
-      if (response.data.success) {
-        setReward(response.data.data);
-      }
-    } catch (err: any) {
-      console.error("Error fetching reward details:", err);
-      setError(err.response?.data?.message || "فشل في تحميل تفاصيل المكافأة");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleApprove = async () => {
-    try {
-      setActionLoading(true);
-      await apiClient.patch(`/hr/rewards/approve/${id}`, {});
-      tToast.success("RewardDetails.msg_7955");
-      fetchRewardDetails();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "فشل في اعتماد المكافأة");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleReject = async (reason: string) => {
-    try {
-      setActionLoading(true);
-      await apiClient.patch(`/hr/rewards/reject/${id}`, { reason });
-      tToast.success("RewardDetails.msg_1c5d");
-      fetchRewardDetails();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "فشل في رفض المكافأة");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDeleteConfirm = useCallback(async () => {
-    try {
-      setActionLoading(true);
-      await apiClient.delete(`/hr/rewards/records/${id}`);
-      tToast.success("RewardDetails.success_delete_48dd");
-      setDeleteDialogOpen(false);
-      navigate("/hr/rewards");
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "فشل في حذف المكافأة");
-    } finally {
-      setActionLoading(false);
-    }
-  }, [id, navigate]);
-
-  const getStatusBadge = (status: RewardUiStatus) => {
-    const statusConfig: Record<
-      RewardUiStatus,
-      { label: string; className: string; icon: any }
-    > = {
-      PENDING: {
-        label: "قيد الانتظار",
-        className: "bg-yellow-100 text-yellow-800 border-yellow-300",
-        icon: Clock,
-      },
-      APPROVED: {
-        label: "معتمد",
-        className: "bg-green-100 text-green-800 border-green-300",
-        icon: CheckCircle,
-      },
-      APPLIED: {
-        label: "مطبق",
-        className: "bg-blue-100 text-blue-800 border-blue-300",
-        icon: CheckCircle,
-      },
-      REJECTED: {
-        label: "مرفوض",
-        className: "bg-red-100 text-red-800 border-red-300",
-        icon: XCircle,
-      },
-      VOIDED: {
-        label: "ملغي",
-        className: "bg-gray-100 text-gray-800 border-gray-300",
-        icon: XCircle,
-      },
-    };
-
-    const config = statusConfig[status];
-    const Icon = config.icon;
-
-    return (
-      <span
-        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border ${config.className}`}
-      >
-        <Icon className="w-5 h-5" />
-        {config.label}
-      </span>
-    );
-  };
+  const {
+    id,
+    navigate,
+    loading,
+    error,
+    reward,
+    actionLoading,
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+    normalizedStatus,
+    canApproveThisReward,
+    canEditThisReward,
+    canDeleteThisReward,
+    handleApprove,
+    handleReject,
+    handleDeleteConfirm,
+  } = useRewardDetailsController();
 
   if (loading) {
     return (
@@ -224,39 +64,6 @@ const RewardDetails: React.FC = () => {
     );
   }
 
-  const rewardTypeName =
-    reward.rewardType?.name || reward.rewardName || "مكافأة مخصصة";
-  const rewardTypeNameAr = reward.rewardType?.nameAr || null;
-  const rewardTypeCalculationMethod =
-    reward.rewardType?.calculationMethod || "مخصص";
-  const rewardTypeFrequency = reward.rewardType?.frequency || "حسب السجل";
-  const rewardTypeDescription =
-    reward.rewardType?.description ||
-    (!reward.rewardType
-      ? "هذه المكافأة لا ترتبط بنوع مكافأة محفوظ، وتم تسجيلها كسجل مخصص."
-      : null);
-
-  let formattedCalculationDetails: string | null = null;
-  if (reward.calculationDetails) {
-    try {
-      formattedCalculationDetails = JSON.stringify(
-        JSON.parse(reward.calculationDetails),
-        null,
-        2,
-      );
-    } catch (parseError) {
-      console.warn("⚠️ [RewardDetails] Invalid calculationDetails JSON:", parseError);
-      formattedCalculationDetails = reward.calculationDetails;
-    }
-  }
-
-  const normalizedStatus = normalizeRewardStatus(reward);
-  const canApproveThisReward =
-    normalizedStatus === "PENDING" && canUserApproveReward(user?.role);
-  const canEditThisReward =
-    normalizedStatus === "PENDING" && canUserEditReward(user?.role);
-  const canDeleteThisReward = canUserDeleteReward(user?.role);
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -264,6 +71,7 @@ const RewardDetails: React.FC = () => {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate("/hr/rewards")}
+            aria-label="العودة للمكافآت"
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />
@@ -324,264 +132,13 @@ const RewardDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* Status Banner */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              حالة المكافأة
-            </h2>
-            {getStatusBadge(normalizedStatus)}
-          </div>
-          {reward.isIncludedInPayroll && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
-              <p className="text-sm text-blue-800 font-medium">
-                مدرجة في كشف الرواتب
-              </p>
-            </div>
-          )}
-          {reward.isLocked && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2">
-              <p className="text-sm text-gray-800 font-medium">
-                مقفلة - لا يمكن التعديل
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Info */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Employee Info */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <User className="w-5 h-5 text-blue-600" />
-              معلومات الموظف
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">الاسم</p>
-                <p className="text-base font-medium text-gray-900">
-                  {reward.user.firstName} {reward.user.lastName}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">رقم الموظف</p>
-                <p className="text-base font-medium text-gray-900">
-                  {reward.user.employeeNumber}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">البريد الإلكتروني</p>
-                <p className="text-base font-medium text-gray-900">
-                  {reward.user.email}
-                </p>
-              </div>
-              {reward.user.departmentRelation && (
-                <div>
-                  <p className="text-sm text-gray-600">القسم</p>
-                  <p className="text-base font-medium text-gray-900">
-                    {reward.user.departmentRelation.name}
-                  </p>
-                </div>
-              )}
-              {reward.user.positionRelation && (
-                <div>
-                  <p className="text-sm text-gray-600">المنصب</p>
-                  <p className="text-base font-medium text-gray-900">
-                    {reward.user.positionRelation.title}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Reward Info */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Award className="w-5 h-5 text-blue-600" />
-              تفاصيل المكافأة
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-600">اسم المكافأة</p>
-                <p className="text-base font-medium text-gray-900">
-                  {reward.rewardName}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">التصنيف</p>
-                <p className="text-base font-medium text-gray-900">
-                  {reward.rewardCategory}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">القيمة المحسوبة</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {reward.calculatedValue.toLocaleString()} ج.م
-                </p>
-              </div>
-              {reward.reason && (
-                <div>
-                  <p className="text-sm text-gray-600">السبب</p>
-                  <p className="text-base text-gray-900">{reward.reason}</p>
-                </div>
-              )}
-              {formattedCalculationDetails && (
-                <div>
-                  <p className="text-sm text-gray-600">تفاصيل الحساب</p>
-                  <pre className="text-sm text-gray-700 bg-gray-50 p-3 rounded mt-1 overflow-x-auto">
-                    {formattedCalculationDetails}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Period Info */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              الفترة الزمنية
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">تاريخ البداية</p>
-                <p className="text-base font-medium text-gray-900">
-                  {new Date(reward.periodStart).toLocaleDateString("ar-EG")}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">تاريخ النهاية</p>
-                <p className="text-base font-medium text-gray-900">
-                  {new Date(reward.periodEnd).toLocaleDateString("ar-EG")}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">الشهر المطبق</p>
-                <p className="text-base font-medium text-gray-900">
-                  {reward.appliedMonth}/{reward.appliedYear}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Reward Type Info */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Info className="w-5 h-5 text-blue-600" />
-              نوع المكافأة
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-sm text-gray-600">الاسم</p>
-                <p className="text-base font-medium text-gray-900">
-                  {rewardTypeName}
-                </p>
-              </div>
-              {rewardTypeNameAr && (
-                <div>
-                  <p className="text-sm text-gray-600">الاسم بالعربية</p>
-                  <p className="text-base font-medium text-gray-900">
-                    {rewardTypeNameAr}
-                  </p>
-                </div>
-              )}
-              <div>
-                <p className="text-sm text-gray-600">طريقة الحساب</p>
-                <p className="text-base font-medium text-gray-900">
-                  {rewardTypeCalculationMethod}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">التكرار</p>
-                <p className="text-base font-medium text-gray-900">
-                  {rewardTypeFrequency}
-                </p>
-              </div>
-              {rewardTypeDescription && (
-                <div>
-                  <p className="text-sm text-gray-600">الوصف</p>
-                  <p className="text-sm text-gray-700">
-                    {rewardTypeDescription}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Timeline */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              السجل الزمني
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    تم الإنشاء
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {new Date(reward.createdAt).toLocaleString("ar-EG")}
-                  </p>
-                </div>
-              </div>
-
-              {reward.approvedAt && (
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      تم الاعتماد
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {new Date(reward.approvedAt).toLocaleString("ar-EG")}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {reward.appliedAt && (
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      تم التطبيق
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {new Date(reward.appliedAt).toLocaleString("ar-EG")}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {reward.voidedAt && (
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-red-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      تم الإلغاء
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {new Date(reward.voidedAt).toLocaleString("ar-EG")}
-                    </p>
-                    {reward.voidReason && (
-                      <p className="text-xs text-gray-600 mt-1">
-                        السبب: {reward.voidReason}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Main Content & Sidebar */}
+      <RewardDetailsMainContent
+        reward={reward}
+        normalizedStatus={normalizedStatus}
+      >
+        <RewardDetailsSidebar reward={reward} />
+      </RewardDetailsMainContent>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
