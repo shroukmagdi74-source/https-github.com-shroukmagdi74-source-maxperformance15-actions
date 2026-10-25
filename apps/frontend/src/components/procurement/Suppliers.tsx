@@ -8,6 +8,8 @@ import {
   Eye,
   Star,
   AlertCircle,
+  Tag,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../services/apiClient";
@@ -51,6 +53,8 @@ interface Supplier {
   email?: string;
   phone?: string;
   mobile?: string;
+  phoneNormalized?: string;
+  tags?: string | string[];
   address?: string;
   city?: string;
   country?: string;
@@ -68,6 +72,20 @@ interface Supplier {
     purchaseInvoices: number;
   };
 }
+
+const parseTags = (tags: any): string[] => {
+  if (!tags) return [];
+  if (Array.isArray(tags)) return tags;
+  if (typeof tags === "string") {
+    try {
+      const parsed = JSON.parse(tags);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
 
 const StarRating: React.FC<{
   value: number;
@@ -113,12 +131,30 @@ const Suppliers: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    contactPerson: string;
+    email: string;
+    phone: string;
+    mobile: string;
+    tags: string[];
+    address: string;
+    city: string;
+    country: string;
+    taxNumber: string;
+    commercialRegister: string;
+    paymentTerms: string;
+    creditLimit: string;
+    rating: number;
+    notes: string;
+    isActive: boolean;
+  }>({
     name: "",
     contactPerson: "",
     email: "",
     phone: "",
     mobile: "",
+    tags: [],
     address: "",
     city: "",
     country: "Egypt",
@@ -130,6 +166,11 @@ const Suppliers: React.FC = () => {
     notes: "",
     isActive: true,
   });
+
+  const [quickTagSupplier, setQuickTagSupplier] = useState<Supplier | null>(null);
+  const [quickTagInput, setQuickTagInput] = useState("");
+  const [savingQuickTag, setSavingQuickTag] = useState(false);
+  const [newTagInput, setNewTagInput] = useState("");
 
   const fetchSuppliers = useCallback(async () => {
     try {
@@ -156,6 +197,7 @@ const Suppliers: React.FC = () => {
   }, [fetchSuppliers]);
 
   const handleOpenDialog = (supplier?: Supplier) => {
+    setNewTagInput("");
     if (supplier) {
       setSelectedSupplier(supplier);
       setFormData({
@@ -164,6 +206,7 @@ const Suppliers: React.FC = () => {
         email: supplier.email || "",
         phone: supplier.phone || "",
         mobile: supplier.mobile || "",
+        tags: parseTags(supplier.tags),
         address: supplier.address || "",
         city: supplier.city || "",
         country: supplier.country || "Egypt",
@@ -183,6 +226,7 @@ const Suppliers: React.FC = () => {
         email: "",
         phone: "",
         mobile: "",
+        tags: [],
         address: "",
         city: "",
         country: "Egypt",
@@ -196,6 +240,50 @@ const Suppliers: React.FC = () => {
       });
     }
     setOpenDialog(true);
+  };
+
+  const handleAddFormTag = () => {
+    const trimmed = newTagInput.trim();
+    if (trimmed && !formData.tags.includes(trimmed)) {
+      setFormData((prev) => ({ ...prev, tags: [...prev.tags, trimmed] }));
+      setNewTagInput("");
+    }
+  };
+
+  const handleRemoveFormTag = (tagToRemove: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      tags: prev.tags.filter((t) => t !== tagToRemove),
+    }));
+  };
+
+  const handleOpenQuickTagDialog = (supplier: Supplier) => {
+    setQuickTagSupplier(supplier);
+    setQuickTagInput("");
+  };
+
+  const handleSaveQuickTag = async () => {
+    if (!quickTagSupplier) return;
+    const trimmed = quickTagInput.trim();
+    if (!trimmed) return;
+    const currentTags = parseTags(quickTagSupplier.tags);
+    const updatedTags = currentTags.includes(trimmed)
+      ? currentTags
+      : [...currentTags, trimmed];
+    try {
+      setSavingQuickTag(true);
+      await apiClient.put(`/procurement/suppliers/${quickTagSupplier.id}`, {
+        tags: updatedTags,
+      });
+      setQuickTagSupplier(null);
+      setQuickTagInput("");
+      fetchSuppliers();
+    } catch (err: any) {
+      console.error("Error saving quick tag:", err);
+      setError(err?.response?.data?.message || "تعذر حفظ الوسم");
+    } finally {
+      setSavingQuickTag(false);
+    }
   };
 
   const handleCloseDialog = () => {
@@ -291,6 +379,7 @@ const Suppliers: React.FC = () => {
               <TableHead className="text-start">{t("procurement.suppliers.columnContact")}</TableHead>
               <TableHead className="text-start">{t("procurement.suppliers.columnPhone")}</TableHead>
               <TableHead className="text-start">{t("procurement.suppliers.columnEmail")}</TableHead>
+              <TableHead className="text-start">{t("procurement.suppliers.columnTags", "الوسوم")}</TableHead>
               <TableHead className="text-end">{t("procurement.suppliers.columnBalance")}</TableHead>
               <TableHead className="text-center">{t("procurement.suppliers.columnRating")}</TableHead>
               <TableHead className="text-center">{t("procurement.suppliers.columnStatus")}</TableHead>
@@ -301,14 +390,14 @@ const Suppliers: React.FC = () => {
             {loading ? (
               [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={8}>
+                  <TableCell colSpan={9}>
                     <div className="h-4 bg-muted animate-pulse rounded" />
                   </TableCell>
                 </TableRow>
               ))
             ) : suppliers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   {searchTerm ? "لا توجد نتائج مطابقة لبحثك" : "لا يوجد موردون مسجلون حالياً"}
                 </TableCell>
               </TableRow>
@@ -319,6 +408,27 @@ const Suppliers: React.FC = () => {
                   <TableCell className="text-start">{supplier.contactPerson || "-"}</TableCell>
                   <TableCell className="text-start">{supplier.phone || supplier.mobile || "-"}</TableCell>
                   <TableCell className="text-start">{supplier.email || "-"}</TableCell>
+                  <TableCell className="text-start">
+                    {parseTags(supplier.tags).length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {parseTags(supplier.tags).slice(0, 2).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                        {parseTags(supplier.tags).length > 2 && (
+                          <span className="text-[10px] text-zinc-400 font-mono">
+                            +{parseTags(supplier.tags).length - 2}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-end tabular-nums font-medium">
                     {formatCurrency(supplier.currentBalance, { locale: i18n.language })}
                   </TableCell>
@@ -334,6 +444,14 @@ const Suppliers: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenQuickTagDialog(supplier)}
+                        title={tr("procurement.suppliers.quickAddTag")}
+                      >
+                        <Plus className="size-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -402,6 +520,26 @@ const Suppliers: React.FC = () => {
                   value: supplier.phone || supplier.mobile || "-",
                 },
                 {
+                  label: t("procurement.suppliers.columnTags", "الوسوم"),
+                  value: parseTags(supplier.tags).length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {parseTags(supplier.tags).slice(0, 2).map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                      {parseTags(supplier.tags).length > 2 && (
+                        <span className="text-[10px] text-zinc-400 font-mono">
+                          +{parseTags(supplier.tags).length - 2}
+                        </span>
+                      )}
+                    </div>
+                  ) : "-",
+                },
+                {
                   label: t("procurement.suppliers.columnBalance"),
                   value: formatCurrency(supplier.currentBalance, { locale: i18n.language }),
                   emphasis: true,
@@ -417,6 +555,14 @@ const Suppliers: React.FC = () => {
               ]}
               actions={
                 <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleOpenQuickTagDialog(supplier)}
+                    title={tr("procurement.suppliers.quickAddTag")}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -576,6 +722,56 @@ const Suppliers: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
             </div>
+            <div className="space-y-2 col-span-full">
+              <Label>{t("procurement.suppliers.labelTags", "الوسوم")}</Label>
+              <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 rounded-lg border border-input bg-background/50">
+                {formData.tags.length > 0 ? (
+                  formData.tags.map((tag, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-md text-xs font-medium border border-zinc-200 dark:border-zinc-700"
+                    >
+                      <Tag className="size-3 text-zinc-400" />
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFormTag(tag)}
+                        className="ms-1 text-zinc-400 hover:text-rose-500 transition-colors"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-muted-foreground self-center">
+                    {t("procurement.suppliers.noTags", "لا توجد وسوم")}
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={newTagInput}
+                  onChange={(e) => setNewTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddFormTag();
+                    }
+                  }}
+                  placeholder={tr("procurement.suppliers.addTagPlaceholder")}
+                  className="text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddFormTag}
+                  disabled={!newTagInput.trim()}
+                >
+                  <Plus className="size-4" />
+                </Button>
+              </div>
+            </div>
             <div className="col-span-full">
               <Label className="mb-1 block">{t("procurement.suppliers.labelRating")}</Label>
               <StarRating
@@ -645,10 +841,56 @@ const Suppliers: React.FC = () => {
                 <p className="text-xs text-muted-foreground">{t("procurement.suppliers.labelNotes")}</p>
                 <p className="text-sm">{selectedSupplier.notes || "-"}</p>
               </div>
+              <div className="col-span-full">
+                <p className="text-xs text-muted-foreground mb-1">{t("procurement.suppliers.columnTags", "الوسوم")}</p>
+                <div className="flex flex-wrap gap-1">
+                  {parseTags(selectedSupplier.tags).length > 0 ? (
+                    parseTags(selectedSupplier.tags).map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700"
+                      >
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">-</span>
+                  )}
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenViewDialog(false)}>{t("common.close")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!quickTagSupplier} onOpenChange={(open) => !open && setQuickTagSupplier(null)}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogTitle>{t("procurement.suppliers.quickAddTagTitle", "إضافة وسم للمورد")}</DialogTitle>
+          <div className="py-2 space-y-2">
+            <Label>{t("procurement.suppliers.labelTags", "الوسم")}</Label>
+            <Input
+              value={quickTagInput}
+              onChange={(e) => setQuickTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSaveQuickTag();
+                }
+              }}
+              placeholder={tr("procurement.suppliers.tagPlaceholder")}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setQuickTagSupplier(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button size="sm" onClick={handleSaveQuickTag} disabled={!quickTagInput.trim() || savingQuickTag}>
+              {t("common.save")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

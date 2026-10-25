@@ -59,7 +59,15 @@
     "labelNotes": "ملاحظات",
     "labelRating": "التقييم:",
     "labelStatus": "الحالة",
-    "viewTitle": "تفاصيل المورد"
+    "viewTitle": "تفاصيل المورد",
+    "columnTags": "الوسوم",
+    "labelTags": "الوسوم",
+    "addTag": "إضافة وسم",
+    "addTagPlaceholder": "اكتب الوسم واضغط Enter...",
+    "noTags": "لا توجد وسوم",
+    "quickAddTag": "إضافة وسم سريع",
+    "quickAddTagTitle": "إضافة وسم للمورد",
+    "tagPlaceholder": "اسم الوسم"
   },
   "purchaseOrders": {
     "title": "أوامر الشراء",

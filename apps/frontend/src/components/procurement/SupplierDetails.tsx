@@ -55,6 +55,7 @@ interface SupplierDetailData {
   email?: string;
   address?: string;
   taxNumber?: string;
+  tags?: string | string[];
   openingBalance: number;
   currentBalance: number;
   creditLimit?: number;
@@ -62,6 +63,20 @@ interface SupplierDetailData {
   aging: AgingBuckets;
   statement: StatementEntry[];
 }
+
+const parseTags = (tags: any): string[] => {
+  if (!tags) return [];
+  if (Array.isArray(tags)) return tags;
+  if (typeof tags === "string") {
+    try {
+      const parsed = JSON.parse(tags);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
 
 interface TreasuryAccount {
   id: string;
@@ -265,11 +280,23 @@ export default function SupplierDetails() {
             <ArrowRight className="size-5" />
           </Button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{supplier.name}</h1>
               <Badge variant={supplier.isActive ? 'default' : 'secondary'}>
                 {supplier.isActive ? 'نشط' : 'معطل'}
               </Badge>
+              {parseTags(supplier.tags).length > 0 && (
+                <div className="flex flex-wrap items-center gap-1 ms-1">
+                  {parseTags(supplier.tags).map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               كشف الحساب وتفاصيل المديونية وأعمار الديون
@@ -319,6 +346,21 @@ export default function SupplierDetails() {
             <div className="flex items-center gap-2 text-muted-foreground">
               <MapPin className="size-4 shrink-0" />
               <span>{supplier.address}</span>
+            </div>
+          )}
+          {parseTags(supplier.tags).length > 0 && (
+            <div className="pt-2 border-t border-border/40">
+              <div className="text-xs font-semibold text-muted-foreground mb-1.5">الوسوم:</div>
+              <div className="flex flex-wrap gap-1">
+                {parseTags(supplier.tags).map((tag, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>

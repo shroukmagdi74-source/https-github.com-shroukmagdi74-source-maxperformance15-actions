@@ -1,5 +1,6 @@
 const { getSharedPrismaClient, safeQuery } = require('../services/sharedDatabase');
 const { logProcurementActivity } = require('../services/procurementAuditService');
+const { toCanonicalE164 } = require('../utils/phoneNormalization');
 
 exports.createSupplier = async (req, res) => {
   try {
@@ -10,6 +11,7 @@ exports.createSupplier = async (req, res) => {
       email,
       phone,
       mobile,
+      tags,
       address,
       city,
       country,
@@ -27,6 +29,53 @@ exports.createSupplier = async (req, res) => {
       return res.status(400).json({ message: 'اسم المورد مطلوب' });
     }
 
+    const rawPhone = phone || mobile;
+    const phoneNormalized = rawPhone ? toCanonicalE164(rawPhone) : null;
+
+    // فحص وجود مورد مكرر بنفس phoneNormalized أو بنفس lower(trim(name)) + phone في نفس companyId
+    const duplicateConditions = [];
+    if (phoneNormalized) {
+      duplicateConditions.push({ phoneNormalized });
+    }
+
+    const trimmedName = name.trim();
+    if (phone && phone.trim()) {
+      duplicateConditions.push({
+        name: { equals: trimmedName, mode: 'insensitive' },
+        phone: phone.trim()
+      });
+    }
+    if (mobile && mobile.trim()) {
+      duplicateConditions.push({
+        name: { equals: trimmedName, mode: 'insensitive' },
+        mobile: mobile.trim()
+      });
+    }
+
+    if (duplicateConditions.length > 0) {
+      const existingSupplier = await safeQuery(() =>
+        getSharedPrismaClient().supplier.findFirst({
+          where: {
+            companyId,
+            OR: duplicateConditions
+          }
+        })
+      );
+
+      if (existingSupplier) {
+        return res.status(409).json({
+          success: false,
+          message: 'المورد موجود بالفعل',
+          supplier: existingSupplier
+        });
+      }
+    }
+
+    let serializedTags = null;
+    if (tags !== undefined && tags !== null) {
+      serializedTags = typeof tags === 'string' ? tags : JSON.stringify(tags);
+    }
+
     const initialBal = openingBalance ? parseFloat(openingBalance) : 0;
 
     const supplier = await safeQuery(() =>
@@ -38,6 +87,8 @@ exports.createSupplier = async (req, res) => {
           email,
           phone,
           mobile,
+          phoneNormalized,
+          tags: serializedTags,
           address,
           city,
           country: country || 'Egypt',
@@ -74,6 +125,12 @@ exports.createSupplier = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating supplier:', error);
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        success: false,
+        message: 'المورد موجود بالفعل'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'حدث خطأ أثناء إضافة المورد: ' + error.message,
@@ -266,6 +323,7 @@ exports.updateSupplier = async (req, res) => {
       email,
       phone,
       mobile,
+      tags,
       address,
       city,
       country,
@@ -286,6 +344,23 @@ exports.updateSupplier = async (req, res) => {
       return res.status(404).json({ message: 'المورد غير موجود' });
     }
 
+    let serializedTags = undefined;
+    if (tags !== undefined) {
+      if (tags === null) {
+        serializedTags = null;
+      } else {
+        serializedTags = typeof tags === 'string' ? tags : JSON.stringify(tags);
+      }
+    }
+
+    let newPhoneNormalized = undefined;
+    if (phone !== undefined || mobile !== undefined) {
+      const rawPhone = phone !== undefined ? phone : existingSupplier.phone;
+      const rawMobile = mobile !== undefined ? mobile : existingSupplier.mobile;
+      const effectivePhone = rawPhone || rawMobile;
+      newPhoneNormalized = effectivePhone ? toCanonicalE164(effectivePhone) : null;
+    }
+
     const supplier = await safeQuery(() => getSharedPrismaClient().supplier.update({
       where: { id },
       data: {
@@ -294,13 +369,15 @@ exports.updateSupplier = async (req, res) => {
         email,
         phone,
         mobile,
+        phoneNormalized: newPhoneNormalized,
+        tags: serializedTags,
         address,
         city,
         country,
         taxNumber,
         commercialRegister,
         paymentTerms,
-        creditLimit: creditLimit ? parseFloat(creditLimit) : null,
+        creditLimit: creditLimit !== undefined ? (creditLimit ? parseFloat(creditLimit) : null) : undefined,
         openingBalance: req.body.openingBalance !== undefined ? parseFloat(req.body.openingBalance) : existingSupplier.openingBalance,
         rating: rating ? parseInt(rating) : existingSupplier.rating,
         notes,
@@ -314,6 +391,12 @@ exports.updateSupplier = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating supplier:', error);
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        success: false,
+        message: 'المورد موجود بالفعل أو رقم الهاتف مسجل لمورد آخر'
+      });
+    }
     res.status(500).json({ message: 'حدث خطأ أثناء تحديث بيانات المورد' });
   }
 };

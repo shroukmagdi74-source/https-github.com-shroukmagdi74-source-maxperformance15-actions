@@ -57,6 +57,7 @@ model Customer {
      patients                        Patient[]
      productionOrders                ProductionOrder[]
      customerOrders                  CustomerOrder[]
+     supplier                        Supplier?
  
      @@unique([facebookId, companyId])
   @@unique([instagramId, companyId])
