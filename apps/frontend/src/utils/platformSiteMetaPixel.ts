@@ -2,9 +2,34 @@ import {
   trackCompleteRegistration as trackMetaCompleteRegistration,
   trackCustom,
   trackLead as trackMetaLead,
+  trackStandardEvent,
 } from "./facebookPixel";
-import type { PlatformSiteMetaPixelPublicSettings } from "../services/platformSiteMetaPixelService";
-import { DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS } from "../services/platformSiteMetaPixelService";
+export interface PlatformSiteMetaPixelPublicSettings {
+  enabled: boolean;
+  pixelId: string;
+  trackPageView: boolean;
+  trackLead: boolean;
+  trackCompleteRegistration: boolean;
+  trackLogin: boolean;
+  trackInitiateCheckout?: boolean;
+  trackPurchase?: boolean;
+  loginEventName: string;
+  updatedAt?: string | null;
+}
+
+export const DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS: PlatformSiteMetaPixelPublicSettings =
+  {
+    enabled: false,
+    pixelId: "",
+    trackPageView: false,
+    trackLead: false,
+    trackCompleteRegistration: false,
+    trackLogin: false,
+    trackInitiateCheckout: true,
+    trackPurchase: true,
+    loginEventName: "PlatformLogin",
+    updatedAt: null,
+  };
 
 let currentPlatformSiteMetaPixelSettings: PlatformSiteMetaPixelPublicSettings = {
   ...DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS,
@@ -83,5 +108,70 @@ export const trackPlatformSiteLogin = (
   return trackCustom(
     currentPlatformSiteMetaPixelSettings.loginEventName || "PlatformLogin",
     buildContextPayload("platform_login", data),
+  );
+};
+
+
+export const trackPlatformSiteInitiateCheckout = (
+  eventSource: string,
+  data: Record<string, unknown> = {},
+) => {
+  if (
+    !currentPlatformSiteMetaPixelSettings.enabled ||
+    currentPlatformSiteMetaPixelSettings.trackInitiateCheckout === false
+  ) {
+    return;
+  }
+
+  const eventId =
+    typeof data.eventID === "string"
+      ? data.eventID
+      : typeof data.eventId === "string"
+        ? data.eventId
+        : undefined;
+
+  const { eventID, eventId: _unused, ...restData } = data;
+
+  const payload = buildContextPayload(eventSource, {
+    currency: "EGP",
+    ...restData,
+  });
+
+  return trackStandardEvent(
+    "InitiateCheckout",
+    payload,
+    eventId ? { eventID: eventId } : undefined,
+  );
+};
+
+export const trackPlatformSitePurchase = (
+  eventSource: string,
+  data: Record<string, unknown> = {},
+) => {
+  if (
+    !currentPlatformSiteMetaPixelSettings.enabled ||
+    currentPlatformSiteMetaPixelSettings.trackPurchase === false
+  ) {
+    return;
+  }
+
+  const eventId =
+    typeof data.eventID === "string"
+      ? data.eventID
+      : typeof data.eventId === "string"
+        ? data.eventId
+        : undefined;
+
+  const { eventID, eventId: _unused, ...restData } = data;
+
+  const payload = buildContextPayload(eventSource, {
+    currency: "EGP",
+    ...restData,
+  });
+
+  return trackStandardEvent(
+    "Purchase",
+    payload,
+    eventId ? { eventID: eventId } : undefined,
   );
 };

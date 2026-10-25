@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 // Mock utilities that use import.meta.env under Jest
 jest.mock("../../../../utils/platformSiteMetaPixel", () => ({
   trackPlatformSiteLead: jest.fn(),
+  trackPlatformSiteInitiateCheckout: jest.fn(),
 }));
 jest.mock("../../../../utils/facebookPixel", () => ({
   trackInitiateCheckout: jest.fn(),

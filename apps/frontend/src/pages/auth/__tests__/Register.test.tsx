@@ -115,4 +115,36 @@ describe("Register", () => {
       expect(mockNavigate).toHaveBeenCalledWith("/company-dashboard", { replace: true });
     });
   });
+
+  test("does not fire trackPlatformSiteCompleteRegistration for @maxp.online test accounts", async () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Register />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(container.querySelector('input[name="fullName"]')!, {
+      target: { value: "فريق الاختبار" },
+    });
+    fireEvent.change(container.querySelector('input[name="companyName"]')!, {
+      target: { value: "ماكس بي تيست" },
+    });
+    fireEvent.change(container.querySelector('input[name="email"]')!, {
+      target: { value: "tester@maxp.online" },
+    });
+    fireEvent.change(container.querySelector('input[name="password"]')!, {
+      target: { value: "StrongPass#123" },
+    });
+    fireEvent.change(container.querySelector('input[name="phone"]')!, {
+      target: { value: "01012345678" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /إنشاء حساب/ }));
+
+    await waitFor(() => {
+      expect(mockRegister).toHaveBeenCalled();
+    });
+
+    expect(mockTrackCompleteRegistration).not.toHaveBeenCalled();
+  });
 });

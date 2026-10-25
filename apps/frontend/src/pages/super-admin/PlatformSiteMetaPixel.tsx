@@ -28,6 +28,8 @@ const trackingOptions: Array<{
     | "trackLead"
     | "trackCompleteRegistration"
     | "trackLogin"
+    | "trackInitiateCheckout"
+    | "trackPurchase"
   >;
   title: string;
   description: string;
@@ -52,6 +54,16 @@ const trackingOptions: Array<{
     title: "Login (Custom)",
     description: "يرسل custom event بعد نجاح تسجيل الدخول لمتابعة التحويل الثانوي.",
   },
+  {
+    key: "trackInitiateCheckout",
+    title: "InitiateCheckout",
+    description: "يتفعّل عند الضغط على زر بدء الاشتراك / الشراء بالباقة في اللاندنج.",
+  },
+  {
+    key: "trackPurchase",
+    title: "Purchase",
+    description: "يتسجل عند اكتمال عملية الدفع ونجاح تفعيل الاشتراك بقيمة الباقة.",
+  },
 ];
 
 const trackedRoutes = [
@@ -60,6 +72,7 @@ const trackedRoutes = [
   "/auth/register",
   "/register/*",
   "/affiliate-register",
+  "/subscription",
 ];
 
 export default function PlatformSiteMetaPixel() {

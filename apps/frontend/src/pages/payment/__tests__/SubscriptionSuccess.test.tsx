@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import SubscriptionSuccess from "../SubscriptionSuccess";
+import * as platformPixelModule from "../../../utils/platformSiteMetaPixel";
 
 const renderWithQuery = (query: string) =>
   render(
@@ -12,12 +13,70 @@ const renderWithQuery = (query: string) =>
   );
 
 describe("SubscriptionSuccess", () => {
-  it("shows the success state when status=success", async () => {
-    renderWithQuery("?status=success&billingId=bill-1");
+  let trackPurchaseSpy: jest.SpyInstance;
+  const sessionStore = new Map<string, string>();
 
-    expect(await screen.findByText("باقة AI + Inbox مفعّلة!")).toBeInTheDocument();
-    expect(screen.getByText(/تم إتمام الاشتراك وتفعيل الباقة بنجاح/)).toBeInTheDocument();
+  beforeEach(() => {
+    sessionStore.clear();
+    (window.sessionStorage.getItem as jest.Mock).mockImplementation((key: string) => sessionStore.get(key) ?? null);
+    (window.sessionStorage.setItem as jest.Mock).mockImplementation((key: string, val: string) => {
+      sessionStore.set(key, String(val));
+    });
+    (window.sessionStorage.removeItem as jest.Mock).mockImplementation((key: string) => sessionStore.delete(key));
+    (window.sessionStorage.clear as jest.Mock).mockImplementation(() => sessionStore.clear());
+    trackPurchaseSpy = jest.spyOn(platformPixelModule, "trackPlatformSitePurchase").mockImplementation();
+  });
+
+  afterEach(() => {
+    trackPurchaseSpy.mockRestore();
+  });
+
+  it("shows the success state and fires trackPlatformSitePurchase with default 999 EGP", async () => {
+    renderWithQuery("?status=success&bundle=store-complete-bundle&billingId=bill-1");
+
+    expect(await screen.findByText("باقة المتجر الكاملة مفعّلة!")).toBeInTheDocument();
+    expect(screen.getByText(/تم إتمام الاشتراك وتفعيل الـ 17 أداة بنجاح/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ابدأ الآن/ })).toBeInTheDocument();
+
+    expect(trackPurchaseSpy).toHaveBeenCalledTimes(1);
+    expect(trackPurchaseSpy).toHaveBeenCalledWith("subscription_success", {
+      value: 999,
+      currency: "EGP",
+      content_name: "store-complete-bundle",
+      eventID: "purchase_bill-1",
+      billingId: "bill-1",
+      bundle: "store-complete-bundle",
+    });
+  });
+
+  it("uses the actual amount from query params when available", async () => {
+    renderWithQuery("?status=success&bundle=store-complete-bundle&billingId=bill-2&amount=1499");
+
+    await screen.findByText("باقة المتجر الكاملة مفعّلة!");
+    expect(trackPurchaseSpy).toHaveBeenCalledWith("subscription_success", expect.objectContaining({
+      value: 1499,
+      currency: "EGP",
+      eventID: "purchase_bill-2",
+    }));
+  });
+
+  it("does not track twice if already tracked in sessionStorage (refresh prevention)", async () => {
+    const { unmount } = renderWithQuery("?status=success&bundle=store-complete-bundle&billingId=bill-repeat");
+    await screen.findByText("باقة المتجر الكاملة مفعّلة!");
+    expect(trackPurchaseSpy).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    // Re-render simulates page refresh with same billingId
+    renderWithQuery("?status=success&bundle=store-complete-bundle&billingId=bill-repeat");
+    expect(trackPurchaseSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire trackPlatformSitePurchase when payment failed", async () => {
+    renderWithQuery("?status=failed&billingId=bill-fail");
+
+    await screen.findByText("لم يكتمل الدفع");
+    expect(trackPurchaseSpy).not.toHaveBeenCalled();
   });
 
   it("shows the success state when Kashier appends a CAPTURED paymentStatus", async () => {

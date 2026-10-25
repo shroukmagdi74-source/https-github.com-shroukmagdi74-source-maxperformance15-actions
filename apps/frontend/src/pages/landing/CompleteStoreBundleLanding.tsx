@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, MessageCircle } from "lucide-react";
 import tokenManager from "../../utils/tokenManager";
-import { trackInitiateCheckout } from "../../utils/facebookPixel";
-import { trackPlatformSiteLead } from "../../utils/platformSiteMetaPixel";
+import {
+  trackPlatformSiteInitiateCheckout,
+  trackPlatformSiteLead,
+} from "../../utils/platformSiteMetaPixel";
 
 import { CsbNavbar } from "./complete-store/CsbNavbar";
 import { CsbHero } from "./complete-store/CsbHero";
@@ -133,12 +135,12 @@ export const CompleteStoreBundleLanding: React.FC = () => {
    */
   const handleSubscribe = useCallback(async () => {
     try {
-      trackInitiateCheckout({
-        content_ids: [BUNDLE_SLUG],
-        content_type: "product_group",
-        num_items: 17,
+      trackPlatformSiteInitiateCheckout("csb_subscribe_cta", {
+        content_name: "store-complete-bundle",
         value: pricing.bundlePrice,
         currency: "EGP",
+        num_items: 17,
+        bundle: BUNDLE_SLUG,
       });
       trackPlatformSiteLead("csb_subscribe_cta", {
         bundle: BUNDLE_SLUG,

@@ -401,7 +401,10 @@ const Register: React.FC = () => {
         const isValidRedirect = redirectParam && redirectParam !== "/" && (!redirectParam.startsWith("/lp/") || Boolean(landingBundle));
         const sourceRedirect = source === "ai-inbox" ? "/marketplace/bundle/ai-inbox-bundle" : null;
         const redirectPath = (isValidRedirect ? redirectParam : null) || sourceRedirect || postAuthDest || NEW_ACCOUNT_DESTINATION;
-        trackPlatformSiteCompleteRegistration("auth_register", { destination: redirectPath, role: userData?.role || "UNKNOWN" });
+        const isInternalTestEmail = formData.email.trim().toLowerCase().endsWith("@maxp.online");
+        if (!isInternalTestEmail) {
+          trackPlatformSiteCompleteRegistration("auth_register", { destination: redirectPath, role: userData?.role || "UNKNOWN" });
+        }
         setTimeout(() => navigate(redirectPath, { replace: true }), 100);
       }
     } catch (err: any) {

@@ -36,7 +36,8 @@ export const isPlatformSitePixelPath = (pathname: string): boolean =>
   pathname.startsWith("/register/") ||
   pathname.startsWith("/affiliate-register") ||
   pathname.startsWith("/apply/") ||
-  pathname.startsWith("/for-merchants");
+  pathname.startsWith("/for-merchants") ||
+  pathname.startsWith("/subscription");
 
 export const usePlatformSiteMetaPixel = () => {
   const location = useLocation();

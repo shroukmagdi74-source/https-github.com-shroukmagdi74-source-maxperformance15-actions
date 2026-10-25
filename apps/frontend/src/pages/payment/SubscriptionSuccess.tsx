@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { trackPlatformSitePurchase } from "../../utils/platformSiteMetaPixel";
 
 const SUCCESS_STATUSES = new Set([
   "success",
@@ -40,6 +41,53 @@ const SubscriptionSuccess: React.FC = () => {
 
   const isSuccess = SUCCESS_STATUSES.has(status || "") || SUCCESS_STATUSES.has(paymentStatus || "");
   const isFailure = FAILURE_STATUSES.has(status || "") || FAILURE_STATUSES.has(paymentStatus || "");
+
+  useEffect(() => {
+    if (!isSuccess) return;
+
+    const transactionId =
+      billingId ||
+      searchParams.get("orderId") ||
+      searchParams.get("transactionId") ||
+      searchParams.get("paymentId") ||
+      searchParams.get("merchantOrderId") ||
+      searchParams.get("id");
+
+    const eventId = transactionId
+      ? `purchase_${transactionId}`
+      : `purchase_${bundle || (isStoreBundle ? "store-complete-bundle" : "bundle")}_fallback`;
+
+    const storageKey = `meta_pixel_purchase_${eventId}`;
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        if (window.sessionStorage.getItem(storageKey)) {
+          return;
+        }
+        window.sessionStorage.setItem(storageKey, "1");
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    const rawAmount =
+      searchParams.get("amount") ||
+      searchParams.get("value") ||
+      searchParams.get("total");
+    const parsedAmount = rawAmount ? parseFloat(rawAmount) : NaN;
+    const value = !isNaN(parsedAmount) && parsedAmount > 0 ? parsedAmount : 999;
+
+    const contentName =
+      bundle || (isStoreBundle ? "store-complete-bundle" : "bundle");
+
+    trackPlatformSitePurchase("subscription_success", {
+      value,
+      currency: "EGP",
+      content_name: contentName,
+      eventID: eventId,
+      billingId: billingId || undefined,
+      bundle: bundle || undefined,
+    });
+  }, [isSuccess, billingId, bundle, isStoreBundle, searchParams]);
 
   if (!ready) {
     return (

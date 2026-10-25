@@ -8,21 +8,16 @@ export interface PlatformSiteMetaPixelSettings {
   trackLead: boolean;
   trackCompleteRegistration: boolean;
   trackLogin: boolean;
+  trackInitiateCheckout?: boolean;
+  trackPurchase?: boolean;
   loginEventName: string;
   createdAt?: string | null;
   updatedAt?: string | null;
 }
 
-export interface PlatformSiteMetaPixelPublicSettings {
-  enabled: boolean;
-  pixelId: string;
-  trackPageView: boolean;
-  trackLead: boolean;
-  trackCompleteRegistration: boolean;
-  trackLogin: boolean;
-  loginEventName: string;
-  updatedAt?: string | null;
-}
+export type { PlatformSiteMetaPixelPublicSettings } from "../utils/platformSiteMetaPixel";
+import type { PlatformSiteMetaPixelPublicSettings } from "../utils/platformSiteMetaPixel";
+export { DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS } from "../utils/platformSiteMetaPixel";
 
 export const DEFAULT_PLATFORM_SITE_META_PIXEL_SETTINGS: PlatformSiteMetaPixelSettings =
   {
@@ -33,22 +28,14 @@ export const DEFAULT_PLATFORM_SITE_META_PIXEL_SETTINGS: PlatformSiteMetaPixelSet
     trackLead: true,
     trackCompleteRegistration: true,
     trackLogin: false,
+    trackInitiateCheckout: true,
+    trackPurchase: true,
     loginEventName: "PlatformLogin",
     createdAt: null,
     updatedAt: null,
   };
 
-export const DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS: PlatformSiteMetaPixelPublicSettings =
-  {
-    enabled: false,
-    pixelId: "",
-    trackPageView: false,
-    trackLead: false,
-    trackCompleteRegistration: false,
-    trackLogin: false,
-    loginEventName: "PlatformLogin",
-    updatedAt: null,
-  };
+
 
 const unwrapData = <T>(payload: any, fallback: T): T => {
   if (payload?.data !== undefined) {
@@ -74,6 +61,8 @@ const normalizeAdminSettings = (
   trackLead: value?.trackLead !== false,
   trackCompleteRegistration: value?.trackCompleteRegistration !== false,
   trackLogin: Boolean(value?.trackLogin),
+  trackInitiateCheckout: value?.trackInitiateCheckout !== false,
+  trackPurchase: value?.trackPurchase !== false,
   loginEventName:
     normalizeText(value?.loginEventName) ||
     DEFAULT_PLATFORM_SITE_META_PIXEL_SETTINGS.loginEventName,
@@ -91,6 +80,8 @@ const normalizePublicSettings = (
   trackLead: Boolean(value?.trackLead),
   trackCompleteRegistration: Boolean(value?.trackCompleteRegistration),
   trackLogin: Boolean(value?.trackLogin),
+  trackInitiateCheckout: value?.trackInitiateCheckout !== false,
+  trackPurchase: value?.trackPurchase !== false,
   loginEventName:
     normalizeText(value?.loginEventName) ||
     DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS.loginEventName,

@@ -7,6 +7,10 @@ const mockTrackCompleteRegistration = jest.fn();
 
 jest.mock("sonner", () => ({
   __esModule: true,
+  toast: {
+    success: jest.fn(),
+    error: jest.fn(),
+  },
   default: {
     success: jest.fn(),
     error: jest.fn(),
@@ -49,16 +53,16 @@ describe("PublicMerchantRegister", () => {
     render(<PublicMerchantRegister />);
 
     fireEvent.change(
-      screen.getByLabelText("رابط الشركة أو الـ slug"),
+      screen.getByLabelText(/معرف أو رابط المتجر/i),
       { target: { value: "demo-store" } },
     );
-    fireEvent.change(screen.getByLabelText("اسم التاجر"), {
+    fireEvent.change(screen.getByLabelText(/اسم التاجر/i), {
       target: { value: "Merchant Co" },
     });
-    fireEvent.change(screen.getByLabelText("البريد الإلكتروني"), {
+    fireEvent.change(screen.getByLabelText(/البريد الإلكتروني/i), {
       target: { value: "merchant@example.com" },
     });
-    fireEvent.change(screen.getByLabelText("كلمة مرور حساب التاجر"), {
+    fireEvent.change(screen.getByLabelText(/كلمة مرور حساب التاجر/i), {
       target: { value: "StrongPass#123" },
     });
 
@@ -66,7 +70,7 @@ describe("PublicMerchantRegister", () => {
     expect(screen.queryByLabelText("Webhook URL (اختياري)")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("تفعيل الوفاء التلقائي للطلبات")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "تسجيل كتاجر" }));
+    fireEvent.click(screen.getByRole("button", { name: /تقديم طلب التسجيل كتاجر/i }));
 
     await waitFor(() => {
       expect(mockPost).toHaveBeenCalledWith(
@@ -92,5 +96,31 @@ describe("PublicMerchantRegister", () => {
         subdomain: "root",
       }),
     );
+  });
+
+  test("does not fire trackPlatformSiteCompleteRegistration for @maxp.online test accounts", async () => {
+    render(<PublicMerchantRegister />);
+
+    fireEvent.change(
+      screen.getByLabelText(/معرف أو رابط المتجر/i),
+      { target: { value: "demo-store" } },
+    );
+    fireEvent.change(screen.getByLabelText(/اسم التاجر/i), {
+      target: { value: "Tester Merchant" },
+    });
+    fireEvent.change(screen.getByLabelText(/البريد الإلكتروني/i), {
+      target: { value: "tester@maxp.online" },
+    });
+    fireEvent.change(screen.getByLabelText(/كلمة مرور حساب التاجر/i), {
+      target: { value: "StrongPass#123" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /تقديم طلب التسجيل كتاجر/i }));
+
+    await waitFor(() => {
+      expect(mockPost).toHaveBeenCalled();
+    });
+
+    expect(mockTrackCompleteRegistration).not.toHaveBeenCalled();
   });
 });

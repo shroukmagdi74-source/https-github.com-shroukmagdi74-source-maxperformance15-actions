@@ -95,10 +95,13 @@ const PublicMerchantRegister: React.FC = () => {
 
       if (response.data.success) {
         tToast.success("PublicMerchantRegister.success_create_account_4e42");
-        trackPlatformSiteCompleteRegistration("merchant_public_register", {
-          destination: "pending-review",
-          subdomain: subdomain || "root",
-        });
+        const isInternalTestEmail = formData.email.trim().toLowerCase().endsWith("@maxp.online");
+        if (!isInternalTestEmail) {
+          trackPlatformSiteCompleteRegistration("merchant_public_register", {
+            destination: "pending-review",
+            subdomain: subdomain || "root",
+          });
+        }
         setFormData({
           name: "",
           email: "",

@@ -1385,9 +1385,10 @@ export const trackAddToWishlist = (product: {
 /**
  * Ã˜Â¥Ã˜Â±Ã˜Â³Ã˜Â§Ã™â€ž Ã˜Â­Ã˜Â¯Ã˜Â« Ã™â€¦Ã˜Â®Ã˜ÂµÃ˜Âµ (Custom Event)
  */
-const trackStandardEvent = (
+export const trackStandardEvent = (
   eventName: string,
   eventData: FacebookPixelEventData = {},
+  options?: { eventID?: string },
 ) => {
   if (!isInitialized || typeof window === "undefined" || !hasFbq()) {
     waitForPixel(() => {
@@ -1398,7 +1399,7 @@ const trackStandardEvent = (
         return;
       }
 
-      const eventId = generateEventId();
+      const eventId = options?.eventID || generateEventId();
 
       try {
         setTimeout(() => {
@@ -1420,7 +1421,7 @@ const trackStandardEvent = (
     return;
   }
 
-  const eventId = generateEventId();
+  const eventId = options?.eventID || generateEventId();
 
   try {
     setTimeout(() => {
