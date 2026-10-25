@@ -4,32 +4,13 @@ import {
   trackLead as trackMetaLead,
   trackStandardEvent,
 } from "./facebookPixel";
-export interface PlatformSiteMetaPixelPublicSettings {
-  enabled: boolean;
-  pixelId: string;
-  trackPageView: boolean;
-  trackLead: boolean;
-  trackCompleteRegistration: boolean;
-  trackLogin: boolean;
-  trackInitiateCheckout?: boolean;
-  trackPurchase?: boolean;
-  loginEventName: string;
-  updatedAt?: string | null;
-}
+import {
+  DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS,
+  PlatformSiteMetaPixelPublicSettings,
+} from "../services/platformSiteMetaPixelTypes";
 
-export const DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS: PlatformSiteMetaPixelPublicSettings =
-  {
-    enabled: false,
-    pixelId: "",
-    trackPageView: false,
-    trackLead: false,
-    trackCompleteRegistration: false,
-    trackLogin: false,
-    trackInitiateCheckout: true,
-    trackPurchase: true,
-    loginEventName: "PlatformLogin",
-    updatedAt: null,
-  };
+export type { PlatformSiteMetaPixelPublicSettings };
+export { DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS };
 
 let currentPlatformSiteMetaPixelSettings: PlatformSiteMetaPixelPublicSettings = {
   ...DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS,

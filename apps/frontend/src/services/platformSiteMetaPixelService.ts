@@ -1,42 +1,19 @@
 import { apiClient } from "./apiClient";
+import {
+  DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS,
+  DEFAULT_PLATFORM_SITE_META_PIXEL_SETTINGS,
+  PlatformSiteMetaPixelPublicSettings,
+  PlatformSiteMetaPixelSettings,
+} from "./platformSiteMetaPixelTypes";
 
-export interface PlatformSiteMetaPixelSettings {
-  siteKey: string;
-  isEnabled: boolean;
-  pixelId: string;
-  trackPageView: boolean;
-  trackLead: boolean;
-  trackCompleteRegistration: boolean;
-  trackLogin: boolean;
-  trackInitiateCheckout?: boolean;
-  trackPurchase?: boolean;
-  loginEventName: string;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-}
-
-export type { PlatformSiteMetaPixelPublicSettings } from "../utils/platformSiteMetaPixel";
-import type { PlatformSiteMetaPixelPublicSettings } from "../utils/platformSiteMetaPixel";
-import { DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS } from "../utils/platformSiteMetaPixel";
-export { DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS };
-
-export const DEFAULT_PLATFORM_SITE_META_PIXEL_SETTINGS: PlatformSiteMetaPixelSettings =
-  {
-    siteKey: "maxp.online",
-    isEnabled: false,
-    pixelId: "",
-    trackPageView: true,
-    trackLead: true,
-    trackCompleteRegistration: true,
-    trackLogin: false,
-    trackInitiateCheckout: true,
-    trackPurchase: true,
-    loginEventName: "PlatformLogin",
-    createdAt: null,
-    updatedAt: null,
-  };
-
-
+export type {
+  PlatformSiteMetaPixelSettings,
+  PlatformSiteMetaPixelPublicSettings,
+};
+export {
+  DEFAULT_PLATFORM_SITE_META_PIXEL_SETTINGS,
+  DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS,
+};
 
 const unwrapData = <T>(payload: any, fallback: T): T => {
   if (payload?.data !== undefined) {
