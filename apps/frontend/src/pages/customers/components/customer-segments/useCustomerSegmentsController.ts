@@ -37,6 +37,11 @@ export function useCustomerSegmentsController() {
   const [filterRating, setFilterRating] = useState("ALL");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
+  // قائمة تصفح فقط — مش مصدر لأي رقم في الصفحة.
+  // كل الإحصائيات (total / tierCounts) بتيجي من تجميعات السيرفر في /analytics/customer-quality،
+  // فرفع الحد هنا مش بيصلّح أي رقم وبيحمّل آلاف الصفوف على المتصفح بلا داعي.
+  const CUSTOMER_LIST_PAGE_SIZE = 200;
+
   // ── Load all data ────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -45,7 +50,7 @@ export function useCustomerSegmentsController() {
         analyticsService.getCustomerQualityAnalytics().catch(() => null),
         apiClient.get("/hr/customer-loyalty/customers", { timeout: 5000 }).catch(() => ({ data: { data: [] } })),
         apiClient.get("/hr/customer-loyalty/tiers").catch(() => ({ data: { data: [] } })),
-        apiClient.get("/customers?limit=200").catch(() => ({ data: { data: [] } })),
+        apiClient.get("/customers", { params: { page: 1, limit: CUSTOMER_LIST_PAGE_SIZE } }).catch(() => ({ data: { data: [] } })),
       ]);
 
       if (qualityRes?.success) {
@@ -169,17 +174,43 @@ export function useCustomerSegmentsController() {
   );
 
   // ── Aggregate stats ─────────────────────────
-  const stats = useMemo((): CustomerSegmentsStats => ({
-    total: unifiedCustomers.length,
-    vipCount: unifiedCustomers.filter((c) => c.qualityTier === "VIP").length,
-    highCount: unifiedCustomers.filter((c) => c.qualityTier === "عالي").length,
-    medCount: unifiedCustomers.filter((c) => c.qualityTier === "متوسط").length,
-    lowCount: unifiedCustomers.filter((c) => c.qualityTier === "منخفض").length,
-    loyaltyMembers: loyaltyRecords.filter((r) => r.status === "ACTIVE").length,
-    excellentCount: unifiedCustomers.filter((c) => c.rating === "EXCELLENT").length,
-    atRiskCount: unifiedCustomers.filter((c) => c.qualityTier === "منخفض").length,
-    totalPoints: loyaltyRecords.reduce((s, r) => s + toNumber(r.currentPoints), 0),
-  }), [unifiedCustomers, loyaltyRecords]);
+  const stats = useMemo((): CustomerSegmentsStats => {
+    const tierCounts = qualityData?.tierCounts;
+    const hasServerQualityStats = Boolean(
+      qualityData &&
+      tierCounts &&
+      Object.keys(tierCounts).length > 0
+    );
+
+    const total = hasServerQualityStats
+      ? qualityData!.totalCustomers
+      : unifiedCustomers.length;
+    const vipCount = hasServerQualityStats
+      ? toNumber(tierCounts!.VIP)
+      : unifiedCustomers.filter((c) => c.qualityTier === "VIP").length;
+    const highCount = hasServerQualityStats
+      ? toNumber(tierCounts!["عالي"])
+      : unifiedCustomers.filter((c) => c.qualityTier === "عالي").length;
+    const medCount = hasServerQualityStats
+      ? toNumber(tierCounts!["متوسط"])
+      : unifiedCustomers.filter((c) => c.qualityTier === "متوسط").length;
+    const lowCount = hasServerQualityStats
+      ? toNumber(tierCounts!["منخفض"])
+      : unifiedCustomers.filter((c) => c.qualityTier === "منخفض").length;
+    const atRiskCount = lowCount;
+
+    return {
+      total,
+      vipCount,
+      highCount,
+      medCount,
+      lowCount,
+      loyaltyMembers: loyaltyRecords.filter((r) => r.status === "ACTIVE").length,
+      excellentCount: unifiedCustomers.filter((c) => c.rating === "EXCELLENT").length,
+      atRiskCount,
+      totalPoints: loyaltyRecords.reduce((s, r) => s + toNumber(r.currentPoints), 0),
+    };
+  }, [unifiedCustomers, loyaltyRecords, qualityData]);
 
   // ── Category Form State ─────────────────────
   const [showCatForm, setShowCatForm] = useState(false);

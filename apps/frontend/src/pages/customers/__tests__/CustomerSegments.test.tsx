@@ -171,7 +171,7 @@ describe('CustomerSegments Component', () => {
     vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
       if (url.includes('/hr/customer-loyalty/customers')) return mockLoyaltyCustomers;
       if (url.includes('/hr/customer-loyalty/tiers')) return mockLoyaltyTiers;
-      if (url.includes('/customers?limit=200')) return mockCustomersList;
+      if (url === '/customers' || url.includes('/customers?limit=200')) return mockCustomersList;
       if (url.includes('/whatsapp/lead-categories')) return mockLeadCategories;
       if (url.includes('/customers/tags/distinct')) return mockTags;
       if (url.includes('/whatsapp/automation/flows')) return { data: { data: [] } };

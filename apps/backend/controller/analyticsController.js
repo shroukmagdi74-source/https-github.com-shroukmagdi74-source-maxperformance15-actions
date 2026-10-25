@@ -2268,37 +2268,36 @@ const getCustomerQualityAnalytics = async (req, res) => {
     const { start, end } = parseAnalyticsDateRange({ startDate, endDate, period });
     const prisma = getSharedPrismaClient();
 
-    const customers = await prisma.customer.findMany({
-      where: {
-        companyId: String(companyId)
-      },
-      include: {
-        orders: {
-          where: {
-            createdAt: {
-              gte: start,
-              lte: end
-            }
-          },
-          select: {
-            id: true,
-            total: true,
-            status: true,
-            createdAt: true
-          }
-        }
-      }
-    });
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT
+  c."id" AS "customerId",
+  COUNT(o."id")::int AS "totalOrders",
+  (COUNT(o."id") FILTER (WHERE o."status"::text = 'DELIVERED'))::int AS "completedOrders",
+  (COUNT(o."id") FILTER (WHERE o."status"::text = 'CANCELLED'))::int AS "cancelledOrders",
+  COALESCE(SUM(o."total") FILTER (WHERE o."status"::text = 'DELIVERED'), 0)::float8 AS "totalSpent",
+  MAX(o."createdAt") AS "lastOrderDate"
+FROM "customers" c
+JOIN "orders" o
+  ON o."customerId" = c."id"
+ AND o."createdAt" >= $2
+ AND o."createdAt" <= $3
+WHERE c."companyId" = $1
+GROUP BY c."id"`,
+      String(companyId),
+      start,
+      end
+    );
 
-    const customerScores = customers.map(customer => {
-      const orders = customer.orders;
-      const totalOrders = orders.length;
-      const completedOrders = orders.filter(o => o.status === 'DELIVERED').length;
-      const cancelledOrders = orders.filter(o => o.status === 'CANCELLED').length;
-      const totalSpent = orders.filter(o => o.status === 'DELIVERED').reduce((sum, o) => sum + parseFloat(o.total), 0);
+    const safeRows = Array.isArray(rows) ? rows : [];
+
+    const customerScores = safeRows.map(row => {
+      const totalOrders = Number(row.totalOrders || 0);
+      const completedOrders = Number(row.completedOrders || 0);
+      const cancelledOrders = Number(row.cancelledOrders || 0);
+      const totalSpent = Number(row.totalSpent || 0);
 
       // Calculate recency (days since last order)
-      const lastOrderDate = orders.length > 0 ? new Date(Math.max(...orders.map(o => new Date(o.createdAt)))) : null;
+      const lastOrderDate = row.lastOrderDate ? new Date(row.lastOrderDate) : null;
       const daysSinceLastOrder = lastOrderDate ? Math.floor((new Date() - lastOrderDate) / (1000 * 60 * 60 * 24)) : 999;
 
       // Scoring algorithm (0-100)
@@ -2333,9 +2332,7 @@ const getCustomerQualityAnalytics = async (req, res) => {
       else if (score >= 40) tier = 'متوسط';
 
       return {
-        customerId: customer.id,
-        customerName: getCustomerDisplayName(customer) || 'عميل غير محدد',
-        customerPhone: customer.phone,
+        customerId: row.customerId,
         totalOrders,
         completedOrders,
         cancelledOrders,
@@ -2369,7 +2366,38 @@ const getCustomerQualityAnalytics = async (req, res) => {
       'منخفض': customerScores.filter(c => c.tier === 'منخفض').length
     };
 
-    const topCustomers = customerScores.slice(0, 100).map(c => ({
+    const top100 = customerScores.slice(0, 100);
+    const topIds = top100.map(c => c.customerId);
+    const topProfiles = topIds.length > 0
+      ? await prisma.customer.findMany({
+          where: { id: { in: topIds } },
+          select: { id: true, firstName: true, lastName: true, phone: true }
+        })
+      : [];
+
+    const profileMap = new Map();
+    topProfiles.forEach(p => profileMap.set(p.id, p));
+
+    const topCustomersWithDetails = top100.map(c => {
+      const profile = profileMap.get(c.customerId);
+      return {
+        customerId: c.customerId,
+        customerName: (profile ? getCustomerDisplayName(profile) : '') || 'عميل غير محدد',
+        customerPhone: profile?.phone || null,
+        totalOrders: c.totalOrders,
+        completedOrders: c.completedOrders,
+        cancelledOrders: c.cancelledOrders,
+        totalSpent: c.totalSpent,
+        avgOrderValue: c.avgOrderValue,
+        daysSinceLastOrder: c.daysSinceLastOrder,
+        lastOrderDate: c.lastOrderDate,
+        completionRate: c.completionRate,
+        score: c.score,
+        tier: c.tier
+      };
+    });
+
+    const topCustomers = topCustomersWithDetails.map(c => ({
       id: c.customerId,
       name: c.customerName,
       email: c.customerPhone,
@@ -2396,7 +2424,7 @@ const getCustomerQualityAnalytics = async (req, res) => {
         customerLifetimeValue,
         topCustomers,
         segments,
-        customers: customerScores.slice(0, 100),
+        customers: topCustomersWithDetails,
         tierCounts,
         totalRevenue,
         vipRevenue,
