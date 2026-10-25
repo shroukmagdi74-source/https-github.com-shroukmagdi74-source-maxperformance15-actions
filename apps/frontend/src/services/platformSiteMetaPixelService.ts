@@ -17,7 +17,8 @@ export interface PlatformSiteMetaPixelSettings {
 
 export type { PlatformSiteMetaPixelPublicSettings } from "../utils/platformSiteMetaPixel";
 import type { PlatformSiteMetaPixelPublicSettings } from "../utils/platformSiteMetaPixel";
-export { DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS } from "../utils/platformSiteMetaPixel";
+import { DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS } from "../utils/platformSiteMetaPixel";
+export { DEFAULT_PLATFORM_SITE_META_PIXEL_PUBLIC_SETTINGS };
 
 export const DEFAULT_PLATFORM_SITE_META_PIXEL_SETTINGS: PlatformSiteMetaPixelSettings =
   {
