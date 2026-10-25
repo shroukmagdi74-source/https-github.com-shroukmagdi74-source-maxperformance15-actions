@@ -1275,12 +1275,13 @@ async function sendNotification(options) {
     // (company / platform-only / platform-fallback) — تحدد هل نبعت من شركة الطلب
     // ولا من الشركة الأم اللي عندها جلسة Meta متصلة.
     deliveryStrategy = 'company',
+    // 🚨 PRODUCTION-FIX (WA-SIGNUP-1): استلام deliveryCompanyId الصريح من الرابر
+    deliveryCompanyId: explicitDeliveryCompanyId = null,
     // 🛡️ PRODUCTION-FIX (guest-order-fk): الضيوف ملهمش صف في orders — اللوج بـ orderId=null
     isGuestOrder = false
   } = options;
-  // 🚨 PRODUCTION-FIX (platform-fallback-2026-08-24): deliveryCompanyId قابل للتعديل
-  // عشان نقدر نعيد تعيينه من resolveDeliveryCompanyId حسب الاستراتيجية.
-  let deliveryCompanyId = companyId;
+  // 🚨 PRODUCTION-FIX (WA-SIGNUP-1): نبدأ بـ explicitDeliveryCompanyId إن وجد (لا يُستبدل)
+  let deliveryCompanyId = explicitDeliveryCompanyId || null;
   const safeOrderId = isGuestOrder ? null : orderId;
 
   const prisma = getSharedPrismaClient();
@@ -1321,12 +1322,11 @@ async function sendNotification(options) {
     let sessionId = null;
     let senderSettings = settings;
 
-    // 🚨 PRODUCTION-FIX (platform-fallback-2026-08-24): نحلّ resolvedDeliveryCompanyId
-    // من الاستراتيجية — عشان الشركات الفرعية (اللي مفيش ليها جلسة) تبعت عبر
-    // الشركة الأم اللي عندها META_CLOUD متصل (زي Swan).
-    const resolvedDeliveryCompanyId = await resolveDeliveryCompanyId(companyId, deliveryStrategy);
-    if (resolvedDeliveryCompanyId && resolvedDeliveryCompanyId !== deliveryCompanyId) {
-      deliveryCompanyId = resolvedDeliveryCompanyId;
+    // 🚨 PRODUCTION-FIX (WA-SIGNUP-1): ممنوع استبدال deliveryCompanyId الصريح القادم من الرابر.
+    // احسب الاستراتيجية فقط عندما لا يكون هناك deliveryCompanyId صريح.
+    if (!deliveryCompanyId) {
+      const resolvedDeliveryCompanyId = await resolveDeliveryCompanyId(companyId, deliveryStrategy);
+      deliveryCompanyId = resolvedDeliveryCompanyId || companyId;
     }
 
     if (deliveryCompanyId && deliveryCompanyId !== companyId) {
@@ -1460,6 +1460,8 @@ async function sendNotification(options) {
 
       return scheduleNotification({
         ...options,
+        deliveryCompanyId,
+        deliveryStrategy,
         scheduleAt: nextAllowedSendAt
       });
     }
@@ -2399,6 +2401,7 @@ async function sendNotification(options) {
           const scheduled = await scheduleNotification({
             companyId,
             deliveryCompanyId,
+            deliveryStrategy,
             recipientPhone,
             recipientName,
             recipientType,
@@ -2487,7 +2490,8 @@ async function scheduleNotification(options) {
   try {
     const {
       companyId,
-      deliveryCompanyId = companyId,
+      deliveryCompanyId: explicitDeliveryCompanyId = null,
+      deliveryStrategy = 'company',
       recipientPhone,
       recipientName,
       recipientType = 'CUSTOMER',
@@ -2503,6 +2507,13 @@ async function scheduleNotification(options) {
       scheduleAt,
       contentOverride = null
     } = options;
+
+    // 🚨 PRODUCTION-FIX (WA-SIGNUP-1): ممنوع استبدال deliveryCompanyId الصريح
+    // احسب الاستراتيجية فقط عندما لا يكون هناك deliveryCompanyId صريح
+    let deliveryCompanyId = explicitDeliveryCompanyId || null;
+    if (!deliveryCompanyId) {
+      deliveryCompanyId = (await resolveDeliveryCompanyId(companyId, deliveryStrategy)) || companyId;
+    }
     const persistedEventType = getPersistedNotificationEventType(eventType);
     const persistedCategory = getPersistedNotificationCategory(category, eventType);
     const persistedRecipientType =
@@ -2552,8 +2563,13 @@ async function scheduleNotification(options) {
 
     // 3. جلب القالب
     let template = await prisma.whatsAppNotificationTemplate.findFirst({
-      where: { companyId, eventType, isActive: true }
+      where: { companyId: deliveryCompanyId, eventType, isActive: true }
     });
+    if (!template && deliveryCompanyId !== companyId) {
+      template = await prisma.whatsAppNotificationTemplate.findFirst({
+        where: { companyId, eventType, isActive: true }
+      });
+    }
 
     const isOrderEvent = isOrderCategory(category, eventType);
     if (!template && !isOrderEvent && DEFAULT_TEMPLATES[eventType]) {
@@ -4030,7 +4046,7 @@ async function sendNewSignupWelcomeNotification({
   customerId = null,
   signupType = 'platform_signup',
   companyName = '',
-  deliveryStrategy = 'company'
+  deliveryStrategy = 'platform-only'
 }) {
   if (!recipientPhone) {
     return { success: false, reason: 'no_phone' };
@@ -4043,6 +4059,7 @@ async function sendNewSignupWelcomeNotification({
   return sendNotification({
     companyId,
     deliveryCompanyId,
+    deliveryStrategy,
     recipientPhone,
     recipientName: recipientName || 'عميل جديد',
     recipientType: 'CUSTOMER',
@@ -4092,6 +4109,7 @@ async function sendNewSignupAdminAlertNotification({
   return fanOutNotification(recipients, (recipient) => ({
     companyId,
     deliveryCompanyId,
+    deliveryStrategy,
     recipientPhone: recipient.phone,
     recipientName: recipient.name,
     recipientType: 'ADMIN',
@@ -4115,9 +4133,10 @@ async function sendSubscriptionCreatedNotification({
   currency = 'EGP',
   billingCycle = 'monthly',
   nextBillingDate = null,
-  trialDays = 0
+  trialDays = 0,
+  deliveryStrategy = 'platform-only'
 }) {
-  const deliveryCompanyId = await resolveDeliveryCompanyId(companyId, 'platform-only');
+  const deliveryCompanyId = await resolveDeliveryCompanyId(companyId, deliveryStrategy);
   const baseVariables = {
     customerName: recipientName || 'عميلنا العزيز',
     companyName,
@@ -4133,6 +4152,7 @@ async function sendSubscriptionCreatedNotification({
     return sendNotification({
       companyId,
       deliveryCompanyId,
+      deliveryStrategy,
       recipientPhone,
       recipientName: recipientName || 'إدارة الاشتراك',
       recipientType: 'ADMIN',
@@ -4156,6 +4176,7 @@ async function sendSubscriptionCreatedNotification({
   return fanOutNotification(recipients, (recipient) => ({
     companyId,
     deliveryCompanyId,
+    deliveryStrategy,
     recipientPhone: recipient.phone,
     recipientName: recipient.name,
     recipientType: 'ADMIN',
@@ -4178,9 +4199,10 @@ async function sendSubscriptionRenewedNotification({
   monthlyFee = 0,
   currency = 'EGP',
   billingCycle = 'monthly',
-  nextBillingDate = null
+  nextBillingDate = null,
+  deliveryStrategy = 'platform-only'
 }) {
-  const deliveryCompanyId = await resolveDeliveryCompanyId(companyId, 'platform-only');
+  const deliveryCompanyId = await resolveDeliveryCompanyId(companyId, deliveryStrategy);
   const baseVariables = {
     customerName: recipientName || 'عميلنا العزيز',
     companyName,
@@ -4195,6 +4217,7 @@ async function sendSubscriptionRenewedNotification({
     return sendNotification({
       companyId,
       deliveryCompanyId,
+      deliveryStrategy,
       recipientPhone,
       recipientName: recipientName || 'إدارة الاشتراك',
       recipientType: 'ADMIN',
@@ -4218,6 +4241,7 @@ async function sendSubscriptionRenewedNotification({
   return fanOutNotification(recipients, (recipient) => ({
     companyId,
     deliveryCompanyId,
+    deliveryStrategy,
     recipientPhone: recipient.phone,
     recipientName: recipient.name,
     recipientType: 'ADMIN',
@@ -4238,9 +4262,10 @@ async function sendSubscriptionCancelledNotification({
   companyName = '',
   planName = '',
   reason = '',
-  endDate = null
+  endDate = null,
+  deliveryStrategy = 'platform-only'
 }) {
-  const deliveryCompanyId = await resolveDeliveryCompanyId(companyId, 'platform-only');
+  const deliveryCompanyId = await resolveDeliveryCompanyId(companyId, deliveryStrategy);
   const baseVariables = {
     customerName: recipientName || 'عميلنا العزيز',
     companyName,
@@ -4253,6 +4278,7 @@ async function sendSubscriptionCancelledNotification({
     return sendNotification({
       companyId,
       deliveryCompanyId,
+      deliveryStrategy,
       recipientPhone,
       recipientName: recipientName || 'إدارة الاشتراك',
       recipientType: 'ADMIN',
@@ -4276,6 +4302,7 @@ async function sendSubscriptionCancelledNotification({
   return fanOutNotification(recipients, (recipient) => ({
     companyId,
     deliveryCompanyId,
+    deliveryStrategy,
     recipientPhone: recipient.phone,
     recipientName: recipient.name,
     recipientType: 'ADMIN',
@@ -4345,6 +4372,7 @@ async function sendNewsletterSubscribedNotification({
           fanOutNotification(recipients, (recipient) => ({
             companyId,
             deliveryCompanyId,
+            deliveryStrategy: adminDeliveryStrategy,
             recipientPhone: recipient.phone,
             recipientName: recipient.name,
             recipientType: 'ADMIN',
@@ -4392,6 +4420,7 @@ async function sendBenefitGrantedNotification({
   return sendNotification({
     companyId,
     deliveryCompanyId,
+    deliveryStrategy,
     recipientPhone,
     recipientName: recipientName || 'عميلنا العزيز',
     recipientType: 'CUSTOMER',
