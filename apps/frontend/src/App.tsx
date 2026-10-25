@@ -1025,35 +1025,6 @@ const SuperAdminSystemManagement = React.lazy(
 const SuperAdminStaffCompanyAccess = React.lazy(
   () => import("./pages/super-admin/StaffCompanyAccess"),
 );
-const SuperAdminWhatsAppOverview = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppOverview"),
-);
-const SuperAdminWhatsAppCompanies = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppCompanies"),
-);
-const SuperAdminWhatsAppCompanyWorkspace = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppCompanyWorkspace"),
-);
-const SuperAdminWhatsAppCompanySettings = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppCompanySettings"),
-);
-const SuperAdminWhatsAppCompanyNotifications = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppCompanyNotifications"),
-);
-const SuperAdminWhatsAppLogs = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppLogs"),
-);
-
-const SuperAdminWhatsAppAutomations = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppAutomations"),
-);
-const SuperAdminWhatsAppCompanyInbox = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppCompanyInbox"),
-);
-const SuperAdminWhatsAppCompanyChat = React.lazy(
-  () => import("./pages/super-admin/SuperAdminWhatsAppCompanyChat"),
-);
-
 const SuperAdminServerUsage = React.lazy(
   () => import("./pages/super-admin/SuperAdminServerUsage"),
 );
@@ -2527,86 +2498,6 @@ const AppContent = () => {
               element={
                 <Layout>
                   <SuperAdminDashboard />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp"
-              element={
-                <Layout>
-                  <SuperAdminWhatsAppOverview />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/companies"
-              element={
-                <Layout>
-                  <SuperAdminWhatsAppCompanies />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/companies/:companyId"
-              element={
-                <Layout>
-                  <SuperAdminWhatsAppCompanyWorkspace />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/companies/:companyId/settings"
-              element={
-                <Layout>
-                  <SuperAdminWhatsAppCompanySettings />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/companies/:companyId/notifications"
-              element={
-                <Layout>
-                  <SuperAdminWhatsAppCompanyNotifications />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/logs"
-              element={
-                <Layout>
-                  <SuperAdminWhatsAppLogs />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/automations"
-              element={
-                <Layout>
-                  <SuperAdminWhatsAppAutomations />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/companies/:companyId/routing"
-              element={
-                <Layout fullWidth>
-                  <SuperAdminWhatsAppCompanyInbox />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/companies/:companyId/routing/:sessionId"
-              element={
-                <Layout fullWidth>
-                  <SuperAdminWhatsAppCompanyInbox />
-                </Layout>
-              }
-            />
-            <Route
-              path="/super-admin/whatsapp/companies/:companyId/chat/:conversationId"
-              element={
-                <Layout fullWidth>
-                  <SuperAdminWhatsAppCompanyChat />
                 </Layout>
               }
             />

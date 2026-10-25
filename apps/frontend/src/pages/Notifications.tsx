@@ -8,7 +8,7 @@ import {
   useNotificationsController,
 } from "./notifications/index";
 
-export { NotificationItem } from "./notifications/types";
+export type { NotificationItem } from "./notifications/types";
 
 const Notifications: React.FC = () => {
   const {

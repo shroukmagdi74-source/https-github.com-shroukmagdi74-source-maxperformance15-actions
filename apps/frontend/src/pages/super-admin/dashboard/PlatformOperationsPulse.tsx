@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Phone,
-  QrCode,
 } from "lucide-react";
 import { apiClient } from "../../../services/apiClient";
 import { Button } from "../../../components/ui/button";
@@ -224,15 +223,6 @@ export const PlatformOperationsPulse: React.FC = () => {
             )}
           </div>
 
-          <div className="mt-2 pt-2 border-t border-border/40">
-            <Link
-              to="/super-admin/whatsapp/companies"
-              className="text-[11px] text-primary hover:underline flex items-center justify-between font-medium"
-            >
-              <span>إدارة اتصالات واتساب</span>
-              <ArrowUpRight className="size-3" />
-            </Link>
-          </div>
         </div>
 
         {/* Card 3: السلال المتروكة والاسترداد */}
@@ -324,18 +314,6 @@ export const PlatformOperationsPulse: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {pulse.whatsapp.hasDisconnectedAlert && (
-              <Link to="/super-admin/whatsapp/companies">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs border-amber-500/40 text-amber-800 dark:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20"
-                >
-                  <QrCode className="size-3 ml-1" />
-                  فحص أرقام الواتساب
-                </Button>
-              </Link>
-            )}
             {pulse.trials.hasExpiringAlert && (
               <Link to="/super-admin/follow-up">
                 <Button

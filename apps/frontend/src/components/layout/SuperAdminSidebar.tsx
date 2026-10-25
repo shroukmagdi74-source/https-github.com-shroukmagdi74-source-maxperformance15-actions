@@ -144,43 +144,6 @@ export const getMenuGroups = (t: (key: string) => string): SuperAdminMenuGroup[]
     ],
   },
   {
-    id: "whatsapp",
-    title: t("superAdmin.sidebar.whatsappPlatform") || "واتساب",
-    icon: <MessageSquare className="h-6 w-6" />,
-    items: [
-      {
-        text: t("superAdmin.sidebar.whatsappOverview") || "نظرة عامة على واتساب",
-        icon: <MessageSquare className="h-4 w-4" />,
-        path: "/super-admin/whatsapp",
-      },
-      {
-        text: "واتساب المنصة (max-p HQ)",
-        icon: <Building2 className="h-4 w-4 text-emerald-500" />,
-        path: "/super-admin/whatsapp/companies/cmopgxu3a07i4jujj6f1oh32h",
-      },
-      {
-        text: "صندوق محادثات المنصة (max-p)",
-        icon: <MessageSquare className="h-4 w-4 text-indigo-500" />,
-        path: "/super-admin/whatsapp/companies/cmopgxu3a07i4jujj6f1oh32h/routing",
-      },
-      {
-        text: t("superAdmin.sidebar.whatsappCompanies") || "شركات واتساب المربوطة",
-        icon: <Building2 className="h-4 w-4" />,
-        path: "/super-admin/whatsapp/companies",
-      },
-      {
-        text: t("superAdmin.sidebar.whatsappAutomations") || "أتمتة وحملات واتساب",
-        icon: <Sliders className="h-4 w-4" />,
-        path: "/super-admin/whatsapp/automations",
-      },
-      {
-        text: t("superAdmin.sidebar.whatsappLogs") || "سجلات رسائل واتساب",
-        icon: <History className="h-4 w-4" />,
-        path: "/super-admin/whatsapp/logs",
-      },
-    ],
-  },
-  {
     id: "billing",
     title: t("superAdmin.sidebar.subscriptionsBilling") || "المالية",
     icon: <Wallet className="h-6 w-6" />,

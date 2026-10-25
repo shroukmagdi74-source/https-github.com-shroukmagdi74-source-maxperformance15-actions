@@ -11,7 +11,7 @@ import {
   useReportsPageController,
 } from "./reports-page/index";
 
-export { DailyReport, ReportSummary } from "./reports-page/types";
+export type { DailyReport, ReportSummary } from "./reports-page/types";
 
 const ReportsPage: React.FC = () => {
   const {

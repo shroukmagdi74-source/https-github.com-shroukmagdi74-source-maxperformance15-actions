@@ -201,7 +201,6 @@ const activityLogRoutes = require("./routes/activityLogRoutes");
 
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const adminCompanyRoutes = require("./routes/adminCompanyRoutes");
-const adminWhatsAppRoutes = require("./routes/adminWhatsAppRoutes");
 const affiliateRoutes = require("./routes/affiliateRoutes");
 const affiliateSettingsRoutes = require("./routes/affiliateSettingsRoutes");
 const platformRevenueRoutes = require("./routes/platformRevenueRoutes");
@@ -1193,7 +1192,6 @@ app.use(
 );
 app.use("/api/v1/wallet-payment", walletPaymentRoutes);
 app.use("/api/v1/admin/companies", adminCompanyRoutes);
-app.use("/api/v1/admin/whatsapp", adminWhatsAppRoutes);
 const adminWhatsAppInboxRoutes = require("./routes/adminWhatsAppInboxRoutes");
 app.use("/api/v1/admin/whatsapp-inbox", adminWhatsAppInboxRoutes);
 app.use("/api/v1/admin/wallet", adminWalletRoutes);

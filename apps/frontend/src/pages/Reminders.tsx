@@ -11,7 +11,7 @@ import {
   useRemindersController,
 } from "./reminders/index";
 
-export { Reminder, ReminderStats } from "./reminders/types";
+export type { Reminder, ReminderStats } from "./reminders/types";
 
 const Reminders: React.FC = () => {
   const {

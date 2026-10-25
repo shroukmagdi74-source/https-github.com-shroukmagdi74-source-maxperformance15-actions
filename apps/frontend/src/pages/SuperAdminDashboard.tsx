@@ -13,7 +13,7 @@ import {
   useSuperAdminDashboardController,
 } from "./super-admin-dashboard/index";
 
-export { DashboardData } from "./super-admin-dashboard/types";
+export type { DashboardData } from "./super-admin-dashboard/types";
 
 const SuperAdminDashboard: React.FC = () => {
   const {
