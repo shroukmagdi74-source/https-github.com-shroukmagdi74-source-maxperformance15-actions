@@ -132,6 +132,7 @@ READ_TOOL_NAMES: set[str] = (CORE_TOOL_NAMES | ADVANCED_TOOL_NAMES | {
     "order_lookup_by_phone",
     "session_search",
     "delegate_task",
+    "support_ticket_link",
 }) - GATED_CORE_TOOL_NAMES
 
 
@@ -376,6 +377,7 @@ order_target_settings_tool = _registry.resolve("order_target_settings")
 order_target_progress_tool = _registry.resolve("order_target_progress")
 inventory_variant_stock_scan_tool = _registry.resolve("inventory_variant_stock_scan")
 inventory_burn_rate_forecast_tool = _registry.resolve("inventory_burn_rate_forecast")
+support_ticket_link_tool = _registry.resolve("support_ticket_link")
 
 # Backward-compatible re-exports of Input models from definitions modules.
 from src.tools.definitions.targets import (  # noqa: E402 F401
@@ -475,6 +477,9 @@ from src.tools.definitions.smart_seller import (  # noqa: E402 F401
     FollowupSuggestionsInput,
     DealParamsInput,
     PurchasePredictionInput,
+)
+from src.tools.definitions.support_links import (  # noqa: E402 F401
+    SupportTicketLinkInput,
 )
 from src.tools.definitions.promotions import (  # noqa: E402 F401
     OffersListActiveInput,

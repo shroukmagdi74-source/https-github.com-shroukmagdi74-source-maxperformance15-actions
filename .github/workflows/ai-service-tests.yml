@@ -66,6 +66,9 @@ jobs:
             echo "test_app_cards.py not present yet — skipped"
           fi
 
+      - name: Support Links Tool Tests (SUP-2)
+        run: python apps/ai-service/tests/tools/test_support_links.py
+
       - name: Golden Cases Validation
         run: python apps/ai-service/tests/tools/test_golden_cases.py
 
