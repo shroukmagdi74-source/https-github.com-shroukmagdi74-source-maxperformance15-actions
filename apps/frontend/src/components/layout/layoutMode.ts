@@ -1,5 +1,41 @@
+const checkRuntimeLegacy = (): boolean => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    if (
+      typeof window.localStorage !== "undefined" &&
+      window.localStorage !== null &&
+      typeof window.localStorage.getItem === "function" &&
+      window.localStorage.getItem("maxp_legacy_shell") === "1"
+    ) {
+      return true;
+    }
+  } catch {
+    // Access to localStorage might be blocked in restricted contexts (e.g. private browsing, sandboxed iframe)
+  }
+
+  try {
+    if (
+      typeof window.location !== "undefined" &&
+      window.location !== null &&
+      window.location.search &&
+      new URLSearchParams(window.location.search).get("legacyShell") === "1"
+    ) {
+      return true;
+    }
+  } catch {
+    // Ignore search query parsing errors
+  }
+
+  return false;
+};
+
+const runtimeLegacy = checkRuntimeLegacy();
+
 export const FEATURE_UNIFIED_SUPERADMIN_SHELL =
-  import.meta.env['VITE_LEGACY_SUPERADMIN_SHELL'] !== 'true';
+  !runtimeLegacy && import.meta.env["VITE_LEGACY_SUPERADMIN_SHELL"] !== "true";
 
 export const shouldUseSuperAdminShell = (
   role?: string | null,

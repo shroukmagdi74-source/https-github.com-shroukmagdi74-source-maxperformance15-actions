@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getSidebarConfig, mapSuperAdminGroupsToSidebarSections } from "../sidebar";
 import { getSuperAdminMenuGroups } from "../superAdminMenuConfig";
 import { FEATURE_UNIFIED_SUPERADMIN_SHELL, shouldUseSuperAdminShell } from "../../components/layout/layoutMode";
@@ -104,10 +104,74 @@ describe("ARCH-1B: Super Admin Menu Adapter & Unified Shell", () => {
     expect(systemSection?.items.some((i) => i.to === "/super-admin/server-usage")).toBe(true);
   });
 
-  it("verifies rollback switch: FEATURE_UNIFIED_SUPERADMIN_SHELL bypasses legacy shell", () => {
+  it("verifies rollback switch: FEATURE_UNIFIED_SUPERADMIN_SHELL bypasses legacy shell by default", () => {
     expect(FEATURE_UNIFIED_SUPERADMIN_SHELL).toBe(true);
     // When unified shell is true, shouldUseSuperAdminShell returns false immediately
     expect(shouldUseSuperAdminShell("SUPER_ADMIN", "/super-admin/dashboard")).toBe(false);
     expect(shouldUseSuperAdminShell("SUPER_ADMIN", "/super-admin/companies-v2")).toBe(false);
+  });
+
+  it("verifies runtime rollback priority: localStorage=1 overrides env and restores legacy shell", async () => {
+    const storageState: Record<string, string> = { maxp_legacy_shell: "1" };
+    const mockWindow = {
+      localStorage: {
+        getItem: (k: string) => storageState[k] ?? null,
+        setItem: (k: string, v: string) => { storageState[k] = String(v); },
+        removeItem: (k: string) => { delete storageState[k]; },
+      },
+      location: { search: "" },
+    };
+
+    (globalThis as any).window = mockWindow;
+    try {
+      vi.resetModules();
+      const mod = await import("../../components/layout/layoutMode");
+      expect(mod.FEATURE_UNIFIED_SUPERADMIN_SHELL).toBe(false);
+      expect(mod.shouldUseSuperAdminShell("SUPER_ADMIN", "/super-admin/dashboard")).toBe(true);
+      expect(mod.shouldUseSuperAdminShell("SUPER_ADMIN", "/admin/support")).toBe(true);
+    } finally {
+      delete (globalThis as any).window;
+      vi.resetModules();
+    }
+  });
+
+  it("verifies runtime rollback priority: ?legacyShell=1 in query overrides env and restores legacy shell", async () => {
+    const mockWindow = {
+      localStorage: {
+        getItem: () => null,
+      },
+      location: { search: "?legacyShell=1" },
+    };
+
+    (globalThis as any).window = mockWindow;
+    try {
+      vi.resetModules();
+      const mod = await import("../../components/layout/layoutMode");
+      expect(mod.FEATURE_UNIFIED_SUPERADMIN_SHELL).toBe(false);
+      expect(mod.shouldUseSuperAdminShell("SUPER_ADMIN", "/super-admin/dashboard")).toBe(true);
+    } finally {
+      delete (globalThis as any).window;
+      vi.resetModules();
+    }
+  });
+
+  it("verifies default state: empty storage and empty env yields FEATURE_UNIFIED_SUPERADMIN_SHELL = true", async () => {
+    const mockWindow = {
+      localStorage: {
+        getItem: () => null,
+      },
+      location: { search: "" },
+    };
+
+    (globalThis as any).window = mockWindow;
+    try {
+      vi.resetModules();
+      const mod = await import("../../components/layout/layoutMode");
+      expect(mod.FEATURE_UNIFIED_SUPERADMIN_SHELL).toBe(true);
+      expect(mod.shouldUseSuperAdminShell("SUPER_ADMIN", "/super-admin/dashboard")).toBe(false);
+    } finally {
+      delete (globalThis as any).window;
+      vi.resetModules();
+    }
   });
 });

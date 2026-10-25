@@ -3144,9 +3144,9 @@ const AppContent = () => {
             <Route
               path="/super-admin/billing-activity"
               element={
-                <SuperAdminLayout>
+                <Layout>
                   <BillingActivity />
-                </SuperAdminLayout>
+                </Layout>
               }
             />
             <Route
@@ -8414,18 +8414,9 @@ const AppContent = () => {
                 <Route
                   path="/admin/support"
                   element={
-                    <SuperAdminLayout>
-                      <SupportAdmin />
-                    </SuperAdminLayout>
-                  }
-                />
-                {/* Gamification Route */}
-                <Route
-                  path="/super-admin/dev-leaderboard"
-                  element={
                     <Layout>
                       <RoleProtectedRoute allowedRoles={['SUPER_ADMIN']}>
-                        <DevLeaderboard />
+                        <SupportAdmin />
                       </RoleProtectedRoute>
                     </Layout>
                   }
@@ -8972,11 +8963,6 @@ const AppContent = () => {
                   path="/goals/*"
                   element={<RedirectToLogin />}
                 />
-                {/* Gamification Public Route */}
-                <Route
-                  path="/super-admin/dev-leaderboard"
-                  element={<RedirectToLogin />}
-                />
                 <Route
                   path="/whatsapp/*"
                   element={<RedirectToLogin />}
@@ -8991,10 +8977,6 @@ const AppContent = () => {
                 />
                 <Route
                   path="/admin/support"
-                  element={<RedirectToLogin />}
-                />
-                <Route
-                  path="/super-admin/dev-reports"
                   element={<RedirectToLogin />}
                 />
                 <Route path="*" element={<RedirectToLogin />} />
