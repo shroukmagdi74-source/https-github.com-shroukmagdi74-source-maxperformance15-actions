@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Eye, CreditCard, Search, AlertCircle, Printer } from "lucide-react";
+import { Plus, Eye, CreditCard, Search, AlertCircle, Printer, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { apiClient } from "../../services/apiClient";
+import ConfirmDialog from "@/components/common/ConfirmDialog";
 import { formatCurrency } from "../../utils/currency";
 import { formatShortDate } from "../../utils/dateFormat";
 import {
@@ -113,6 +115,44 @@ const PurchaseInvoices: React.FC = () => {
   useEffect(() => {
     fetchInvoices();
   }, [fetchInvoices]);
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    content: string;
+    confirmColor?: "primary" | "secondary" | "error" | "info" | "success" | "warning";
+    onConfirm: () => void;
+  }>({
+    open: false,
+    title: "",
+    content: "",
+    onConfirm: () => {},
+  });
+
+  const handleDelete = (id: string, invoiceNumber: string, supplierName: string) => {
+    setConfirmDialog({
+      open: true,
+      title: t("procurement.purchaseInvoices.confirmDeleteTitle", "تأكيد حذف فاتورة الشراء"),
+      content: t("procurement.purchaseInvoices.confirmDeleteContent", {
+        invoiceNumber,
+        supplierName,
+        defaultValue: `هل أنت متأكد من حذف فاتورة الشراء (${invoiceNumber}) للمورد (${supplierName}) نهائياً؟ سيتم حذف الفاتورة وجميع المدفوعات التابعة لها وتعديل رصيد المورد تلقائياً.`,
+      }),
+      confirmColor: "error",
+      onConfirm: async () => {
+        try {
+          await apiClient.delete(`/procurement/purchase-invoices/${id}`);
+          toast.success(t("procurement.purchaseInvoices.deleteSuccess", "تم حذف فاتورة الشراء والمدفوعات التابعة لها بنجاح"));
+          await fetchInvoices();
+        } catch (error: any) {
+          console.error("Error deleting invoice:", error);
+          toast.error(error.response?.data?.message || t("procurement.purchaseInvoices.deleteError", "تعذر حذف فاتورة الشراء"));
+        } finally {
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+        }
+      },
+    });
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
@@ -257,9 +297,22 @@ const PurchaseInvoices: React.FC = () => {
                         onClick={() =>
                           navigate(`/procurement/purchase-invoices/${invoice.id}`)
                         }
-                        title={t("procurement.purchaseInvoices.viewDetails")}
+                        title={t("procurement.purchaseInvoices.viewDetails", "عرض التفاصيل")}
+                        aria-label={t("procurement.purchaseInvoices.viewDetails", "عرض التفاصيل")}
                       >
                         <Eye className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          navigate(`/procurement/purchase-invoices/${invoice.id}/edit`)
+                        }
+                        title={t("procurement.purchaseInvoices.editInvoice", "تعديل الفاتورة")}
+                        aria-label={t("procurement.purchaseInvoices.editInvoice", "تعديل الفاتورة")}
+                        className="hover:text-primary"
+                      >
+                        <Pencil className="size-4" />
                       </Button>
                       {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
                         <Button
@@ -270,11 +323,24 @@ const PurchaseInvoices: React.FC = () => {
                               `/procurement/supplier-payments/new?invoiceId=${invoice.id}`,
                             )
                           }
-                          title={t("procurement.purchaseInvoices.recordPayment")}
+                          title={t("procurement.purchaseInvoices.recordPayment", "سداد دفعة")}
+                          aria-label={t("procurement.purchaseInvoices.recordPayment", "سداد دفعة")}
                         >
                           <CreditCard className="size-4" />
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          handleDelete(invoice.id, invoice.invoiceNumber, invoice.supplier.name)
+                        }
+                        title={t("procurement.purchaseInvoices.deleteInvoice", "حذف الفاتورة")}
+                        aria-label={t("procurement.purchaseInvoices.deleteInvoice", "حذف الفاتورة")}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -350,9 +416,22 @@ const PurchaseInvoices: React.FC = () => {
                     onClick={() =>
                       navigate(`/procurement/purchase-invoices/${invoice.id}`)
                     }
-                    title={t("procurement.purchaseInvoices.viewDetails")}
+                    title={t("procurement.purchaseInvoices.viewDetails", "عرض التفاصيل")}
+                    aria-label={t("procurement.purchaseInvoices.viewDetails", "عرض التفاصيل")}
                   >
                     <Eye className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      navigate(`/procurement/purchase-invoices/${invoice.id}/edit`)
+                    }
+                    title={t("procurement.purchaseInvoices.editInvoice", "تعديل الفاتورة")}
+                    aria-label={t("procurement.purchaseInvoices.editInvoice", "تعديل الفاتورة")}
+                    className="hover:text-primary"
+                  >
+                    <Pencil className="size-4" />
                   </Button>
                   {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && (
                     <Button
@@ -363,11 +442,24 @@ const PurchaseInvoices: React.FC = () => {
                           `/procurement/supplier-payments/new?invoiceId=${invoice.id}`,
                         )
                       }
-                      title={t("procurement.purchaseInvoices.recordPayment")}
+                      title={t("procurement.purchaseInvoices.recordPayment", "سداد دفعة")}
+                      aria-label={t("procurement.purchaseInvoices.recordPayment", "سداد دفعة")}
                     >
                       <CreditCard className="size-4" />
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      handleDelete(invoice.id, invoice.invoiceNumber, invoice.supplier.name)
+                    }
+                    title={t("procurement.purchaseInvoices.deleteInvoice", "حذف الفاتورة")}
+                    aria-label={t("procurement.purchaseInvoices.deleteInvoice", "حذف الفاتورة")}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
                 </>
               }
             />
@@ -386,6 +478,15 @@ const PurchaseInvoices: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        content={confirmDialog.content}
+        confirmColor={confirmDialog.confirmColor}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+      />
     </div>
   );
 };

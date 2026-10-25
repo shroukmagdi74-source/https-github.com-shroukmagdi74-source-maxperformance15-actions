@@ -16506,7 +16506,13 @@
       "mobileTotal": "Total",
       "mobilePaid": "Paid",
       "mobileRemaining": "Remaining",
-      "advancePayment": "Advance Payment"
+      "advancePayment": "Advance Payment",
+      "editInvoice": "Edit Invoice",
+      "deleteInvoice": "Delete Invoice",
+      "confirmDeleteTitle": "Confirm Purchase Invoice Deletion",
+      "confirmDeleteContent": "Are you sure you want to delete purchase invoice ({{invoiceNumber}}) for supplier ({{supplierName}})? The invoice and all associated payments will be deleted, and supplier balance will be adjusted.",
+      "deleteSuccess": "Purchase invoice and associated payments deleted successfully",
+      "deleteError": "Failed to delete purchase invoice"
     },
     "purchaseOrderForm": {
       "editTitle": "Edit Purchase Order",
@@ -16607,6 +16613,12 @@
       "viewDetails": "View Details",
       "emptyState": "No payments found",
       "advancePayment": "Advance Payment",
+      "editInvoice": "Edit Invoice",
+      "deleteInvoice": "Delete Invoice",
+      "confirmDeleteTitle": "Confirm Purchase Invoice Deletion",
+      "confirmDeleteContent": "Are you sure you want to delete purchase invoice ({{invoiceNumber}}) for supplier ({{supplierName}})? The invoice and all associated payments will be deleted, and supplier balance will be adjusted.",
+      "deleteSuccess": "Purchase invoice and associated payments deleted successfully",
+      "deleteError": "Failed to delete purchase invoice",
       "mobilePaymentDate": "Payment Date",
       "mobileAmount": "Amount",
       "mobilePaymentMethod": "Payment Method"

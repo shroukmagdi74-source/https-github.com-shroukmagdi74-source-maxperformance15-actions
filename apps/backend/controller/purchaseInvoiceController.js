@@ -385,13 +385,33 @@ exports.getPurchaseInvoiceById = async (req, res) => {
 
 exports.updatePurchaseInvoice = async (req, res) => {
   try {
-    const { companyId } = req.user;
+    const { companyId, id: userId } = req.user;
     const { id } = req.params;
-    const { supplierId, invoiceDate, dueDate, status, notes } = req.body;
+    const {
+      supplierId,
+      purchaseOrderId,
+      invoiceDate,
+      dueDate,
+      status: requestedStatus,
+      notes,
+      shippingCost,
+      discountAmount,
+      items,
+      paidAmount: rawPaidAmount,
+      paymentMethod,
+      treasuryAccountId,
+    } = req.body;
+
+    const prisma = getSharedPrismaClient();
 
     const existingInvoice = await safeQuery(() =>
-      getSharedPrismaClient().purchaseInvoice.findFirst({
+      prisma.purchaseInvoice.findFirst({
         where: { id, companyId },
+        include: {
+          purchaseInvoiceItems: true,
+          supplierPayments: true,
+          supplier: true,
+        },
       }),
     );
 
@@ -399,52 +419,269 @@ exports.updatePurchaseInvoice = async (req, res) => {
       return res.status(404).json({ message: "الفاتورة غير موجودة" });
     }
 
-    if (existingInvoice.status === "PAID") {
-      return res
-        .status(400)
-        .json({ message: "لا يمكن تعديل فاتورة مدفوعة بالكامل" });
+    const oldTotalAmount = parseFloat(existingInvoice.totalAmount || 0);
+    const existingPayments = existingInvoice.supplierPayments || [];
+    const currentPaidSum = existingPayments.reduce(
+      (sum, p) => sum + parseFloat(p.amount || 0),
+      0,
+    );
+
+    let subtotal = 0;
+    let taxAmount = 0;
+    let newItemsToCreate = null;
+
+    if (Array.isArray(items) && items.length > 0) {
+      // Validate candidate productIds against actual Products table to avoid Foreign Key violation
+      const validProductIds = new Set();
+      const candidateProductIds = items
+        .map((item) => item.productId)
+        .filter(Boolean);
+
+      if (candidateProductIds.length > 0) {
+        const existingProducts = await safeQuery(() =>
+          prisma.product.findMany({
+            where: {
+              id: { in: candidateProductIds },
+              companyId,
+            },
+            select: { id: true },
+          }),
+        );
+        if (Array.isArray(existingProducts)) {
+          existingProducts.forEach((p) => validProductIds.add(p.id));
+        }
+      }
+
+      newItemsToCreate = items.map((item) => {
+        const quantity = parseFloat(item.quantity || 1);
+        const unitPrice = parseFloat(item.unitPrice || 0);
+        const taxRate = parseFloat(item.taxRate || 0);
+        const discountRate = parseFloat(item.discountRate || 0);
+
+        const itemSubtotal = quantity * unitPrice;
+        const itemDiscount = itemSubtotal * (discountRate / 100);
+        const itemTax = (itemSubtotal - itemDiscount) * (taxRate / 100);
+        const totalPrice = itemSubtotal - itemDiscount + itemTax;
+
+        subtotal += itemSubtotal;
+        taxAmount += itemTax;
+
+        const safeProductId =
+          item.productId && validProductIds.has(item.productId)
+            ? item.productId
+            : null;
+
+        return {
+          productId: safeProductId,
+          productName: item.productName,
+          description: item.description,
+          quantity,
+          unitPrice,
+          taxRate,
+          discountRate,
+          totalPrice,
+          notes: item.notes,
+        };
+      });
+    } else {
+      subtotal = parseFloat(existingInvoice.subtotal || 0);
+      taxAmount = parseFloat(existingInvoice.taxAmount || 0);
     }
 
-    const invoice = await safeQuery(() =>
-      getSharedPrismaClient().purchaseInvoice.update({
-        where: { id },
-        data: {
-          supplierId,
-          invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
-          dueDate: dueDate ? new Date(dueDate) : undefined,
-          status,
-          notes,
-        },
-        include: {
-          purchaseInvoiceItems: true,
-          supplier: true,
-          supplierPayments: true,
-        },
+    const shipping =
+      shippingCost !== undefined
+        ? parseFloat(shippingCost || 0)
+        : parseFloat(existingInvoice.shippingCost || 0);
+    const discount =
+      discountAmount !== undefined
+        ? parseFloat(discountAmount || 0)
+        : parseFloat(existingInvoice.discountAmount || 0);
+
+    const newTotalAmount = subtotal + taxAmount + shipping - discount;
+    const newSupplierId = supplierId || existingInvoice.supplierId;
+
+    // Validation 1: Cannot reduce invoice total below already paid amount
+    if (newTotalAmount < currentPaidSum - 0.001) {
+      return res.status(400).json({
+        message: `لا يمكن تقليل إجمالي الفاتورة (${newTotalAmount} ج.م) إلى أقل من المبالغ المدفوعة عليها مسبقاً (${currentPaidSum} ج.م). يُرجى تعديل أو حذف سندات الصرف المرتبطة أولاً.`,
+      });
+    }
+
+    // Validation 2: Cannot change supplier if payments already recorded
+    if (newSupplierId !== existingInvoice.supplierId && currentPaidSum > 0) {
+      return res.status(400).json({
+        message: "لا يمكن تغيير المورد لفاتورة مسجل عليها دفعات مالية مسبقاً. يُرجى معالجة المدفوعات أولاً قبل تغيير المورد.",
+      });
+    }
+
+    // Handle payment adjustments:
+    let effectivePaid = currentPaidSum;
+    const requestedPaid =
+      rawPaidAmount !== undefined
+        ? Math.max(0, parseFloat(rawPaidAmount || 0))
+        : undefined;
+
+    // If requestedPaid is greater than current payments, record additional payment:
+    if (requestedPaid !== undefined && requestedPaid > currentPaidSum) {
+      const diffToPay = Math.min(
+        requestedPaid - currentPaidSum,
+        Math.max(0, newTotalAmount - currentPaidSum),
+      );
+      if (diffToPay > 0) {
+        // Pre-update invoice headroom in DB so recordSupplierPayment validation succeeds
+        await safeQuery(() =>
+          prisma.purchaseInvoice.update({
+            where: { id },
+            data: {
+              totalAmount: newTotalAmount,
+              remainingAmount: Math.max(0, newTotalAmount - currentPaidSum),
+            },
+          }),
+        );
+
+        await recordSupplierPayment({
+          companyId,
+          supplierId: newSupplierId,
+          purchaseInvoiceId: id,
+          amount: diffToPay,
+          paymentMethod: paymentMethod || "CASH",
+          treasuryAccountId: treasuryAccountId || null,
+          notes: "سداد تكميلي عند تعديل الفاتورة",
+          userId,
+          paymentDate: invoiceDate ? new Date(invoiceDate) : new Date(),
+          sourceKey: `invoice:${id}:edit:${Date.now()}`,
+        });
+        effectivePaid += diffToPay;
+      }
+    }
+
+    const newRemainingAmount = Math.max(0, newTotalAmount - effectivePaid);
+    const newStatus =
+      newRemainingAmount <= 0
+        ? "PAID"
+        : effectivePaid > 0
+        ? "PARTIALLY_PAID"
+        : requestedStatus || "PENDING";
+
+    // Database updates in transaction
+    const updatedInvoice = await safeQuery(() =>
+      prisma.$transaction(async (tx) => {
+        // 1. If line items changed, replace them
+        if (newItemsToCreate) {
+          await tx.purchaseInvoiceItem.deleteMany({
+            where: { purchaseInvoiceId: id },
+          });
+          await tx.purchaseInvoiceItem.createMany({
+            data: newItemsToCreate.map((item) => ({
+              ...item,
+              purchaseInvoiceId: id,
+            })),
+          });
+        }
+
+        // 2. Supplier balance adjustments
+        if (newSupplierId !== existingInvoice.supplierId) {
+          // Unpaid invoice moving to new supplier:
+          await tx.supplier.update({
+            where: { id: existingInvoice.supplierId },
+            data: { currentBalance: { decrement: oldTotalAmount } },
+          });
+          await tx.supplier.update({
+            where: { id: newSupplierId },
+            data: { currentBalance: { increment: newTotalAmount } },
+          });
+        } else {
+          // Same supplier: balance changes by delta in invoice total
+          const totalDelta = newTotalAmount - oldTotalAmount;
+          if (totalDelta !== 0) {
+            await tx.supplier.update({
+              where: { id: existingInvoice.supplierId },
+              data: {
+                currentBalance: {
+                  increment: totalDelta,
+                },
+              },
+            });
+          }
+        }
+
+        // 3. Update the Purchase Invoice header
+        return tx.purchaseInvoice.update({
+          where: { id },
+          data: {
+            supplierId: newSupplierId,
+            purchaseOrderId:
+              purchaseOrderId !== undefined
+                ? purchaseOrderId || null
+                : existingInvoice.purchaseOrderId,
+            invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
+            dueDate: dueDate ? new Date(dueDate) : undefined,
+            subtotal,
+            taxAmount,
+            discountAmount: discount,
+            shippingCost: shipping,
+            totalAmount: newTotalAmount,
+            paidAmount: effectivePaid,
+            remainingAmount: newRemainingAmount,
+            status: newStatus,
+            notes: notes !== undefined ? notes : undefined,
+          },
+          include: {
+            purchaseInvoiceItems: true,
+            supplier: true,
+            supplierPayments: true,
+            purchaseOrder: true,
+          },
+        });
       }),
     );
 
+    // Audit Log Activity
+    await logProcurementActivity({
+      companyId,
+      userId,
+      action: "UPDATE_PURCHASE_INVOICE",
+      targetType: "PURCHASE_INVOICE",
+      targetId: updatedInvoice.id,
+      targetName: updatedInvoice.invoiceNumber,
+      description: `تعديل فاتورة شراء رقم ${updatedInvoice.invoiceNumber} بمبلغ جديد ${newTotalAmount} ج.م (السابق: ${oldTotalAmount} ج.م)`,
+      metadata: {
+        oldTotalAmount,
+        newTotalAmount,
+        paidAmount: effectivePaid,
+        remainingAmount: newRemainingAmount,
+        supplierId: newSupplierId,
+      },
+      severity: "MEDIUM",
+    });
+
     res.json({
+      success: true,
       message: "تم تحديث الفاتورة بنجاح",
-      invoice: normalizePurchaseInvoice(invoice),
+      invoice: normalizePurchaseInvoice(updatedInvoice),
     });
   } catch (error) {
     console.error("Error updating purchase invoice:", error);
-    res.status(500).json({ message: "حدث خطأ أثناء تحديث الفاتورة" });
+    res.status(500).json({
+      success: false,
+      message: "حدث خطأ أثناء تحديث الفاتورة: " + error.message,
+    });
   }
 };
 
 exports.deletePurchaseInvoice = async (req, res) => {
   try {
-    const { companyId } = req.user;
+    const { companyId, id: userId } = req.user;
     const { id } = req.params;
+    const prisma = getSharedPrismaClient();
 
     const invoice = await safeQuery(() =>
-      getSharedPrismaClient().purchaseInvoice.findFirst({
+      prisma.purchaseInvoice.findFirst({
         where: { id, companyId },
         include: {
-          _count: {
-            select: { supplierPayments: true },
-          },
+          supplierPayments: true,
+          purchaseInvoiceItems: true,
+          supplier: true,
         },
       }),
     );
@@ -453,45 +690,112 @@ exports.deletePurchaseInvoice = async (req, res) => {
       return res.status(404).json({ message: "الفاتورة غير موجودة" });
     }
 
-    if (invoice._count.supplierPayments > 0) {
-      return res
-        .status(400)
-        .json({ message: "لا يمكن حذف فاتورة مرتبطة بمدفوعات" });
-    }
+    const totalInvoiceAmount = parseFloat(invoice.totalAmount || 0);
+    const payments = invoice.supplierPayments || [];
+    const totalPaymentsAmount = payments.reduce(
+      (sum, p) => sum + parseFloat(p.amount || 0),
+      0,
+    );
 
+    // Atomic transaction for clean cascade removal & balance integrity
     await safeQuery(() =>
-      getSharedPrismaClient().supplier.update({
-        where: { id: invoice.supplierId },
-        data: {
-          currentBalance: {
-            decrement: invoice.totalAmount,
-          },
-        },
+      prisma.$transaction(async (tx) => {
+        // 1. Delete associated supplier payments & reverse any posted treasury movements
+        if (payments.length > 0) {
+          const paymentIds = payments.map((p) => p.id);
+
+          // Refund posted treasury movements if any
+          try {
+            const postedPostings = await tx.financialPosting.findMany({
+              where: {
+                sourceType: "SUPPLIER_PAYMENT",
+                sourceId: { in: paymentIds },
+                companyId,
+                status: "POSTED",
+                treasuryAccountId: { not: null },
+              },
+            });
+            for (const post of postedPostings) {
+              if (post.treasuryAccountId && post.amount) {
+                await tx.treasuryAccount.update({
+                  where: { id: post.treasuryAccountId },
+                  data: { balance: { increment: parseFloat(post.amount) } },
+                });
+              }
+            }
+            await tx.financialPosting.deleteMany({
+              where: {
+                sourceType: "SUPPLIER_PAYMENT",
+                sourceId: { in: paymentIds },
+                companyId,
+              },
+            });
+          } catch (finErr) {
+            console.warn("[Procurement Delete] Treasury cleanup notice:", finErr.message);
+          }
+
+          await tx.supplierPayment.deleteMany({
+            where: { purchaseInvoiceId: id, companyId },
+          });
+        }
+
+        // 2. Delete line items
+        await tx.purchaseInvoiceItem.deleteMany({
+          where: { purchaseInvoiceId: id },
+        });
+
+        // 3. Delete invoice itself
+        await tx.purchaseInvoice.delete({
+          where: { id },
+        });
+
+        // 4. Adjust supplier balance:
+        // Invoice originally added +totalInvoiceAmount to supplier debt.
+        // Each payment originally subtracted -payment.amount from supplier debt.
+        // Net remaining unpaid debt added by this invoice was (totalInvoiceAmount - totalPaymentsAmount).
+        // Removing both the invoice and its payments means reducing supplier debt by exactly that net amount!
+        const netDebtReduction = Math.max(0, totalInvoiceAmount - totalPaymentsAmount);
+        if (netDebtReduction > 0) {
+          await tx.supplier.update({
+            where: { id: invoice.supplierId },
+            data: {
+              currentBalance: {
+                decrement: netDebtReduction,
+              },
+            },
+          });
+        }
       }),
     );
 
-    await safeQuery(() =>
-      getSharedPrismaClient().purchaseInvoice.delete({
-        where: { id },
-      }),
-    );
-
+    // Audit logging
     await logProcurementActivity({
       companyId,
-      userId: req.user.id,
+      userId,
       action: "DELETE_PURCHASE_INVOICE",
       targetType: "PURCHASE_INVOICE",
       targetId: invoice.id,
       targetName: invoice.invoiceNumber,
-      description: `حذف فاتورة شراء رقم ${invoice.invoiceNumber} بقيمة ${invoice.totalAmount} ج.م`,
-      metadata: { totalAmount: invoice.totalAmount, supplierId: invoice.supplierId },
+      description: `حذف فاتورة شراء رقم ${invoice.invoiceNumber} بقيمة ${totalInvoiceAmount} ج.م وحذف ${payments.length} مدفوعات تابعة لها`,
+      metadata: {
+        totalAmount: totalInvoiceAmount,
+        deletedPaymentsCount: payments.length,
+        totalPaymentsAmount,
+        supplierId: invoice.supplierId,
+      },
       severity: "HIGH",
     });
 
-    res.json({ message: "تم حذف الفاتورة بنجاح" });
+    res.json({
+      success: true,
+      message: "تم حذف الفاتورة والمدفوعات المرتبطة بها بنجاح",
+    });
   } catch (error) {
     console.error("Error deleting purchase invoice:", error);
-    res.status(500).json({ message: "حدث خطأ أثناء حذف الفاتورة" });
+    res.status(500).json({
+      success: false,
+      message: "حدث خطأ أثناء حذف الفاتورة: " + error.message,
+    });
   }
 };
 

@@ -126,7 +126,13 @@
     "mobileTotal": "الإجمالي",
     "mobilePaid": "المدفوع",
     "mobileRemaining": "المتبقي",
-    "advancePayment": "دفعة مقدمة"
+    "advancePayment": "دفعة مقدمة",
+    "editInvoice": "تعديل الفاتورة",
+    "deleteInvoice": "حذف الفاتورة",
+    "confirmDeleteTitle": "تأكيد حذف فاتورة الشراء",
+    "confirmDeleteContent": "هل أنت متأكد من حذف فاتورة الشراء ({{invoiceNumber}}) للمورد ({{supplierName}}) نهائياً؟ سيتم حذف الفاتورة وجميع المدفوعات التابعة لها وتعديل رصيد المورد تلقائياً.",
+    "deleteSuccess": "تم حذف فاتورة الشراء والمدفوعات التابعة لها بنجاح",
+    "deleteError": "تعذر حذف فاتورة الشراء"
   },
   "purchaseOrderForm": {
     "editTitle": "تعديل أمر شراء",
@@ -227,6 +233,12 @@
     "viewDetails": "عرض التفاصيل",
     "emptyState": "لا توجد مدفوعات",
     "advancePayment": "دفعة مقدمة",
+    "editInvoice": "تعديل الفاتورة",
+    "deleteInvoice": "حذف الفاتورة",
+    "confirmDeleteTitle": "تأكيد حذف فاتورة الشراء",
+    "confirmDeleteContent": "هل أنت متأكد من حذف فاتورة الشراء ({{invoiceNumber}}) للمورد ({{supplierName}}) نهائياً؟ سيتم حذف الفاتورة وجميع المدفوعات التابعة لها وتعديل رصيد المورد تلقائياً.",
+    "deleteSuccess": "تم حذف فاتورة الشراء والمدفوعات التابعة لها بنجاح",
+    "deleteError": "تعذر حذف فاتورة الشراء",
     "mobilePaymentDate": "تاريخ الدفع",
     "mobileAmount": "المبلغ",
     "mobilePaymentMethod": "طريقة الدفع"
