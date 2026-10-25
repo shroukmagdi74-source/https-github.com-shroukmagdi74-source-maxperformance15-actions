@@ -177,7 +177,8 @@ async function sendMessage(req, res) {
     if (targetAgentId && targetAgentId !== 'CEO' && targetAgentId !== 'ceo-agent') {
       try {
         const aiServiceAdminClient = require('../services/aiServiceAdminClient');
-        const agentChatResult = await aiServiceAdminClient.chatWithAgent({
+        const { retryAiTransport } = require('../services/aiServiceRetry');
+        const agentChatResult = await retryAiTransport(() => aiServiceAdminClient.chatWithAgent({
           companyId,
           agentId: targetAgentId,
           message: effectiveMessage,
@@ -187,7 +188,7 @@ async function sendMessage(req, res) {
           channel: req.body?.channel || 'dashboard',
           attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined,
           requestId,
-        });
+        }));
 
         if (agentChatResult && (agentChatResult.reply || agentChatResult.tool_calls || agentChatResult.status === 'ok')) {
           result = {
@@ -235,7 +236,8 @@ async function sendMessage(req, res) {
     }
 
     if (!result) {
-      const fallbackResult = await aiSdkClient.sendChatMessage({
+      const { retryAiTransport: retryFallbackTransport } = require('../services/aiServiceRetry');
+      const fallbackResult = await retryFallbackTransport(() => aiSdkClient.sendChatMessage({
         companyId,
         customerId: userId,
         message: effectiveMessage,
@@ -243,7 +245,7 @@ async function sendMessage(req, res) {
         memoryContext: combinedMemoryContext,
         attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined,
         requestId,
-      });
+      }));
       result = {
         reply: fallbackResult.reply,
         toolCalls: fallbackResult.toolCalls || fallbackResult.tool_calls || [],
@@ -333,6 +335,19 @@ async function sendMessage(req, res) {
         modelSelection: error.modelSelection || null,
       });
     }
+
+    // The AI service restarts on every deploy; a merchant who types during that
+    // window must not see a raw `fetch failed` bubble in the copilot.
+    const { isTransientAiTransportError, AI_SERVICE_UNREACHABLE_MESSAGE } = require('../services/aiServiceRetry');
+    if (isTransientAiTransportError(error)) {
+      return res.status(503).json({
+        success: false,
+        code: 'AI_SERVICE_UNREACHABLE',
+        retryable: true,
+        error: AI_SERVICE_UNREACHABLE_MESSAGE,
+      });
+    }
+
     return res.status(500).json({ 
       success: false, 
       error: `[INTERNAL_ERROR] ${error.message}`,
