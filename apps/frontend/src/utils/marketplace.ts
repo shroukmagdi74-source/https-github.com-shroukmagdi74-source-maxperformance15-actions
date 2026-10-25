@@ -100,7 +100,9 @@ export function getPrice(app: MarketplaceApp, t: (key: string, opts?: Record<str
   if (app.pricingModel === "FREE") return t('marketplace.freePrice');
   if (app.pricingModel === "PAY_PER_USE") return app.unitPrice ? `${app.unitPrice} ${t('marketplace.currencyUnit')}${t('marketplace.perUnit')}` : t('marketplace.payPerUse');
   if (app.monthlyPrice) return `${app.monthlyPrice} ${t('marketplace.currencyUnit')}${t('marketplace.perMonth')}`;
-  return t('marketplace.contactUs');
+  // A SUBSCRIPTION row priced at 0 is a FREE app, not an "اتصل بنا" one. Eight live
+  // apps were advertising contact-us — including order-core, the most-installed app.
+  return t('marketplace.freePrice');
 }
 
 export function getAvailableBadges(app: MarketplaceApp) {

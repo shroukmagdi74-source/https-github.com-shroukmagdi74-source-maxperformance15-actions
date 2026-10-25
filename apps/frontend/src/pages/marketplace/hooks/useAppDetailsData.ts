@@ -89,10 +89,13 @@ export function useAppDetailsData() {
     }
   }, [app]);
 
-  // Reuse the platform's existing page-explanation videos inside the details page
+  // Reuse the platform's existing page-explanation videos inside the details page.
+  // `mainRoute` is empty on most marketplace rows (109 of 135 live apps), which is why
+  // only 12 app pages could ever render a video. Fall back to the slug→route map so an
+  // app whose screen already has a lesson (64 today) can show it.
   useEffect(() => {
-    const route = app?.mainRoute;
-    if (!route) {
+    const route = app ? getAppDestination(app) : null;
+    if (!route || route.startsWith("/my-apps/")) {
       setAppExplanation(null);
       return;
     }
