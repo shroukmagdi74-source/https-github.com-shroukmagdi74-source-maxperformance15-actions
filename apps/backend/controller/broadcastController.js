@@ -159,6 +159,8 @@ exports.createCampaign = async (req, res) => {
     let imagesString = null;
     if (images && Array.isArray(images) && images.length > 0) {
       imagesString = JSON.stringify(images);
+    } else if (req.body.headerMediaUrl) {
+      imagesString = JSON.stringify([req.body.headerMediaUrl]);
     }
 
     // إنشاء الحملة

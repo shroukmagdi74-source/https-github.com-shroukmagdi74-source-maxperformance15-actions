@@ -190,6 +190,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(
     // ── Media Preview Lightbox State ──
     const [previewOpen, setPreviewOpen] = useState(false);
 
+    const effectiveMediaUrl = useMemo(() => {
+      if (message.mediaUrl) {
+        return buildWhatsAppMediaUrl(message.mediaUrl, message.id);
+      }
+      if (message.interactiveData) {
+        try {
+          const interactive = typeof message.interactiveData === 'string'
+            ? JSON.parse(message.interactiveData)
+            : message.interactiveData;
+          const headerParam = Array.isArray(interactive?.components)
+            ? interactive.components.find((c: any) => String(c?.type || '').toUpperCase() === 'HEADER')?.parameters?.[0]
+            : null;
+          if (headerParam?.image?.link) {
+            return buildWhatsAppMediaUrl(headerParam.image.link, message.id);
+          }
+          if (headerParam?.image?.id && message.id) {
+            return buildWhatsAppMediaUrl(`meta-media:${headerParam.image.id}`, message.id);
+          }
+        } catch {}
+      }
+      return null;
+    }, [message.mediaUrl, message.interactiveData, message.id]);
+
     useEffect(() => {
       if (!previewOpen) return;
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -572,6 +595,24 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(
                 {templateName || 'Template'}
               </span>
             </div>
+            {effectiveMediaUrl && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPreviewOpen(true);
+                }}
+                className="group block w-full cursor-zoom-in text-left focus:outline-hidden"
+                title={t("whatsapp.media.viewImage", "عرض الصورة")}
+              >
+                <img
+                  src={effectiveMediaUrl}
+                  alt={templateName || "Template header image"}
+                  loading="lazy"
+                  className="max-h-[14rem] max-w-full rounded-lg object-cover transition-opacity group-hover:opacity-95"
+                />
+              </button>
+            )}
             {showBodyText ? (
               <LinkifiedText
                 text={bodyContent}
@@ -1060,7 +1101,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(
         )}
 
         {/* Media Preview Lightbox Modal on Same Page */}
-        {previewOpen && message.mediaUrl && typeof document !== "undefined"
+        {previewOpen && effectiveMediaUrl && typeof document !== "undefined"
           ? createPortal(
               <div
                 className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in-0 duration-150"
@@ -1083,7 +1124,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(
                   </div>
                   <div className="flex items-center gap-2">
                     <a
-                      href={buildWhatsAppMediaUrl(message.mediaUrl, message.id)}
+                      href={effectiveMediaUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/25"
@@ -1092,7 +1133,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(
                       <ExternalLink className="size-4" />
                     </a>
                     <a
-                      href={buildWhatsAppMediaUrl(message.mediaUrl, message.id)}
+                      href={effectiveMediaUrl}
                       download={
                         message.mediaFileName ||
                         (String(message.messageType || "").toUpperCase() === "STICKER"
@@ -1121,7 +1162,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(
                   onClick={(e) => e.stopPropagation()}
                 >
                   <img
-                    src={buildWhatsAppMediaUrl(message.mediaUrl, message.id)}
+                    src={effectiveMediaUrl}
                     alt={message.mediaFileName || "Preview"}
                     className={cn(
                       "max-h-[82vh] max-w-[90vw] select-none rounded-lg object-contain shadow-2xl",

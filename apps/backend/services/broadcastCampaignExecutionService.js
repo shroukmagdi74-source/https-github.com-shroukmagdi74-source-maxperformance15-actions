@@ -390,14 +390,15 @@ async function executeCampaignSendInBackground({
           const bodyParams = buildBroadcastBodyParams(templateBodyText, conv.customer, boundLocalVariables, orderForCustomer);
 
           const components = [];
+          const headerMedia = campaign.waHeaderMedia || (Array.isArray(campaign.images) && campaign.images[0]) || null;
           if (templateHeaderFormat?.hasMedia) {
-            if (!campaign.waHeaderMedia) {
+            if (!headerMedia) {
               throw new Error(`القالب "${campaign.waTemplateName}" يتطلب صورة أو وسيط (${templateHeaderFormat.format}) في الترويسة، ولم يتم تحديد وسيط للحملة`);
             }
-            if (String(campaign.waHeaderMedia).startsWith('4:')) {
+            if (String(headerMedia).startsWith('4:')) {
               throw new Error('مقبض الوسائط هذا غير صالح للإرسال (خاص بإنشاء القوالب فقط). يُرجى إعادة رفع الصورة كصورة حملة');
             }
-            const headerParam = buildBroadcastHeaderParams(campaign.waHeaderMedia, templateHeaderFormat.format.toLowerCase());
+            const headerParam = buildBroadcastHeaderParams(headerMedia, templateHeaderFormat.format.toLowerCase());
             if (headerParam) components.push(headerParam);
           }
           if (bodyParams.length > 0) {
@@ -416,7 +417,12 @@ async function executeCampaignSendInBackground({
           const result = await WhatsAppMessageHandler.sendTemplateMessage(
             waSessionId, to, campaign.waTemplateName,
             { name: campaign.waTemplateName, language: campaign.waLanguageCode, languageCode: campaign.waLanguageCode, components },
-            { metadata: { isBroadcast: true, campaignId: campaign.id }, templateBody: resolvedBody, senderId: campaign.creatorId }
+            {
+              metadata: { isBroadcast: true, campaignId: campaign.id },
+              templateBody: resolvedBody,
+              senderId: campaign.creatorId,
+              headerMediaUrl: headerMedia
+            }
           );
 
           sentCount++;

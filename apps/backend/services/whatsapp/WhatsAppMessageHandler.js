@@ -1876,6 +1876,17 @@ async function sendTemplateMessage(sessionId, to, templateId, parameters = {}, o
             const displayContent = templateBody || `Template: ${templateName}`;
             let meta = serializeOutgoingMetadata(options.metadata);
 
+            // 🖼️ استخراج رابط أو معرف صورة الرأس من components أو options لحفظه في mediaUrl
+            let templateMediaUrl = options.headerMediaUrl || options.mediaUrl || null;
+            if (!templateMediaUrl && Array.isArray(components)) {
+                const headerParam = components.find(c => String(c?.type || '').toUpperCase() === 'HEADER')?.parameters?.[0];
+                if (headerParam?.image?.link) {
+                    templateMediaUrl = headerParam.image.link;
+                } else if (headerParam?.image?.id) {
+                    templateMediaUrl = `meta-media:${headerParam.image.id}`;
+                }
+            }
+
             // 🚨 PRODUCTION-FIX: حفظ الرسالة محلياً بعد نجاح إرسال ميتا الفعلي.
             // لو فشل الـ upsert (DB error)، لا يجب أن يحوّل إرسالاً وصل فعلاً إلى
             // "فشل" — كان يسبب fallback مكرر (رسالة مكررة للعميل) أو failureReason مضلل.
@@ -1885,6 +1896,8 @@ async function sendTemplateMessage(sessionId, to, templateId, parameters = {}, o
                     messageId: result.messageId || `meta_${Date.now()}_${Math.random()}`,
                     type: 'TEMPLATE',
                     content: displayContent,
+                    mediaUrl: templateMediaUrl,
+                    mediaType: templateMediaUrl ? 'image' : null,
                     interactiveData: JSON.stringify({ templateName, languageCode, components, templateBody, templateButtons, templateFooter }),
                     isAIResponse: options.isAIResponse || false,
                     metadata: meta

@@ -1173,11 +1173,28 @@ const resolveWhatsAppMessageMedia = async (prisma, whatsAppMessageId) => {
       id: true,
       mediaUrl: true,
       sessionId: true,
+      interactiveData: true,
     },
   });
 
-  const storedMediaUrl =
+  let storedMediaUrl =
     typeof message?.mediaUrl === "string" ? message.mediaUrl.trim() : "";
+
+  // 🖼️ إذا كانت الرسالة قالباً (TEMPLATE) ولم يُحفظ mediaUrl مباشرة، نستخرج صورة الرأس من interactiveData
+  if (!storedMediaUrl && message?.interactiveData) {
+    try {
+      const interactive = JSON.parse(message.interactiveData);
+      const headerParam = Array.isArray(interactive?.components)
+        ? interactive.components.find((c) => String(c?.type || '').toUpperCase() === 'HEADER')?.parameters?.[0]
+        : null;
+      if (headerParam?.image?.link) {
+        storedMediaUrl = headerParam.image.link;
+      } else if (headerParam?.image?.id) {
+        storedMediaUrl = `meta-media:${headerParam.image.id}`;
+      }
+    } catch {}
+  }
+
   if (!storedMediaUrl) {
     return null;
   }

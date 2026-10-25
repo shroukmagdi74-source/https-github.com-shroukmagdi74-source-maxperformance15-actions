@@ -37,6 +37,7 @@ export function useWhatsAppTemplateBroadcastController({
 
   // Header media for Meta templates with an IMAGE header
   const [waHeaderMedia, setWaHeaderMedia] = useState('');
+  const [waHeaderMediaUrl, setWaHeaderMediaUrl] = useState('');
   const [headerMediaName, setHeaderMediaName] = useState('');
   const [headerUploading, setHeaderUploading] = useState(false);
 
@@ -450,6 +451,7 @@ export function useWhatsAppTemplateBroadcastController({
         waTemplateName: selectedTemplate,
         waLanguageCode: languageCode,
         waHeaderMedia: waHeaderMedia || undefined,
+        headerMediaUrl: waHeaderMediaUrl || undefined,
         whatsAppSessionId: selectedSessionId,
         manualPhones: JSON.stringify(recipients),
         sendNow: scheduleAt ? 'false' : 'true',
@@ -547,6 +549,7 @@ export function useWhatsAppTemplateBroadcastController({
         const res = await apiClient.post<{
           success?: boolean;
           mediaId?: string;
+          url?: string;
           fileName?: string;
           error?: string;
         }>('/whatsapp-templates/templates/upload-media', formData, {
@@ -556,6 +559,7 @@ export function useWhatsAppTemplateBroadcastController({
         const data = res.data;
         if (data?.success && data.mediaId) {
           setWaHeaderMedia(data.mediaId);
+          setWaHeaderMediaUrl(data.url || '');
           setHeaderMediaName(data.fileName || file.name);
           toast.success('تم رفع صورة الرأس — سترسل في هيدر القالب لكل عميل');
         } else {
@@ -579,6 +583,11 @@ export function useWhatsAppTemplateBroadcastController({
   const replyRate = (c: Campaign) =>
     c.sentCount > 0 ? Math.round((((c as any).repliedCount || 0) / c.sentCount) * 100) : 0;
 
+  const setWaHeaderMediaSafe = useCallback((v: string) => {
+    setWaHeaderMedia(v);
+    if (!v) setWaHeaderMediaUrl('');
+  }, []);
+
   return {
     activeTab,
     setActiveTab,
@@ -591,7 +600,7 @@ export function useWhatsAppTemplateBroadcastController({
     languageCode,
     setLanguageCode,
     waHeaderMedia,
-    setWaHeaderMedia,
+    setWaHeaderMedia: setWaHeaderMediaSafe,
     headerMediaName,
     setHeaderMediaName,
     headerUploading,

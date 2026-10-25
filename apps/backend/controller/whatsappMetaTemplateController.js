@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { getSharedPrismaClient } = require('../services/sharedDatabase');
 const MetaCloudProvider = require('../services/whatsapp/providers/MetaCloudProvider');
 const { WhatsAppMessageHandler } = require('../services/whatsapp');
@@ -65,6 +67,7 @@ async function uploadTemplateMedia(req, res) {
     }
 
     let mediaIdentifier = null;
+    let localFileUrl = null;
 
     if (isBroadcast) {
       // 🚀 للبث الجماعي وإرسال الرسائل: ميتا تطلب media id رقمي
@@ -74,6 +77,22 @@ async function uploadTemplateMedia(req, res) {
         req.file.mimetype,
         req.file.originalname
       );
+
+      // 💾 حفظ نسخة محلية دائمة في السيرفر لتمكين عرض الصورة فورياً في واجهة المحادثات (Dashboard Chat)
+      try {
+        const uploadDir = path.join(__dirname, '../uploads/broadcast_images');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const safeExt = path.extname(req.file.originalname) || '.jpg';
+        const safeBase = path.basename(req.file.originalname, safeExt).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const filename = `${Date.now()}_${safeBase}${safeExt}`;
+        const targetPath = path.join(uploadDir, filename);
+        fs.writeFileSync(targetPath, req.file.buffer);
+        localFileUrl = `/uploads/broadcast_images/${filename}`;
+      } catch (saveLocalErr) {
+        console.warn('⚠️ [UPLOAD-MEDIA] Could not save local copy for broadcast image:', saveLocalErr.message);
+      }
     } else {
       // 📝 لإنشاء القالب في ميتا: ميتا تطلب handle من Resumable Upload
       mediaIdentifier = await MetaCloudProvider.uploadTemplateMedia(
@@ -92,6 +111,7 @@ async function uploadTemplateMedia(req, res) {
       success: true,
       mediaId: mediaIdentifier,
       mediaType: req.file.mimetype,
+      url: localFileUrl,
       fileName: req.file.originalname,
       size: req.file.size
     });
