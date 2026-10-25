@@ -37,6 +37,7 @@ roles:
     - knowledge_search
     - knowledge_ask_merchant
     - support_ticket_link
+    - help_guide
     - manage_todo
     - delegate_task
     - agent_handoff_to

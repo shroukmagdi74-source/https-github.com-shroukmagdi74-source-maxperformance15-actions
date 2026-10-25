@@ -107,7 +107,8 @@
     "affiliates_list",
     "affiliate_settings_read",
     "store_capability",
-    "support_ticket_link"
+    "support_ticket_link",
+    "help_guide"
   ],
   "allowedSkills": [
     "read-company-state",
