@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import SuggestionFeedbackPage from "./SuggestionFeedbackPage";
 import {
@@ -29,6 +29,34 @@ const CATEGORIES = [
   { value: "complaint", label: "شكوى أو بلاغ خلل" },
 ];
 
+const ALLOWED_CATEGORIES = new Set([
+  "technical",
+  "billing",
+  "inquiry",
+  "suggestion",
+  "complaint",
+]);
+
+export const MAX_SUBJECT_LENGTH = 200;
+export const MAX_BODY_LENGTH = 5000;
+
+export const stripHtmlTags = (input: string | null | undefined): string => {
+  if (!input) return "";
+  let prev = "";
+  let clean = input;
+  while (clean !== prev) {
+    prev = clean;
+    clean = clean.replace(/<[^>]*>/g, "");
+  }
+  return clean;
+};
+
+export const resolveCategory = (rawCategory: string | null | undefined): string => {
+  if (!rawCategory) return "technical";
+  const normalized = rawCategory.trim().toLowerCase();
+  return ALLOWED_CATEGORIES.has(normalized) ? normalized : "technical";
+};
+
 export const CreateTicket: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -37,11 +65,48 @@ export const CreateTicket: React.FC = () => {
     return <SuggestionFeedbackPage />;
   }
 
-  const [formData, setFormData] = useState({
-    subject: "",
-    category: "technical",
-    content: "",
+  const [formData, setFormData] = useState(() => {
+    const rawSubject = searchParams.get("subject") ?? "";
+    const rawCategory = searchParams.get("category") ?? "";
+    const rawBody = searchParams.get("body") ?? searchParams.get("content") ?? "";
+
+    return {
+      subject: stripHtmlTags(rawSubject).slice(0, MAX_SUBJECT_LENGTH),
+      category: resolveCategory(rawCategory),
+      content: stripHtmlTags(rawBody).slice(0, MAX_BODY_LENGTH),
+    };
   });
+
+  useEffect(() => {
+    const hasPrefill =
+      searchParams.has("subject") ||
+      searchParams.has("category") ||
+      searchParams.has("body") ||
+      searchParams.has("content");
+
+    if (!hasPrefill) return;
+
+    const nextSubject = stripHtmlTags(searchParams.get("subject")).slice(0, MAX_SUBJECT_LENGTH);
+    const nextCategory = resolveCategory(searchParams.get("category"));
+    const nextContent = stripHtmlTags(
+      searchParams.get("body") ?? searchParams.get("content")
+    ).slice(0, MAX_BODY_LENGTH);
+
+    setFormData((prev) => {
+      if (
+        prev.subject === nextSubject &&
+        prev.category === nextCategory &&
+        prev.content === nextContent
+      ) {
+        return prev;
+      }
+      return {
+        subject: nextSubject,
+        category: nextCategory,
+        content: nextContent,
+      };
+    });
+  }, [searchParams]);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -112,7 +177,7 @@ export const CreateTicket: React.FC = () => {
       fd.append("content", formData.content.trim());
       attachments.forEach((att) => fd.append("attachments", att.file));
 
-      const data = await supportService.createTicket(fd);
+      const data: any = await supportService.createTicket(fd);
       if (data.success) {
         setSuccess(true);
         setTimeout(() => {
