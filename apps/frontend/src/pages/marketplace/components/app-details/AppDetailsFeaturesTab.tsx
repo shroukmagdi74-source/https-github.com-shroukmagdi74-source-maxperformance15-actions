@@ -1,55 +1,41 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import type { MarketplaceApp as MPA } from "@/types/marketplace";
-import {
-  getMarketplaceFeatureItems,
-  getFeatureAccessLabel,
-} from "../../featureCatalog";
+import { getMarketplaceFeatureItems } from "../../featureCatalog";
 
 interface AppDetailsFeaturesTabProps {
   app: MPA;
 }
 
-export const AppDetailsFeaturesTab: React.FC<AppDetailsFeaturesTabProps> = ({
-  app,
-}) => {
+/**
+ * Features as a quiet two-column list (no per-feature card): the page keeps one
+ * surface and the density goes up, which is what makes the section scannable.
+ */
+export const AppDetailsFeaturesTab: React.FC<AppDetailsFeaturesTabProps> = ({ app }) => {
   const featureItems = getMarketplaceFeatureItems(app);
 
-  return (
-    <div className="rounded-2xl border bg-card p-5 text-right">
-      <h2 className="text-xl font-extrabold text-foreground mb-4">الميزات</h2>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {featureItems.length > 0 ? (
-          featureItems.map((feature) => (
-            <article
-              key={feature.key}
-              className="rounded-xl border bg-background p-4 text-right group hover:border-primary/30 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="rounded-full bg-muted/50 px-3 py-1 text-xs font-bold text-muted-foreground shrink-0">
-                  {getFeatureAccessLabel(feature.access)}
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-foreground text-base font-bold">
-                    {feature.name}
-                  </h3>
-                  <p className="text-muted-foreground mt-1 text-sm leading-6">
-                    {feature.description}
-                  </p>
-                </div>
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border">
-                  <Sparkles size={17} />
-                </span>
-              </div>
-            </article>
-          ))
-        ) : (
-          <div className="col-span-full rounded-2xl border border-dashed py-10 text-center text-sm text-muted-foreground">
-            <Sparkles size={36} className="mx-auto mb-3 text-muted-foreground/40" />
-            ميزات قادمة قريباً
-          </div>
-        )}
+  if (featureItems.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border/70 py-12 text-center text-sm text-muted-foreground">
+        <Sparkles size={30} className="mx-auto mb-3 text-muted-foreground/40" />
+        الميزات التفصيلية لهذا التطبيق لسه بتتكتب — الشرح بالفيديو فوق بيغطي الشاشة الأساسية.
       </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
+      {featureItems.map((feature) => (
+        <div key={feature.key} className="flex gap-3.5 border-b border-border/50 py-4 text-right last:border-b-0">
+          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/8 text-primary">
+            <Check size={15} strokeWidth={2.5} />
+          </span>
+          <div className="min-w-0">
+            <b className="mb-1 block text-[14.5px] font-bold text-foreground">{feature.name}</b>
+            <p className="m-0 text-[13px] leading-6 text-muted-foreground">{feature.description}</p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 };

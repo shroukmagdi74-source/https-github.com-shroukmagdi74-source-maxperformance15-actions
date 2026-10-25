@@ -1,115 +1,118 @@
 import React from "react";
-import { ChevronRight, Sparkles, Clock, Star, Package } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { ChevronRight, Clock, Sparkles, Star } from "lucide-react";
 import type { MarketplaceApp as MPA } from "@/types/marketplace";
-import {
-  appIconsBySlug,
-  categoryIcons,
-  appIcons,
-  shouldUseTextIcon,
-} from "@/utils/marketplace";
-import {
-  getFeatureAccessKind,
-  getFeatureAccessLabel,
-} from "../../featureCatalog";
-import { formatNumber, isLikelyImageUrl } from "../../types/appDetailsTypes";
+import { formatInstallCount, normalizeRequiredApps } from "@/utils/marketplace";
+import { formatNumber } from "../../types/appDetailsTypes";
 
 interface AppDetailsHeaderProps {
   app: MPA;
   onBack: () => void;
 }
 
-export const AppDetailsHeader: React.FC<AppDetailsHeaderProps> = ({
-  app,
-  onBack,
-}) => {
-  const { t } = useTranslation();
-  const accessKind = getFeatureAccessKind(app.pricingModel);
-  const BrandIcon = app.slug ? appIconsBySlug[app.slug] : undefined;
-  const IconComp =
-    appIcons[app.icon?.trim().toLowerCase() || ""] ||
-    categoryIcons[app.category] ||
-    Package;
-  const textIcon = shouldUseTextIcon(app.icon) ? app.icon?.trim() : null;
+const CATEGORY_AR: Record<string, string> = {
+  ANALYTICS: "التحليلات",
+  MARKETING: "التسويق",
+  ORDER_OPS: "الطلبات والتنفيذ",
+  PRODUCTIVITY: "الإنتاجية",
+  COMMUNICATION: "التواصل",
+  ECOMMERCE: "المتجر والمنتجات",
+  HR: "الموارد البشرية",
+  MEDICAL: "النظام الطبي",
+  AI: "الذكاء الاصطناعي",
+  CRM: "إدارة العملاء",
+  FINANCE: "المالية",
+  INTEGRATION: "التكاملات",
+  SHIPPING: "الشحن والتوصيل",
+  GAMIFICATION: "التحفيز والولاء",
+  WAREHOUSE: "المخزون والمستودعات",
+  ACCOUNTING: "الفواتير والمحاسبة",
+  WHOLESALE: "البيع بالجملة",
+  PROCUREMENT: "المشتريات والموردين",
+  PAYMENTS: "الدفع والتحصيل",
+};
+
+function priceText(app: MPA) {
+  if (app.pricingModel === "FREE") return "مجاني";
+  if (app.pricingModel === "PAY_PER_USE" && Number(app.unitPrice) > 0) {
+    return `${app.unitPrice} ج / ${app.unitName || "وحدة"}`;
+  }
+  if (Number(app.monthlyPrice) > 0) return `${formatNumber(Number(app.monthlyPrice))} ج / شهر`;
+  return "مجاني";
+}
+
+/**
+ * App page hero: one title, one value line, then a numeric strip.
+ * Deliberately borderless — the page reads as one surface, not a stack of boxes.
+ */
+export const AppDetailsHeader: React.FC<AppDetailsHeaderProps> = ({ app, onBack }) => {
+  const category = CATEGORY_AR[(app.category || "").toUpperCase()] || "";
+  const requiredApps = normalizeRequiredApps(app.requiredApps);
 
   return (
-    <div>
+    <div className="text-right">
       <button
         onClick={onBack}
-        className="inline-flex items-center gap-2 rounded-xl px-2 py-1 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-lg px-1 py-1 text-[13px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronRight size={18} />
+        <ChevronRight size={16} />
         الرجوع إلى التطبيقات
       </button>
 
-      <section className="rounded-[1.75rem] bg-card mt-4 overflow-hidden border border-border/30">
-        {isLikelyImageUrl(app.coverImage) && (
-          <div className="relative h-44 w-full overflow-hidden bg-muted/40 sm:h-56">
-            <img
-              src={app.coverImage}
-              alt={app.name}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
+      <div className="mt-6 flex flex-wrap items-center gap-3 text-[12px] font-semibold text-muted-foreground">
+        {category && <span>{category}</span>}
+        {app.isFeatured && (
+          <span className="inline-flex items-center gap-1 text-amber-600">
+            <Sparkles size={12} /> مميز
+          </span>
+        )}
+        {app.rating > 0 && (
+          <span className="inline-flex items-center gap-1 text-amber-600">
+            <Star size={12} className="fill-amber-500 text-amber-500" />
+            {app.rating.toFixed(1)}
+            <span className="font-normal text-muted-foreground">({formatNumber(app.reviewCount)})</span>
+          </span>
+        )}
+      </div>
+
+      <h1 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight text-foreground sm:text-[40px]">
+        {app.name}
+      </h1>
+
+      {app.description && (
+        <p className="mt-3 max-w-[62ch] text-[15px] font-medium leading-8 text-muted-foreground sm:text-base">
+          {app.description}
+        </p>
+      )}
+
+      <dl className="mt-7 flex flex-wrap border-y border-border/60">
+        <div className="min-w-[120px] flex-1 border-l border-border/60 py-3.5 pl-4 first:border-l-0 first:pl-0">
+          <dt className="mb-0.5 text-[11px] font-semibold text-muted-foreground">السعر</dt>
+          <dd className="text-[15px] font-bold tabular-nums text-foreground">{priceText(app)}</dd>
+        </div>
+        {app.trialDays > 0 && (
+          <div className="min-w-[120px] flex-1 border-l border-border/60 py-3.5 pl-4">
+            <dt className="mb-0.5 text-[11px] font-semibold text-muted-foreground">التجربة</dt>
+            <dd className="inline-flex items-center gap-1.5 text-[15px] font-bold text-foreground">
+              <Clock size={13} className="text-emerald-600" />
+              تجربة {app.trialDays} يوم
+            </dd>
           </div>
         )}
-
-        <div className="p-5 lg:p-6 text-right">
-          <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-            <span className="rounded-full bg-muted/50 px-3 py-1 text-xs font-bold text-muted-foreground">
-              {getFeatureAccessLabel(accessKind)}
-            </span>
-            {app.isFeatured && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 text-amber-600 border px-3 py-1 text-xs font-bold">
-                <Sparkles size={13} />
-                مميز
-              </span>
-            )}
-            {app.trialDays > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 border px-3 py-1 text-xs font-bold">
-                <Clock size={13} />
-                تجربة {app.trialDays} يوم
-              </span>
-            )}
+        {app.installCount > 0 && (
+          <div className="min-w-[120px] flex-1 border-l border-border/60 py-3.5 pl-4">
+            <dt className="mb-0.5 text-[11px] font-semibold text-muted-foreground">مستخدم في</dt>
+            <dd className="text-[15px] font-bold tabular-nums text-foreground">
+              {formatInstallCount(app.installCount)} متجر
+            </dd>
           </div>
-
-          <div className="flex flex-col items-end gap-4 sm:flex-row-reverse sm:items-start">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-primary/10 text-primary border text-3xl">
-              {app.logo ? (
-                <img
-                  src={app.logo}
-                  alt={app.name}
-                  className="size-full object-cover"
-                  loading="lazy"
-                />
-              ) : BrandIcon ? (
-                <BrandIcon className="size-8" />
-              ) : (
-                textIcon || <IconComp size={30} />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-3xl font-extrabold text-foreground leading-tight sm:text-4xl">
-                {app.name}
-              </h1>
-              <p className="text-muted-foreground mt-3 max-w-3xl text-sm font-semibold leading-7 sm:text-base">
-                {app.description}
-              </p>
-              <div className="mt-4 flex flex-wrap items-center justify-end gap-2 text-xs font-bold">
-                {app.rating > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted/50 px-3 py-1 text-xs font-bold tabular-nums font-mono">
-                    <Star size={14} className="fill-amber-400 text-amber-400" />
-                    {app.rating.toFixed(1)}
-                    <span className="text-muted-foreground font-sans">
-                      ({formatNumber(app.reviewCount)} {t("marketplace.reviews")})
-                    </span>
-                  </span>
-                )}
-              </div>
-            </div>
+        )}
+        {requiredApps.length > 0 && (
+          <div className="min-w-[120px] flex-1 border-l border-border/60 py-3.5 pl-4">
+            <dt className="mb-0.5 text-[11px] font-semibold text-muted-foreground">بيتطلب مع</dt>
+            <dd className="text-[15px] font-bold text-foreground">{requiredApps.join(" · ")}</dd>
           </div>
-        </div>
-      </section>
+        )}
+      </dl>
     </div>
   );
 };

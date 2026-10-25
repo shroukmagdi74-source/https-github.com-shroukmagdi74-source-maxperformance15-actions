@@ -71,12 +71,12 @@ export const AppDetailsPricingSidebar: React.FC<AppDetailsPricingSidebarProps> =
   const planPrices = getPlanPrices(app);
 
   return (
-    <aside className="rounded-2xl border bg-card p-4 text-right lg:sticky lg:top-5 lg:self-start space-y-4">
+    <aside className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 text-right shadow-[0_18px_40px_-32px_rgba(11,18,32,0.4)] lg:sticky lg:top-5 lg:self-start">
       {/* Header Summary Box */}
-      <div className="rounded-xl border bg-background p-4">
+      <div className="pb-1">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-foreground text-sm font-bold">
+            <div className="text-[13px] font-bold text-muted-foreground">
               {isFree ? "مجاني" : planTitles[selectedPlan]}
             </div>
             <p className="text-muted-foreground mt-1 text-xs leading-5">
@@ -90,7 +90,7 @@ export const AppDetailsPricingSidebar: React.FC<AppDetailsPricingSidebarProps> =
             </p>
           </div>
           <div className="text-left">
-            <div className="text-lg font-extrabold text-primary tabular-nums font-mono">
+            <div className="text-[30px] font-extrabold leading-none tracking-tight text-foreground tabular-nums">
               {isFree ? "بدون تكلفة" : planPrices[selectedPlan]}
             </div>
           </div>
@@ -292,7 +292,7 @@ export const AppDetailsPricingSidebar: React.FC<AppDetailsPricingSidebarProps> =
             )}
 
             <Button
-              className="w-full gap-2 font-bold"
+              className="h-12 w-full gap-2 rounded-xl bg-foreground text-[14.5px] font-bold text-background hover:bg-foreground/90"
               size="sm"
               disabled={installing}
               onClick={() => onInstall(selectedPlan)}
