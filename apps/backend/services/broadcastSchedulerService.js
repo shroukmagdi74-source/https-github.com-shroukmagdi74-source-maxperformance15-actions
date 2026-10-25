@@ -99,7 +99,7 @@ class BroadcastSchedulerService {
             where: { id: campaign.id },
             data: {
               status: 'scheduled',
-              sentAt: null
+              scheduledAt: new Date()
             }
           });
         }, 5);

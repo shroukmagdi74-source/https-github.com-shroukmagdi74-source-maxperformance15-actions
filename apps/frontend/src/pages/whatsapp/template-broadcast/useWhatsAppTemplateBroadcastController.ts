@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { tToast } from '../../../utils/i18n-toast';
 import { apiClient, type ApiRequestConfig } from '../../../services/apiClient';
 import { broadcastService } from '../../../services/broadcastService';
 import { customerService } from '../../../services/customerService';
+import { socketService } from '../../../services/socketService';
 import {
   BroadcastResult,
   Campaign,
@@ -245,6 +246,56 @@ export function useWhatsAppTemplateBroadcastController({
     fetchTemplates();
   }, [fetchTemplates]);
 
+  const currentCampaignIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const handleProgress = (data: any) => {
+      if (!data) return;
+      if (currentCampaignIdRef.current && data.campaignId && data.campaignId !== currentCampaignIdRef.current) {
+        return;
+      }
+
+      if (data.status === 'sending' || data.status === 'started') {
+        setSendProgress({
+          current: data.sent || 0,
+          total: data.total || 0,
+          status: 'sending'
+        });
+      } else if (data.status === 'completed') {
+        setSendProgress({
+          current: data.sent || 0,
+          total: data.total || 0,
+          status: 'completed'
+        });
+        setResult({
+          sentCount: data.sent || 0,
+          failedCount: data.failed || 0,
+          sent: data.sent || 0,
+          failed: data.failed || 0,
+          success: true
+        } as any);
+        setSending(false);
+        toast.success(`اكتمل إرسال الحملة: تم إرسال ${data.sent || 0} رسالة بنجاح`);
+        fetchCampaigns();
+      } else if (data.status === 'failed') {
+        setSending(false);
+        setSendProgress(null);
+        setResult({
+          sentCount: data.sent || 0,
+          failedCount: data.failed || 0,
+          errors: [{ error: data.error || 'فشل إرسال الحملة' }]
+        } as any);
+        toast.error(`فشل إرسال الحملة: ${data.error || 'خطأ غير معروف'}`);
+        fetchCampaigns();
+      }
+    };
+
+    socketService.onCampaignProgress(handleProgress);
+    return () => {
+      socketService.off('campaign:progress', handleProgress);
+    };
+  }, [fetchCampaigns]);
+
   const addRecipients = useCallback(() => {
     const phones = recipientsText
       .split(/[\n,;]+/)
@@ -412,6 +463,7 @@ export function useWhatsAppTemplateBroadcastController({
         }, new FormData())
       );
       const campaignId = (campaignRes as any)?.data?.id || (campaignRes as any)?.id;
+      currentCampaignIdRef.current = campaignId;
 
       setSendProgress({ current: 0, total: recipients.length, status: 'sending' });
       if (scheduleAt) {
@@ -423,9 +475,27 @@ export function useWhatsAppTemplateBroadcastController({
       }
 
       const sendRes = await broadcastService.sendCampaign(campaignId, recipients);
-      setResult(sendRes);
-      if (sendRes.sentCount > 0) {
-        toast.success(`تم إرسال ${sendRes.sentCount} رسالة بنجاح`);
+      if (sendRes.success) {
+        if (sendRes.status === 'sending' || (sendRes as any).isAsync) {
+          toast.success(sendRes.message || 'بدأ إرسال الحملة بنجاح في الخلفية');
+          setResult({
+            status: 'sending',
+            sentCount: 0,
+            failedCount: 0,
+            total: recipients.length
+          } as any);
+          // keep sending = true so live progress bar tracks socket events
+        } else if (sendRes.sentCount > 0) {
+          toast.success(`تم إرسال ${sendRes.sentCount} رسالة بنجاح`);
+          setResult(sendRes);
+          setSending(false);
+          setSendProgress(null);
+        } else {
+          setResult(sendRes);
+          setSending(false);
+          setSendProgress(null);
+        }
+        fetchCampaigns();
       } else {
         const errorMsg =
           (sendRes as any).failureReason ||
@@ -433,15 +503,17 @@ export function useWhatsAppTemplateBroadcastController({
           (sendRes as any).message ||
           'فشل إرسال الحملة';
         toast.error(`فشل إرسال الحملة: ${errorMsg}`);
+        setResult(sendRes);
+        setSending(false);
+        setSendProgress(null);
       }
-      setActiveTab('campaigns');
-      fetchCampaigns();
     } catch (err: any) {
       toast.error(err?.message || 'فشل');
       setResult({ sent: 0, failed: 0, errors: [{ error: err?.message }] });
       setSendProgress(null);
+      setSending(false);
     } finally {
-      if (!scheduleAt) {
+      if (scheduleAt) {
         setSending(false);
         setSendProgress(null);
       }

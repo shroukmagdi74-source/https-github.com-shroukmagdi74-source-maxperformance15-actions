@@ -441,21 +441,37 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4 space-y-3">
-            {!result ? (
+            {(!result || result.status === 'sending' || sending) ? (
               <div className="py-10 text-center text-xs text-muted-foreground">
-                {sending ? (
-                  <div className="flex flex-col items-center gap-2">
+                {sending || result?.status === 'sending' ? (
+                  <div className="flex flex-col items-center gap-2.5">
                     <Loader2 className="size-6 animate-spin text-primary" />
-                    <span>
-                      جاري الإرسال...{' '}
+                    <span className="font-medium text-foreground">
+                      جاري الإرسال في الخلفية...{' '}
                       {sendProgress ? (
-                        <span className="font-mono tabular-nums">
+                        <span className="font-mono tabular-nums font-bold">
                           {sendProgress.current}/{sendProgress.total}
                         </span>
                       ) : (
                         ''
                       )}
                     </span>
+                    {sendProgress && sendProgress.total > 0 && (
+                      <div className="w-56 bg-muted rounded-full h-2 overflow-hidden mt-1">
+                        <div
+                          className="bg-primary h-full transition-all duration-300 rounded-full"
+                          style={{ width: `${Math.min(100, Math.round((sendProgress.current / sendProgress.total) * 100))}%` }}
+                        />
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 rounded-lg text-xs mt-2"
+                      onClick={onGoToCampaigns}
+                    >
+                      عرض في سجل الحملات
+                    </Button>
                   </div>
                 ) : (
                   'لم يتم إرسال حملة في هذه الجلسة بعد'

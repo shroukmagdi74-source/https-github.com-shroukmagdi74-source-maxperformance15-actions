@@ -90,7 +90,25 @@ async function postMessage(session, payload) {
   };
 }
 
-async function listTemplates(sessionId) {
+// ── Cache for Meta templates to prevent explosive memory & rate-limit crashes ──
+const templateListCache = new Map();
+const TEMPLATE_LIST_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+
+function invalidateTemplateCache(sessionId) {
+  if (sessionId) {
+    templateListCache.delete(sessionId);
+  } else {
+    templateListCache.clear();
+  }
+}
+
+async function listTemplates(sessionId, options = {}) {
+  const forceRefresh = Boolean(options && (options.forceRefresh || options.refresh));
+  const cached = templateListCache.get(sessionId);
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+    return cached.templates;
+  }
+
   const session = await getSession(sessionId);
   if (!session) {
     throw new Error('Session not found');
@@ -124,6 +142,11 @@ async function listTemplates(sessionId) {
     // حماية من اللوب اللانهائي
     if (!pageData.length) break;
   } while (afterCursor);
+
+  templateListCache.set(sessionId, {
+    templates: allTemplates,
+    expiresAt: Date.now() + TEMPLATE_LIST_CACHE_TTL_MS
+  });
 
   return allTemplates;
 }
@@ -827,6 +850,7 @@ async function createTemplate(sessionId, templateData) {
     timeout: 30000
   }));
 
+  invalidateTemplateCache(sessionId);
   return response.data;
 }
 
@@ -877,6 +901,7 @@ async function updateTemplate(sessionId, templateId, templateData) {
     throw metaErr;
   }
 
+  invalidateTemplateCache(sessionId);
   console.log(`☁️ [META-UPDATE] Response:`, JSON.stringify({ success: data?.success, id: data?.id, status: data?.status }));
   return data;
 }
@@ -897,6 +922,7 @@ async function deleteTemplate(sessionId, templateName) {
     timeout: 30000
   }));
 
+  invalidateTemplateCache(sessionId);
   return response.data;
 }
 
@@ -914,6 +940,7 @@ module.exports = {
   sendInteractive,
   sendRaw,
   listTemplates,
+  invalidateTemplateCache,
   getTemplateById,
   checkContact,
   createTemplate,

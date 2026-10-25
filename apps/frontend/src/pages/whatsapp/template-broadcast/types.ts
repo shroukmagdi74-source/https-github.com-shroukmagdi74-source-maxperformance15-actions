@@ -66,6 +66,8 @@ export interface BroadcastResult {
   sent?: number;
   failedCount?: number;
   failed?: number;
+  status?: string;
+  total?: number;
   errors?: Array<{ error: string; recipient?: { to?: string; phone?: string } }>;
 }
 
