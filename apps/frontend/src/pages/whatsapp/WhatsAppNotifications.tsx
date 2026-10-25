@@ -67,30 +67,11 @@ const WhatsAppNotifications: React.FC<WhatsAppNotificationsProps> = ({
     ? `${t("whatsappNotifications.title", "إشعارات واتساب")} · ${companyName}`
     : t("whatsappNotifications.title", "إشعارات واتساب");
 
-  const settingsHref =
-    superAdminMode && companyId
-      ? `/super-admin/whatsapp/companies/${companyId}/settings`
-      : "/whatsapp/settings";
+  const settingsHref = "/whatsapp/settings";
+  const automationsHref = "/whatsapp/customer-journey";
 
-  const automationsHref =
-    superAdminMode
-      ? companyId
-        ? `/super-admin/whatsapp/automations?companyId=${companyId}`
-        : "/super-admin/whatsapp/automations"
-      : "/whatsapp/customer-journey";
-
-  const eyebrow =
-    superAdminMode && companyName
-      ? i18n.language === "ar"
-        ? `شركة: ${companyName}`
-        : `Company: ${companyName}`
-      : undefined;
-
-  const pageDescription = superAdminMode
-    ? i18n.language === "ar"
-      ? "أدر رسائل تسجيل الشركات والاشتراك التي تخص السوبر أدمن من مساحة واحدة، بدون خلط مع إشعارات الطلبات أو العملاء."
-      : "Manage platform-owned company signup and subscription WhatsApp messages."
-    : i18n.language === "ar"
+  const pageDescription =
+    i18n.language === "ar"
       ? "تحكم في الإشعارات الآلية، قوالب الرسائل، وسلوك الإرسال عبر واتساب من مساحة واحدة."
       : "Control automation, message templates, and operational WhatsApp notification behavior from one workspace.";
 
@@ -144,7 +125,7 @@ const WhatsAppNotifications: React.FC<WhatsAppNotificationsProps> = ({
       <WhatsAppNotificationsHeader
         pageTitle={pageTitle}
         pageDescription={pageDescription}
-        eyebrow={eyebrow}
+
         loading={loading}
         refreshing={refreshing}
         saving={saving}

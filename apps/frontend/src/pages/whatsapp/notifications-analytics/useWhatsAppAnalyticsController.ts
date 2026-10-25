@@ -15,17 +15,7 @@ export const useWhatsAppAnalyticsController = ({
     ? `${t("whatsappAnalytics.title")} · ${companyName}`
     : t("whatsappAnalytics.title");
 
-  const backHref =
-    superAdminMode && companyId
-      ? `/super-admin/whatsapp/companies/${companyId}`
-      : "/whatsapp/notifications";
-
-  const eyebrow =
-    superAdminMode && companyName
-      ? i18n.language === "ar"
-        ? `شركة: ${companyName}`
-        : `Company: ${companyName}`
-      : undefined;
+  const backHref = "/whatsapp/notifications";
 
   const STATUS_LABELS: Record<string, string> = useMemo(
     () => ({

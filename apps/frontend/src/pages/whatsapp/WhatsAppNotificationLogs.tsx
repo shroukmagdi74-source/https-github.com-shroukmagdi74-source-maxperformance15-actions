@@ -29,16 +29,7 @@ const WhatsAppNotificationLogs: React.FC<WhatsAppNotificationLogsProps> = ({
   const pageTitle = companyName
     ? `${t('whatsappNotificationLogs.title')} · ${companyName}`
     : t('whatsappNotificationLogs.title');
-  const backHref =
-    superAdminMode && companyId
-      ? `/super-admin/whatsapp/companies/${companyId}`
-      : '/whatsapp/notifications';
-  const eyebrow =
-    superAdminMode && companyName
-      ? i18n.language === 'ar'
-        ? `شركة: ${companyName}`
-        : `Company: ${companyName}`
-      : undefined;
+  const backHref = '/whatsapp/notifications';
 
   const {
     logs,
@@ -79,7 +70,7 @@ const WhatsAppNotificationLogs: React.FC<WhatsAppNotificationLogsProps> = ({
         icon={ClipboardList}
         backHref={backHref}
         backLabel={(t('common.back') as string) || 'رجوع'}
-        eyebrow={eyebrow}
+
       >
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, i) => (

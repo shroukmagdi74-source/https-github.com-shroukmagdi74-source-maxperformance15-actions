@@ -53,12 +53,8 @@ export function useWhatsAppChatController({ companyId, superAdminMode }: WhatsAp
   }, []);
 
   const navigateToInbox = useCallback(() => {
-    if (superAdminMode && companyId) {
-      navigate(`/super-admin/whatsapp/companies/${companyId}/routing`);
-    } else {
-      navigate('/whatsapp/routing');
-    }
-  }, [companyId, navigate, superAdminMode]);
+    navigate('/whatsapp/routing');
+  }, [navigate]);
 
   const loadConversation = useCallback(async () => {
     if (!conversationId) return;

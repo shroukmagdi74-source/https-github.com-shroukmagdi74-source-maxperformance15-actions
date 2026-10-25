@@ -197,33 +197,21 @@ export function useWhatsAppInboxController({ companyId, superAdminMode = false }
   const selectSession = useCallback(
     (nextSessionId: string) => {
       setActiveSession(nextSessionId);
-      if (superAdminMode && companyId) {
-        navigate(`/super-admin/whatsapp/companies/${companyId}/routing/${nextSessionId}`);
-      } else {
-        navigate(`/whatsapp/routing/${nextSessionId}`);
-      }
+      navigate(`/whatsapp/routing/${nextSessionId}`);
     },
-    [companyId, navigate, superAdminMode],
+    [navigate],
   );
 
   const navigateToChat = useCallback(
     (conversationId: string) => {
-      if (superAdminMode && companyId) {
-        navigate(`/super-admin/whatsapp/companies/${companyId}/chat/${conversationId}`);
-      } else {
-        navigate(`/whatsapp-chat/${conversationId}`);
-      }
+      navigate(`/whatsapp-chat/${conversationId}`);
     },
-    [companyId, navigate, superAdminMode],
+    [navigate],
   );
 
   const navigateToDashboard = useCallback(() => {
-    if (superAdminMode && companyId) {
-      navigate(`/super-admin/whatsapp/companies/${companyId}/moderator-dashboard`);
-    } else {
-      navigate('/moderator-dashboard');
-    }
-  }, [companyId, navigate, superAdminMode]);
+    navigate('/moderator-dashboard');
+  }, [navigate]);
 
   const selectedSession = useMemo(
     () => sessions.find((item) => item.id === activeSession) || null,

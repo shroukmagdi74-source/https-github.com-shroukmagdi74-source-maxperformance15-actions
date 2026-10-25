@@ -58,20 +58,7 @@ const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   const pageTitle = companyName
     ? `${t("whatsappSettings.title")} · ${companyName}`
     : t("whatsappSettings.title");
-  const workspaceHref =
-    superAdminMode && companyId
-      ? `/super-admin/whatsapp/companies/${companyId}`
-      : undefined;
-  const notificationsHref =
-    superAdminMode && companyId
-      ? `/super-admin/whatsapp/companies/${companyId}/notifications`
-      : "/whatsapp/notifications";
-  const eyebrow =
-    superAdminMode && companyName
-      ? i18n.language === "ar"
-        ? `شركة: ${companyName}`
-        : `Company: ${companyName}`
-      : undefined;
+  const notificationsHref = "/whatsapp/notifications";
 
   const tabs = useMemo<TabDefinition[]>(
     () => [
@@ -312,9 +299,7 @@ const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         description={ts("whatsappSettings.description")}
         icon={Smartphone}
         actions={shellActions}
-        backHref={workspaceHref}
         backLabel={ts("common.back")}
-        eyebrow={eyebrow}
       >
         <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
@@ -338,9 +323,7 @@ const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       description={ts("whatsappSettings.description")}
       icon={Smartphone}
       actions={shellActions}
-      backHref={workspaceHref}
       backLabel={ts("common.back")}
-      eyebrow={eyebrow}
     >
       <WhatsAppSettingsMetrics
         connectedCount={data.connectedSessions.length}
