@@ -1,3 +1,5 @@
+// Copy baseline: every feature key used by the live marketplace catalog has an Arabic
+// entry here (417 keys) plus 64 app positioning rows. Add new keys next to their peers.
 type JsonRecord = Record<string, unknown>;
 
 export type FeatureAccessKind = "FREE" | "PAID" | "PAY_PER_USE";
