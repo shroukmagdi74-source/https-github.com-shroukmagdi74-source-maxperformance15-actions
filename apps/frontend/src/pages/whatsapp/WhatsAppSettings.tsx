@@ -26,10 +26,7 @@ import {
 } from "./settings/types/whatsAppSettingsTypes";
 import { useWhatsAppSettingsData } from "./settings/hooks/useWhatsAppSettingsData";
 import { WhatsAppSettingsMetrics } from "./settings/components/WhatsAppSettingsMetrics";
-import {
-  WhatsAppDesktopSidebar,
-  WhatsAppMobileNav,
-} from "./settings/components/WhatsAppSettingsSidebar";
+import { WhatsAppSettingsNav } from "./settings/components/WhatsAppSettingsSidebar";
 import { WhatsAppSessionsTab } from "./settings/components/WhatsAppSessionsTab";
 import { WhatsAppGeneralTab } from "./settings/components/WhatsAppGeneralTab";
 import { WhatsAppQuickRepliesTab } from "./settings/components/WhatsAppQuickRepliesTab";
@@ -43,7 +40,7 @@ const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
   companyName,
   superAdminMode = false,
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const ts = (key: string, opts?: Record<string, unknown>) =>
     (t(key, opts as any) as unknown) as string;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -301,18 +298,20 @@ const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         actions={shellActions}
         backLabel={ts("common.back")}
       >
-        <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4 items-stretch">
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton
               key={index}
-              className="h-24 rounded-2xl sm:h-36 sm:rounded-3xl"
+              className="h-24 rounded-2xl sm:h-28 sm:rounded-3xl"
             />
           ))}
         </div>
-        <div className="grid gap-4 xl:grid-cols-[17rem_minmax(0,1fr)]">
-          <Skeleton className="h-[20rem] rounded-2xl sm:h-[34rem] sm:rounded-3xl" />
-          <Skeleton className="h-[24rem] rounded-2xl sm:h-[40rem] sm:rounded-3xl" />
+        <div className="flex gap-2 overflow-hidden py-1">
+          {Array.from({ length: 7 }).map((_, index) => (
+            <Skeleton key={index} className="h-9 w-28 shrink-0 rounded-full" />
+          ))}
         </div>
+        <Skeleton className="h-[24rem] w-full rounded-2xl sm:h-[32rem] sm:rounded-3xl" />
       </WhatsAppPageShell>
     );
   }
@@ -332,19 +331,14 @@ const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
         quickRepliesCount={data.quickReplies.length}
       />
 
-      <WhatsAppMobileNav
+      <WhatsAppSettingsNav
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={handleTabChange}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[17rem_minmax(0,1fr)]">
-        <WhatsAppDesktopSidebar
-          tabs={tabs}
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-        />
-        <div className="min-w-0 space-y-4">{renderActiveTabContent()}</div>
+      <div className="w-full min-w-0 space-y-4">
+        {renderActiveTabContent()}
       </div>
 
       <WhatsAppSettingsDialogs data={data} />

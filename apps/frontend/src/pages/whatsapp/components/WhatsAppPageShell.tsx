@@ -70,22 +70,22 @@ export function WhatsAppPageShell({
   return (
     <section
       dir={i18n.dir()}
-        className={cn(
-          "min-h-full space-y-space-4 overflow-x-hidden px-space-1 py-space-2 pb-[calc(var(--space-4)+env(safe-area-inset-bottom))] sm:space-y-space-6 sm:px-space-6 sm:py-space-4 lg:px-space-8",
-          className,
-        )}
+      className={cn(
+        "min-h-full space-y-space-4 overflow-x-hidden px-space-1 py-space-2 pb-[calc(var(--space-4)+env(safe-area-inset-bottom))] sm:space-y-space-6 sm:px-space-6 sm:py-space-4 lg:px-space-8",
+        className,
+      )}
+    >
+      <div
+        className="relative overflow-hidden rounded-2xl border border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] shadow-soft sm:rounded-3xl sm:shadow-raised"
+        style={{ backgroundImage: "var(--journey-header-gradient)", backgroundSize: "200% 200%" }}
       >
+        {/* Accent glow orb */}
         <div
-          className="relative overflow-hidden rounded-2xl border border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] shadow-soft sm:rounded-3xl sm:shadow-raised"
-          style={{ backgroundImage: "var(--journey-header-gradient)", backgroundSize: "200% 200%" }}
-        >
-          {/* Accent glow orb */}
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-60"
-            style={{ background: "var(--journey-hero-glow)" }}
-            aria-hidden
-          />
-          <div className="relative flex flex-col gap-space-4 px-space-4 py-space-4 sm:gap-space-5 sm:px-space-6 sm:py-space-5 lg:px-space-7">
+          className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-60"
+          style={{ background: "var(--journey-hero-glow)" }}
+          aria-hidden
+        />
+        <div className="relative flex flex-col gap-space-4 px-space-4 py-space-4 sm:gap-space-5 sm:px-space-6 sm:py-space-5 lg:px-space-7">
           <div className="flex flex-col gap-space-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 items-start gap-space-2 sm:gap-space-3">
               {backHref ? (
@@ -188,26 +188,38 @@ export function WhatsAppMetricCard({
   icon: Icon,
   tone = "primary",
 }: WhatsAppMetricCardProps) {
+  const numValue = typeof value === "number" ? value : Number(value);
+  const isZero = !Number.isNaN(numValue) && numValue === 0;
+
   return (
-    <Card className="rounded-2xl border border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] shadow-sm sm:rounded-3xl sm:shadow-md">
-      <CardContent className="flex items-start justify-between gap-3 px-3 py-3 sm:gap-4 sm:px-5 sm:py-5">
-        <div className="space-y-1 sm:space-y-2">
-          <p className="text-[11px] font-medium text-[color:var(--color-muted-foreground)] sm:text-xs">
+    <Card className="h-full rounded-2xl border border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] shadow-sm transition-shadow sm:rounded-3xl sm:shadow-md">
+      <CardContent className="flex h-full items-start justify-between gap-3 p-3.5 sm:gap-4 sm:p-5">
+        <div className="min-w-0 space-y-1 sm:space-y-2">
+          <p className="line-clamp-1 text-[11px] font-normal text-[color:var(--color-muted-foreground)] sm:text-xs">
             {label}
           </p>
-          <div className="text-xl font-semibold tracking-tight text-[color:var(--color-foreground)] sm:text-3xl">
+          <div
+            className={cn(
+              "font-mono text-[1.875rem] leading-none tracking-tight tabular-nums sm:text-[2.25rem]",
+              isZero
+                ? "font-medium text-[color:var(--color-muted-foreground)]/60"
+                : "font-bold text-[color:var(--color-foreground)]",
+            )}
+          >
             {value}
           </div>
           {hint ? (
-            <p className="text-[11px] text-[color:var(--color-muted-foreground)] sm:text-sm">
+            <p className="line-clamp-1 text-[11px] text-[color:var(--color-muted-foreground)] sm:text-xs">
               {hint}
             </p>
           ) : null}
         </div>
         <div
           className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] sm:size-11 sm:rounded-2xl",
-            toneClasses[tone],
+            "flex size-9 shrink-0 items-center justify-center rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] sm:size-11 sm:rounded-2xl",
+            isZero
+              ? "bg-[color:var(--color-muted)] text-[color:var(--color-muted-foreground)]/60"
+              : toneClasses[tone],
           )}
         >
           <Icon className="size-4 sm:size-5" />
