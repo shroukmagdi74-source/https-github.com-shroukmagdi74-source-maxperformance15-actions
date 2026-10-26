@@ -683,7 +683,8 @@ export const getSidebarConfig = (
             icon: Archive,
             items: [
                 { to: '/orders', icon: Archive, label: t('sidebar.orders'), requiredPermissions: ['orders.view'] },
-                { to: '/orders/workspace', icon: CircleUser, label: t('sidebar.agentWorkspace'), requiredPermissions: ['orders.workspace.view'], hidden: !isAppActive('agent-workspace') },
+                { to: '/orders/confirmation-queue', icon: CircleUser, label: t('sidebar.agentWorkspace'), requiredPermissions: ['orders.workspace.view'], hidden: !isAppActive('agent-workspace') },
+                { to: '/orders/workspace', icon: Users, label: isEn ? 'Team Workspace' : 'مساحة عمل الفريق', requiredPermissions: ['orders.workspace.view'], hidden: !isAppActive('agent-workspace') },
                 { to: '/orders/preparation', icon: FlaskConical, label: t('sidebar.orderPreparation'), requiredPermissions: ['orders.preparation.view'] },
                 { to: '/orders/automation', icon: Zap, label: t('sidebar.orderAutomation'), requiredPermissions: ['orders.automation.view'], hidden: !isAppActive('order-automation') },
                 { to: '/orders/incomplete', icon: AlertTriangle, label: t('sidebar.incompleteOrders'), requiredPermissions: ['orders.incomplete.view'] },

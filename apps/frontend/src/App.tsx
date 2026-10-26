@@ -725,6 +725,7 @@ const PrintMultipleInvoices = React.lazy(
   () => import("./pages/orders/PrintMultipleInvoices"),
 );
 const OrderDetails = React.lazy(() => import("./pages/orders/OrderDetails"));
+const OrderConfirmationQueue = React.lazy(() => import("./pages/orders/OrderConfirmationQueue"));
 const OrderStats = React.lazy(() => import("./pages/orders/OrderStats"));
 const QuickStatusChange = React.lazy(
   () => import("./pages/orders/QuickStatusChange"),
@@ -5110,11 +5111,15 @@ const AppContent = () => {
                 />
                 <Route
                   path="/orders/confirmations"
-                  element={<Navigate to="/orders/workspace?tab=confirmation" replace />}
+                  element={<Navigate to="/orders/confirmation-queue" replace />}
                 />
                 <Route
                   path="/orders/confirmation-queue"
-                  element={<Navigate to="/orders/workspace?tab=pending" replace />}
+                  element={
+                    <Layout>
+                      <OrderConfirmationQueue />
+                    </Layout>
+                  }
                 />
                 <Route
                   path="/orders/preparation"
