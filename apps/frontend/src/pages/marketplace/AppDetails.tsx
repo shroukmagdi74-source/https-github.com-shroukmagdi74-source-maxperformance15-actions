@@ -13,6 +13,7 @@ import { AppDetailsAuxiliarySections } from "./components/app-details/AppDetails
 import { AppDetailsMobileStickyBar } from "./components/app-details/AppDetailsMobileStickyBar";
 import { AppDetailsPositioning } from "./components/app-details/AppDetailsPositioning";
 import { AppDetailsVideo } from "./components/app-details/AppDetailsVideo";
+import { AppDetailsFitFence } from "./components/app-details/AppDetailsFitFence";
 import { isLikelyImageUrl } from "./types/appDetailsTypes";
 
 const tabTriggerClass =
@@ -173,6 +174,8 @@ export default function AppDetails() {
             </section>
 
             <AppDetailsAuxiliarySections app={app} appExplanation={null} />
+
+            <AppDetailsFitFence app={app} />
           </main>
 
           <div>
