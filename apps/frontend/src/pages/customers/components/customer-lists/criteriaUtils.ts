@@ -1,4 +1,33 @@
-import { CriteriaType, SMART_PRESETS, STATUS_LABELS, STATUS_LABELS_EN } from "./types";
+import { CriteriaType, SMART_PRESETS, STATUS_LABELS, STATUS_LABELS_EN, CriteriaV2 } from "./types";
+
+export function isV2Criteria(c: any): boolean {
+  if (!c) return false;
+  const parsed = typeof c === "string" ? (() => { try { return JSON.parse(c); } catch { return {}; } })() : c;
+  return Boolean(parsed?.version >= 2 || parsed?.include);
+}
+
+export function buildEmptyV2Criteria(): CriteriaV2 {
+  return {
+    version: 2,
+    include: {
+      operator: "AND",
+      groups: [
+        {
+          operator: "AND",
+          rules: [
+            { field: "ordersCount", op: "gte", value: 1 }
+          ]
+        }
+      ]
+    },
+    exclude: {
+      operator: "OR",
+      groups: []
+    },
+    excludeListIds: [],
+    excludeContactedInDays: 0
+  };
+}
 
 export function buildEmptyCriteria(type: CriteriaType): Record<string, any> {
   switch (type) {
@@ -65,6 +94,46 @@ export function criteriaSummary(criteria: any, locale = "ar"): string {
   const isEn = typeof locale === "string" && locale.startsWith("en");
   if (!criteria) return isEn ? "All active customers" : "جميع العملاء النشطين";
   const c = typeof criteria === "string" ? (() => { try { return JSON.parse(criteria); } catch { return {}; } })() : criteria;
+
+  if (c?.version === 2 || c?.include) {
+    const parts: string[] = [];
+    const groups = c.include?.groups || [];
+    if (groups.length === 0) {
+      parts.push("جميع العملاء النشطين");
+    } else {
+      const gSummaries = groups.map((g: any) => {
+        const rules = g.rules || [];
+        const rTexts = rules.map((r: any) => {
+          switch (r.field) {
+            case "receivedProduct": return `استلم (${r.sku || r.value || "منتج"})`;
+            case "orderedInPeriod": return `طلب في فترة`;
+            case "ordersCount": return `طلبات ${r.op || "≥"} ${r.value}`;
+            case "totalSpent": return `إنفاق ${r.op || "≥"} ${r.value}`;
+            case "lastOrderBefore": return `آخر طلب قبل ${r.value}`;
+            case "lastOrderAfter": return `آخر طلب بعد ${r.value}`;
+            case "tags": return `وسم: ${r.value}`;
+            case "customerStatus": return `حالة: ${Array.isArray(r.value) ? r.value.join("/") : r.value}`;
+            case "city": return `مدينة: ${r.value}`;
+            case "governorate": return `محافظة: ${r.value}`;
+            case "deliveryRate": return `تسليم ${r.op || "≥"} %${r.value}`;
+            case "customerRating": return `تقييم: ${Array.isArray(r.value) ? r.value.join("/") : r.value}`;
+            default: return r.field;
+          }
+        });
+        const gOp = g.operator === "OR" ? " أو " : " و ";
+        return rTexts.join(gOp);
+      });
+      const topOp = c.include?.operator === "OR" ? " أو " : " و ";
+      parts.push(gSummaries.join(topOp));
+    }
+
+    if (c.exclude?.groups?.length > 0) parts.push("مع استبعاد مخصص");
+    if (c.excludeListIds?.length > 0) parts.push(`استبعاد ${c.excludeListIds.length} قوائم`);
+    if (c.excludeContactedInDays > 0) parts.push(`بدون مراسلة ${c.excludeContactedInDays} يوم`);
+
+    return parts.join(" | ");
+  }
+
   const type = c.type || "all";
 
   let summary = "";

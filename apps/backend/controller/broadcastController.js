@@ -1,4 +1,6 @@
 const { getSharedPrismaClient, executeWithRetry } = require('../services/sharedDatabase');
+const { computeFirstRunAt, computeNextRunAt } = require('../utils/broadcastRecurrence');
+const { toCanonicalE164 } = require('../utils/phoneNormalization');
 // const prisma = getSharedPrismaClient(); // ❌ Removed to prevent early loading issues
 const { sendFacebookMessage } = require('../utils/allFunctions');
 const WhatsAppMessageHandler = require('../services/whatsapp').WhatsAppMessageHandler;
@@ -73,8 +75,65 @@ exports.createCampaign = async (req, res) => {
       includeImages,
       trackClicks,
       autoResend,
-      sendNow
+      sendNow,
+      audienceMode = 'fixed',
+      audienceListId,
+      audienceCriteria,
+      onlyNew,
+      recurrence = 'none',
+      recurrenceInterval = 1,
+      sendHour,
+      sendMinute = 0,
+      maxRecipientsPerRun = 500,
+      failureRateThreshold = 5,
+      manualPhones,
     } = req.body;
+
+    // Validation for audienceMode
+    if (!['fixed', 'dynamic'].includes(audienceMode)) {
+      audienceMode = 'fixed';
+    }
+
+    if (audienceMode === 'dynamic') {
+      const hasList = Boolean(audienceListId);
+      let parsedCriteria = null;
+      if (audienceCriteria) {
+        try {
+          parsedCriteria = typeof audienceCriteria === 'string' ? JSON.parse(audienceCriteria) : audienceCriteria;
+        } catch {
+          return res.status(400).json({ success: false, message: 'معايير الجمهور غير صالحة (JSON غير صحيح)' });
+        }
+      }
+      if ((hasList && parsedCriteria) || (!hasList && !parsedCriteria)) {
+        return res.status(400).json({ success: false, message: 'الوضع الديناميكي يتطلب إما قائمة عملاء أو معايير محددة' });
+      }
+    }
+
+    // Validation for recurrence
+    if (!['none', 'daily', 'weekly', 'monthly'].includes(recurrence)) {
+      recurrence = 'none';
+    }
+    const intervalNum = Math.max(1, Math.min(12, parseInt(recurrenceInterval, 10) || 1));
+    const isRecurring = recurrence && recurrence !== 'none';
+    let hourNum = 0;
+    let minNum = 0;
+    if (isRecurring) {
+      hourNum = parseInt(sendHour, 10);
+      if (isNaN(hourNum) || hourNum < 0 || hourNum > 23) {
+        return res.status(400).json({ success: false, message: 'ساعة الإرسال يجب أن تكون بين 0 و 23' });
+      }
+      minNum = parseInt(sendMinute || 0, 10);
+      if (isNaN(minNum) || minNum < 0 || minNum > 59) {
+        return res.status(400).json({ success: false, message: 'دقيقة الإرسال يجب أن تكون بين 0 و 59' });
+      }
+    } else if (sendHour !== undefined && sendHour !== null) {
+      hourNum = Math.max(0, Math.min(23, parseInt(sendHour, 10) || 0));
+      minNum = Math.max(0, Math.min(59, parseInt(sendMinute, 10) || 0));
+    }
+
+    const maxRecNum = Math.max(1, Math.min(5000, parseInt(maxRecipientsPerRun, 10) || 500));
+    const failThresholdNum = Number(failureRateThreshold) >= 0 ? Number(failureRateThreshold) : 5;
+    const onlyNewBool = onlyNew !== undefined ? (onlyNew === true || onlyNew === 'true') : (audienceMode === 'dynamic');
 
     // استقبال الصور من req.files
     let images = [];
@@ -186,8 +245,25 @@ exports.createCampaign = async (req, res) => {
         trackClicks: trackClicks !== false,
         autoResend: (autoResend === true || autoResend === 'true'),
         images: imagesString,
-        status: sendNow ? 'sending' : (scheduledAt ? 'scheduled' : 'draft'),
-        recipientCount: 0, // سيتم حسابه وقت الإرسال بناءً على النشاط في آخر 24 ساعة
+        status: sendNow ? 'sending' : (isRecurring ? 'active' : (scheduledAt ? 'scheduled' : 'draft')),
+        audienceMode,
+        audienceListId: audienceListId || null,
+        audienceCriteria: audienceCriteria ? (typeof audienceCriteria === 'string' ? audienceCriteria : JSON.stringify(audienceCriteria)) : null,
+        onlyNew: onlyNewBool,
+        recurrence,
+        recurrenceInterval: intervalNum,
+        sendHour: (sendHour !== undefined && sendHour !== null) ? hourNum : null,
+        sendMinute: minNum,
+        nextRunAt: isRecurring ? computeFirstRunAt({
+          recurrence,
+          recurrenceInterval: intervalNum,
+          sendHour: hourNum,
+          sendMinute: minNum,
+          startAt: scheduledAt ? new Date(scheduledAt) : new Date(),
+        }) : null,
+        maxRecipientsPerRun: maxRecNum,
+        failureRateThreshold: failThresholdNum,
+        recipientCount: 0,
         companyId,
         creatorId: userId,
         updatedAt: new Date()
@@ -200,6 +276,88 @@ exports.createCampaign = async (req, res) => {
         },
       }
     });
+
+    // إنشاء لقطة الجمهور للوضع الثابت server-side
+    if (audienceMode === 'fixed') {
+      const snapshotsToCreate = [];
+      const seenPhones = new Set();
+
+      // 1) من الأرقام اليدوية (manualPhones)
+      if (manualPhones) {
+        let phoneArr = [];
+        if (Array.isArray(manualPhones)) {
+          phoneArr = manualPhones;
+        } else if (typeof manualPhones === 'string') {
+          try {
+            const parsed = JSON.parse(manualPhones);
+            phoneArr = Array.isArray(parsed) ? parsed : [manualPhones];
+          } catch {
+            phoneArr = manualPhones.split(/[\r\n,]+/).map(p => p.trim()).filter(Boolean);
+          }
+        }
+        for (const p of phoneArr) {
+          const raw = String(p || '').trim();
+          if (!raw) continue;
+          const canonical = toCanonicalE164(raw);
+          if (canonical && !seenPhones.has(canonical)) {
+            seenPhones.add(canonical);
+            snapshotsToCreate.push({
+              id: generateId(),
+              campaignId: campaign.id,
+              phone: raw,
+              phoneNormalized: canonical,
+              customerName: null,
+              customerId: null,
+            });
+          }
+        }
+      }
+
+      // 2) من قائمة العملاء (audienceListId أو targetAudience المطابق لقائمة)
+      const listIdToFetch = audienceListId || (targetAudience !== 'manual' && targetAudience !== 'all' ? targetAudience : null);
+      if (listIdToFetch) {
+        try {
+          const list = await getSharedPrismaClient().customerList.findFirst({
+            where: { id: listIdToFetch, companyId },
+          });
+          if (list) {
+            const criteriaRes = await buildEffectiveCustomerListWhere(getSharedPrismaClient(), companyId, list.criteria);
+            const listWhere = criteriaRes.where || criteriaRes;
+            const customers = await getSharedPrismaClient().customer.findMany({
+              where: { ...listWhere, companyId, phone: { not: null } },
+              select: { id: true, phone: true, phoneNormalized: true, firstName: true, lastName: true },
+              take: maxRecNum || 5000,
+            });
+            for (const c of customers) {
+              const raw = String(c.phone || '').trim();
+              if (!raw) continue;
+              const canonical = toCanonicalE164(raw);
+              if (canonical && !seenPhones.has(canonical)) {
+                seenPhones.add(canonical);
+                const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ') || null;
+                snapshotsToCreate.push({
+                  id: generateId(),
+                  campaignId: campaign.id,
+                  customerId: c.id,
+                  phone: raw,
+                  phoneNormalized: c.phoneNormalized || canonical,
+                  customerName: fullName,
+                });
+              }
+            }
+          }
+        } catch (listErr) {
+          console.warn('⚠️ [CREATE CAMPAIGN] Failed to snapshot list:', listErr.message);
+        }
+      }
+
+      if (snapshotsToCreate.length > 0) {
+        await getSharedPrismaClient().broadcastCampaignSnapshot.createMany({
+          data: snapshotsToCreate,
+        });
+        console.log(`📸 [CREATE CAMPAIGN] Created ${snapshotsToCreate.length} snapshot rows for fixed audience`);
+      }
+    }
 
     console.log(`✅ [CREATE CAMPAIGN] تم إنشاء الحملة بنجاح - معرف الحملة: ${campaign.id}, الحالة: ${campaign.status}`);
 
@@ -431,6 +589,22 @@ exports.updateCampaign = async (req, res) => {
       processedData.scheduledAt = null;
     } else {
       delete processedData.scheduledAt;
+    }
+
+    // Recompute nextRunAt if recurrence fields change; never leave nextRunAt in the past for active campaign
+    const recurrenceChanged = 'recurrence' in processedData || 'sendHour' in processedData || 'sendMinute' in processedData || 'recurrenceInterval' in processedData;
+    const effRecurrence = processedData.recurrence !== undefined ? processedData.recurrence : existingCampaign.recurrence;
+    if (effRecurrence && effRecurrence !== 'none' && (recurrenceChanged || existingCampaign.status === 'active')) {
+      const effHour = processedData.sendHour !== undefined ? processedData.sendHour : existingCampaign.sendHour;
+      const effMinute = processedData.sendMinute !== undefined ? processedData.sendMinute : existingCampaign.sendMinute;
+      const effInterval = processedData.recurrenceInterval !== undefined ? processedData.recurrenceInterval : existingCampaign.recurrenceInterval;
+      processedData.nextRunAt = computeNextRunAt({
+        recurrence: effRecurrence,
+        recurrenceInterval: effInterval,
+        sendHour: effHour,
+        sendMinute: effMinute,
+        from: new Date(),
+      });
     }
 
     const campaign = await getSharedPrismaClient().broadcastCampaign.update({
@@ -1621,4 +1795,155 @@ exports.updateSettings = async (req, res) => {
   }
 };
 
+/**
+ * معاينة حجم الجمهور المحسوب للحملة
+ */
+exports.previewCampaignAudience = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+    const {
+      audienceMode = 'fixed',
+      audienceListId,
+      audienceCriteria,
+      manualPhones,
+      onlyNew = false,
+      maxRecipients = 500,
+      campaignId,
+    } = req.body;
 
+    const { previewAudience } = require('../services/broadcastAudienceResolver');
+    const preview = await previewAudience({
+      prisma: getSharedPrismaClient(),
+      companyId,
+      audienceMode,
+      audienceListId,
+      audienceCriteria,
+      manualPhones,
+      onlyNew: onlyNew === true || onlyNew === 'true',
+      maxRecipients: Number(maxRecipients) || 500,
+      campaignId,
+    });
+
+    res.json({
+      success: true,
+      data: preview,
+    });
+  } catch (error) {
+    console.error('❌ [PREVIEW AUDIENCE] Error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'فشل في حساب معاينة الجمهور',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * الحصول على سجل تشغيلات الحملة (Run Log)
+ */
+exports.getCampaignRuns = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+    const { campaignId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const campaign = await getSharedPrismaClient().broadcastCampaign.findFirst({
+      where: { id: campaignId, companyId },
+      select: { id: true },
+    });
+
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'الحملة غير موجودة',
+      });
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(limit, 10) || 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [runs, total] = await Promise.all([
+      getSharedPrismaClient().broadcastCampaignRun.findMany({
+        where: { campaignId },
+        orderBy: { startedAt: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+      getSharedPrismaClient().broadcastCampaignRun.count({
+        where: { campaignId },
+      }),
+    ]);
+
+    // "وصل" is tracked per recipient: the Meta status callbacks stamp
+    // BroadcastRecipient.deliveredAt and do NOT flip status, so count on deliveredAt.
+    const runIds = runs.map((r) => r.id);
+    const deliveryByRun = {};
+    const ensure = (id) => {
+      if (!deliveryByRun[id]) deliveryByRun[id] = { total: 0, delivered: 0, failed: 0 };
+      return deliveryByRun[id];
+    };
+
+    if (runIds.length > 0) {
+      const [allByRun, deliveredByRunRows, failedByRunRows] = await Promise.all([
+        getSharedPrismaClient().broadcastRecipient.groupBy({
+          by: ['runId'],
+          where: { campaignId, runId: { in: runIds } },
+          _count: { _all: true },
+        }),
+        getSharedPrismaClient().broadcastRecipient.groupBy({
+          by: ['runId'],
+          where: { campaignId, runId: { in: runIds }, deliveredAt: { not: null } },
+          _count: { _all: true },
+        }),
+        getSharedPrismaClient().broadcastRecipient.groupBy({
+          by: ['runId'],
+          where: { campaignId, runId: { in: runIds }, status: 'failed' },
+          _count: { _all: true },
+        }),
+      ]);
+
+      (allByRun || []).forEach((g) => {
+        if (g.runId) ensure(g.runId).total = g._count?._all || 0;
+      });
+      (deliveredByRunRows || []).forEach((g) => {
+        if (g.runId) ensure(g.runId).delivered = g._count?._all || 0;
+      });
+      (failedByRunRows || []).forEach((g) => {
+        if (g.runId) ensure(g.runId).failed = g._count?._all || 0;
+      });
+    }
+
+    const enrichedRuns = runs.map((r) => {
+      const agg = deliveryByRun[r.id];
+      if (!agg) return r;
+      return {
+        ...r,
+        audienceCount: agg.total || r.audienceCount,
+        sentCount: Math.max(0, agg.total - agg.failed),
+        deliveredCount: agg.delivered,
+        failedCount: agg.failed,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        runs: enrichedRuns,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('❌ [GET CAMPAIGN RUNS] Error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'فشل في جلب سجل تشغيلات الحملة',
+      error: error.message,
+    });
+  }
+};

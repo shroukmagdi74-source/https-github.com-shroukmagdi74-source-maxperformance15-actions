@@ -15,6 +15,15 @@
  *   preset (champions | atRisk | loyal | new) — RFM-ready smart templates
  */
 
+const {
+  isV2Criteria,
+  buildCustomerListV2Sql,
+  computeCustomerListCountV2,
+  previewCustomerListCountV2,
+  getCustomersInListV2,
+  criteriaV2ToSummary,
+} = require('./customerListCriteriaV2');
+
 const ORDER_STATUSES = [
   'PENDING', 'CONFIRMED', 'SCHEDULED', 'READY_FOR_PROCESSING', 'PROCESSING',
   'SHIPPED', 'DELIVERED', 'CANCELLED', 'DUPLICATE_ORDER', 'REFUNDED',
@@ -618,6 +627,18 @@ function applyExclusionConditions(where, rawCriteria) {
  * Combine where + aggregation into a single Customer where usable by count/findMany.
  */
 async function buildEffectiveCustomerListWhere(prisma, companyId, rawCriteria) {
+  if (isV2Criteria(rawCriteria)) {
+    if (prisma?.$queryRawUnsafe) {
+      const { selectSql, params } = buildCustomerListV2Sql(companyId, rawCriteria);
+      const whereClause = selectSql.split('WHERE ')[1];
+      const idSql = `SELECT c."id" FROM "customers" c WHERE ${whereClause}`;
+      const rows = await prisma.$queryRawUnsafe(idSql, ...params);
+      const ids = Array.isArray(rows) ? rows.map((r) => r.id) : [];
+      return { where: { companyId, id: { in: ids } } };
+    }
+    return { where: { companyId } };
+  }
+
   const criteria = parseCriteria(rawCriteria);
   const built = buildCustomerListWhere(companyId, rawCriteria);
   let where = built.where;
@@ -671,6 +692,9 @@ function formatPurchasedProductSummary(c, isEn) {
 }
 
 function criteriaToSummary(criteria, locale = 'ar') {
+  if (isV2Criteria(criteria)) {
+    return criteriaV2ToSummary(criteria);
+  }
   const c = parseCriteria(criteria);
   const type = c.type || 'all';
   const isEn = typeof locale === 'string' && locale.toLowerCase().startsWith('en');
@@ -855,4 +879,10 @@ module.exports = {
   applyContactExclusion,
   applyExclusionConditions,
   criteriaToSummary,
+  isV2Criteria,
+  buildCustomerListV2Sql,
+  computeCustomerListCountV2,
+  previewCustomerListCountV2,
+  getCustomersInListV2,
+  criteriaV2ToSummary,
 };

@@ -32,6 +32,8 @@ export const CustomerLists: React.FC = () => {
     formCriteriaType,
     formCriteria,
     previewCount,
+    previewCounts,
+    setFormCriteria,
     previewLoading,
     saving,
     availableTags,
@@ -115,6 +117,8 @@ export const CustomerLists: React.FC = () => {
         onPresetSelect={selectPreset}
         onCriteriaFieldChange={updateCriteriaField}
         previewCount={previewCount}
+        previewCounts={previewCounts}
+        onCriteriaChange={setFormCriteria}
         previewLoading={previewLoading}
         availableTags={availableTags}
         saving={saving}

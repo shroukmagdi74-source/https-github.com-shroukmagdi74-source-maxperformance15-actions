@@ -19,6 +19,8 @@ import {
   SMART_PRESETS,
 } from "./types";
 import { CustomerListCriteriaFields } from "./CustomerListCriteriaFields";
+import { CustomerListRuleBuilderV2 } from "./CustomerListRuleBuilderV2";
+import { buildEmptyGroup } from "./criteriaUtils";
 
 interface CustomerListCreateModalProps {
   open: boolean;
@@ -34,6 +36,8 @@ interface CustomerListCreateModalProps {
   onPresetSelect: (preset: string) => void;
   onCriteriaFieldChange: (key: string, value: any) => void;
   previewCount: number | null;
+  previewCounts?: { before: number; after: number; excluded: number } | null;
+  onCriteriaChange: (criteria: any) => void;
   previewLoading: boolean;
   availableTags: string[] | undefined;
   saving: boolean;
@@ -54,11 +58,14 @@ export const CustomerListCreateModal: React.FC<CustomerListCreateModalProps> = (
   onPresetSelect,
   onCriteriaFieldChange,
   previewCount,
+  previewCounts = null,
+  onCriteriaChange,
   previewLoading,
   availableTags = [],
   saving,
   onSave,
 }) => {
+  const [advancedMode, setAdvancedMode] = React.useState(false);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -127,38 +134,59 @@ export const CustomerListCreateModal: React.FC<CustomerListCreateModalProps> = (
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>أو حدد معياراً يدوياً</Label>
-            <Select
-              value={formCriteriaType}
-              onValueChange={(v) => onCriteriaTypeChange(v ?? "all")}
-            >
-              <SelectTrigger className="h-11">
-                <SelectValue placeholder="اختر المعيار" />
-              </SelectTrigger>
-              <SelectContent>
-                {CRITERIA_TYPES.map((ct) => (
-                  <SelectItem key={ct.value} value={ct.value}>
-                    <span className="flex items-center gap-2">
-                      <ct.icon className="size-4" />
-                      {ct.label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-[color:var(--color-muted-foreground)]">
-              {CRITERIA_TYPES.find((ct) => ct.value === formCriteriaType)?.hint}
-            </p>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm">طريقة بناء الشروط</Label>
+            <Button type="button" variant="outline" size="sm" className="h-8 rounded-full text-xs" onClick={() => setAdvancedMode((v) => !v)}>
+              {advancedMode ? "استخدام المعايير الجاهزة" : "شروط متقدمة (و / أو)"}
+            </Button>
           </div>
 
-          {/* Criteria specific fields & Exclusion window */}
-          <CustomerListCriteriaFields
-            formCriteriaType={formCriteriaType}
-            formCriteria={formCriteria}
-            onCriteriaFieldChange={onCriteriaFieldChange}
-            availableTags={availableTags}
-          />
+          {advancedMode ? (
+            <CustomerListRuleBuilderV2
+              criteria={
+                formCriteria && formCriteria.version === 2
+                  ? formCriteria
+                  : { version: 2, include: { operator: "AND", groups: [buildEmptyGroup()] }, exclude: { operator: "AND", groups: [] } }
+              }
+              onChange={onCriteriaChange}
+              availableTags={availableTags}
+            />
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label>أو حدد معياراً يدوياً</Label>
+                <Select
+                  value={formCriteriaType}
+                  onValueChange={(v) => onCriteriaTypeChange(v ?? "all")}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue placeholder="اختر المعيار" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CRITERIA_TYPES.map((ct) => (
+                      <SelectItem key={ct.value} value={ct.value}>
+                        <span className="flex items-center gap-2">
+                          <ct.icon className="size-4" />
+                          {ct.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-[color:var(--color-muted-foreground)]">
+                  {CRITERIA_TYPES.find((ct) => ct.value === formCriteriaType)?.hint}
+                </p>
+              </div>
+
+              {/* Criteria specific fields & Exclusion window */}
+              <CustomerListCriteriaFields
+                formCriteriaType={formCriteriaType}
+                formCriteria={formCriteria}
+                onCriteriaFieldChange={onCriteriaFieldChange}
+                availableTags={availableTags}
+              />
+            </>
+          )}
 
           {/* Live count preview */}
           <div className="flex items-center justify-between rounded-2xl border border-[color:color-mix(in_srgb,var(--color-primary)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--color-primary)_6%,var(--color-card))] px-4 py-3">
@@ -168,6 +196,17 @@ export const CustomerListCreateModal: React.FC<CustomerListCreateModalProps> = (
             </div>
             {previewLoading ? (
               <Loader2 className="size-4 animate-spin text-[color:var(--color-primary)]" />
+            ) : previewCounts && previewCounts.excluded > 0 ? (
+              <div className="text-left leading-tight">
+                <span className="block text-lg font-bold tabular-nums font-mono text-[color:var(--color-primary)]">
+                  {previewCounts.after.toLocaleString("ar-EG")}
+                  <span className="text-xs font-normal text-[color:var(--color-muted-foreground)]"> عميل بعد الاستبعاد</span>
+                </span>
+                <span className="block text-[11px] text-[color:var(--color-muted-foreground)]">
+                  {previewCounts.before.toLocaleString("ar-EG")} قبل الاستبعاد · مستبعد{" "}
+                  {previewCounts.excluded.toLocaleString("ar-EG")}
+                </span>
+              </div>
             ) : previewCount !== null ? (
               <span className="text-lg font-bold tabular-nums font-mono text-[color:var(--color-primary)]">
                 {previewCount.toLocaleString("ar-EG")}{" "}

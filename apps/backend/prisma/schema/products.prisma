@@ -75,7 +75,6 @@ model Customer {
   @@map("customers")
 }
 
-/// UNUSED - Legacy feature
 model BlockedCustomersOnPage {
   id             String       @id @default(cuid())
   facebookPageId String
@@ -168,7 +167,6 @@ model Category {
   @@map("categories")
 }
 
-/// UNUSED - Legacy feature
 model CouponUsage {
   id             String   @id @default(cuid())
   couponId       String
@@ -225,7 +223,6 @@ model Coupon {
   @@map("coupons")
 }
 
-/// UNUSED - Legacy feature
 model CustomerList {
   id          String   @id @default(cuid())
   name        String
