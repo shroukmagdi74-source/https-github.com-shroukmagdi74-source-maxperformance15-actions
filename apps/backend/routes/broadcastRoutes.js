@@ -33,6 +33,30 @@ router.get(
 );
 
 /**
+ * @route   POST /api/v1/broadcast/campaigns/preview-audience
+ * @desc    معاينة حجم الجمهور المحسوب للحملة
+ * @access  Private (Company Access)
+ */
+router.post(
+  '/campaigns/preview-audience',
+  verifyToken.authenticateToken,
+  verifyToken.requireCompanyAccess,
+  broadcastController.previewCampaignAudience
+);
+
+/**
+ * @route   GET /api/v1/broadcast/campaigns/:campaignId/runs
+ * @desc    سجل تشغيلات الحملة
+ * @access  Private (Company Access)
+ */
+router.get(
+  '/campaigns/:campaignId/runs',
+  verifyToken.authenticateToken,
+  verifyToken.requireCompanyAccess,
+  broadcastController.getCampaignRuns
+);
+
+/**
  * @route   GET /api/v1/broadcast/campaigns/:campaignId
  * @desc    الحصول على حملة واحدة
  * @access  Private (Company Access)

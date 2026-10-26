@@ -6,9 +6,11 @@ import {
   Loader2,
   Megaphone,
   RefreshCw,
+  Repeat,
   Send,
   Tag,
   UserPlus,
+  Users,
   X,
   XCircle,
 } from 'lucide-react';
@@ -33,7 +35,18 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { WhatsAppSurfaceCard } from '../../components/WhatsAppPageShell';
+import { broadcastService } from '@/services/broadcastService';
 import { BroadcastResult, CustomerList, LeadCategory, MetaTemplate, Session } from '../types';
+
+type AudienceMode = 'fixed' | 'dynamic';
+type Recurrence = 'none' | 'daily' | 'weekly' | 'monthly';
+
+const RECURRENCE_LABELS: Record<Recurrence, string> = {
+  none: 'لا تكرار (مرة واحدة)',
+  daily: 'يومي',
+  weekly: 'أسبوعي',
+  monthly: 'شهري',
+};
 
 interface CreateCampaignTabProps {
   campaignName: string;
@@ -68,7 +81,7 @@ interface CreateCampaignTabProps {
   addRecipients: () => void;
   removeRecipient: (phone: string) => void;
   sending: boolean;
-  handleCreateCampaign: () => void;
+  handleCreateCampaign: (extra?: Record<string, unknown>) => void;
   handleUploadHeaderMedia: (file: File) => void;
   result: BroadcastResult | null;
   sendProgress: { current: number; total: number; status: string } | null;
@@ -114,6 +127,94 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
   sendProgress,
   onGoToCampaigns,
 }) => {
+  const [audienceMode, setAudienceMode] = React.useState<AudienceMode>('fixed');
+  const [onlyNew, setOnlyNew] = React.useState(false);
+  const [recurrence, setRecurrence] = React.useState<Recurrence>('none');
+  const [recurrenceInterval, setRecurrenceInterval] = React.useState(1);
+  const [sendHour, setSendHour] = React.useState(10);
+  const [preview, setPreview] = React.useState<{
+    willSend: number;
+    excluded: number;
+    capped: number;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = React.useState(false);
+  const [nextRunPreview, setNextRunPreview] = React.useState<string>('');
+
+  // Switching to a variable audience turns "new only" on by default (spec default).
+  const changeAudienceMode = (mode: AudienceMode) => {
+    setAudienceMode(mode);
+    setOnlyNew(mode === 'dynamic');
+    setPreview(null);
+  };
+
+  React.useEffect(() => {
+    const listId = selectedListId && selectedListId !== 'manual' ? selectedListId : undefined;
+    if (!listId) {
+      setPreview(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        setPreviewLoading(true);
+        const res: any = await broadcastService.previewAudience({
+          audienceMode,
+          audienceListId: audienceMode === 'dynamic' ? listId : undefined,
+          onlyNew: audienceMode === 'dynamic' ? onlyNew : false,
+          maxRecipients: 500,
+        });
+        if (!cancelled) {
+          const payload = res?.data ?? res;
+          setPreview({
+            willSend: Number(payload?.willSendCount ?? payload?.willSend ?? 0),
+            excluded: Number(payload?.excludedCount ?? 0),
+            capped: Number(payload?.cappedCount ?? 0),
+          });
+        }
+      } catch {
+        if (!cancelled) setPreview(null);
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [audienceMode, onlyNew, selectedListId]);
+
+  React.useEffect(() => {
+    if (recurrence === 'none') {
+      setNextRunPreview('');
+      return;
+    }
+    // Preview only — the authoritative nextRunAt is computed server-side in Africa/Cairo.
+    const base = new Date();
+    const candidate = new Date(base);
+    candidate.setHours(sendHour, 0, 0, 0);
+    const stepDays = recurrence === 'daily' ? recurrenceInterval : recurrence === 'weekly' ? recurrenceInterval * 7 : 0;
+    if (stepDays > 0) {
+      while (candidate <= base) candidate.setDate(candidate.getDate() + stepDays);
+    } else {
+      while (candidate <= base) candidate.setMonth(candidate.getMonth() + recurrenceInterval);
+    }
+    setNextRunPreview(
+      candidate.toLocaleString('ar-EG', {
+        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+      }),
+    );
+  }, [recurrence, recurrenceInterval, sendHour]);
+
+  const buildExtraData = () => ({
+    audienceMode,
+    audienceListId: selectedListId && selectedListId !== 'manual' ? selectedListId : undefined,
+    onlyNew: String(audienceMode === 'dynamic' ? onlyNew : false),
+    recurrence,
+    recurrenceInterval: String(recurrenceInterval),
+    sendHour: String(sendHour),
+    sendMinute: '0',
+  });
+
   return (
     <div className="grid gap-5 lg:grid-cols-5">
       <div className="space-y-4 lg:col-span-3">
@@ -350,6 +451,142 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
               </p>
             </div>
 
+            {/* ── نوع الجمهور + التكرار ─────────────────────────────── */}
+            <Separator />
+            <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+              <div className="flex items-center gap-2">
+                <Users className="size-3.5 text-primary" />
+                <Label className="text-xs font-semibold">نوع الجمهور</Label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={audienceMode === 'fixed' ? 'default' : 'outline'}
+                  className="h-8 rounded-lg text-[11px]"
+                  onClick={() => changeAudienceMode('fixed')}
+                >
+                  قائمة ثابتة (لقطة)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={audienceMode === 'dynamic' ? 'default' : 'outline'}
+                  className="h-8 rounded-lg text-[11px]"
+                  onClick={() => changeAudienceMode('dynamic')}
+                >
+                  قائمة متغيرة (شروط)
+                </Button>
+              </div>
+              <p className="text-[11px] leading-5 text-muted-foreground">
+                {audienceMode === 'fixed'
+                  ? 'الأسماء تتجمد وقت الإنشاء — كل تشغيل يبعت لنفس الناس بالظبط.'
+                  : 'القائمة بتتحسب من جديد كل تشغيل من شروط قائمة العملاء المحفوظة.'}
+              </p>
+
+              {audienceMode === 'dynamic' && (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-background/60 p-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium">ابعت للجديد بس</div>
+                    <div className="text-[11px] leading-4 text-muted-foreground">
+                      يستبعد أي عميل استلم نفس الحملة قبل كده
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={onlyNew ? 'default' : 'outline'}
+                    className="h-7 shrink-0 rounded-lg px-3 text-[11px]"
+                    onClick={() => setOnlyNew((v) => !v)}
+                  >
+                    {onlyNew ? 'مفعّل' : 'متوقف'}
+                  </Button>
+                </div>
+              )}
+
+              <Separator />
+              <div className="flex items-center gap-2">
+                <Repeat className="size-3.5 text-primary" />
+                <Label className="text-xs font-semibold">التكرار</Label>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <Select value={recurrence} onValueChange={(v) => setRecurrence((v || 'none') as Recurrence)}>
+                  <SelectTrigger className="h-8 rounded-lg text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(RECURRENCE_LABELS) as Recurrence[]).map((key) => (
+                      <SelectItem key={key} value={key} className="text-xs">
+                        {RECURRENCE_LABELS[key]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] text-muted-foreground">كل</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={recurrenceInterval}
+                    disabled={recurrence === 'none'}
+                    onChange={(e) => setRecurrenceInterval(Math.max(1, Math.min(12, Number(e.target.value) || 1)))}
+                    className="h-8 w-14 rounded-lg text-center text-xs"
+                  />
+                </div>
+
+                <Select
+                  value={String(sendHour)}
+                  onValueChange={(v) => setSendHour(Number(v ?? '10'))}
+                  disabled={recurrence === 'none'}
+                >
+                  <SelectTrigger className="h-8 rounded-lg text-xs">
+                    <SelectValue placeholder="الساعة" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <SelectItem key={h} value={String(h)} className="text-xs">
+                        {String(h).padStart(2, '0')}:00
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {recurrence !== 'none' && (
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                  التشغيل الجاي: {nextRunPreview} (توقيت القاهرة)
+                </p>
+              )}
+            </div>
+
+            {/* ── معاينة الجمهور قبل الحفظ ──────────────────────────── */}
+            {(previewLoading || preview) && (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-[11px] leading-5">
+                {previewLoading ? (
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" /> جاري حساب الجمهور…
+                  </span>
+                ) : (
+                  <>
+                    <div className="font-semibold text-foreground">
+                      هيتبعت في التشغيل الجاي: {preview?.willSend ?? 0} عميل
+                    </div>
+                    {audienceMode === 'dynamic' && (
+                      <div className="text-muted-foreground">
+                        مستبعد (استلم قبل كده): {preview?.excluded ?? 0}
+                      </div>
+                    )}
+                    {!!preview?.capped && (
+                      <div className="text-amber-700 dark:text-amber-300">
+                        تم قص {preview.capped} رقم لتجاوز حد التشغيل
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             {selectedTemplate && (
               <div className="rounded-lg border border-emerald-300/60 bg-emerald-500/5 p-3 text-xs">
                 <div className="flex items-center gap-2 font-semibold text-emerald-800 dark:text-emerald-200">
@@ -411,8 +648,8 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
 
         {/* Primary CTA */}
         <Button
-          onClick={handleCreateCampaign}
-          disabled={sending || recipients.length === 0 || !selectedTemplate || !campaignName}
+          onClick={() => handleCreateCampaign(buildExtraData())}
+          disabled={sending || (audienceMode === 'fixed' && recipients.length === 0) || !selectedTemplate || !campaignName}
           className="w-full h-10 rounded-lg text-xs font-semibold gap-2"
         >
           {sending ? (

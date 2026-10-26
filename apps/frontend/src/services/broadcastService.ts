@@ -383,6 +383,51 @@ class BroadcastService {
     );
   }
 
+  // Recurring broadcast & audience preview methods
+  async previewAudience(payload: {
+    audienceMode: "fixed" | "dynamic";
+    audienceListId?: string;
+    audienceCriteria?: any;
+    manualPhones?: string[] | string;
+    onlyNew?: boolean;
+    maxRecipients?: number;
+    campaignId?: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      totalMatched: number;
+      excludedCount: number;
+      cappedCount: number;
+      willSendCount: number;
+    };
+  }> {
+    return this.makeRequest("/broadcast/campaigns/preview-audience", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getCampaignRuns(
+    campaignId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{
+    success: boolean;
+    data: {
+      runs: any[];
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+    };
+  }> {
+    return this.makeRequest(
+      `/broadcast/campaigns/${campaignId}/runs?page=${page}&limit=${limit}`,
+    );
+  }
+
   // Settings methods
   async getSettings(): Promise<BroadcastSettings> {
     return this.makeRequest("/broadcast/settings");

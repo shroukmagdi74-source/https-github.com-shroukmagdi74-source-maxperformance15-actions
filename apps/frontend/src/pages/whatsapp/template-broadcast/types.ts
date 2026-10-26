@@ -55,8 +55,41 @@ export interface Campaign {
   waTemplateName?: string;
   waLanguageCode?: string;
   failureReason?: string | null;
+  pausedReason?: string | null;
+  audienceMode?: 'fixed' | 'dynamic';
+  audienceListId?: string | null;
+  audienceCriteria?: string | null;
+  onlyNew?: boolean;
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | string;
+  recurrenceInterval?: number;
+  sendHour?: number | null;
+  sendMinute?: number;
+  nextRunAt?: string | null;
+  lastRunAt?: string | null;
+  runCount?: number;
+  maxRecipientsPerRun?: number;
+  failureRateThreshold?: number;
   sentAt?: string;
   createdAt: string;
+}
+
+export interface CampaignRun {
+  id: string;
+  campaignId: string;
+  companyId: string;
+  trigger: 'cron' | 'manual' | string;
+  status: 'running' | 'completed' | 'failed' | 'stopped' | string;
+  scheduledFor?: string | null;
+  startedAt: string;
+  finishedAt?: string | null;
+  audienceCount: number;
+  excludedCount: number;
+  cappedCount: number;
+  sentCount: number;
+  deliveredCount: number;
+  failedCount: number;
+  failureRate: number;
+  stopReason?: string | null;
 }
 
 export interface BroadcastResult {
