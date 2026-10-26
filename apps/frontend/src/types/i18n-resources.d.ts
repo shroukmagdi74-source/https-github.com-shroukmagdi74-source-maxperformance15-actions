@@ -16292,6 +16292,14 @@ declare module 'react-i18next' {
           labelRating: string;
           labelStatus: string;
           viewTitle: string;
+          columnTags: string;
+          labelTags: string;
+          addTag: string;
+          addTagPlaceholder: string;
+          noTags: string;
+          quickAddTag: string;
+          quickAddTagTitle: string;
+          tagPlaceholder: string;
         };
         purchaseOrders: {
           title: string;
@@ -16359,6 +16367,12 @@ declare module 'react-i18next' {
           mobilePaid: string;
           mobileRemaining: string;
           advancePayment: string;
+          editInvoice: string;
+          deleteInvoice: string;
+          confirmDeleteTitle: string;
+          confirmDeleteContent: string;
+          deleteSuccess: string;
+          deleteError: string;
         };
         purchaseOrderForm: {
           editTitle: string;
@@ -16459,6 +16473,12 @@ declare module 'react-i18next' {
           viewDetails: string;
           emptyState: string;
           advancePayment: string;
+          editInvoice: string;
+          deleteInvoice: string;
+          confirmDeleteTitle: string;
+          confirmDeleteContent: string;
+          deleteSuccess: string;
+          deleteError: string;
           mobilePaymentDate: string;
           mobileAmount: string;
           mobilePaymentMethod: string;

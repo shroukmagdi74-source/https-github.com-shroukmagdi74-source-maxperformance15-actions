@@ -16439,7 +16439,15 @@
       "labelNotes": "Notes",
       "labelRating": "Rating:",
       "labelStatus": "Status",
-      "viewTitle": "Supplier Details"
+      "viewTitle": "Supplier Details",
+      "columnTags": "Tags",
+      "labelTags": "Tags",
+      "addTag": "Add Tag",
+      "addTagPlaceholder": "Type tag and press Enter...",
+      "noTags": "No tags",
+      "quickAddTag": "Quick Add Tag",
+      "quickAddTagTitle": "Add Tag to Supplier",
+      "tagPlaceholder": "Tag name"
     },
     "purchaseOrders": {
       "title": "Purchase Orders",
