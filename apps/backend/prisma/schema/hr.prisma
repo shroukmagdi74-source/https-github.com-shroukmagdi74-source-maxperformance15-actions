@@ -785,7 +785,7 @@ model HRSettings {
   branchNetworkEnabled          Boolean  @default(false)
   branchIpAllowlist             String?
   branchNetworkLabel            String?
-  allowRemoteCheckIn            Boolean  @default(false)
+  allowRemoteCheckIn            Boolean  @default(true)
   payrollDay                    Int      @default(25)
   overtimeMinHours              Decimal  @default(1.0) @db.Decimal(3, 1)
   overtimeRate                  Decimal  @default(1.50) @db.Decimal(3, 2)
