@@ -5,6 +5,7 @@ const customerWhatsAppController = require('../controller/customerWhatsAppContro
 const occasionController = require('../controller/occasionController');
 const verifyToken = require("../utils/verifyToken")
 const { requireDbPermission } = require('../middleware/rbacMiddleware');
+const { checkAppAccess } = require('../middleware/checkAppAccess');
 
 // ──────────────────────────────────────────────────
 // 📢 WhatsApp Notifications (Smart Bulk)
@@ -69,18 +70,18 @@ router.post('/whatsapp-notify/send', verifyToken.authenticateToken, requireDbPer
 // ──────────────────────────────────────────────────
 // 👤 Customer CRUD
 // ──────────────────────────────────────────────────
-router.get('/', verifyToken.authenticateToken, requireDbPermission('customers.view'), customerController.getAllCustomer);
-router.post('/', verifyToken.authenticateToken, requireDbPermission('customers.create'), customerController.createCustomer); // ✅ إنشاء عميل جديد
-router.get('/search', verifyToken.authenticateToken, requireDbPermission('customers.view'), customerController.searchCustomers); // ✅ بحث متقدم
+router.get('/', verifyToken.authenticateToken, requireDbPermission('customers.view'), checkAppAccess('crm-basic'), customerController.getAllCustomer);
+router.post('/', verifyToken.authenticateToken, requireDbPermission('customers.create'), checkAppAccess('crm-basic'), customerController.createCustomer); // ✅ إنشاء عميل جديد
+router.get('/search', verifyToken.authenticateToken, requireDbPermission('customers.view'), checkAppAccess('crm-basic'), customerController.searchCustomers); // ✅ بحث متقدم
 
 // 🔍 بحث سريع بالرقم (لصفحات الطلب اليدوي والطلب السريع) — لازم قبل /:customerId
 router.get('/by-phone/:phone', verifyToken.authenticateToken, requireDbPermission('customers.view'), customerController.getCustomerLookupByPhone);
-router.get('/export', verifyToken.authenticateToken, requireDbPermission('customers.view'), customerController.exportCustomers); // ✅ تصدير CSV/JSON
+router.get('/export', verifyToken.authenticateToken, requireDbPermission('customers.view'), checkAppAccess('crm-basic'), customerController.exportCustomers); // ✅ تصدير CSV/JSON
 
-router.post('/import', verifyToken.authenticateToken, requireDbPermission('customers.create'), customerController.importCustomersFromCSV); // 📥 Import customers
+router.post('/import', verifyToken.authenticateToken, requireDbPermission('customers.create'), checkAppAccess('crm-basic'), customerController.importCustomersFromCSV); // 📥 Import customers
 
 // 🔒 Delete routes now secured
-router.delete('/cus', verifyToken.authenticateToken, requireDbPermission('customers.delete'), customerController.deleteAllCustomers);
+router.delete('/cus', verifyToken.authenticateToken, requireDbPermission('customers.delete'), checkAppAccess('crm-basic'), customerController.deleteAllCustomers);
 router.delete('/con', verifyToken.authenticateToken, requireDbPermission('customers.delete'), customerController.deleteAllConversations);
 
 // 🚫 Routes for blocking customers on Facebook pages
@@ -90,20 +91,20 @@ router.get('/blocked/:pageId', verifyToken.authenticateToken, requireDbPermissio
 router.get('/block-status', verifyToken.authenticateToken, requireDbPermission('customers.view'), customerController.checkCustomerBlockStatus);
 
 // 🏷️ جلب الوسوم الفريدة (لازم يكون قبل /:customerId)
-router.get('/tags/distinct', verifyToken.authenticateToken, requireDbPermission('customers.view'), customerController.getDistinctTags);
+router.get('/tags/distinct', verifyToken.authenticateToken, requireDbPermission('customers.view'), checkAppAccess('crm-basic'), customerController.getDistinctTags);
 
 // 🏷️ إدارة الوسوم (إعادة تسمية / حذف عبر جميع العملاء)
-router.put('/tags/rename', verifyToken.authenticateToken, requireDbPermission('customers.edit'), customerController.renameTag);
-router.delete('/tags/:tagName', verifyToken.authenticateToken, requireDbPermission('customers.edit'), customerController.deleteTag);
+router.put('/tags/rename', verifyToken.authenticateToken, requireDbPermission('customers.edit'), checkAppAccess('crm-basic'), customerController.renameTag);
+router.delete('/tags/:tagName', verifyToken.authenticateToken, requireDbPermission('customers.edit'), checkAppAccess('crm-basic'), customerController.deleteTag);
 
 // ⭐ إعادة حساب وتصنيف جميع عملاء الشركة
-router.post('/recalculate-all-ratings', verifyToken.authenticateToken, requireDbPermission('customers.edit'), customerController.recalculateAllCustomerRatingsHandler);
+router.post('/recalculate-all-ratings', verifyToken.authenticateToken, requireDbPermission('customers.edit'), checkAppAccess('crm-basic'), customerController.recalculateAllCustomerRatingsHandler);
 
 // تفاصيل العميل
-router.get('/:customerId', verifyToken.authenticateToken, requireDbPermission('customers.view'), customerController.getCustomerDetails);
+router.get('/:customerId', verifyToken.authenticateToken, requireDbPermission('customers.view'), checkAppAccess('crm-basic'), customerController.getCustomerDetails);
 
 // ⭐ إعادة حساب وتصنيف عميل محدد
-router.post('/:customerId/recalculate-rating', verifyToken.authenticateToken, requireDbPermission('customers.edit'), customerController.recalculateCustomerRatingHandler);
+router.post('/:customerId/recalculate-rating', verifyToken.authenticateToken, requireDbPermission('customers.edit'), checkAppAccess('crm-basic'), customerController.recalculateCustomerRatingHandler);
 
 // جلب طلبات العميل
 router.get('/:customerId/orders', verifyToken.authenticateToken, requireDbPermission('customers.view'), customerController.getCustomerOrders);
@@ -118,12 +119,12 @@ router.post('/:customerId/notes', verifyToken.authenticateToken, requireDbPermis
 router.delete('/notes/:noteId', verifyToken.authenticateToken, requireDbPermission('customers.edit'), customerController.deleteCustomerNote);
 
 // 🗑️ حذف عميل محدد
-router.delete('/:customerId', verifyToken.authenticateToken, requireDbPermission('customers.delete'), customerController.deleteCustomer);
+router.delete('/:customerId', verifyToken.authenticateToken, requireDbPermission('customers.delete'), checkAppAccess('crm-basic'), customerController.deleteCustomer);
 
 // 🏷️ تحديث علامات العميل
-router.put('/:customerId/tags', verifyToken.authenticateToken, requireDbPermission('customers.edit'), customerController.updateCustomerTags);
+router.put('/:customerId/tags', verifyToken.authenticateToken, requireDbPermission('customers.edit'), checkAppAccess('crm-basic'), customerController.updateCustomerTags);
 
 // ✏️ تحديث بيانات العميل
-router.put('/:customerId', verifyToken.authenticateToken, requireDbPermission('customers.edit'), customerController.updateCustomer);
+router.put('/:customerId', verifyToken.authenticateToken, requireDbPermission('customers.edit'), checkAppAccess('crm-basic'), customerController.updateCustomer);
 
 module.exports = router;

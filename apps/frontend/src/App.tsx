@@ -3501,9 +3501,11 @@ const AppContent = () => {
                 <Route
                   path="/leads"
                   element={
-                    <Layout>
-                      <LeadsList />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <LeadsList />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
@@ -7843,25 +7845,31 @@ const AppContent = () => {
                 <Route
                   path="/customers/cashback"
                   element={
-                    <Layout>
-                      <CashbackSettings />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <CashbackSettings />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
                   path="/customers/loyalty-programs"
                   element={
-                    <Layout>
-                      <LoyaltyPrograms />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <LoyaltyPrograms />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
                   path="/customers/loyalty-tiers"
                   element={
-                    <Layout>
-                      <LoyaltyTiers />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <LoyaltyTiers />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
@@ -7871,33 +7879,41 @@ const AppContent = () => {
                 <Route
                   path="/customers/loyalty-analytics"
                   element={
-                    <Layout>
-                      <LoyaltyAnalytics />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <LoyaltyAnalytics />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
                   path="/customers/loyalty-system-map"
                   element={
-                    <Layout>
-                      <LoyaltySystemMap />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <LoyaltySystemMap />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
                   path="/customers/points-center"
                   element={
-                    <Layout>
-                      <CustomerPointsCenter />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <CustomerPointsCenter />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
                   path="/customers/segments"
                   element={
-                    <Layout>
-                      <CustomerSegments />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <CustomerSegments />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
@@ -7907,17 +7923,21 @@ const AppContent = () => {
                 <Route
                   path="/customers/settings"
                   element={
-                    <Layout>
-                      <CustomerLoyaltySettings />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <CustomerLoyaltySettings />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 <Route
                   path="/customers/customer-notifications"
                   element={
-                    <Layout>
-                      <CustomerNotifications />
-                    </Layout>
+                    <PermissionProtectedRoute requiredPermissions={['customers.view']}>
+                      <Layout>
+                        <CustomerNotifications />
+                      </Layout>
+                    </PermissionProtectedRoute>
                   }
                 />
                 {/* <Route path="/customers/loyalty" element={<Layout><CustomerLoyalty /></Layout>} /> */}

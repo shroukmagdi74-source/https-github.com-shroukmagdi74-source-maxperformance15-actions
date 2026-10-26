@@ -34,8 +34,9 @@ const LEGACY_APP_SLUG_ALIASES = {
   'telegram-integration': ['telegram-business', 'telegram'],
   'telegram': ['telegram-business', 'telegram-integration'],
   // CRM & Marketing aliases:
-  'crm-lite': ['crm-basic', 'crm'],
-  'crm-basic': ['crm-lite', 'crm'],
+  'crm-lite': ['crm-basic', 'crm', 'crm-loyalty'],
+  'crm-basic': ['crm-lite', 'crm', 'crm-loyalty'],
+  'crm-loyalty': ['crm-basic', 'crm-lite', 'crm'],
   'marketing-agency-pro': ['marketing-agency', 'marketing-sales'],
   'facebook-pages-connect': ['facebook-ads-pro', 'crm-basic', 'crm-lite'],
   // Unified Inbox aliases & backwards compatibility:
