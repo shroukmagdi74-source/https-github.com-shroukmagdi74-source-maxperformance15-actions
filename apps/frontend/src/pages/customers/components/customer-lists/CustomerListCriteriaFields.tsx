@@ -38,7 +38,7 @@ interface ProductCriteriaPickerProps {
 const ProductCriteriaPicker: React.FC<ProductCriteriaPickerProps> = ({
   selectedProducts = [],
   status = "DELIVERED",
-  days = 30,
+  days = null,
   onUpdate,
   showGuestWarning = false,
 }) => {
