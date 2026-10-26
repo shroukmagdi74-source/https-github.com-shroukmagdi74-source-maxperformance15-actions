@@ -27,26 +27,164 @@ const ensureWallet = async (customerId, companyId) => {
   }
 };
 
+let cachedPlatformCompany = {
+  companyId: null,
+  expiresAt: 0,
+};
+
+const resolvePlatformCompanyId = async (prisma) => {
+  const now = Date.now();
+  if (cachedPlatformCompany.expiresAt > now && cachedPlatformCompany.companyId) {
+    return cachedPlatformCompany.companyId;
+  }
+
+  // 1. Check environment variables
+  const envCompanyId =
+    process.env.PLATFORM_COMPANY_ID ||
+    process.env.OPERATOR_COMPANY_ID ||
+    process.env.WHATSAPP_PLATFORM_SENDER_COMPANY_ID ||
+    '';
+
+  const envCompanySlug =
+    process.env.PLATFORM_COMPANY_SLUG ||
+    process.env.OPERATOR_COMPANY_SLUG ||
+    process.env.WHATSAPP_PLATFORM_SENDER_COMPANY_SLUG ||
+    '';
+
+  if (envCompanyId) {
+    try {
+      const company = await prisma.company.findFirst({
+        where: {
+          OR: [{ id: envCompanyId }, { slug: envCompanyId }],
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (company?.id) {
+        cachedPlatformCompany = { companyId: company.id, expiresAt: now + 60000 };
+        return company.id;
+      }
+    } catch (err) {
+      console.warn('⚠️ [PUBLIC-CUSTOMER] Error checking env company ID:', err.message);
+    }
+  }
+
+  if (envCompanySlug) {
+    try {
+      const company = await prisma.company.findFirst({
+        where: {
+          slug: envCompanySlug,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (company?.id) {
+        cachedPlatformCompany = { companyId: company.id, expiresAt: now + 60000 };
+        return company.id;
+      }
+    } catch (err) {
+      console.warn('⚠️ [PUBLIC-CUSTOMER] Error checking env company slug:', err.message);
+    }
+  }
+
+  // 2. Check database for operator / platform company marker
+  // A. Company with isPlatform or isOperator in settings JSON
+  try {
+    const platformBySettings = await prisma.company.findFirst({
+      where: {
+        isActive: true,
+        OR: [
+          { settings: { contains: '"isPlatform":true' } },
+          { settings: { contains: '"isPlatform": true' } },
+          { settings: { contains: '"isOperator":true' } },
+          { settings: { contains: '"isOperator": true' } },
+          { settings: { contains: '"platform":true' } },
+          { settings: { contains: '"platform": true' } },
+          { settings: { contains: '"operator":true' } },
+          { settings: { contains: '"operator": true' } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (platformBySettings?.id) {
+      cachedPlatformCompany = { companyId: platformBySettings.id, expiresAt: now + 60000 };
+      return platformBySettings.id;
+    }
+  } catch (err) {
+    console.warn('⚠️ [PUBLIC-CUSTOMER] Error checking settings marker:', err.message);
+  }
+
+  // B. Company with customDomain matching the main platform domain
+  try {
+    const mainDomain = (process.env.MAIN_DOMAIN || 'maxp.online').toLowerCase().trim();
+    if (mainDomain) {
+      const platformByDomain = await prisma.company.findFirst({
+        where: {
+          isActive: true,
+          OR: [
+            { customDomain: mainDomain },
+            { customDomain: `www.${mainDomain}` },
+          ],
+        },
+        select: { id: true },
+      });
+      if (platformByDomain?.id) {
+        cachedPlatformCompany = { companyId: platformByDomain.id, expiresAt: now + 60000 };
+        return platformByDomain.id;
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ [PUBLIC-CUSTOMER] Error checking domain marker:', err.message);
+  }
+
+  // C. Active company explicitly assigned to a SUPER_ADMIN user
+  try {
+    const superAdminUser = await prisma.user.findFirst({
+      where: {
+        role: 'SUPER_ADMIN',
+        isActive: true,
+        companyId: { not: null },
+      },
+      select: {
+        companyId: true,
+        company: { select: { id: true, isActive: true } },
+      },
+    });
+    if (superAdminUser?.company?.isActive && superAdminUser?.company?.id) {
+      cachedPlatformCompany = { companyId: superAdminUser.company.id, expiresAt: now + 60000 };
+      return superAdminUser.company.id;
+    }
+  } catch (err) {
+    console.warn('⚠️ [PUBLIC-CUSTOMER] Error checking super admin company:', err.message);
+  }
+
+  return null;
+};
+
 const resolveCompanyId = async (req) => {
   if (req.company && req.company.id) {
     return req.company.id;
   }
 
+  const prisma = getSharedPrismaClient();
+
   let companyId = req.body?.companyId || req.query?.companyId || req.headers['x-company-id'] || null;
-  if (!companyId) {
-    return null;
+  if (companyId) {
+    const company = await prisma.company.findFirst({
+      where: {
+        OR: [{ id: companyId }, { slug: companyId }],
+        isActive: true
+      },
+      select: { id: true }
+    });
+
+    if (company?.id) {
+      return company.id;
+    }
   }
 
-  const prisma = getSharedPrismaClient();
-  const company = await prisma.company.findFirst({
-    where: {
-      OR: [{ id: companyId }, { slug: companyId }],
-      isActive: true
-    },
-    select: { id: true }
-  });
-
-  return company?.id || null;
+  // Fallback to platform/operator company when there is no subdomain or explicit companyId
+  return await resolvePlatformCompanyId(prisma);
 };
 
 const safeParseJson = (value) => {
@@ -112,6 +250,7 @@ const mergeLeadMetadata = (existingMetadata, nextFields) => {
 
   return {
     ...current,
+    ...nextFields,
     leadCapture,
   };
 };
@@ -355,14 +494,6 @@ router.post('/register', getCompanyFromSubdomain, async (req, res) => {
 
 router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
   try {
-    const companyId = await resolveCompanyId(req);
-    if (!companyId) {
-      return res.status(400).json({
-        success: false,
-        message: 'تعذر تحديد الشركة الحالية'
-      });
-    }
-
     if (cleanLeadText(req.body?.nickname || req.body?.companyWebsite, 200)) {
       return res.status(400).json({
         success: false,
@@ -395,6 +526,15 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'رقم الهاتف أو البريد الإلكتروني مطلوب'
+      });
+    }
+
+    const companyId = await resolveCompanyId(req);
+    if (!companyId) {
+      console.error('❌ [PUBLIC-CUSTOMER] lead-capture: platform company not configured');
+      return res.status(503).json({
+        success: false,
+        message: 'خدمة تسجيل البيانات غير متاحة حالياً'
       });
     }
 
@@ -532,7 +672,7 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
       ], 'lead-capture');
     }
 
-    return res.status(createdNewCustomer ? 201 : 200).json({
+    return res.status(200).json({
       success: true,
       message: 'تم استلام بياناتك بنجاح وسيتم التواصل معك قريباً',
       data: {
@@ -1313,5 +1453,12 @@ router.get('/loyalty-summary', verifyToken.authenticateToken, async (req, res) =
     });
   }
 });
+
+router._resolveCompanyId = resolveCompanyId;
+router._resolvePlatformCompanyId = resolvePlatformCompanyId;
+router._mergeLeadMetadata = mergeLeadMetadata;
+router._resetPlatformCompanyCache = () => {
+  cachedPlatformCompany = { companyId: null, expiresAt: 0 };
+};
 
 module.exports = router;
