@@ -71,6 +71,8 @@ async function recordSupplierPayment({
     throw err;
   }
 
+  const normalizedMethod = paymentMethod === 'CHECK' ? 'CHEQUE' : (['CASH', 'BANK_TRANSFER', 'CHEQUE'].includes(paymentMethod) ? paymentMethod : 'CASH');
+
   const prisma = getSharedPrismaClient();
 
   // 1. Idempotency Check (A: explicit sourceKey / reference)
@@ -165,7 +167,7 @@ async function recordSupplierPayment({
             paymentNumber,
             paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
             amount: paymentAmount,
-            paymentMethod,
+            paymentMethod: normalizedMethod,
             referenceNumber: effectiveRef,
             bankName,
             checkNumber,

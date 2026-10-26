@@ -225,13 +225,15 @@ exports.getSupplierById = async (req, res) => {
     // Chronological statement combining invoices and payments
     const statementItems = [];
     (supplier.purchaseInvoices || []).forEach((inv) => {
+      const isCancelled = inv.status === 'CANCELLED';
       statementItems.push({
         id: inv.id,
         type: 'INVOICE',
         typeName: 'فاتورة شراء',
         date: inv.invoiceDate || inv.createdAt,
         reference: inv.invoiceNumber,
-        debit: parseFloat(inv.totalAmount) || 0, // زيادة المديونية
+        description: inv.notes || `فاتورة شراء رقم ${inv.invoiceNumber}`,
+        debit: isCancelled ? 0 : (parseFloat(inv.totalAmount) || 0), // زيادة المديونية ما لم تكن ملغاة
         credit: 0,
         amount: parseFloat(inv.totalAmount) || 0,
         paid: parseFloat(inv.paidAmount) || 0,
@@ -248,6 +250,7 @@ exports.getSupplierById = async (req, res) => {
         typeName: 'سند صرف / دفعة',
         date: pay.paymentDate || pay.createdAt,
         reference: pay.paymentNumber,
+        description: pay.notes || `سند صرف دفعة رقم ${pay.paymentNumber}`,
         debit: 0,
         credit: parseFloat(pay.amount) || 0, // سداد / تخفيض المديونية
         amount: parseFloat(pay.amount) || 0,
@@ -263,9 +266,11 @@ exports.getSupplierById = async (req, res) => {
     let running = openingBalance;
     const statement = statementItems.map((item) => {
       running = running + item.debit - item.credit;
+      const rounded = Math.round(running * 100) / 100;
       return {
         ...item,
-        runningBalance: Math.round(running * 100) / 100,
+        balance: rounded,
+        runningBalance: rounded,
       };
     });
 
@@ -275,7 +280,9 @@ exports.getSupplierById = async (req, res) => {
     // Debt Aging based on unpaid purchase invoices
     const now = new Date();
     const aging = {
+      current: 0,
       days0To30: 0,
+      days1To30: 0,
       days31To60: 0,
       days61To90: 0,
       days90Plus: 0,
@@ -290,7 +297,9 @@ exports.getSupplierById = async (req, res) => {
         aging.totalUnpaid = Math.round((aging.totalUnpaid + remaining) * 100) / 100;
 
         if (diffDays <= 30) {
-          aging.days0To30 = Math.round((aging.days0To30 + remaining) * 100) / 100;
+          const val = Math.round((aging.days0To30 + remaining) * 100) / 100;
+          aging.days0To30 = val;
+          aging.days1To30 = val;
         } else if (diffDays <= 60) {
           aging.days31To60 = Math.round((aging.days31To60 + remaining) * 100) / 100;
         } else if (diffDays <= 90) {
@@ -379,7 +388,7 @@ exports.updateSupplier = async (req, res) => {
         commercialRegister,
         paymentTerms,
         creditLimit: creditLimit !== undefined ? (creditLimit ? parseFloat(creditLimit) : null) : undefined,
-        openingBalance: req.body.openingBalance !== undefined ? parseFloat(req.body.openingBalance) : existingSupplier.openingBalance,
+        openingBalance: req.body.openingBalance !== undefined && !isNaN(parseFloat(req.body.openingBalance)) ? parseFloat(req.body.openingBalance) : existingSupplier.openingBalance,
         rating: rating ? parseInt(rating) : existingSupplier.rating,
         notes,
         isActive

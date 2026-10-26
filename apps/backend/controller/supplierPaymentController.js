@@ -381,7 +381,7 @@ exports.getSupplierPaymentStats = async (req, res) => {
       })),
       safeQuery(() => getSharedPrismaClient().supplierPayment.count({ where: { companyId, paymentMethod: 'CASH' } })),
       safeQuery(() => getSharedPrismaClient().supplierPayment.count({ where: { companyId, paymentMethod: 'BANK_TRANSFER' } })),
-      safeQuery(() => getSharedPrismaClient().supplierPayment.count({ where: { companyId, paymentMethod: 'CHECK' } }))
+      safeQuery(() => getSharedPrismaClient().supplierPayment.count({ where: { companyId, paymentMethod: { in: ['CHECK', 'CHEQUE'] } } }))
     ]);
 
     res.json({

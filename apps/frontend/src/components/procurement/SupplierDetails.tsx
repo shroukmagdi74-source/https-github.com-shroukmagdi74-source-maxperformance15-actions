@@ -402,13 +402,27 @@ export default function SupplierDetails() {
         </div>
 
         {/* Current Balance */}
-        <div className="rounded-xl border border-border/60 bg-card p-4 flex flex-col justify-between border-l-4 border-l-primary">
+        <div className={`rounded-xl border border-border/60 bg-card p-4 flex flex-col justify-between border-l-4 ${
+          supplier.currentBalance > 0 ? 'border-l-amber-500' : supplier.currentBalance < 0 ? 'border-l-sky-500' : 'border-l-emerald-500'
+        }`}>
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">الرصيد الحالي المستحق</span>
-          <div className={`mt-2 text-2xl font-bold tabular-nums ${supplier.currentBalance > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+          <div className={`mt-2 text-2xl font-bold tabular-nums ${
+            supplier.currentBalance > 0 
+              ? 'text-amber-500' 
+              : supplier.currentBalance < 0 
+                ? 'text-sky-500' 
+                : 'text-zinc-600 dark:text-zinc-400'
+          }`}>
             {formatCurrency(supplier.currentBalance || 0)}
           </div>
-          <span className="text-xs text-muted-foreground mt-1">
-            {supplier.currentBalance > 0 ? 'مستحق للمورد' : 'لا توجد مستحقات'}
+          <span className="text-xs mt-1">
+            {supplier.currentBalance > 0 ? (
+              <span className="text-amber-500 font-medium">مستحق للمورد (مديونية على الشركة)</span>
+            ) : supplier.currentBalance < 0 ? (
+              <span className="text-sky-500 font-medium">دفعة مقدمة / رصيد لصالح الشركة</span>
+            ) : (
+              <span className="text-muted-foreground">الحساب متوازن (لا توجد مستحقات)</span>
+            )}
           </span>
         </div>
       </div>
@@ -580,7 +594,7 @@ export default function SupplierDetails() {
                   <SelectContent>
                     <SelectItem value="CASH">نقدي</SelectItem>
                     <SelectItem value="BANK_TRANSFER">تحويل بنكي</SelectItem>
-                    <SelectItem value="CHECK">شيك</SelectItem>
+                    <SelectItem value="CHEQUE">شيك</SelectItem>
                     <SelectItem value="VODAFONE_CASH">محفظة إلكترونية</SelectItem>
                   </SelectContent>
                 </Select>
