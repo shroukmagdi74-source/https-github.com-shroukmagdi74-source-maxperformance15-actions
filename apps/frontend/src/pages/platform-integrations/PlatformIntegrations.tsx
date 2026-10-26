@@ -101,7 +101,7 @@ const PlatformIntegrations: React.FC = () => {
     tabs.find((tab) => tab.id === activeTab)?.component || tabs[0].component;
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6" dir="rtl">
+    <div className="w-full max-w-7xl mx-auto p-4 sm:p-6 space-y-6" dir="rtl">
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 pb-4">
         <div>
@@ -129,7 +129,7 @@ const PlatformIntegrations: React.FC = () => {
       </div>
 
       {/* Platform Navigation Tabs Bar */}
-      <div className="bg-card border border-border/70 rounded-xl p-1.5 shadow-xs overflow-hidden">
+      <div className="w-full bg-card border border-border/70 rounded-xl p-1.5 shadow-xs overflow-hidden">
         <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth">
           {tabs.map((tab) => {
             const Icon = tab.icon;

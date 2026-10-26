@@ -409,7 +409,7 @@ const InternalIntegrations: React.FC = () => {
 
     if (view === "pull-products" && selectedProvider) {
         return (
-            <div className="p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="w-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setView("main")} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
@@ -524,7 +524,7 @@ const InternalIntegrations: React.FC = () => {
 
     if (view === "pull-orders" && selectedProvider) {
         return (
-            <div className="p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="w-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                         <button onClick={() => setView("main")} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
@@ -608,7 +608,7 @@ const InternalIntegrations: React.FC = () => {
     }
 
     return (
-        <div className="p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="w-full p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
                     <LinkIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -829,7 +829,7 @@ const InternalIntegrations: React.FC = () => {
                 )}
 
                 {activeTab === "find" && (
-                    <div className="max-w-xl mx-auto py-8 space-y-6">
+                    <div className="w-full max-w-2xl mx-auto py-8 space-y-6">
                         {/* Company ID Card */}
                         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl">
                             <div className="flex items-center gap-2 mb-2">

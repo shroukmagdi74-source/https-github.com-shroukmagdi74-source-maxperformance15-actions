@@ -198,8 +198,8 @@ const GoogleSheetsIntegration: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+    <div className="w-full space-y-6">
+      <div className="w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
             <TableCellsIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
