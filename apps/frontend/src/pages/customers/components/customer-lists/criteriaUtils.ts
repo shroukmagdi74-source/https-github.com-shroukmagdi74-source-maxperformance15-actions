@@ -1,4 +1,4 @@
-import { CriteriaType, SMART_PRESETS, STATUS_LABELS, STATUS_LABELS_EN } from "./types";
+import { CriteriaType, SMART_PRESETS, STATUS_LABELS, STATUS_LABELS_EN, GroupV2, RuleFieldV2, RuleV2 } from "./types";
 
 export function buildEmptyCriteria(type: CriteriaType): Record<string, any> {
   switch (type) {
@@ -169,4 +169,23 @@ export function formatDate(date: string | undefined): string {
   } catch {
     return "—";
   }
+}
+
+/** شرط فارغ جاهز للتعديل — يطابق الشكل الذي يقرأه محرك v2 في الباك-إند. */
+export function buildEmptyRule(field: RuleFieldV2 = "ordersCount"): RuleV2 {
+  if (field === "receivedProduct") return { field, sku: "", statuses: ["DELIVERED"] };
+  if (field === "orderedInPeriod" || field === "lastOrderBefore" || field === "lastOrderAfter") {
+    return { field, dateFrom: "", dateTo: "" };
+  }
+  if (field === "ordersCount" || field === "totalSpent" || field === "deliveryRate") {
+    return { field, op: "gte", value: 1 };
+  }
+  if (field === "customerStatus") return { field, value: ["ACTIVE"] };
+  if (field === "customerRating") return { field, value: ["EXCELLENT"] };
+  return { field, value: "" };
+}
+
+/** مجموعة شروط فارغة (شرط واحد) لبناء محرر الشروط المتقدم. */
+export function buildEmptyGroup(operator: "AND" | "OR" = "AND"): GroupV2 {
+  return { operator, rules: [buildEmptyRule()] };
 }

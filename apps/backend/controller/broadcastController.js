@@ -13,6 +13,12 @@ const {
   resolveAggregateCustomerIds,
   criteriaToSummary,
 } = require('../utils/customerListCriteria');
+const {
+  isV2Criteria,
+  computeCustomerListCountV2,
+  previewCustomerListCountV2,
+  getCustomersInListV2,
+} = require('../utils/customerListCriteriaV2');
 
 console.log('🚀 [BROADCAST CONTROLLER] تم تحميل وحدة تحكم البرودكاست بنجاح');
 
@@ -1000,6 +1006,9 @@ exports.getCampaignAnalytics = async (req, res) => {
  * إنشاء قائمة عملاء جديدة
  */
 async function computeCustomerListCount(prisma, companyId, criteria) {
+  if (isV2Criteria(criteria)) {
+    return computeCustomerListCountV2(prisma, companyId, criteria);
+  }
   const { where, take } = await buildEffectiveCustomerListWhere(prisma, companyId, criteria);
   if (take) {
     const rows = await prisma.customer.findMany({ where, take, select: { id: true } });
@@ -1197,11 +1206,28 @@ exports.previewCustomerListCount = async (req, res) => {
       return res.status(400).json({ success: false, message: 'المعايير مطلوبة' });
     }
 
-    const count = await computeCustomerListCount(getSharedPrismaClient(), companyId, criteria);
+    const prisma = getSharedPrismaClient();
+
+    if (isV2Criteria(criteria)) {
+      const counts = await previewCustomerListCountV2(prisma, companyId, criteria);
+      return res.json({
+        success: true,
+        data: counts // { before, after, excluded, count }
+      });
+    }
+
+    const count = await computeCustomerListCount(prisma, companyId, criteria);
+    let before = count;
+    if (criteria && criteria.excludeContactedInDays) {
+      const withoutExcl = { ...criteria, excludeContactedInDays: undefined };
+      before = await computeCustomerListCount(prisma, companyId, withoutExcl);
+    }
+    const after = count;
+    const excluded = Math.max(0, before - after);
 
     res.json({
       success: true,
-      data: { count }
+      data: { before, after, excluded, count }
     });
 
   } catch (error) {
@@ -1387,6 +1413,63 @@ exports.getCustomersInList = async (req, res) => {
         return res.status(404).json({ success: false, message: 'القائمة غير موجودة' });
       }
       criteria = typeof list.criteria === 'string' ? JSON.parse(list.criteria) : list.criteria;
+    }
+
+    if (isV2Criteria(criteria)) {
+      const v2Res = await getCustomersInListV2(prisma, companyId, criteria, { page, limit, search });
+      const customers = v2Res.customers;
+      const total = v2Res.total;
+
+      const ids = customers.map((c) => c.id);
+      let spendMap = new Map();
+      if (ids.length > 0) {
+        const orders = await prisma.order.groupBy({
+          by: ['customerId'],
+          where: {
+            companyId,
+            customerId: { in: ids },
+            status: { notIn: ['CANCELLED', 'TRASH', 'DRAFT', 'DUPLICATE_ORDER'] },
+          },
+          _sum: { total: true },
+          _count: { customerId: true },
+        });
+        orders.forEach((o) => {
+          spendMap.set(o.customerId, {
+            totalSpent: Number(o._sum?.total ?? 0),
+            ordersCount: o._count?.customerId ?? 0,
+          });
+        });
+      }
+
+      const data = customers.map((c) => {
+        const spend = spendMap.get(c.id) || { totalSpent: 0, ordersCount: 0 };
+        const rfmScore = computeRfmScore(spend.totalSpent, spend.ordersCount, c.updatedAt);
+        return {
+          id: c.id,
+          name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'عميل بدون اسم',
+          email: c.email || '',
+          phone: c.phone || '',
+          lastActivity: c.updatedAt,
+          createdAt: c.createdAt,
+          totalSpent: spend.totalSpent,
+          ordersCount: spend.ordersCount,
+          rfmScore,
+          rfmTier: rfmTierFor(rfmScore),
+          location: 'غير محدد',
+          status: c.status === 'ACTIVE' ? 'active' : 'inactive',
+          rating: c.customerRating || 'UNKNOWN',
+          tags: c.tags || '',
+        };
+      });
+
+      return res.json({
+        success: true,
+        data,
+        total,
+        page,
+        limit,
+        hasMore: page * limit < total,
+      });
     }
 
     const { where, orderBy, take } = await buildEffectiveCustomerListWhere(prisma, companyId, criteria);
