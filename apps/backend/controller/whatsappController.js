@@ -685,6 +685,18 @@ async function getSessions(req, res) {
 
         const sessions = await fetchSessionsWithLegacySchemaSupport(companyId);
 
+        if (sessions.length === 1 && !sessions[0].isDefault) {
+            try {
+                await getSharedPrismaClient().whatsAppSession.update({
+                    where: { id: sessions[0].id },
+                    data: { isDefault: true }
+                });
+                sessions[0].isDefault = true;
+            } catch (err) {
+                console.warn('Could not auto-set single session isDefault:', err.message);
+            }
+        }
+
         let filteredSessions = sessions;
         if (
             userRole !== 'SUPER_ADMIN' &&

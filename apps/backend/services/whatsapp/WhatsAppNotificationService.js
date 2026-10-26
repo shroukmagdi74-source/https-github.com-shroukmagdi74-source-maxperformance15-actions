@@ -1258,6 +1258,8 @@ async function sendNotification(options) {
     scheduleAt = null,
     buttons = null,
     fallbackEventType = null,
+    templateName = null,
+    templateLanguage = 'ar',
     // 🎁 دعم إشعارات العملاء: إرسال قالب محدد + فرض قناة (BAILEYS/META_CLOUD/AUTO)
     preferredTemplateId = null,
     channel = null,
@@ -1470,7 +1472,17 @@ async function sendNotification(options) {
     let template = null;
     let templateId = null;
 
-    if (options.contentOverride) {
+    if (templateName || options.templateName) {
+      const explicitName = templateName || options.templateName;
+      template = {
+        id: null,
+        content: options.contentOverride || '',
+        metaTemplateName: explicitName,
+        metaTemplateLanguage: templateLanguage || options.templateLanguage || 'ar',
+        metaTemplateStatus: 'APPROVED'
+      };
+      templateId = null;
+    } else if (options.contentOverride) {
       console.log(`[WHATSAPP-NOTIFY] Using contentOverride for journey notification`);
     } else {
       // 🎁 إشعارات العملاء: عند تمرير قالب محدد نستخدمه مباشرة (وليس بحثاً بالحدث)
@@ -2327,7 +2339,7 @@ async function sendNotification(options) {
         });
       }
 
-      return { success: true, notificationId: notificationLog?.id || null };
+      return { success: true, notificationId: notificationLog?.id || null, messageId: result?.messageId || result?.key?.id || null };
 
     } catch (sendError) {
       console.error(`❌ [WHATSAPP-DEBUG] Failed to send message:`, sendError.message);
@@ -4087,14 +4099,54 @@ async function sendNewSignupAdminAlertNotification({
   signupType = 'platform_signup',
   companyName = '',
   audience = 'company-leadership',
-  deliveryStrategy = 'platform-fallback'
+  deliveryStrategy = 'platform-fallback',
+  templateName = null,
+  recipientPhones = null
 }) {
-  const { company, recipients } = await resolveAudienceRecipients(companyId, audience);
+  let finalRecipients = [];
+  if (Array.isArray(recipientPhones) && recipientPhones.length > 0) {
+    finalRecipients = recipientPhones.map((p) => ({ phone: p, name: 'مشرف' }));
+  } else if (typeof recipientPhones === 'string' && recipientPhones.trim()) {
+    finalRecipients = recipientPhones.split(',').map((p) => p.trim()).filter(Boolean).map((p) => ({ phone: p, name: 'مشرف' }));
+  } else {
+    const audienceResult = await resolveAudienceRecipients(companyId, audience);
+    finalRecipients = audienceResult.recipients || [];
+  }
+
+  const { company } = await resolveAudienceRecipients(companyId, audience);
   const resolvedCompanyName = companyName || company?.name || 'المنصة';
   const deliveryCompanyId = await resolveDeliveryCompanyId(companyId, deliveryStrategy);
 
-  if (!recipients.length) {
+  if (!finalRecipients.length) {
     return { success: false, reason: 'no_admin_recipients' };
+  }
+
+  // Resolve template: use provided templateName, or look for approved template on Meta / settings
+  let resolvedTemplateName = templateName || null;
+  if (!resolvedTemplateName) {
+    try {
+      const customTemplate = await safeQuery(() => getSharedPrismaClient().whatsAppNotificationTemplate.findFirst({
+        where: {
+          companyId,
+          eventType: 'NEW_SIGNUP_ADMIN_ALERT',
+          isActive: true,
+          metaTemplateName: { not: null }
+        }
+      }));
+      if (customTemplate?.metaTemplateName && String(customTemplate.metaTemplateStatus || '').toUpperCase() === 'APPROVED') {
+        resolvedTemplateName = customTemplate.metaTemplateName;
+      } else {
+        const session = await getSharedPrismaClient().whatsAppSession.findFirst({
+          where: { companyId, status: 'CONNECTED', provider: 'META_CLOUD' }
+        });
+        if (session?.id) {
+          const MetaCloudProvider = require('./providers/MetaCloudProvider');
+          const tmpls = await MetaCloudProvider.listTemplates(session.id);
+          const alertTmpl = Array.isArray(tmpls) ? tmpls.find((t) => t.name === 'maxp_new_lead_alert' && t.status === 'APPROVED') : null;
+          if (alertTmpl) resolvedTemplateName = 'maxp_new_lead_alert';
+        }
+      }
+    } catch (_) {}
   }
 
   const variables = {
@@ -4106,7 +4158,7 @@ async function sendNewSignupAdminAlertNotification({
     createdAt: formatNotificationDate(new Date())
   };
 
-  return fanOutNotification(recipients, (recipient) => ({
+  return fanOutNotification(finalRecipients, (recipient) => ({
     companyId,
     deliveryCompanyId,
     deliveryStrategy,
@@ -4115,6 +4167,7 @@ async function sendNewSignupAdminAlertNotification({
     recipientType: 'ADMIN',
     category: 'SYSTEM',
     eventType: 'NEW_SIGNUP_ADMIN_ALERT',
+    templateName: resolvedTemplateName,
     variables: {
       ...variables,
       adminName: recipient.name

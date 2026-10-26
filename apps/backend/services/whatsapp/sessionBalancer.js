@@ -24,7 +24,28 @@ async function getOrAssignSession({ companyId, customerId, recipientPhone, conne
   const prisma = getSharedPrismaClient();
 
   if (!connectedSessions || connectedSessions.length === 0) {
-    return settings?.defaultSessionId || null;
+    if (settings?.defaultSessionId) {
+      return settings.defaultSessionId;
+    }
+    const defaultSession = await safeQuery(() => prisma.whatsAppSession.findFirst({
+      where: { companyId, isDefault: true },
+      select: { id: true }
+    }));
+    if (defaultSession?.id) return defaultSession.id;
+
+    const singleConnected = await safeQuery(() => prisma.whatsAppSession.findFirst({
+      where: { companyId, status: 'CONNECTED' },
+      orderBy: [{ lastConnectedAt: 'desc' }, { createdAt: 'desc' }],
+      select: { id: true }
+    }));
+    if (singleConnected?.id) return singleConnected.id;
+
+    const anySession = await safeQuery(() => prisma.whatsAppSession.findFirst({
+      where: { companyId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+      select: { id: true }
+    }));
+    return anySession?.id || null;
   }
 
   // 1. ╪º┘ä╪¿╪¡╪½ ╪╣┘å ╪¼┘ä╪│╪⌐ ┘à╪½╪¿╪¬╪⌐ (Sticky Session Affinity)

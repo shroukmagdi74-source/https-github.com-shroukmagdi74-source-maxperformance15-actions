@@ -51,17 +51,59 @@ class LeadFollowUpController {
             const companyId = this._getCompanyId(req, res);
             if (!companyId) return;
 
-            const { isEnabled, delayHours, message, mediaUrl, steps, businessHourStart, businessHourEnd, timezone } = req.body;
+            const {
+                isEnabled,
+                delayHours,
+                message,
+                mediaUrl,
+                steps,
+                businessHourStart,
+                businessHourEnd,
+                timezone,
+                templateName,
+                templateLanguage,
+                templateParams
+            } = req.body;
 
             const updateData = {};
             if (isEnabled !== undefined) updateData.isEnabled = isEnabled;
             if (delayHours !== undefined) updateData.delayHours = delayHours;
             if (message !== undefined) updateData.message = message;
             if (mediaUrl !== undefined) updateData.mediaUrl = mediaUrl;
-            if (steps !== undefined) updateData.steps = JSON.stringify(steps);
+            if (templateName !== undefined) updateData.templateName = templateName ? String(templateName).trim() : null;
+            if (templateLanguage !== undefined) updateData.templateLanguage = templateLanguage ? String(templateLanguage).trim() : 'ar';
+            if (templateParams !== undefined) {
+                updateData.templateParams = typeof templateParams === 'object' && templateParams !== null
+                    ? JSON.stringify(templateParams)
+                    : (templateParams ? String(templateParams) : null);
+            }
+            if (steps !== undefined) {
+                const sanitizedSteps = Array.isArray(steps) ? steps.map(s => ({
+                    delayHours: Number(s.delayHours) || 24,
+                    message: s.message ?? '',
+                    mediaUrl: s.mediaUrl ?? null,
+                    templateName: s.templateName ? String(s.templateName).trim() : null,
+                    templateLanguage: s.templateLanguage ? String(s.templateLanguage).trim() : 'ar',
+                    templateParams: typeof s.templateParams === 'object' && s.templateParams !== null
+                        ? JSON.stringify(s.templateParams)
+                        : (s.templateParams ? String(s.templateParams) : null)
+                })) : null;
+                updateData.steps = sanitizedSteps ? JSON.stringify(sanitizedSteps) : null;
+            }
             if (businessHourStart !== undefined) updateData.businessHourStart = businessHourStart;
             if (businessHourEnd !== undefined) updateData.businessHourEnd = businessHourEnd;
             if (timezone !== undefined) updateData.timezone = timezone;
+
+            const sanitizedInitialSteps = Array.isArray(steps) ? steps.map(s => ({
+                delayHours: Number(s.delayHours) || 24,
+                message: s.message ?? '',
+                mediaUrl: s.mediaUrl ?? null,
+                templateName: s.templateName ? String(s.templateName).trim() : null,
+                templateLanguage: s.templateLanguage ? String(s.templateLanguage).trim() : 'ar',
+                templateParams: typeof s.templateParams === 'object' && s.templateParams !== null
+                    ? JSON.stringify(s.templateParams)
+                    : (s.templateParams ? String(s.templateParams) : null)
+            })) : undefined;
 
             const settings = await this.prisma.leadFollowUpSettings.upsert({
                 where: { companyId },
@@ -72,7 +114,12 @@ class LeadFollowUpController {
                     delayHours: delayHours ?? 24,
                     message: message ?? '',
                     mediaUrl,
-                    steps: steps ? JSON.stringify(steps) : undefined,
+                    templateName: templateName ? String(templateName).trim() : null,
+                    templateLanguage: templateLanguage ? String(templateLanguage).trim() : 'ar',
+                    templateParams: typeof templateParams === 'object' && templateParams !== null
+                        ? JSON.stringify(templateParams)
+                        : (templateParams ? String(templateParams) : null),
+                    steps: sanitizedInitialSteps ? JSON.stringify(sanitizedInitialSteps) : undefined,
                     businessHourStart,
                     businessHourEnd,
                     timezone

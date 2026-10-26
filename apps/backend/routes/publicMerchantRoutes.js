@@ -119,6 +119,64 @@ router.post('/register', getCompanyFromSubdomain, async (req, res) => {
       isActive: false
     });
 
+    if (req.body?.phone) {
+      setImmediate(async () => {
+        try {
+          const prisma = getSharedPrismaClient();
+          const cleanPhone = String(req.body.phone).replace(/\D/g, '');
+          let customer = await prisma.customer.findFirst({
+            where: { companyId, OR: [{ phone: req.body.phone }, { email: normalizedEmail }] }
+          });
+          if (!customer) {
+            customer = await prisma.customer.create({
+              data: {
+                companyId,
+                firstName: String(name).trim(),
+                email: normalizedEmail,
+                phone: req.body.phone,
+                status: 'LEAD'
+              }
+            });
+          }
+          if (customer?.id) {
+            const formatted = cleanPhone.startsWith('0') ? `20${cleanPhone.substring(1)}` : cleanPhone;
+            const jid = `${formatted}@s.whatsapp.net`;
+            let contact = await prisma.whatsAppContact.findFirst({
+              where: { whatsAppSession: { companyId }, OR: [{ customerId: customer.id }, { phoneNumber: formatted }] }
+            });
+            if (!contact) {
+              const session = await prisma.whatsAppSession.findFirst({
+                where: { companyId, isDefault: true }
+              }) || await prisma.whatsAppSession.findFirst({
+                where: { companyId, status: 'CONNECTED' },
+                orderBy: [{ lastConnectedAt: 'desc' }, { createdAt: 'desc' }]
+              }) || await prisma.whatsAppSession.findFirst({
+                where: { companyId }
+              });
+              if (session) {
+                contact = await prisma.whatsAppContact.create({
+                  data: {
+                    sessionId: session.id,
+                    jid,
+                    phoneNumber: formatted,
+                    name: String(name).trim(),
+                    customerId: customer.id,
+                    category: 'LEAD'
+                  }
+                });
+              }
+            }
+            if (contact) {
+              const LeadFollowUpService = require('../services/whatsapp/LeadFollowUpService');
+              await LeadFollowUpService.enrollLead(companyId, customer.id, contact.id);
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ [PUBLIC-MERCHANT] Auto-enrollment error:', e.message);
+        }
+      });
+    }
+
     res.json({
       success: true,
       message: 'تم تسجيل التاجر بنجاح، وسيتم تفعيل الحساب بعد مراجعة الشركة',

@@ -67,7 +67,10 @@ model LeadFollowUpSettings {
   delayHours       Int       @default(24)
   message          String    @db.Text
   mediaUrl         String?
-  steps            String?   @db.Text  // JSON array of { delayHours, message, mediaUrl }
+  templateName     String?
+  templateLanguage String?   @default("ar")
+  templateParams   String?   @db.Text
+  steps            String?   @db.Text  // JSON array of { delayHours, message, mediaUrl, templateName, templateLanguage, templateParams }
   businessHourStart Int?              // 0-23
   businessHourEnd   Int?              // 0-23
   timezone         String?            // IANA timezone, default 'UTC'

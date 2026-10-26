@@ -417,6 +417,73 @@ const sendOtpViaWhatsApp = async ({ companyId, phone, code }) => {
   }
 };
 
+const autoEnrollCustomerInWhatsAppFollowUp = ({ companyId, customerId, phone, customerName }) => {
+  if (!companyId || !customerId || !phone) return;
+  setImmediate(async () => {
+    try {
+      const formatted = formatPhoneForWhatsApp(phone);
+      if (!formatted) return;
+
+      const prisma = getSharedPrismaClient();
+      const jid = `${formatted}@s.whatsapp.net`;
+
+      let contact = await prisma.whatsAppContact.findFirst({
+        where: {
+          whatsAppSession: { companyId },
+          OR: [
+            { customerId },
+            { phoneNumber: formatted },
+            { jid }
+          ]
+        }
+      });
+
+      if (!contact) {
+        const session = await prisma.whatsAppSession.findFirst({
+          where: { companyId, isDefault: true }
+        }) || await prisma.whatsAppSession.findFirst({
+          where: { companyId, status: 'CONNECTED' },
+          orderBy: [{ lastConnectedAt: 'desc' }, { createdAt: 'desc' }]
+        }) || await prisma.whatsAppSession.findFirst({
+          where: { companyId },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        if (session) {
+          contact = await prisma.whatsAppContact.upsert({
+            where: {
+              sessionId_jid: {
+                sessionId: session.id,
+                jid
+              }
+            },
+            update: {
+              customerId,
+              phoneNumber: formatted,
+              name: customerName || undefined
+            },
+            create: {
+              sessionId: session.id,
+              jid,
+              phoneNumber: formatted,
+              name: customerName || null,
+              customerId,
+              category: 'LEAD'
+            }
+          });
+        }
+      }
+
+      if (contact) {
+        const LeadFollowUpService = require('../services/whatsapp/LeadFollowUpService');
+        await LeadFollowUpService.enrollLead(companyId, customerId, contact.id);
+      }
+    } catch (err) {
+      console.warn('⚠️ [LEAD-ENROLL-AUTO] Auto-enrollment error:', err?.message || err);
+    }
+  });
+};
+
 router.post('/register', getCompanyFromSubdomain, async (req, res) => {
   try {
     const companyId = await resolveCompanyId(req);
@@ -466,6 +533,12 @@ router.post('/register', getCompanyFromSubdomain, async (req, res) => {
     );
 
     await ensureWallet(customer.id, companyId);
+    autoEnrollCustomerInWhatsAppFollowUp({
+      companyId,
+      customerId: customer.id,
+      phone: customer.phone,
+      customerName: `${customer.firstName} ${customer.lastName}`.trim()
+    });
 
     queueNotificationTasks([
       WhatsAppNotificationService.sendNewSignupWelcomeNotification({
@@ -654,6 +727,12 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
 
     await ensureWallet(customer.id, companyId);
     await maybeTrackLandingConversion(prisma, companyId, pageSlug);
+    autoEnrollCustomerInWhatsAppFollowUp({
+      companyId,
+      customerId: customer.id,
+      phone: customer.phone || phone,
+      customerName: `${customer.firstName} ${customer.lastName}`.trim()
+    });
 
     if (createdNewCustomer) {
       queueNotificationTasks([
