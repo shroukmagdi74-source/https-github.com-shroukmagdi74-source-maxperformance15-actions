@@ -17,7 +17,10 @@ const { v4: uuidv4 } = require("uuid");
 const {
   isWithinGeofence,
   formatGeofenceError,
+  formatWeakAccuracyMessage,
+  classifyGeofenceFailure,
 } = require("../../utils/geoUtils");
+const { ipMatchesAllowlist } = require("../../utils/ipMatch");
 const {
   getNowInEgypt,
   getStartOfDayInEgypt,
@@ -553,9 +556,167 @@ class AttendanceService {
   }
 
   /**
+   * التحقق من طريقة إثبات التواجد (نطاق جغرافي / شبكة الفرع / عمل عن بعد / إدخال إداري)
+   * يسجّل كل محاولة بصمة — ناجحة أو مرفوضة — في hr_attendance_attempts قبل أي رد.
+   * @returns {Promise<{method: string, attemptId: string|null}>}
+   */
+  async _verifyPunch({ companyId, userId, action, data = {}, context = {}, attendanceDate, hrSettings }) {
+    const parsedLocation = (() => {
+      if (!data.location) return null;
+      try {
+        return typeof data.location === "string" ? JSON.parse(data.location) : data.location;
+      } catch (e) {
+        return null;
+      }
+    })();
+
+    const accuracyRaw = Number(parsedLocation?.accuracy);
+    const baseAttempt = {
+      companyId,
+      userId,
+      action,
+      attendanceDate,
+      latitude: Number.isFinite(Number(parsedLocation?.latitude)) ? Number(parsedLocation.latitude) : null,
+      longitude: Number.isFinite(Number(parsedLocation?.longitude)) ? Number(parsedLocation.longitude) : null,
+      accuracyMeters: Number.isFinite(accuracyRaw) ? Math.round(accuracyRaw) : null,
+      clientIp: context?.ip || null,
+      userAgent: context?.userAgent || null,
+      deviceType: context?.deviceType || null,
+      method: data?.method || null,
+      workMode: data?.workMode || null,
+    };
+
+    const logAttempt = async (result, extra = {}) => {
+      try {
+        const row = await this.prisma.hrAttendanceAttempt.create({
+          data: { ...baseAttempt, result, ...extra },
+        });
+        return row.id;
+      } catch (logErr) {
+        console.warn("⚠️ [ATTENDANCE-ATTEMPT] Failed to log attempt:", logErr?.message || logErr);
+        return null;
+      }
+    };
+
+    const punchLabel = action === "CHECK_OUT" ? "الانصراف" : "الحضور";
+    const clientIp = context?.ip || null;
+    const defaultMethod = data.method || "self_service";
+
+    // 1) النطاق الجغرافي مقفول → بصمة عادية
+    if (!hrSettings || !hrSettings.geofenceEnabled) {
+      const attemptId = await logAttempt("SUCCESS", { reason: "geofence_disabled" });
+      return { method: defaultMethod, attemptId };
+    }
+
+    // 2) إدخال يدوي إداري فقط (الدور من السيرفر، وليس من البودي)
+    const actorRole = String(context?.actorRole || "").toUpperCase();
+    const isAdminActor = ["SUPER_ADMIN", "COMPANY_ADMIN", "OWNER", "MANAGER"].includes(actorRole);
+    if (data.method === "manual" && isAdminActor) {
+      const attemptId = await logAttempt("SUCCESS", { reason: "manual_admin_entry" });
+      return { method: "manual", attemptId };
+    }
+
+    // 3) العمل من المنزل لا يُعفى إلا لو الشركة مفعّلة السماح بذلك
+    if (data.workMode === "HOME" && hrSettings.allowRemoteCheckIn === true) {
+      const attemptId = await logAttempt("SUCCESS", { reason: "remote_work_allowed" });
+      return { method: "home", attemptId };
+    }
+
+    // 4) الجهاز على شبكة الفرع (IP) → يعدّي حتى لو مفيش GPS
+    const branchIpMatch = Boolean(
+      hrSettings.branchNetworkEnabled &&
+      clientIp &&
+      ipMatchesAllowlist(clientIp, hrSettings.branchIpAllowlist),
+    );
+    if (branchIpMatch) {
+      const attemptId = await logAttempt("SUCCESS", { branchIpMatch: true, reason: "branch_network" });
+      return { method: "network", attemptId };
+    }
+
+    // 5) مفيش موقع أصلاً
+    if (!data.location) {
+      const attemptId = await logAttempt("LOCATION_MISSING", { branchIpMatch: false });
+      const error = new AttendanceError(
+        `يجب السماح بالوصول للموقع لتسجيل ${punchLabel} من المكتب`,
+      );
+      error.statusCode = 403;
+      error.geofenceData = {
+        requiresLocation: true,
+        failure: "LOCATION_MISSING",
+        attemptId,
+        canRequestException: false,
+        branchNetworkEnabled: Boolean(hrSettings.branchNetworkEnabled),
+      };
+      throw error;
+    }
+
+    if (!parsedLocation) {
+      await logAttempt("ERROR", { branchIpMatch: false, reason: "invalid_location_payload" });
+      throw new AttendanceError("بيانات الموقع غير صحيحة");
+    }
+
+    if (!hrSettings.officeLatitude || !hrSettings.officeLongitude) {
+      await logAttempt("ERROR", { branchIpMatch: false, reason: "office_coordinates_missing" });
+      throw new AttendanceError("لم يتم تحديد موقع المكتب. يرجى التواصل مع الإدارة.");
+    }
+
+    const geofenceCheck = isWithinGeofence(
+      parsedLocation.latitude,
+      parsedLocation.longitude,
+      Number(hrSettings.officeLatitude),
+      Number(hrSettings.officeLongitude),
+      hrSettings.geofenceRadius || 200,
+      parsedLocation.accuracy,
+    );
+    const accuracy = Number(parsedLocation.accuracy) || 0;
+    const distanceExtra = {
+      branchIpMatch: false,
+      distanceMeters: Math.round(geofenceCheck.distance),
+      effectiveDistanceMeters: Math.round(geofenceCheck.effectiveDistance),
+      allowedRadiusMeters: geofenceCheck.allowedRadius,
+    };
+
+    if (geofenceCheck.isWithin) {
+      const attemptId = await logAttempt("SUCCESS", { ...distanceExtra, reason: "inside_geofence" });
+      return { method: defaultMethod, attemptId };
+    }
+
+    const failure = classifyGeofenceFailure({
+      distance: geofenceCheck.distance,
+      effectiveDistance: geofenceCheck.effectiveDistance,
+      allowedRadius: geofenceCheck.allowedRadius,
+      accuracy,
+    });
+    const attemptId = await logAttempt(
+      failure === "WEAK_ACCURACY" ? "WEAK_ACCURACY" : "GEOFENCE_FAILED",
+      { ...distanceExtra, reason: failure.toLowerCase() },
+    );
+
+    const message =
+      failure === "WEAK_ACCURACY"
+        ? formatWeakAccuracyMessage(accuracy)
+        : formatGeofenceError(geofenceCheck.effectiveDistance, geofenceCheck.allowedRadius, accuracy);
+
+    const error = new AttendanceError(message);
+    error.statusCode = 403;
+    error.geofenceData = {
+      failure,
+      distance: Math.round(geofenceCheck.effectiveDistance),
+      allowedRadius: geofenceCheck.allowedRadius,
+      accuracy,
+      rawDistance: Math.round(geofenceCheck.distance),
+      attemptId,
+      canRequestException: true,
+      branchNetworkEnabled: Boolean(hrSettings.branchNetworkEnabled),
+      requiresLocation: false,
+    };
+    throw error;
+  }
+
+  /**
    * تسجيل حضور
    */
-  async checkIn(companyId, employeeId, data = {}) {
+  async checkIn(companyId, employeeId, data = {}, context = {}) {
     // 1. Fetch Company Timezone
     const timezone = await this.getCompanyTimezone(companyId);
 
@@ -592,6 +753,9 @@ class AttendanceService {
           officeLatitude: true,
           officeLongitude: true,
           geofenceRadius: true,
+          branchNetworkEnabled: true,
+          branchIpAllowlist: true,
+          allowRemoteCheckIn: true,
           lateGracePeriod: true,
         },
       });
@@ -599,59 +763,17 @@ class AttendanceService {
       // تجهيز بيانات الموقع للتخزين
       // Already normalized above
 
-      // التحقق من النطاق الجغرافي إذا كان مفعلاً (يُستثنى العمل من المنزل والتسجيل اليدوي من الإدارة)
-      if (hrSettings && hrSettings.geofenceEnabled && data.workMode !== "HOME" && data.method !== "manual") {
-        if (!data.location) {
-          const error = new AttendanceError(
-            "يجب السماح بالوصول للموقع لتسجيل الحضور من المكتب",
-          );
-          error.statusCode = 403;
-          error.geofenceData = { requiresLocation: true };
-          throw error;
-        }
-
-        let userLocation;
-        try {
-          userLocation =
-            typeof data.location === "string"
-              ? JSON.parse(data.location)
-              : data.location;
-        } catch (e) {
-          throw new AttendanceError("بيانات الموقع غير صحيحة");
-        }
-
-        if (!hrSettings.officeLatitude || !hrSettings.officeLongitude) {
-          throw new AttendanceError(
-            "لم يتم تحديد موقع المكتب. يرجى التواصل مع الإدارة.",
-          );
-        }
-
-        const geofenceCheck = isWithinGeofence(
-          userLocation.latitude,
-          userLocation.longitude,
-          Number(hrSettings.officeLatitude),
-          Number(hrSettings.officeLongitude),
-          hrSettings.geofenceRadius || 200,
-          userLocation.accuracy,
-        );
-
-        if (!geofenceCheck.isWithin) {
-          const error = new AttendanceError(
-            formatGeofenceError(
-              geofenceCheck.effectiveDistance,
-              geofenceCheck.allowedRadius,
-              geofenceCheck.accuracy,
-            ),
-          );
-          error.statusCode = 403;
-          error.geofenceData = {
-            distance: geofenceCheck.effectiveDistance,
-            allowedRadius: geofenceCheck.allowedRadius,
-            isWithin: false,
-          };
-          throw error;
-        }
-      }
+      // إثبات التواجد: شبكة الفرع / النطاق الجغرافي / السماح بالعمل عن بعد
+      const punch = await this._verifyPunch({
+        companyId,
+        userId: employeeId,
+        action: "CHECK_IN",
+        data,
+        context,
+        attendanceDate: todayForDb,
+        hrSettings,
+      });
+      const punchMethod = punch.method;
 
       // التحقق من عدم وجود تسجيل حضور لنفس اليوم
       const existing = await this.prisma.attendance.findUnique({
@@ -731,7 +853,7 @@ class AttendanceService {
             data: {
               checkIn: now,
               checkInLocation: normalizedLocation,
-              checkInMethod: data.method || "manual",
+              checkInMethod: punchMethod,
               workMode: data.workMode || "OFFICE",
               lateMinutes,
               status,
@@ -745,12 +867,24 @@ class AttendanceService {
               date: todayForDb, // ✅ FIX: Use normalized date for @db.Date column
               checkIn: now,
               checkInLocation: normalizedLocation,
-              checkInMethod: data.method || "manual",
+              checkInMethod: punchMethod,
               workMode: data.workMode || "OFFICE",
               lateMinutes,
               status,
             },
           });
+
+      // ربط المحاولة المسجلة بسجل الحضور (لدليل الاستثناء)
+      if (punch?.attemptId && attendance?.id) {
+        try {
+          await this.prisma.hrAttendanceAttempt.update({
+            where: { id: punch.attemptId },
+            data: { attendanceId: attendance.id },
+          });
+        } catch (linkErr) {
+          console.warn("⚠️ [ATTENDANCE-ATTEMPT] Failed to link attendanceId:", linkErr?.message || linkErr);
+        }
+      }
 
       // معالجة الخصم التلقائي للتأخير
       // TODO: تفعيل بعد تحويل autoDeductionService لاستخدام Prisma
@@ -899,7 +1033,7 @@ class AttendanceService {
   /**
    * تسجيل انصراف
    */
-  async checkOut(companyId, employeeId, data = {}) {
+  async checkOut(companyId, employeeId, data = {}, context = {}) {
     // 1. Fetch Company Timezone
     const timezone = await this.getCompanyTimezone(companyId);
 
@@ -923,6 +1057,9 @@ class AttendanceService {
           officeLatitude: true,
           officeLongitude: true,
           geofenceRadius: true,
+          branchNetworkEnabled: true,
+          branchIpAllowlist: true,
+          allowRemoteCheckIn: true,
           earlyLeaveGracePeriod: true,
         },
       });
@@ -930,59 +1067,17 @@ class AttendanceService {
       // تجهيز بيانات الموقع للتخزين
       // Already normalized above
 
-      // التحقق من النطاق الجغرافي إذا كان مفعلاً (يُستثنى العمل من المنزل والتسجيل اليدوي من الإدارة)
-      if (hrSettings && hrSettings.geofenceEnabled && data.workMode !== "HOME" && data.method !== "manual") {
-        if (!data.location) {
-          const error = new AttendanceError(
-            "يجب السماح بالوصول للموقع لتسجيل الانصراف من المكتب",
-          );
-          error.statusCode = 403;
-          error.geofenceData = { requiresLocation: true };
-          throw error;
-        }
-
-        let userLocation;
-        try {
-          userLocation =
-            typeof data.location === "string"
-              ? JSON.parse(data.location)
-              : data.location;
-        } catch (e) {
-          throw new AttendanceError("بيانات الموقع غير صحيحة");
-        }
-
-        if (!hrSettings.officeLatitude || !hrSettings.officeLongitude) {
-          throw new AttendanceError(
-            "لم يتم تحديد موقع المكتب. يرجى التواصل مع الإدارة.",
-          );
-        }
-
-        const geofenceCheck = isWithinGeofence(
-          userLocation.latitude,
-          userLocation.longitude,
-          Number(hrSettings.officeLatitude),
-          Number(hrSettings.officeLongitude),
-          hrSettings.geofenceRadius || 200,
-          userLocation.accuracy,
-        );
-
-        if (!geofenceCheck.isWithin) {
-          const error = new AttendanceError(
-            formatGeofenceError(
-              geofenceCheck.effectiveDistance,
-              geofenceCheck.allowedRadius,
-              geofenceCheck.accuracy,
-            ),
-          );
-          error.statusCode = 403;
-          error.geofenceData = {
-            distance: geofenceCheck.effectiveDistance,
-            allowedRadius: geofenceCheck.allowedRadius,
-            isWithin: false,
-          };
-          throw error;
-        }
-      }
+      // إثبات التواجد: شبكة الفرع / النطاق الجغرافي / السماح بالعمل عن بعد
+      const punch = await this._verifyPunch({
+        companyId,
+        userId: employeeId,
+        action: "CHECK_OUT",
+        data,
+        context,
+        attendanceDate: today,
+        hrSettings,
+      });
+      const punchMethod = punch.method;
 
       console.log(
         `⏰ [CHECKOUT] Starting resilient check-out look-up for employee: ${employeeId}`,
@@ -1158,7 +1253,7 @@ class AttendanceService {
         data: {
           checkOut: now,
           checkOutLocation: normalizedLocation,
-          checkOutMethod: data.method || "manual",
+          checkOutMethod: punchMethod,
           workMode: data.workMode || attendance.workMode || "OFFICE",
           status: finalStatus,
           lateMinutes: isRecordRestDay ? 0 : attendance.lateMinutes,
@@ -1167,6 +1262,18 @@ class AttendanceService {
           overtimeHours: Math.round(overtimeHours * 100) / 100,
         },
       });
+
+      // ربط المحاولة المسجلة بسجل الحضور (لدليل الاستثناء)
+      if (punch?.attemptId && updated?.id) {
+        try {
+          await this.prisma.hrAttendanceAttempt.update({
+            where: { id: punch.attemptId },
+            data: { attendanceId: updated.id },
+          });
+        } catch (linkErr) {
+          console.warn("⚠️ [ATTENDANCE-ATTEMPT] Failed to link attendanceId (checkout):", linkErr?.message || linkErr);
+        }
+      }
 
       // ⏱️ الربط الحتمي: إيقاف جميع مؤقتات المهام النشطة للموظف فور تسجيل بصمة الانصراف
       try {

@@ -85,6 +85,9 @@ export interface HRSettingsData {
   officeLatitude: string;
   officeLongitude: string;
   geofenceRadius: number;
+  branchNetworkEnabled: boolean;
+  branchIpAllowlist: string;
+  branchNetworkLabel: string;
 
   // Auto Deduction Settings
   autoDeductionEnabled: boolean;
@@ -203,7 +206,7 @@ export const defaultHRSettings: HRSettingsData = {
   minMonthsForAdvance: 3,
   advanceRepaymentMonths: 6,
 
-  allowRemoteCheckIn: true,
+  allowRemoteCheckIn: false,
   requireLocation: false,
   lateThreshold: 15,
   earlyLeaveThreshold: 15,
@@ -220,6 +223,9 @@ export const defaultHRSettings: HRSettingsData = {
   officeLatitude: "",
   officeLongitude: "",
   geofenceRadius: 200,
+  branchNetworkEnabled: false,
+  branchIpAllowlist: "",
+  branchNetworkLabel: "",
 
   autoDeductionEnabled: false,
   gracePeriodMinutes: 60,

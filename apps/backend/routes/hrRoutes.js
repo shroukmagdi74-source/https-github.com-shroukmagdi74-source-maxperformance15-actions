@@ -268,6 +268,11 @@ router.delete('/employee-invitations/:id', verifyToken.authenticateToken, verify
 router.post('/attendance/check-in', hrController.checkIn);
 router.post('/attendance/check-out', hrController.checkOut);
 
+// 🙋 طلبات استثناء البصمة — الموظف يقدم، المدير/HR يعتمد
+router.post('/attendance/exception-requests', hrController.createAttendanceExceptionRequest);
+router.get('/attendance/exception-requests', verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.listAttendanceExceptionRequests);
+router.post('/attendance/exception-requests/:id/decide', verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.decideAttendanceExceptionRequest);
+
 // 🔒 Protected Management Routes
 router.get('/attendance/today', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER', 'AGENT']), hrController.getTodayAttendance);
 router.get('/attendance/stats', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER', 'AGENT']), hrController.getAttendanceStats);

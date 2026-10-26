@@ -12,7 +12,8 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { envConfig } from "../../../config/environment";
-import { SelectedMapLocation, TodayGoal } from "./types";
+import { SelectedMapLocation, TodayGoal, GeofenceModalData } from "./types";
+import { AttendanceGeofenceDialog } from "./AttendanceGeofenceDialog";
 
 interface MyAttendanceModalsProps {
   t: TFunction;
@@ -26,6 +27,9 @@ interface MyAttendanceModalsProps {
   showMapModal: boolean;
   onMapModalChange: (open: boolean) => void;
   selectedLocation: SelectedMapLocation | null;
+  showGeofenceModal: boolean;
+  onGeofenceModalChange: (open: boolean) => void;
+  geofenceModalData: GeofenceModalData | null;
 }
 
 export const MyAttendanceModals: React.FC<MyAttendanceModalsProps> = ({
@@ -40,9 +44,18 @@ export const MyAttendanceModals: React.FC<MyAttendanceModalsProps> = ({
   showMapModal,
   onMapModalChange,
   selectedLocation,
+  showGeofenceModal,
+  onGeofenceModalChange,
+  geofenceModalData,
 }) => {
   return (
     <>
+      <AttendanceGeofenceDialog
+        open={showGeofenceModal}
+        onOpenChange={onGeofenceModalChange}
+        data={geofenceModalData}
+        t={t}
+      />
       <Dialog
         open={showGoalsReviewDialog}
         onOpenChange={(open) => {

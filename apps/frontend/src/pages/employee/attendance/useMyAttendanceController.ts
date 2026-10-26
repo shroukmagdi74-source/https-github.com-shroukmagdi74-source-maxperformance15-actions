@@ -5,6 +5,7 @@ import api from "../../../services/api";
 import { useAuth } from "../../../hooks/useAuthSimple";
 import {
   AttendanceStats,
+  GeofenceModalData,
   SelectedMapLocation,
   STALE_SHIFT_HOURS,
   TodayAttendance,
@@ -45,6 +46,8 @@ export const useMyAttendanceController = () => {
     Record<string, string>
   >({});
   const [showGoalsReviewDialog, setShowGoalsReviewDialog] = useState(false);
+  const [geofenceModalData, setGeofenceModalData] = useState<GeofenceModalData | null>(null);
+  const [showGeofenceModal, setShowGeofenceModal] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -242,7 +245,10 @@ export const useMyAttendanceController = () => {
       await fetchRecentAttendance();
       setShowGoalsReviewDialog(false);
     } catch (error: unknown) {
-      handleAttendanceActionError(error, t, "checkout");
+      handleAttendanceActionError(error, t, "checkout", (data) => {
+        setGeofenceModalData(data);
+        setShowGeofenceModal(true);
+      });
     } finally {
       setCheckingOut(false);
     }
@@ -310,7 +316,10 @@ export const useMyAttendanceController = () => {
       setRecentPage(1);
       await fetchRecentAttendance();
     } catch (error: unknown) {
-      handleAttendanceActionError(error, t, "checkin");
+      handleAttendanceActionError(error, t, "checkin", (data) => {
+        setGeofenceModalData(data);
+        setShowGeofenceModal(true);
+      });
     } finally {
       setCheckingIn(false);
     }
@@ -417,5 +426,8 @@ export const useMyAttendanceController = () => {
     formattedCheckIn,
     formattedCheckOut,
     staleHours,
+    geofenceModalData,
+    showGeofenceModal,
+    setShowGeofenceModal,
   };
 };

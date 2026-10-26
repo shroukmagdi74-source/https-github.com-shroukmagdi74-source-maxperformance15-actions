@@ -782,6 +782,10 @@ model HRSettings {
   officeLatitude                Decimal? @db.Decimal(10, 8)
   officeLongitude               Decimal? @db.Decimal(11, 8)
   geofenceRadius                Int?     @default(200)
+  branchNetworkEnabled          Boolean  @default(false)
+  branchIpAllowlist             String?
+  branchNetworkLabel            String?
+  allowRemoteCheckIn            Boolean  @default(false)
   payrollDay                    Int      @default(25)
   overtimeMinHours              Decimal  @default(1.0) @db.Decimal(3, 1)
   overtimeRate                  Decimal  @default(1.50) @db.Decimal(3, 2)
@@ -1358,5 +1362,79 @@ model HrWebhookDelivery {
   @@index([companyId, event])
   @@index([endpointId, createdAt])
   @@map("hr_webhook_deliveries")
+}
+
+enum HrAttendanceAttemptResult {
+  SUCCESS
+  GEOFENCE_FAILED
+  WEAK_ACCURACY
+  LOCATION_MISSING
+  NETWORK_FAILED
+  ERROR
+}
+
+enum HrAttendanceAttemptAction {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum HrAttendanceExceptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model HrAttendanceAttempt {
+  id                      String                     @id @default(cuid())
+  companyId               String
+  userId                  String
+  action                  HrAttendanceAttemptAction
+  attemptedAt             DateTime                   @default(now())
+  attendanceDate          DateTime                   @db.Date
+  latitude                Float?
+  longitude               Float?
+  accuracyMeters          Int?
+  distanceMeters          Int?
+  effectiveDistanceMeters Int?
+  allowedRadiusMeters     Int?
+  branchIpMatch           Boolean                    @default(false)
+  clientIp                String?
+  userAgent               String?
+  deviceType              String?
+  method                  String?
+  workMode                String?
+  result                  HrAttendanceAttemptResult
+  reason                  String?
+  attendanceId            String?
+
+  @@index([companyId, attemptedAt])
+  @@index([userId, attemptedAt])
+  @@index([result])
+  @@index([companyId, attendanceDate])
+  @@map("hr_attendance_attempts")
+}
+
+model HrAttendanceExceptionRequest {
+  id             String                      @id @default(cuid())
+  companyId      String
+  userId         String
+  attemptId      String                      @unique
+  attendanceDate DateTime                    @db.Date
+  requestedAt    DateTime                    @default(now())
+  status         HrAttendanceExceptionStatus @default(PENDING)
+  reason         String
+  distanceMeters Int?
+  accuracyMeters Int?
+  clientIp       String?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  attendanceId   String?
+  updatedAt      DateTime                    @updatedAt
+
+  @@index([companyId, status])
+  @@index([userId, attendanceDate])
+  @@map("hr_attendance_exception_requests")
 }
 

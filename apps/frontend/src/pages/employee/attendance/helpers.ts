@@ -2,6 +2,7 @@ import React from "react";
 import { AlertCircle, Calendar, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import type { TFunction } from "i18next";
+import { GeofenceModalData } from "./types";
 
 export const statusConfig: Record<
   string,
@@ -87,6 +88,7 @@ export const handleAttendanceActionError = (
   error: unknown,
   t: TFunction,
   mode: "checkin" | "checkout",
+  onGeofenceModal?: (data: GeofenceModalData) => void,
 ) => {
   const apiError = getApiError(error);
 
@@ -94,19 +96,28 @@ export const handleAttendanceActionError = (
     apiError.response?.status === 403 &&
     apiError.response?.data?.geofenceData
   ) {
-    if (apiError.response.data.geofenceData.requiresLocation) {
+    const geofenceData = apiError.response.data.geofenceData;
+
+    // Use dialog if callback provided and (requires location OR attemptId is present)
+    if (onGeofenceModal && (geofenceData.requiresLocation || geofenceData.attemptId)) {
+      onGeofenceModal(geofenceData);
+      return;
+    }
+
+    // Fall back to toast if attemptId is missing or no dialog callback
+    if (geofenceData.requiresLocation) {
       toast.error(t("employee.attendance.locationRequired"), {
         description: t("employee.attendance.locationRequiredDesc"),
         duration: 8000,
       });
       return;
     }
-    const { distance, allowedRadius } = apiError.response.data.geofenceData;
-    const distanceToMove = Math.round(distance - allowedRadius);
+    const { distance, allowedRadius } = geofenceData;
+    const distanceToMove = Math.round((distance || 0) - (allowedRadius || 0));
     toast.error(t("employee.attendance.geofenceError"), {
       description: t("employee.attendance.geofenceDetail", {
-        distance: Math.round(distance),
-        allowed: allowedRadius,
+        distance: Math.round(distance || 0),
+        allowed: allowedRadius || 0,
         toMove: distanceToMove,
       }),
       duration: 8000,

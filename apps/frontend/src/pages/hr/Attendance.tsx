@@ -13,6 +13,7 @@ import {
   AttendanceDeleteDialog,
   AttendanceNotesDialog,
   AttendanceMapDialog,
+  AttendanceExceptionRequestsSection,
 } from "./attendance/index";
 
 export const Attendance: React.FC = () => {
@@ -71,6 +72,8 @@ export const Attendance: React.FC = () => {
     handleEditClick,
     openLocationInMap,
     handleExport,
+    fetchAttendance,
+    fetchTodayStats,
   } = useAttendanceController();
 
   return (
@@ -120,6 +123,14 @@ export const Attendance: React.FC = () => {
         setAutoClosedOnly={setAutoClosedOnly}
         autoCloseReviewStatus={autoCloseReviewStatus}
         setAutoCloseReviewStatus={setAutoCloseReviewStatus}
+      />
+
+      {/* طلبات استثناء البصمة */}
+      <AttendanceExceptionRequestsSection
+        onDecisionSuccess={() => {
+          fetchAttendance();
+          fetchTodayStats();
+        }}
       />
 
       {/* Search & Filter Controls */}

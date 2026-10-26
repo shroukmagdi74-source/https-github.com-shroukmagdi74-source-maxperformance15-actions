@@ -49,6 +49,9 @@ const MyAttendance: React.FC = () => {
     formattedCheckIn,
     formattedCheckOut,
     staleHours,
+    geofenceModalData,
+    showGeofenceModal,
+    setShowGeofenceModal,
   } = useMyAttendanceController();
 
   if (loading) {
@@ -150,6 +153,9 @@ const MyAttendance: React.FC = () => {
         showMapModal={showMapModal}
         onMapModalChange={setShowMapModal}
         selectedLocation={selectedLocation}
+        showGeofenceModal={showGeofenceModal}
+        onGeofenceModalChange={setShowGeofenceModal}
+        geofenceModalData={geofenceModalData}
       />
     </div>
   );

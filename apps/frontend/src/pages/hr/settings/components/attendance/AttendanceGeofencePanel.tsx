@@ -6,6 +6,7 @@ import {
   Loader2,
   MapPin,
   Navigation,
+  Network,
 } from "lucide-react";
 import {
   Card,
@@ -18,6 +19,7 @@ import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
 import { Switch } from "../../../../../components/ui/switch";
+import { Textarea } from "../../../../../components/ui/textarea";
 import type { HRSettingsData } from "../../types/hrSettingsTypes";
 
 interface AttendanceGeofencePanelProps {
@@ -47,6 +49,7 @@ export const AttendanceGeofencePanel: React.FC<
   onOpenInGoogleMaps,
 }) => {
   return (
+    <div className="space-y-6">
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -225,5 +228,94 @@ export const AttendanceGeofencePanel: React.FC<
         )}
       </CardContent>
     </Card>
+
+    {/* بطاقة التحقق عبر شبكة الفرع */}
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Network className="h-5 w-5 text-indigo-500" />
+          التحقق عبر شبكة الفرع
+        </CardTitle>
+        <CardDescription>
+          السماح بالبصمة تلقائياً للأجهزة المتصلة بشبكة الفرع المعتمدة عبر عنوان IP أو نطاق الشبكة دون التقيد بـ GPS
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex items-center justify-between p-4 border border-indigo-200 dark:border-indigo-800 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20">
+          <div>
+            <Label className="text-indigo-900 dark:text-indigo-100 font-bold">
+              تفعيل التحقق عبر شبكة الفرع
+            </Label>
+            <p className="text-sm text-indigo-700 dark:text-indigo-300">
+              السماح بالبصمة عند تطابق عنوان IP للجهاز مع عناوين شبكة الفرع المعتمدة
+            </p>
+          </div>
+          <Switch
+            checked={Boolean(settings.branchNetworkEnabled)}
+            onCheckedChange={(checked) =>
+              setSettings((previous) => ({
+                ...previous,
+                branchNetworkEnabled: checked,
+              }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>تسمية شبكة الفرع (اختياري)</Label>
+          <Input
+            type="text"
+            placeholder="مثال: شبكة المقر الرئيسي - واي فاي الإدارة"
+            value={settings.branchNetworkLabel || ""}
+            onChange={(e) =>
+              setSettings((previous) => ({
+                ...previous,
+                branchNetworkLabel: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>قائمة عناوين IP المعتمدة (IPv4 أو CIDR، كل عنوان في سطر)</Label>
+          <Textarea
+            placeholder={"192.168.1.1\n10.0.0.0/24\n197.35.0.0/16"}
+            value={settings.branchIpAllowlist || ""}
+            onChange={(e) =>
+              setSettings((previous) => ({
+                ...previous,
+                branchIpAllowlist: e.target.value,
+              }))
+            }
+            rows={4}
+            className="font-mono text-sm"
+          />
+          <p className="text-xs text-gray-500">
+            يدعم عناوين IPv4 المحددة ونطاقات CIDR (مثل 192.168.1.0/24). افصل بين العناوين بسطر جديد أو فاصلة.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between p-4 border rounded-xl bg-gray-50/50 dark:bg-gray-900/20">
+          <div>
+            <Label className="font-bold">
+              السماح بالبصمة من المنزل
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              عند التفعيل يُسمح للبصمة من المنزل دون التحقق من النطاق الجغرافي
+            </p>
+          </div>
+          <Switch
+            checked={Boolean(settings.allowRemoteCheckIn)}
+            onCheckedChange={(checked) =>
+              setSettings((previous) => ({
+                ...previous,
+                allowRemoteCheckIn: checked,
+              }))
+            }
+          />
+        </div>
+      </CardContent>
+    </Card>
+  </div>
   );
 };

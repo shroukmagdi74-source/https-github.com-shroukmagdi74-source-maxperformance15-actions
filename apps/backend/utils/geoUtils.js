@@ -47,6 +47,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
  * @param {number} officeLat - خط عرض المكتب (Office latitude)
  * @param {number} officeLon - خط طول المكتب (Office longitude)
  * @param {number} radius - نصف القطر المسموح بالمتر (Allowed radius in meters)
+ * @param {number} [userAccuracy=0] - دقة جهاز الموظف بالمتر
  * @returns {Object} - نتيجة التحقق (Validation result)
  */
 function isWithinGeofence(userLat, userLon, officeLat, officeLon, radius, userAccuracy = 0) {
@@ -76,7 +77,7 @@ function isWithinGeofence(userLat, userLon, officeLat, officeLon, radius, userAc
 }
 
 /**
- * تنسيق رسالة خطأ عند البصمة خارج النطاق
+ * تنسيق رسالة خطأ عند البصمة خارج النطاق (بدون جملة دقة الـ GPS)
  * Format error message for out-of-range attendance
  * 
  * @param {number} distance - المسافة الحالية (Current distance)
@@ -85,18 +86,44 @@ function isWithinGeofence(userLat, userLon, officeLat, officeLon, radius, userAc
  */
 function formatGeofenceError(distance, allowedRadius, accuracy = 0) {
   const roundedDistance = Math.round(distance);
-  const extraDistance = roundedDistance - allowedRadius;
+  const extraDistance = Math.max(0, roundedDistance - allowedRadius);
   
-  let msg = `أنت خارج النطاق المسموح للبصمة.\n` +
+  return `أنت خارج النطاق المسموح للبصمة.\n` +
          `المسافة الحالية: ${roundedDistance} متر\n` +
          `المسافة المسموحة: ${allowedRadius} متر\n` +
          `يجب أن تقترب ${extraDistance} متر من المكتب للبصمة.`;
-         
-  if (accuracy > 150) {
-    msg += `\n\n⚠️ تم رصد دقة GPS ضعيفة (${Math.round(accuracy)} متر).\nيرجى تشغيل الـ Wi-Fi أو الوقوف بجوار نافذة لتحديد الموقع بدقة.`;
+}
+
+/**
+ * تنسيق رسالة خطأ عند ضعف دقة تحديد الموقع GPS
+ * Format error message for weak GPS accuracy
+ * 
+ * @param {number} accuracy - دقة الموقع بالمتر (Accuracy in meters)
+ * @returns {string} - رسالة الخطأ (Error message)
+ */
+function formatWeakAccuracyMessage(accuracy = 0) {
+  const roundedAccuracy = Math.round(accuracy || 0);
+  return `موقع جهازك تقريبي جدًا (دقة GPS ضعيفة: ${roundedAccuracy} متر).\n` +
+         `قد يكون الجهاز مكتبيًا بدون GPS أو خدمة الموقع مقفولة أو غير دقيقة.\n` +
+         `يرجى تشغيل الـ Wi-Fi، أو السماح بتحديد الموقع بدقة، أو استخدام تطبيق الموبايل.`;
+}
+
+/**
+ * تصنيف نوع فشل البصمة الجغرافية
+ * Classify geofence failure reason
+ * 
+ * @param {object} params
+ * @param {number} [params.distance]
+ * @param {number} [params.effectiveDistance]
+ * @param {number} [params.allowedRadius]
+ * @param {number} [params.accuracy]
+ * @returns {"WEAK_ACCURACY" | "OUT_OF_RANGE"}
+ */
+function classifyGeofenceFailure({ distance, effectiveDistance, allowedRadius, accuracy } = {}) {
+  if (Number(accuracy) > 500) {
+    return "WEAK_ACCURACY";
   }
-  
-  return msg;
+  return "OUT_OF_RANGE";
 }
 
 /**
@@ -122,5 +149,7 @@ module.exports = {
   calculateDistance,
   isWithinGeofence,
   formatGeofenceError,
+  formatWeakAccuracyMessage,
+  classifyGeofenceFailure,
   isValidCoordinates
 };

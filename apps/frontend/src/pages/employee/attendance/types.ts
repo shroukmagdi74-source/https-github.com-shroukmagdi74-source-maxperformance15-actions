@@ -39,4 +39,16 @@ export interface SelectedMapLocation {
   type: string;
 }
 
+export interface GeofenceModalData {
+  distance?: number;
+  rawDistance?: number;
+  allowedRadius?: number;
+  accuracy?: number;
+  failure?: "OUT_OF_RANGE" | "WEAK_ACCURACY" | "LOCATION_MISSING" | "REMOTE_NOT_ALLOWED" | string;
+  attemptId?: string | null;
+  canRequestException?: boolean;
+  branchNetworkEnabled?: boolean;
+  requiresLocation?: boolean;
+}
+
 export const STALE_SHIFT_HOURS = 24;

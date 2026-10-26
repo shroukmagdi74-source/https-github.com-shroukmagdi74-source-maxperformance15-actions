@@ -6,6 +6,7 @@
 const employeeService = require('./employeeService');
 const departmentService = require('./departmentService');
 const attendanceService = require('./attendanceService');
+const attendanceExceptionService = require('./attendanceExceptionService');
 const leaveService = require('./leaveService');
 const payrollService = require('./payrollService');
 const documentService = require('./documentService');
@@ -33,6 +34,7 @@ module.exports = {
   employeeService,
   departmentService,
   attendanceService,
+  attendanceExceptionService,
   leaveService,
   payrollService,
   documentService,

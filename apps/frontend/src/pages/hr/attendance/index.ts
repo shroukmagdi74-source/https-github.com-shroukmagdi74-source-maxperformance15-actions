@@ -11,3 +11,4 @@ export * from "./AutoCloseReviewDialog";
 export * from "./AttendanceDeleteDialog";
 export * from "./AttendanceNotesDialog";
 export * from "./AttendanceMapDialog";
+export * from "./AttendanceExceptionRequestsSection";

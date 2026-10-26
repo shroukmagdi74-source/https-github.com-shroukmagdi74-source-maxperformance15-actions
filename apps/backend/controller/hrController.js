@@ -26,6 +26,8 @@ const {
   recruitmentService,
 } = require("../services/hr");
 const { handleHRError } = require("../utils/hrErrors");
+const { getClientIp, detectDeviceType } = require("../utils/clientIp");
+const attendanceExceptionService = require("../services/hr/attendanceExceptionService");
 const { getSharedPrismaClient } = require("../services/sharedDatabase");
 const {
   resolveEvaluationPeriod,
@@ -1993,9 +1995,107 @@ async function getEmployeeStats(req, res) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * يبني سياق البصمة الموثوق من الطلب (IP/جهاز/دور المستخدم) — لا يأتي أبدًا من البودي
+ */
+function buildAttendanceContext(req) {
+  const userAgent = req.headers["user-agent"] || null;
+  return {
+    ip: getClientIp(req),
+    userAgent,
+    deviceType: detectDeviceType(userAgent),
+    actorRole: req.user?.role || null,
+  };
+}
+
+/**
  * تسجيل حضور
  * POST /api/hr/attendance/check-in
  */
+/**
+ * إنشاء طلب استثناء بصمة
+ * POST /api/hr/attendance/exception-requests
+ */
+async function createAttendanceExceptionRequest(req, res) {
+  try {
+    const { companyId, id: userId } = req.user;
+    const { attemptId, reason } = req.body || {};
+
+    const request = await attendanceExceptionService.createExceptionRequest(
+      companyId,
+      userId,
+      { attemptId, reason },
+    );
+
+    res.status(201).json({ success: true, request });
+  } catch (error) {
+    console.error("❌ Error creating attendance exception request:", error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message || "تعذر إرسال طلب الاستثناء",
+    });
+  }
+}
+
+/**
+ * عرض طلبات استثناء البصمة
+ * GET /api/hr/attendance/exception-requests
+ */
+async function listAttendanceExceptionRequests(req, res) {
+  try {
+    const { companyId } = req.user;
+    const { status, from, to } = req.query || {};
+
+    const requests = await attendanceExceptionService.listExceptionRequests(companyId, {
+      status: status ? String(status).toUpperCase() : undefined,
+      from,
+      to,
+    });
+
+    res.json({ success: true, requests });
+  } catch (error) {
+    console.error("❌ Error listing attendance exception requests:", error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message || "تعذر جلب طلبات الاستثناء",
+    });
+  }
+}
+
+/**
+ * اعتماد/رفض طلب استثناء بصمة
+ * POST /api/hr/attendance/exception-requests/:id/decide
+ */
+async function decideAttendanceExceptionRequest(req, res) {
+  try {
+    const { companyId, id: actorId } = req.user;
+    const { id } = req.params;
+    const { decision, note } = req.body || {};
+
+    const normalized = String(decision || "").toUpperCase();
+    if (!["APPROVE", "APPROVED", "REJECT", "REJECTED"].includes(normalized)) {
+      return res.status(400).json({
+        success: false,
+        error: "قرار غير صالح. استخدم APPROVE أو REJECT",
+      });
+    }
+    const finalDecision = normalized.startsWith("APPROV") ? "APPROVED" : "REJECTED";
+
+    const request = await attendanceExceptionService.decideExceptionRequest(
+      companyId,
+      id,
+      { decision: finalDecision, note, decidedById: actorId },
+    );
+
+    res.json({ success: true, request });
+  } catch (error) {
+    console.error("❌ Error deciding attendance exception request:", error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message || "تعذر تنفيذ القرار على الطلب",
+    });
+  }
+}
+
 async function checkIn(req, res) {
   try {
     const { companyId, id: userId, role } = req.user;
@@ -2028,6 +2128,7 @@ async function checkIn(req, res) {
         method,
         workMode,
       },
+      buildAttendanceContext(req),
     );
 
     const employee = await employeeService.getEmployeeByUserId(
@@ -2108,6 +2209,7 @@ async function checkOut(req, res) {
         method,
         workMode,
       },
+      buildAttendanceContext(req),
     );
 
     // Notifications are now handled centrally in attendanceService.checkOut
@@ -5693,6 +5795,10 @@ const HR_SETTINGS_DB_SAFE_SELECT = {
   officeLatitude: true,
   officeLongitude: true,
   geofenceRadius: true,
+  branchNetworkEnabled: true,
+  branchIpAllowlist: true,
+  branchNetworkLabel: true,
+  allowRemoteCheckIn: true,
   payrollDay: true,
   overtimeMinHours: true,
   overtimeRate: true,
@@ -5886,7 +5992,6 @@ function mapHRSettingsPayload(settings, notificationHealth) {
       taxRate: Number(settings?.taxRate) || 0,
       socialInsuranceRate: Number(settings?.socialInsuranceRate) || 0,
       overtimeRate: settings?.overtimeRate !== null && settings?.overtimeRate !== undefined ? Number(settings.overtimeRate) : 1.0,
-      allowRemoteCheckIn: true,
       requireLocation: false,
       lateThreshold:
         settings?.lateThresholdMinutes || settings?.lateGracePeriod || 10,
@@ -5905,6 +6010,10 @@ function mapHRSettingsPayload(settings, notificationHealth) {
         ? String(settings.officeLongitude)
         : "",
       geofenceRadius: settings?.geofenceRadius || 200,
+      branchNetworkEnabled: settings?.branchNetworkEnabled || false,
+      branchIpAllowlist: settings?.branchIpAllowlist || "",
+      branchNetworkLabel: settings?.branchNetworkLabel || "",
+      allowRemoteCheckIn: settings?.allowRemoteCheckIn || false,
       autoDeductionEnabled: settings?.autoDeductionEnabled || false,
       gracePeriodMinutes: settings?.gracePeriodMinutes || 60,
       lateThresholdMinutes: settings?.lateThresholdMinutes || settings?.lateGracePeriod || 10,
@@ -6141,6 +6250,10 @@ async function updateHRSettings(req, res) {
       officeLatitude,
       officeLongitude,
       geofenceRadius,
+      branchNetworkEnabled,
+      branchIpAllowlist,
+      branchNetworkLabel,
+      allowRemoteCheckIn,
       // Auto Deduction fields
       autoDeductionEnabled,
       gracePeriodMinutes,
@@ -6253,6 +6366,18 @@ async function updateHRSettings(req, res) {
       officeLongitude: officeLongitude ? parseFloat(officeLongitude) : null,
       geofenceRadius:
         geofenceRadius !== undefined ? parseInt(geofenceRadius) : 200,
+      ...(branchNetworkEnabled !== undefined
+        ? { branchNetworkEnabled: branchNetworkEnabled === true || branchNetworkEnabled === "true" }
+        : {}),
+      ...(branchIpAllowlist !== undefined
+        ? { branchIpAllowlist: branchIpAllowlist ? String(branchIpAllowlist).trim() : null }
+        : {}),
+      ...(branchNetworkLabel !== undefined
+        ? { branchNetworkLabel: branchNetworkLabel ? String(branchNetworkLabel).trim() : null }
+        : {}),
+      ...(allowRemoteCheckIn !== undefined
+        ? { allowRemoteCheckIn: allowRemoteCheckIn === true || allowRemoteCheckIn === "true" }
+        : {}),
       // Auto Deduction Settings (New System)
       autoDeductionEnabled:
         autoDeductionEnabled !== undefined ? autoDeductionEnabled : false,
@@ -7506,6 +7631,9 @@ module.exports = {
   // Attendance
   checkIn,
   checkOut,
+  createAttendanceExceptionRequest,
+  listAttendanceExceptionRequests,
+  decideAttendanceExceptionRequest,
   getAttendance,
   getMyTodayAttendance,
   getMyAttendanceStats,
