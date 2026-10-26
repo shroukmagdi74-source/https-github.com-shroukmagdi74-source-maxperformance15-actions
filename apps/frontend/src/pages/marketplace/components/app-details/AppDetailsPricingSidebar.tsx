@@ -230,7 +230,7 @@ export const AppDetailsPricingSidebar: React.FC<AppDetailsPricingSidebarProps> =
         </div>
       )}
 
-      {/* Action Buttons */}
+      {/* Action Buttons — one primary action, the rest quiet */}
       <div className="pt-1 space-y-2">
         {isInstalled ? (
           <>
@@ -245,19 +245,20 @@ export const AppDetailsPricingSidebar: React.FC<AppDetailsPricingSidebarProps> =
                   }
                 }
               }}
-              className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              className="h-12 w-full gap-2 rounded-xl bg-emerald-600 text-[14.5px] font-bold text-white hover:bg-emerald-700"
               size="sm"
             >
-              <ExternalLink size={14} /> فتح التطبيق
+              <ExternalLink size={15} /> فتح التطبيق
             </Button>
 
             {isCurrentPlanActive ? (
-              <Button disabled variant="outline" className="w-full gap-2 text-xs" size="sm">
-                <Check size={14} /> مفعل حالياً ({planTitles[selectedPlan]})
-              </Button>
+              <p className="pt-1 text-center text-[11.5px] text-muted-foreground">
+                مفعل على {planTitles[selectedPlan]}
+              </p>
             ) : (
               <Button
-                className="w-full gap-2 bg-primary hover:bg-primary/90 font-bold text-xs"
+                variant="outline"
+                className="w-full gap-2 text-xs font-semibold"
                 size="sm"
                 disabled={installing}
                 onClick={() => onInstall(selectedPlan)}
@@ -266,16 +267,17 @@ export const AppDetailsPricingSidebar: React.FC<AppDetailsPricingSidebarProps> =
                 تغيير الاشتراك إلى {planTitles[selectedPlan]}
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full gap-2 text-xs text-destructive hover:bg-destructive/10"
-              disabled={installing}
-              onClick={onUninstall}
-            >
-              {installing ? <Loader2 size={14} className="animate-spin" /> : null}
-              تعطيل التطبيق
-            </Button>
+
+            <div className="pt-0.5 text-center">
+              <button
+                type="button"
+                disabled={installing}
+                onClick={onUninstall}
+                className="text-[11.5px] text-muted-foreground underline-offset-4 transition-colors hover:text-destructive hover:underline disabled:opacity-50"
+              >
+                تعطيل التطبيق
+              </button>
+            </div>
           </>
         ) : (
           <>
