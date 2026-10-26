@@ -155,8 +155,13 @@ export function useCustomerListsController() {
   const changeCriteriaType = (type: string) => {
     const t = type as CriteriaType;
     const exclude = formCriteria.excludeContactedInDays;
+    const exclusions = formCriteria.exclusions;
     setFormCriteriaType(t);
-    setFormCriteria({ ...buildEmptyCriteria(t), ...(exclude ? { excludeContactedInDays: exclude } : {}) });
+    setFormCriteria({
+      ...buildEmptyCriteria(t),
+      ...(exclude ? { excludeContactedInDays: exclude } : {}),
+      ...(Array.isArray(exclusions) && exclusions.length > 0 ? { exclusions } : {}),
+    });
     setPreviewCount(null);
   };
 

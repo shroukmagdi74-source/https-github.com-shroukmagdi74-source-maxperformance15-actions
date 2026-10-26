@@ -364,6 +364,14 @@ class BroadcastService {
     });
   }
 
+  async searchCustomerListProducts(
+    q: string = "",
+    limit: number = 20,
+  ): Promise<{ success: boolean; data: Array<{ id: string; name: string; sku: string | null }> }> {
+    const qParam = q ? `q=${encodeURIComponent(q)}&` : "";
+    return this.makeRequest(`/broadcast/customer-lists/product-search?${qParam}limit=${limit}`);
+  }
+
   async getCustomersInListPaginated(
     listId: string,
     page = 1,

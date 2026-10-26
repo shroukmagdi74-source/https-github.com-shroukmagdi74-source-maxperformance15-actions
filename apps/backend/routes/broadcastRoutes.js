@@ -157,6 +157,18 @@ router.get(
 );
 
 /**
+ * @route   GET /api/v1/broadcast/customer-lists/product-search
+ * @desc    بحث المنتجات للاختيار في قوائم العملاء
+ * @access  Private (Company Access)
+ */
+router.get(
+  '/customer-lists/product-search',
+  verifyToken.authenticateToken,
+  verifyToken.requireCompanyAccess,
+  broadcastController.searchCustomerListProducts
+);
+
+/**
  * @route   PUT /api/v1/broadcast/customer-lists/:listId
  * @desc    تحديث قائمة عملاء
  * @access  Private (Company Access)

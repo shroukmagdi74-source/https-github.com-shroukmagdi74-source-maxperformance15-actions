@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Users, Search, FileDown, Send, CheckCircle2, Ban, Star,
 } from "lucide-react";
@@ -43,6 +44,7 @@ export const CustomerListMembersDrawer: React.FC<CustomerListMembersDrawerProps>
   onExportCsv,
   onWhatsAppSend,
 }) => {
+  const { i18n } = useTranslation();
   return (
     <Sheet open={!!detailList} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
@@ -54,7 +56,7 @@ export const CustomerListMembersDrawer: React.FC<CustomerListMembersDrawerProps>
             <div className="min-w-0">
               <SheetTitle className="truncate">{detailList?.name}</SheetTitle>
               <SheetDescription className="truncate">
-                {criteriaSummary(detailList?.criteria)} • {membersTotal.toLocaleString("ar-EG")} عميل
+                {criteriaSummary(detailList?.criteria, i18n?.language?.startsWith('en') ? 'en' : 'ar')} • {membersTotal.toLocaleString("ar-EG")} عميل
               </SheetDescription>
             </div>
           </div>

@@ -25,6 +25,96 @@ const ORDER_STATUSES = [
   'STOCK_SHORTAGE', 'SHORTAGE_FAILED', 'PENDING_CANCELLATION',
 ];
 
+const STATUS_LABELS_AR = {
+  DELIVERED: 'تم التسليم',
+  PENDING: 'قيد الانتظار',
+  CONFIRMED: 'مؤكد',
+  SCHEDULED: 'مجدول',
+  READY_FOR_PROCESSING: 'جاهز للمعالجة',
+  PROCESSING: 'قيد التجهيز',
+  SHIPPED: 'تم الشحن',
+  CANCELLED: 'ملغي',
+  DUPLICATE_ORDER: 'طلب مكرر',
+  REFUNDED: 'مسترجع',
+  RETURNED: 'مرتجع',
+  PARTIALLY_RETURNED: 'مرتجع جزئياً',
+  EXCHANGED: 'مستبدل',
+  PARTIALLY_REFUNDED: 'مسترجع جزئياً',
+  WOO_TAGHEZ: 'جاهز (Woo)',
+  DRAFT: 'مسودة',
+  TRASH: 'سلة المهملات',
+  READY_TO_SHIP: 'جاهز للشحن',
+  ON_HOLD: 'قيد الانتظار',
+  NOT_SHIPPED: 'لم يُشحن',
+  OUT_FOR_DELIVERY: 'خارج للتوصيل',
+  LOST: 'ضائع',
+  PENDING_PREPARATION: 'بانتظار التجهيز',
+  PREPARING: 'يتم تجهيزه',
+  READY: 'جاهز',
+  QUALITY_CHECK: 'فحص الجودة',
+  PACKAGED: 'تم التغليف',
+  ON_HOLD_PREP: 'معلق للتجهيز',
+  PARTIALLY_DELIVERED: 'تم التسليم جزئياً',
+  STOCK_SHORTAGE: 'نقص في المخزون',
+  SHORTAGE_FAILED: 'فشل بسبب النقص',
+  PENDING_CANCELLATION: 'إلغاء معلق',
+  APPROVED: 'موافقة',
+  REJECTED: 'مرفوض',
+  COMPLETED: 'مكتمل',
+  PARTIALLY_PAID: 'مدفوع جزئياً',
+  FAILED: 'فشل',
+  EXCELLENT: 'ممتاز',
+  GOOD: 'جيد',
+  AVERAGE: 'متوسط',
+  POOR: 'ضعيف',
+  UNKNOWN: 'غير معروف',
+};
+
+const STATUS_LABELS_EN = {
+  DELIVERED: 'Delivered',
+  PENDING: 'Pending',
+  CONFIRMED: 'Confirmed',
+  SCHEDULED: 'Scheduled',
+  READY_FOR_PROCESSING: 'Ready for Processing',
+  PROCESSING: 'Processing',
+  SHIPPED: 'Shipped',
+  CANCELLED: 'Cancelled',
+  DUPLICATE_ORDER: 'Duplicate Order',
+  REFUNDED: 'Refunded',
+  RETURNED: 'Returned',
+  PARTIALLY_RETURNED: 'Partially Returned',
+  EXCHANGED: 'Exchanged',
+  PARTIALLY_REFUNDED: 'Partially Refunded',
+  WOO_TAGHEZ: 'Ready (Woo)',
+  DRAFT: 'Draft',
+  TRASH: 'Trash',
+  READY_TO_SHIP: 'Ready to Ship',
+  ON_HOLD: 'On Hold',
+  NOT_SHIPPED: 'Not Shipped',
+  OUT_FOR_DELIVERY: 'Out for Delivery',
+  LOST: 'Lost',
+  PENDING_PREPARATION: 'Pending Preparation',
+  PREPARING: 'Preparing',
+  READY: 'Ready',
+  QUALITY_CHECK: 'Quality Check',
+  PACKAGED: 'Packaged',
+  ON_HOLD_PREP: 'On Hold Preparation',
+  PARTIALLY_DELIVERED: 'Partially Delivered',
+  STOCK_SHORTAGE: 'Stock Shortage',
+  SHORTAGE_FAILED: 'Shortage Failed',
+  PENDING_CANCELLATION: 'Pending Cancellation',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  COMPLETED: 'Completed',
+  PARTIALLY_PAID: 'Partially Paid',
+  FAILED: 'Failed',
+  EXCELLENT: 'Excellent',
+  GOOD: 'Good',
+  AVERAGE: 'Average',
+  POOR: 'Poor',
+  UNKNOWN: 'Unknown',
+};
+
 const RETURN_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'];
 
 const PAYMENT_STATUSES = ['PENDING', 'COMPLETED', 'PARTIALLY_PAID', 'FAILED', 'REFUNDED'];
@@ -115,6 +205,51 @@ function daysAgo(days) {
 }
 
 /**
+ * Build pure Prisma fragment for filtering orders that contain specific products.
+ * Returns `{ orders: { some: ... } }` or `null` if no valid productIds provided.
+ *
+ * NOTE: Critical data requirement: order_items.productSku is empty in ~95% of rows,
+ * so matching MUST always be on order_items.productId.
+ */
+function buildPurchasedProductOrderFilter(rawCriteria) {
+  if (!rawCriteria) return null;
+  const criteria = parseCriteria(rawCriteria);
+
+  let productIds = [];
+  if (Array.isArray(criteria.productIds) && criteria.productIds.length > 0) {
+    productIds = criteria.productIds.filter(Boolean);
+  } else if (Array.isArray(criteria.products) && criteria.products.length > 0) {
+    productIds = criteria.products
+      .map((p) => (typeof p === 'object' && p !== null ? p.id : p))
+      .filter(Boolean);
+  }
+
+  if (productIds.length === 0) return null;
+
+  const status = criteria.status || 'DELIVERED';
+  const days = toPositiveInt(criteria.days, null);
+
+  const orderCondition = {
+    status,
+    orderItems: {
+      some: {
+        productId: { in: productIds },
+      },
+    },
+  };
+
+  if (days) {
+    orderCondition.createdAt = { gte: daysAgo(days) };
+  }
+
+  return {
+    orders: {
+      some: orderCondition,
+    },
+  };
+}
+
+/**
  * Build the Prisma Customer where clause (+ orderBy/take) for a criteria.
  * Pure — no DB access. Returns:
  *   { where, orderBy?, take? }
@@ -127,6 +262,19 @@ function buildCustomerListWhere(companyId, rawCriteria) {
   switch (type) {
     case 'all': {
       return { where: { ...base, status: 'ACTIVE' } };
+    }
+
+    case 'purchasedProduct': {
+      const orderFilter = buildPurchasedProductOrderFilter(criteria);
+      if (!orderFilter) {
+        return { where: { ...base, id: { in: [] } } };
+      }
+      return {
+        where: {
+          ...base,
+          ...orderFilter,
+        },
+      };
     }
 
     case 'active': {
@@ -422,6 +570,51 @@ function applyContactExclusion(where, criteria) {
 }
 
 /**
+ * تطبيق شروط الاستثناء المخصصة (criteria.exclusions):
+ * يقرأ مصفوفة الاستثناءات (بنفس شكل الشروط)، ويستخرج الـ fragment
+ * ويجرده من companyId و status، ثم يدمجه كـ NOT مع الحفاظ على أي NOT موجودة.
+ */
+function applyExclusionConditions(where, rawCriteria) {
+  const criteria = parseCriteria(rawCriteria);
+  const exclusions = Array.isArray(criteria.exclusions) ? criteria.exclusions : [];
+  if (exclusions.length === 0) return where;
+
+  const notFragments = [];
+  for (const excl of exclusions) {
+    if (!excl) continue;
+    let fragment = null;
+    if (excl.type === 'purchasedProduct') {
+      fragment = buildPurchasedProductOrderFilter(excl);
+    } else {
+      const built = buildCustomerListWhere(where.companyId || 'temp', excl);
+      const w = built.where || {};
+      const { companyId, status, id, ...rest } = w;
+      if (Object.keys(rest).length > 0) {
+        fragment = rest;
+      }
+    }
+
+    if (fragment) {
+      const { companyId, status, ...clean } = fragment;
+      if (Object.keys(clean).length > 0) {
+        notFragments.push(clean);
+      }
+    }
+  }
+
+  if (notFragments.length === 0) return where;
+
+  const existingNot = where.NOT
+    ? (Array.isArray(where.NOT) ? where.NOT : [where.NOT])
+    : [];
+
+  return {
+    ...where,
+    NOT: [...existingNot, ...notFragments],
+  };
+}
+
+/**
  * Combine where + aggregation into a single Customer where usable by count/findMany.
  */
 async function buildEffectiveCustomerListWhere(prisma, companyId, rawCriteria) {
@@ -440,82 +633,207 @@ async function buildEffectiveCustomerListWhere(prisma, companyId, rawCriteria) {
   }
 
   where = applyContactExclusion(where, criteria);
+  where = applyExclusionConditions(where, criteria);
 
   return { where, orderBy: built.orderBy, take: built.take };
 }
 
-function criteriaToSummary(criteria) {
+function formatPurchasedProductSummary(c, isEn) {
+  const products = Array.isArray(c.products) && c.products.length > 0
+    ? c.products
+    : (Array.isArray(c.productIds) ? c.productIds.map((id) => ({ id, name: id })) : []);
+
+  const productNames = products
+    .map((p) => {
+      if (!p) return '';
+      if (typeof p === 'string') return p;
+      const name = p.name || p.id || '';
+      return p.sku ? `${name} (${p.sku})` : name;
+    })
+    .filter(Boolean);
+
+  const productStr = productNames.length > 0
+    ? productNames.join(isEn ? ' or ' : ' أو ')
+    : (isEn ? 'selected product' : 'منتج محدد');
+
+  const status = c.status || 'DELIVERED';
+  const statusLabel = isEn
+    ? (STATUS_LABELS_EN[status] || status)
+    : (STATUS_LABELS_AR[status] || status);
+
+  const days = toPositiveInt(c.days, null);
+  const timeStr = days
+    ? (isEn ? `last ${days} days` : `آخر ${days} يوم`)
+    : (isEn ? 'no time limit' : 'بدون حد زمني');
+
+  const prefix = isEn ? 'Purchased: ' : 'اشترى: ';
+  return `${prefix}${productStr} — ${statusLabel} · ${timeStr}`;
+}
+
+function criteriaToSummary(criteria, locale = 'ar') {
   const c = parseCriteria(criteria);
   const type = c.type || 'all';
+  const isEn = typeof locale === 'string' && locale.toLowerCase().startsWith('en');
   let summary;
+
   switch (type) {
+    case 'purchasedProduct':
+      summary = formatPurchasedProductSummary(c, isEn);
+      break;
+
     case 'all':
-      summary = 'جميع العملاء النشطين';
+      summary = isEn ? 'All active customers' : 'جميع العملاء النشطين';
       break;
-    case 'active':
-      summary = `نشط خلال آخر ${toPositiveInt(c.hours ?? c.lastActivity, 24)} ساعة`;
-      break;
-    case 'inactive':
-      summary = `غير نشط منذ ${toPositiveInt(c.days ?? c.lastActivity, 30)} يوم`;
-      break;
-    case 'tag':
-      summary = `يحمل وسم: ${c.tag || ''}`;
-      break;
-    case 'orderStatus':
-      summary = c.days
-        ? `طلبات بحالة ${c.status} خلال آخر ${c.days} يوم`
-        : `طلبات بحالة ${c.status}`;
-      break;
-    case 'returnRequest':
-      summary = c.days
-        ? `مرتجعات بحالة ${c.status || 'الكل'} خلال آخر ${c.days} يوم`
-        : `مرتجعات بحالة ${c.status || 'الكل'}`;
-      break;
-    case 'paymentStatus':
-      summary = c.days
-        ? `دفع بحالة ${c.status} خلال آخر ${c.days} يوم`
-        : `دفع بحالة ${c.status}`;
-      break;
-    case 'city':
-      summary = `من مدينة: ${c.city || ''}`;
-      break;
-    case 'product': {
-      const statusLabel = c.orderStatus || c.status;
-      summary = statusLabel
-        ? `طلب منتج (${c.productId}) بحالة ${statusLabel}`
-        : `طلب منتج (${c.productId})`;
+
+    case 'active': {
+      const hours = toPositiveInt(c.hours ?? c.lastActivity, 24);
+      summary = isEn ? `Active in last ${hours} hours` : `نشط خلال آخر ${hours} ساعة`;
       break;
     }
-    case 'customerRating':
-      summary = `التقييم: ${c.rating || ''}`;
+
+    case 'inactive': {
+      const days = toPositiveInt(c.days ?? c.lastActivity, 30);
+      summary = isEn ? `Inactive for ${days} days` : `غير نشط منذ ${days} يوم`;
       break;
-    case 'latest':
-      summary = `أحدث ${toPositiveInt(c.limit, 100)} عميل`;
+    }
+
+    case 'tag': {
+      const tag = c.tag || '';
+      summary = isEn ? `Has tag: ${tag}` : `يحمل وسم: ${tag}`;
       break;
-    case 'oldest':
-      summary = `أقدم ${toPositiveInt(c.limit, 100)} عميل`;
+    }
+
+    case 'orderStatus': {
+      const statusLabel = isEn
+        ? (STATUS_LABELS_EN[c.status] || c.status)
+        : (STATUS_LABELS_AR[c.status] || c.status);
+      if (c.days) {
+        summary = isEn
+          ? `Orders "${statusLabel}" in last ${c.days} days`
+          : `طلبات بحالة ${c.status} خلال آخر ${c.days} يوم`;
+      } else {
+        summary = isEn
+          ? `Orders "${statusLabel}"`
+          : `طلبات بحالة ${c.status}`;
+      }
       break;
+    }
+
+    case 'returnRequest': {
+      const statusLabel = isEn
+        ? (STATUS_LABELS_EN[c.status] || c.status || 'All')
+        : (STATUS_LABELS_AR[c.status] || c.status || 'الكل');
+      if (c.days) {
+        summary = isEn
+          ? `Returns "${statusLabel}" in last ${c.days} days`
+          : `مرتجعات بحالة ${c.status || 'الكل'} خلال آخر ${c.days} يوم`;
+      } else {
+        summary = isEn
+          ? `Returns "${statusLabel}"`
+          : `مرتجعات بحالة ${c.status || 'الكل'}`;
+      }
+      break;
+    }
+
+    case 'paymentStatus': {
+      const statusLabel = isEn
+        ? (STATUS_LABELS_EN[c.status] || c.status)
+        : (STATUS_LABELS_AR[c.status] || c.status);
+      if (c.days) {
+        summary = isEn
+          ? `Payment "${statusLabel}" in last ${c.days} days`
+          : `دفع بحالة ${c.status} خلال آخر ${c.days} يوم`;
+      } else {
+        summary = isEn
+          ? `Payment "${statusLabel}"`
+          : `دفع بحالة ${c.status}`;
+      }
+      break;
+    }
+
+    case 'city':
+      summary = isEn ? `From city: ${c.city || ''}` : `من مدينة: ${c.city || ''}`;
+      break;
+
+    case 'product': {
+      const productStatus = c.orderStatus || c.status;
+      const productLabel = c.productId || (isEn ? 'unspecified' : 'غير محدد');
+      const productStatusLabel = productStatus
+        ? (isEn ? (STATUS_LABELS_EN[productStatus] || productStatus) : (STATUS_LABELS_AR[productStatus] || productStatus))
+        : '';
+      summary = productStatus
+        ? (isEn
+            ? `Product order (${productLabel}) — ${productStatusLabel}`
+            : `طلب منتج (${productLabel}) بحالة ${productStatusLabel}`)
+        : (isEn ? `Product order (${productLabel})` : `طلب منتج (${productLabel})`);
+      break;
+    }
+
+    case 'customerRating': {
+      const ratingLabel = isEn
+        ? (STATUS_LABELS_EN[c.rating] || c.rating || '')
+        : (STATUS_LABELS_AR[c.rating] || c.rating || '');
+      summary = isEn ? `Rating: ${ratingLabel}` : `التقييم: ${c.rating || ''}`;
+      break;
+    }
+
+    case 'latest': {
+      const limit = toPositiveInt(c.limit, 100);
+      summary = isEn ? `Latest ${limit} customers` : `أحدث ${limit} عميل`;
+      break;
+    }
+
+    case 'oldest': {
+      const limit = toPositiveInt(c.limit, 100);
+      summary = isEn ? `Oldest ${limit} customers` : `أقدم ${limit} عميل`;
+      break;
+    }
+
     case 'minTotalSpent':
-      summary = `إجمالي إنفاق ≥ ${c.amount}`;
+      summary = isEn ? `Total spent ≥ ${c.amount}` : `إجمالي إنفاق ≥ ${c.amount}`;
       break;
+
     case 'minOrdersCount':
-      summary = `عدد طلبات ≥ ${c.count}`;
+      summary = isEn ? `Orders count ≥ ${c.count}` : `عدد طلبات ≥ ${c.count}`;
       break;
+
     case 'combo':
-      summary = 'قائمة مخصّصة (شروط متعددة)';
+      summary = isEn ? 'Custom list (multiple conditions)' : 'قائمة مخصّصة (شروط متعددة)';
       break;
+
     case 'preset': {
       const preset = PRESETS[c.preset || c.name];
-      summary = preset ? preset.label : 'قائمة جاهزة';
+      summary = preset ? preset.label : (isEn ? 'Preset list' : 'قائمة جاهزة');
       break;
     }
+
     default:
-      summary = 'جميع العملاء النشطين';
+      summary = isEn ? 'All active customers' : 'جميع العملاء النشطين';
   }
 
   if (toPositiveInt(c.excludeContactedInDays, null)) {
-    summary += ` | بدون مراسلة خلال آخر ${c.excludeContactedInDays} يوم`;
+    summary += isEn
+      ? ` | No contact in last ${c.excludeContactedInDays} days`
+      : ` | بدون مراسلة خلال آخر ${c.excludeContactedInDays} يوم`;
   }
+
+  if (Array.isArray(c.exclusions) && c.exclusions.length > 0) {
+    const exclSummaries = c.exclusions
+      .map((excl) => {
+        if (!excl) return '';
+        if (excl.type === 'purchasedProduct') {
+          return formatPurchasedProductSummary(excl, isEn);
+        }
+        return criteriaToSummary(excl, locale);
+      })
+      .filter(Boolean);
+
+    if (exclSummaries.length > 0) {
+      const prefix = isEn ? ' | Excluding: ' : ' | استثناء: ';
+      summary += `${prefix}${exclSummaries.join(isEn ? ', ' : '، ')}`;
+    }
+  }
+
   return summary;
 }
 
@@ -525,12 +843,16 @@ module.exports = {
   PAYMENT_STATUSES,
   CUSTOMER_RATINGS,
   CUSTOMER_STATUSES,
+  STATUS_LABELS_AR,
+  STATUS_LABELS_EN,
   PRESETS,
   parseCriteria,
+  buildPurchasedProductOrderFilter,
   buildCustomerListWhere,
   buildEffectiveCustomerListWhere,
   resolveAggregateCustomerIds,
   extractAggregates,
   applyContactExclusion,
+  applyExclusionConditions,
   criteriaToSummary,
 };

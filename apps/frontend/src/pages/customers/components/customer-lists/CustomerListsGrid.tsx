@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Users, Layers, Plus, Pencil, Trash2, Eye, Send, ListFilter,
   Clock, Loader2, Copy, RefreshCw,
@@ -38,6 +39,7 @@ export const CustomerListsGrid: React.FC<CustomerListsGridProps> = ({
   onRefreshCount,
   onDeleteRequest,
 }) => {
+  const { i18n } = useTranslation();
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -113,7 +115,7 @@ export const CustomerListsGrid: React.FC<CustomerListsGridProps> = ({
 
           <div className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-[color:var(--color-muted)] px-2.5 py-1 text-[11px] text-[color:var(--color-muted-foreground)]">
             <ListFilter className="size-3" />
-            {criteriaSummary(list.criteria)}
+            {criteriaSummary(list.criteria, i18n?.language?.startsWith('en') ? 'en' : 'ar')}
           </div>
 
           <div className="mb-4 flex items-baseline gap-1.5">

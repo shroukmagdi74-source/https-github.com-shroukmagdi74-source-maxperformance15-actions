@@ -1211,6 +1211,42 @@ exports.previewCustomerListCount = async (req, res) => {
 };
 
 /**
+ * بحث المنتجات للاختيار المتعدد في قوائم العملاء
+ */
+exports.searchCustomerListProducts = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+    const q = (req.query.q || '').trim();
+    const limitParam = parseInt(req.query.limit, 10);
+    const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 50) : 20;
+
+    const where = { companyId };
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: 'insensitive' } },
+        { sku: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const prisma = getSharedPrismaClient();
+    const products = await prisma.product.findMany({
+      where,
+      select: { id: true, name: true, sku: true },
+      orderBy: { name: 'asc' },
+      take: limit,
+    });
+
+    res.json({
+      success: true,
+      data: products,
+    });
+  } catch (error) {
+    console.error('❌ [SEARCH CUSTOMER LIST PRODUCTS] خطأ في بحث المنتجات:', error.message);
+    res.status(500).json({ success: false, message: 'فشل في بحث المنتجات', error: error.message });
+  }
+};
+
+/**
  * الحصول على قوائم العملاء
  */
 exports.getCustomerLists = async (req, res) => {
