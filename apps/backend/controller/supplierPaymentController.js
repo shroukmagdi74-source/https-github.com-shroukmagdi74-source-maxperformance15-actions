@@ -184,7 +184,7 @@ exports.updateSupplierPayment = async (req, res) => {
 
             const newPaid = Math.max(0, Math.round((parseFloat(invoice.paidAmount || 0) + diff) * 100) / 100);
             const newRem = Math.max(0, Math.round((parseFloat(invoice.totalAmount || 0) - newPaid) * 100) / 100);
-            const newStatus = newRem <= 0 ? 'PAID' : (newPaid > 0 ? 'PARTIALLY_PAID' : 'PENDING');
+            const newStatus = newRem <= 0 ? 'PAID' : 'PENDING';
 
             await safeQuery(() => getSharedPrismaClient().purchaseInvoice.update({
               where: { id: existingPayment.purchaseInvoiceId },
@@ -307,7 +307,7 @@ exports.deleteSupplierPayment = async (req, res) => {
       if (invoice) {
         const newPaidAmount = Math.max(0, Math.round((parseFloat(invoice.paidAmount || 0) - parseFloat(payment.amount)) * 100) / 100);
         const newRemainingAmount = Math.max(0, Math.round((parseFloat(invoice.totalAmount || 0) - newPaidAmount) * 100) / 100);
-        const newStatus = newRemainingAmount <= 0 ? 'PAID' : (newPaidAmount > 0 ? 'PARTIALLY_PAID' : 'PENDING');
+        const newStatus = newRemainingAmount <= 0 ? 'PAID' : 'PENDING';
 
         await safeQuery(() =>
           getSharedPrismaClient().purchaseInvoice.update({
