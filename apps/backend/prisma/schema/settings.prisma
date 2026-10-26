@@ -348,6 +348,7 @@ model StorePromotion {
 model StorefrontSettings {
   id                               String                @id @default(cuid())
   companyId                        String                @unique
+  storeId                          String?
   quickViewEnabled                 Boolean               @default(true)
   quickViewShowAddToCart           Boolean               @default(true)
   quickViewShowWishlist            Boolean               @default(true)
@@ -643,6 +644,7 @@ model StorefrontSettings {
   company                          Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+  @@index([storeId])
   @@index([facebookConvApiEnabled])
   @@index([facebookPixelEnabled])
   @@map("storefront_settings")
