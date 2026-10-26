@@ -554,6 +554,11 @@ export const getSidebarConfig = (
             hidden: user?.role === 'AFFILIATE'
         },
         
+        // 1️⃣.1 أقسام إدارة المنصة (للسوبر أدمن - الشل الموحد ARCH-1B)
+        ...(user?.role === 'SUPER_ADMIN'
+            ? mapSuperAdminGroupsToSidebarSections(getSuperAdminMenuGroups(t))
+            : []),
+
         // 1.5 الإنبوكس الموحد
         {
             id: 'unified-inbox-section',
@@ -1743,11 +1748,6 @@ export const getSidebarConfig = (
                 { to: '/notification-settings', icon: Bell, label: t('sidebar.notificationSettings') },
             ]
         },
-
-        // 1️⃣5️⃣ أقسام إدارة المنصة (للسوبر أدمن - الشل الموحد ARCH-1B)
-        ...(user?.role === 'SUPER_ADMIN'
-            ? mapSuperAdminGroupsToSidebarSections(getSuperAdminMenuGroups(t))
-            : []),
 
     ];
 

@@ -26,22 +26,31 @@
 /* Sidebar Shell */
 .business-sidebar-shell {
   display: flex;
-  height: 100vh;
+  height: 100%;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   background: var(--sb-bg-rail);
   border-inline-end: 1px solid var(--sb-border);
   transition: var(--sb-transition);
+  box-sizing: border-box;
 }
 
 /* Rail Styles */
 .business-sidebar-rail {
   width: var(--sb-rail-width);
+  height: 100%;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1.5rem 0;
+  padding: 1.5rem 0 0.5rem 0;
   border-inline-end: 1px solid var(--sb-border);
   background: var(--sb-bg-rail);
   z-index: 20;
+  box-sizing: border-box;
 }
 
 .business-sidebar-brand-block {
@@ -153,12 +162,17 @@
 /* Panel Styles */
 .business-sidebar-panel {
   width: var(--sb-panel-width);
+  height: 100%;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   background: var(--sb-bg-panel);
   backdrop-filter: blur(12px);
   border-inline-end: 1px solid var(--sb-border);
   display: flex;
   flex-direction: column;
   transition: var(--sb-transition);
+  box-sizing: border-box;
 }
 
 .business-sidebar-panel[data-collapsed="true"] {
@@ -270,8 +284,13 @@
 /* Nav Links */
 .business-sidebar-links {
   flex: 1;
-  padding: 0.5rem 1rem;
+  min-height: 0;
+  padding: 0.5rem 1rem 1.5rem 1rem;
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
 }
 
 .business-sidebar-nav-link {
@@ -379,12 +398,30 @@
 .business-sidebar-rail-scroll {
   flex: 1;
   width: 100%;
+  min-height: 0;
   overflow-y: auto;
-  scrollbar-width: none;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+  padding-bottom: 1rem;
 }
 
 .business-sidebar-rail-scroll::-webkit-scrollbar {
-  display: none;
+  width: 4px;
+}
+
+.business-sidebar-rail-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.business-sidebar-rail-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 4px;
+}
+
+.business-sidebar-rail-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--sb-text-muted);
 }
 
 .business-icon-button {

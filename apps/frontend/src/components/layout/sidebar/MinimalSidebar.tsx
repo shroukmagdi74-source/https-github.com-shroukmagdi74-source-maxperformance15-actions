@@ -417,7 +417,7 @@ const MinimalSidebar: React.FC<MinimalSidebarProps> = ({
       </div>
 
       {/* Section Icon Buttons */}
-      <div className="flex-1 w-full px-2 overflow-y-auto no-scrollbar space-y-2">
+      <div className="flex-1 min-h-0 w-full px-2 overflow-y-auto space-y-2">
         {sections
           .filter((s) => !s.hidden)
           .map((section) => {

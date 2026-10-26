@@ -1111,7 +1111,7 @@ const Layout: React.FC<LayoutProps> = ({ children, fullWidth = false }) => {
          </div>
        ) : (
          <div className="flex w-full h-screen h-[100dvh] overflow-hidden">
-          <div className="hidden lg:block h-full">
+          <div className="hidden lg:block h-full min-h-0 shrink-0">
               <TemplateSlot
                 name="sidebar"
                 props={{

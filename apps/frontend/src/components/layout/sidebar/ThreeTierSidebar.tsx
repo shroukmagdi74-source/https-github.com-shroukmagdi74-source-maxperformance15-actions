@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ChevronRightIcon,
@@ -48,6 +48,7 @@ const ThreeTierSidebar: React.FC<ThreeTierSidebarProps> = ({
   const navigate = useNavigate();
   const searchInputId = useId();
   const prefetch = useRoutePrefetch();
+  const activeRailItemRef = useRef<HTMLButtonElement | null>(null);
   
   const visibleSectionsWithItems = useMemo(
     () =>
@@ -157,6 +158,15 @@ const ThreeTierSidebar: React.FC<ThreeTierSidebarProps> = ({
         : visibleSectionsWithItems[0].id,
     );
   }, [visibleSectionsWithItems]);
+
+  useEffect(() => {
+    if (activeRailItemRef.current) {
+      activeRailItemRef.current.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
+  }, [activeSectionId]);
 
   // Close mobile sidebar on Escape key
   useEffect(() => {
@@ -366,6 +376,7 @@ const ThreeTierSidebar: React.FC<ThreeTierSidebarProps> = ({
               return (
                 <button
                   key={section.id}
+                  ref={isActive ? activeRailItemRef : null}
                   type="button"
                   onClick={() => {
                     setActiveSectionId(section.id);
