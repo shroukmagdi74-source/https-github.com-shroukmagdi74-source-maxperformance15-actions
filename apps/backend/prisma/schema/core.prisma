@@ -18,6 +18,7 @@ model Company {
   createdAt                       DateTime                         @default(now())
   updatedAt                       DateTime                         @updatedAt
   slug                            String?                          @unique
+  publicCode                      String?                          @unique
   facebookUserAccessToken         String?
   facebookPixelAccessToken        String?
   facebookAdsAccessToken          String?

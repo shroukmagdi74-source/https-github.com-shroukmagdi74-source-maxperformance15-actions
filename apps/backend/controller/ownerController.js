@@ -5,6 +5,7 @@
 
 const { getSharedPrismaClient } = require('../services/sharedDatabase');
 const { generateUniqueCompanySlug, ensureCompanySlug } = require('../utils/companySlug');
+const { generateUniqueCompanyPublicCode } = require('../utils/companyPublicCode');
 
 /**
  * Get all companies where the current user is OWNER
@@ -792,48 +793,61 @@ const createOwnerCompany = async (req, res) => {
         }
 
         // Create company and link user in a transaction
-        const result = await prisma.$transaction(async (tx) => {
-            const slug = await generateUniqueCompanySlug(name, {
-                prisma: tx,
-                email
-            });
+        let result;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+                result = await prisma.$transaction(async (tx) => {
+                    const slug = await generateUniqueCompanySlug(name, {
+                        prisma: tx,
+                        email
+                    });
+                    const publicCode = await generateUniqueCompanyPublicCode(name, { prisma: tx });
 
-            // 1. Create new company
-            const newCompany = await tx.company.create({
-                data: {
-                    name,
-                    slug,
-                    email,
-                    phone: phone || null,
-                    website: website || null,
-                    address: address || null,
-                    currency,
-                    timezone,
-                    isActive: true,
-                    // useCentralKeys field removed
-                    sidebarLayout: 'three-tier',
-                    settings: JSON.stringify({
-                        lastSystemChange: new Date().toISOString(),
-                        systemChangeBy: userId,
-                        createdBy: userId
-                    })
+                    // 1. Create new company
+                    const newCompany = await tx.company.create({
+                        data: {
+                            name,
+                            slug,
+                            publicCode,
+                            email,
+                            phone: phone || null,
+                            website: website || null,
+                            address: address || null,
+                            currency,
+                            timezone,
+                            isActive: true,
+                            // useCentralKeys field removed
+                            sidebarLayout: 'three-tier',
+                            settings: JSON.stringify({
+                                lastSystemChange: new Date().toISOString(),
+                                systemChangeBy: userId,
+                                createdBy: userId
+                            })
+                        }
+                    });
+
+                    // 2. Create UserCompany record - link user as OWNER
+                    await tx.userCompany.create({
+                        data: {
+                            userId: userId,
+                            companyId: newCompany.id,
+                            role: 'OWNER',
+                            isActive: true,
+                            isDefault: false,
+                            joinedAt: new Date()
+                        }
+                    });
+
+                    return newCompany;
+                });
+                break;
+            } catch (txErr) {
+                if (txErr?.code === 'P2002' && (txErr?.meta?.target?.includes('publicCode') || String(txErr?.message).includes('publicCode')) && attempt < 2) {
+                    continue;
                 }
-            });
-
-            // 2. Create UserCompany record - link user as OWNER
-            await tx.userCompany.create({
-                data: {
-                    userId: userId,
-                    companyId: newCompany.id,
-                    role: 'OWNER',
-                    isActive: true,
-                    isDefault: false,
-                    joinedAt: new Date()
-                }
-            });
-
-            return newCompany;
-        });
+                throw txErr;
+            }
+        }
 
         console.log(`✅ [OWNER] Company created successfully: ${result.name} (${result.id})`);
         console.log(`✅ [OWNER] User ${userId} assigned as OWNER`);

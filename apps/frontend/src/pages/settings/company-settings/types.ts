@@ -69,6 +69,7 @@ export type CompanyTab = "general" | "appearance" | "usage" | "ownership";
 export interface CompanyRecord {
   id?: string;
   name?: string;
+  publicCode?: string | null;
   settings?: CompanySettingsMap | string | null;
   slug?: string;
   currency?: string;

@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { isPermissionError, getPermissionErrorMessage } = require('../utils/dbPermissionHelper');
 const { generateUniqueCompanySlug, ensureCompanySlug } = require('../utils/companySlug');
+const { generateUniqueCompanyPublicCode } = require('../utils/companyPublicCode');
 const {
   buildCompanyResponseWithOnboarding,
   serializeCompanySettings,
@@ -360,6 +361,7 @@ const register = async (req, res) => {
       prisma,
       email: normalizedEmail
     });
+    let publicCode = await generateUniqueCompanyPublicCode(trimmedCompanyName, { prisma });
 
     // Fetch default sidebar settings from platform settings
     const platformDefaultSidebar = await prisma.systemSettings.findUnique({
@@ -386,23 +388,36 @@ const register = async (req, res) => {
       sidebarSettings: defaultSidebarSections,
     };
 
-    const company = await prisma.company.create({
-      data: {
-        name: trimmedCompanyName,
-        slug: uniqueSlug,
-        email: normalizedEmail,
-        phone: phone || null,
-        isActive: true,
-        sidebarLayout: defaultSidebarLayout,
-        timezone: userTimezone,
-        businessSpecialty: selectedSpecialty?.id
-          ? { connect: { id: selectedSpecialty.id } }
-          : undefined,
-        registration_ip: registrationIp,
-        registration_user_agent: registrationUserAgent,
-        settings: JSON.stringify(initialSettings),
+    let company;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        company = await prisma.company.create({
+          data: {
+            name: trimmedCompanyName,
+            slug: uniqueSlug,
+            publicCode,
+            email: normalizedEmail,
+            phone: phone || null,
+            isActive: true,
+            sidebarLayout: defaultSidebarLayout,
+            timezone: userTimezone,
+            businessSpecialty: selectedSpecialty?.id
+              ? { connect: { id: selectedSpecialty.id } }
+              : undefined,
+            registration_ip: registrationIp,
+            registration_user_agent: registrationUserAgent,
+            settings: JSON.stringify(initialSettings),
+          }
+        });
+        break;
+      } catch (createErr) {
+        if (createErr?.code === 'P2002' && (createErr?.meta?.target?.includes('publicCode') || String(createErr?.message).includes('publicCode')) && attempt < 2) {
+          publicCode = await generateUniqueCompanyPublicCode(trimmedCompanyName, { prisma });
+          continue;
+        }
+        throw createErr;
       }
-    });
+    }
 
     const user = await prisma.user.create({
       data: {

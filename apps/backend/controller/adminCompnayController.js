@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const socketService = require('../services/socketService');
 const { sendBrowserPushToUser } = require('../services/browserPushService');
 const { generateUniqueCompanySlug, ensureCompanySlug } = require('../utils/companySlug');
+const { generateUniqueCompanyPublicCode } = require('../utils/companyPublicCode');
 const {
     FOLLOW_UP_STATUSES,
     getCompanyFollowUp,
@@ -436,12 +437,30 @@ const getAllCompanies = async (req, res) => {
         };
 
         const conditions = [];
-        if (search) conditions.push({ OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search, mode: 'insensitive' } },
-            { website: { contains: search, mode: 'insensitive' } },
-        ]});
+        if (search) {
+            const orConditions = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { phone: { contains: search, mode: 'insensitive' } },
+                { website: { contains: search, mode: 'insensitive' } },
+                { publicCode: { contains: search, mode: 'insensitive' } },
+                { slug: { contains: search, mode: 'insensitive' } },
+            ];
+
+            const cleanSearch = search.replace(/[\s-]/g, '');
+            if (cleanSearch.length >= 9 && cleanSearch.length <= 10) {
+                if (cleanSearch.length === 9) {
+                    const withDash3 = `${cleanSearch.slice(0, 3)}-${cleanSearch.slice(3)}`;
+                    orConditions.push({ publicCode: { contains: withDash3, mode: 'insensitive' } });
+                }
+                if (cleanSearch.length === 10) {
+                    const withDash4 = `${cleanSearch.slice(0, 4)}-${cleanSearch.slice(4)}`;
+                    orConditions.push({ publicCode: { contains: withDash4, mode: 'insensitive' } });
+                }
+            }
+
+            conditions.push({ OR: orConditions });
+        }
         if (status === 'ACTIVE' || status === 'INACTIVE') conditions.push({ isActive: status === 'ACTIVE' });
         if (savedView !== 'ALL') conditions.push(buildSavedViewWhere(savedView));
         const where = conditions.length === 1 ? conditions[0] : { AND: conditions };
@@ -1349,6 +1368,10 @@ const createNewCompany = async (req, res) => {
             email
         });
 
+        let publicCode = await generateUniqueCompanyPublicCode(name, {
+            prisma: getSharedPrismaClient()
+        });
+
         const registrationIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || null;
         const registrationUserAgent = req.headers['user-agent'] || null;
 
@@ -1367,24 +1390,39 @@ const createNewCompany = async (req, res) => {
         }
 
         // Create company
-        const company = await getSharedPrismaClient().company.create({
-            data: {
-                name,
-                slug: uniqueSlug,
-                email,
-                phone,
-                website,
-                currency,
-                isActive: true,
-                // useCentralKeys field removed — key routing is now schema-agnostic
-                sidebarLayout: defaultSidebarLayout,
-                registration_ip: registrationIp,
-                registration_user_agent: registrationUserAgent,
-                businessSpecialty: selectedSpecialty?.id
-                    ? { connect: { id: selectedSpecialty.id } }
-                    : undefined,
+        let company;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+                company = await getSharedPrismaClient().company.create({
+                    data: {
+                        name,
+                        slug: uniqueSlug,
+                        publicCode,
+                        email,
+                        phone,
+                        website,
+                        currency,
+                        isActive: true,
+                        // useCentralKeys field removed — key routing is now schema-agnostic
+                        sidebarLayout: defaultSidebarLayout,
+                        registration_ip: registrationIp,
+                        registration_user_agent: registrationUserAgent,
+                        businessSpecialty: selectedSpecialty?.id
+                            ? { connect: { id: selectedSpecialty.id } }
+                            : undefined,
+                    }
+                });
+                break;
+            } catch (createErr) {
+                if (createErr?.code === 'P2002' && (createErr?.meta?.target?.includes('publicCode') || String(createErr?.message).includes('publicCode')) && attempt < 2) {
+                    publicCode = await generateUniqueCompanyPublicCode(name, {
+                        prisma: getSharedPrismaClient()
+                    });
+                    continue;
+                }
+                throw createErr;
             }
-        });
+        }
 
         // Hash admin password
         const hashedPassword = await bcrypt.hash(adminPassword, 12);

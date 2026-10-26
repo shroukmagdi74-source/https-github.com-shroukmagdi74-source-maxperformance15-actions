@@ -16,6 +16,9 @@ const {
   generateUniqueCompanySlug,
   ensureCompanySlug,
 } = require("../utils/companySlug");
+const {
+  generateUniqueCompanyPublicCode,
+} = require("../utils/companyPublicCode");
 // Role name mapping for display (fallback when roleRef relation is not available)
 // ponytail: keep in sync with BUILT_IN_ROLES in seedPermissions.js
 const ROLE_DISPLAY_NAMES = {
@@ -36,6 +39,7 @@ const CURRENT_COMPANY_SELECT = {
   address: true,
   logo: true,
   slug: true,
+  publicCode: true,
   customDomain: true,
   timezone: true,
   settings: true,
@@ -111,6 +115,7 @@ const getCurrentCompany = async (req, res) => {
         address: company.address,
         logo: company.logo || null,
         slug: company.slug || null,
+        publicCode: company.publicCode || null,
         customDomain: company.customDomain || null,
         timezone: company.timezone,
         currency: company.currency,
@@ -712,64 +717,78 @@ const createNewCompany = async (req, res) => {
     }
 
     // Transaction to create company and optional social profiles
-    const transactionResult = await getSharedPrismaClient().$transaction(async (tx) => {
-      // Fetch default sidebar settings from platform settings
-      const platformDefaultSidebar = await tx.systemSettings.findUnique({
-        where: { systemName: "platform_default_sidebar" },
-      });
+    let transactionResult;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        transactionResult = await getSharedPrismaClient().$transaction(async (tx) => {
+          // Fetch default sidebar settings from platform settings
+          const platformDefaultSidebar = await tx.systemSettings.findUnique({
+            where: { systemName: "platform_default_sidebar" },
+          });
 
-      let defaultSidebarLayout = "three-tier";
-      let defaultSidebarSections = {};
+          let defaultSidebarLayout = "three-tier";
+          let defaultSidebarSections = {};
 
-      if (platformDefaultSidebar?.config) {
-        try {
-          const config = JSON.parse(platformDefaultSidebar.config);
-          defaultSidebarLayout = config.layout || "three-tier";
-          defaultSidebarSections = config.sections || {};
-        } catch (e) {
-          console.warn("Failed to parse platform default sidebar config:", e);
+          if (platformDefaultSidebar?.config) {
+            try {
+              const config = JSON.parse(platformDefaultSidebar.config);
+              defaultSidebarLayout = config.layout || "three-tier";
+              defaultSidebarSections = config.sections || {};
+            } catch (e) {
+              console.warn("Failed to parse platform default sidebar config:", e);
+            }
+          }
+
+          // Build initial company settings with default sidebar
+          const initialSettings = {
+            lastSystemChange: new Date().toISOString(),
+            systemChangeBy: "admin",
+            sidebarSettings: defaultSidebarSections,
+          };
+
+          const publicCode = await generateUniqueCompanyPublicCode(name, { prisma: tx });
+
+          const createdCompany = await tx.company.create({
+            data: {
+              name,
+              slug: uniqueSlug,
+              publicCode,
+              email,
+              phone: phone || null,
+              website: website || null,
+              address: address || null,
+              currency,
+              isActive,
+              sidebarLayout: defaultSidebarLayout,
+              settings: JSON.stringify(initialSettings),
+            },
+            include: { _count: { select: { users: true, customers: true, products: true, orders: true, conversations: true } } },
+          });
+
+          if (socialProfiles && socialProfiles.length) {
+            const profileData = socialProfiles.map(p => ({
+              platform: p.platform,
+              url: p.url,
+              companyId: createdCompany.id,
+            }));
+            await tx.companySocialProfile.createMany({ data: profileData });
+          }
+
+          // Fetch the company with social profiles included
+          const fullCompany = await tx.company.findUnique({
+            where: { id: createdCompany.id },
+            include: { socialProfiles: true, _count: { select: { users: true, customers: true, products: true, orders: true, conversations: true } } },
+          });
+          return fullCompany;
+        });
+        break;
+      } catch (txErr) {
+        if (txErr?.code === 'P2002' && (txErr?.meta?.target?.includes('publicCode') || String(txErr?.message).includes('publicCode')) && attempt < 2) {
+          continue;
         }
+        throw txErr;
       }
-
-      // Build initial company settings with default sidebar
-      const initialSettings = {
-        lastSystemChange: new Date().toISOString(),
-        systemChangeBy: "admin",
-        sidebarSettings: defaultSidebarSections,
-      };
-
-      const createdCompany = await tx.company.create({
-        data: {
-          name,
-          slug: uniqueSlug,
-          email,
-          phone: phone || null,
-          website: website || null,
-          address: address || null,
-          currency,
-          isActive,
-          sidebarLayout: defaultSidebarLayout,
-          settings: JSON.stringify(initialSettings),
-        },
-        include: { _count: { select: { users: true, customers: true, products: true, orders: true, conversations: true } } },
-      });
-
-      if (socialProfiles && socialProfiles.length) {
-        const profileData = socialProfiles.map(p => ({
-          platform: p.platform,
-          url: p.url,
-          companyId: createdCompany.id,
-        }));
-        await tx.companySocialProfile.createMany({ data: profileData });
-      }
-
-      // Fetch the company with social profiles included
-      const fullCompany = await tx.company.findUnique({
-        where: { id: createdCompany.id },
-        include: { socialProfiles: true, _count: { select: { users: true, customers: true, products: true, orders: true, conversations: true } } },
-      });
-      return fullCompany;
-    });
+    }
 
     res.status(201).json({
       success: true,

@@ -51,6 +51,24 @@ export const CompanyInfoSection: React.FC<CompanyInfoSectionProps> = ({
   handleCompanyDescriptionSave,
   customerRegisterUrl,
 }) => {
+  const [copiedCode, setCopiedCode] = React.useState(false);
+  const [copiedId, setCopiedId] = React.useState(false);
+
+  const handleCopyCode = () => {
+    if (!company?.publicCode) return;
+    navigator.clipboard.writeText(company.publicCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleCopyId = () => {
+    const idVal = company?.id || companyIdFallback || "";
+    if (!idVal) return;
+    navigator.clipboard.writeText(idVal);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 mb-8">
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -135,12 +153,12 @@ export const CompanyInfoSection: React.FC<CompanyInfoSectionProps> = ({
         companyName={companyName}
       />
 
-      {/* Company ID (Read-only) */}
+      {/* Company Public Code & Technical ID */}
       <div className="col-span-1 md:col-span-2 border-t border-gray-100 dark:border-gray-700 pt-4 mt-2">
         <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          معرف الشركة (Company ID){" "}
+          معرف الشركة (Company Code){" "}
           <span className="text-xs text-gray-500 font-normal">
-            - استخدمه للربط مع الشركات الأخرى
+            - شاركه مع الدعم أو الشركات الأخرى
           </span>
         </span>
         <div className="mt-1 flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -149,18 +167,39 @@ export const CompanyInfoSection: React.FC<CompanyInfoSectionProps> = ({
             style={{ direction: "ltr" }}
           >
             <BuildingOfficeIcon className="h-4 w-4 ml-2 shrink-0" />
-            {company?.id || companyIdFallback || "—"}
+            {company?.publicCode || "—"}
           </div>
           <button
             type="button"
-            onClick={() => {
-              navigator.clipboard.writeText(company?.id || companyIdFallback || "");
-            }}
-            className="mr-auto text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 text-sm font-medium shrink-0"
-            title="نسخ المعرف"
+            onClick={handleCopyCode}
+            disabled={!company?.publicCode}
+            className={`mr-auto text-sm font-medium shrink-0 ${
+              !company?.publicCode
+                ? "text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                : "text-indigo-600 dark:text-indigo-400 hover:text-indigo-800"
+            }`}
+            title="نسخ الرمز"
           >
-            نسخ
+            {copiedCode ? "تم النسخ" : "نسخ"}
           </button>
+        </div>
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-mono">
+          <span>
+            المعرف التقني:{" "}
+            <span title="Company.id — internal only" className="select-all">
+              {company?.id || companyIdFallback || "—"}
+            </span>
+          </span>
+          {(company?.id || companyIdFallback) && (
+            <button
+              type="button"
+              onClick={handleCopyId}
+              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline text-xs"
+              title="نسخ المعرف التقني"
+            >
+              {copiedId ? "تم النسخ" : "نسخ"}
+            </button>
+          )}
         </div>
       </div>
 

@@ -608,6 +608,7 @@ const companySettings = async (req, res) => {
             where: { id: companyId },
             select: {
                 id: true,
+                publicCode: true,
                 name: true,
                 email: true,
                 phone: true,
@@ -677,6 +678,7 @@ const updateCompanySettings = async (req, res) => {
             },
             select: {
                 id: true,
+                publicCode: true,
                 name: true,
                 email: true,
                 phone: true,
