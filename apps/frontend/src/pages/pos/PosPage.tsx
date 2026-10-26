@@ -907,7 +907,7 @@ const PosPage = () => {
   };
 
   return (
-    <div className="bg-background flex min-h-screen" dir={i18n.language === "ar" ? "rtl" : "ltr"}>
+    <div className="bg-background flex min-h-[calc(100dvh-3rem)]" dir={i18n.language === "ar" ? "rtl" : "ltr"}>
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Top Control Bar */}
         <div className="border-b border-border/80 bg-card/40 backdrop-blur-xs px-4 py-2.5 flex items-center gap-3">
