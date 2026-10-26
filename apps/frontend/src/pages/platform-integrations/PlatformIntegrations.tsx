@@ -128,58 +128,43 @@ const PlatformIntegrations: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Layout Grid */}
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* Navigation Sidebar Tabs */}
-        <div className="w-full lg:w-72 shrink-0">
-          <div className="bg-card rounded-xl border border-border/70 p-2 shadow-sm space-y-1 lg:sticky lg:top-6">
-            <div className="px-3 py-2 border-b border-border/40 hidden lg:block">
-              <span className="text-xs font-bold text-foreground">
-                {t('platform.k_88', 'المنصات المدعومة')}
-              </span>
-            </div>
-            <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible no-scrollbar p-1">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
+      {/* Platform Navigation Tabs Bar */}
+      <div className="bg-card border border-border/70 rounded-xl p-1.5 shadow-xs overflow-hidden">
+        <nav className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
 
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => tab.available && handleTabChange(tab.id)}
-                    disabled={!tab.available}
-                    className={`shrink-0 lg:w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-right transition-colors ${
-                      isActive
-                        ? "bg-primary text-primary-foreground font-bold shadow-sm"
-                        : tab.available
-                          ? "text-foreground hover:bg-muted/40 font-medium"
-                          : "text-muted-foreground/60 cursor-not-allowed opacity-60"
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-foreground' : 'text-primary'}`} />
-                    <div className="flex-1 min-w-0 text-right">
-                      <div className="text-xs truncate">{tab.label}</div>
-                      <div className={`text-[10px] truncate ${isActive ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                        {tab.description}
-                      </div>
-                    </div>
-                    {!tab.available && (
-                      <span className="text-[10px] bg-muted/60 text-muted-foreground px-1.5 py-0.5 rounded font-medium shrink-0">
-                        {t('platform.k_89', 'قريباً')}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => tab.available && handleTabChange(tab.id)}
+                disabled={!tab.available}
+                className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                    : tab.available
+                      ? "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      : "text-muted-foreground/40 cursor-not-allowed opacity-50"
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-primary-foreground' : 'text-primary'}`} />
+                <span>{tab.label}</span>
+                {!tab.available && (
+                  <span className="text-[10px] bg-muted/60 text-muted-foreground px-1.5 py-0.5 rounded font-medium shrink-0">
+                    {t('platform.k_89', 'قريباً')}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
 
-        {/* Content Area Surface */}
-        <div className="flex-1 min-w-0 w-full bg-card border border-border/70 rounded-xl p-4 sm:p-6 shadow-sm">
-          <ActiveComponent />
-        </div>
+      {/* Main Content Area */}
+      <div className="w-full min-w-0">
+        <ActiveComponent embedded={true} />
       </div>
     </div>
   );

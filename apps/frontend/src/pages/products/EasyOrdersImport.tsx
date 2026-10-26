@@ -4,7 +4,11 @@ import { EasyOrdersProductsTab } from "./components/easy-orders/EasyOrdersProduc
 import { EasyOrdersSettingsTab } from "./components/easy-orders/EasyOrdersSettingsTab";
 import { useEasyOrdersController } from "./components/easy-orders/useEasyOrdersController";
 
-export const EasyOrdersImport: React.FC = () => {
+export interface EasyOrdersImportProps {
+  embedded?: boolean;
+}
+
+export const EasyOrdersImport: React.FC<EasyOrdersImportProps> = ({ embedded = false }) => {
   const {
     activeTab,
     setActiveTab,
@@ -30,8 +34,15 @@ export const EasyOrdersImport: React.FC = () => {
   } = useEasyOrdersController();
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 font-sans" dir="rtl">
-      <div className="w-full max-w-6xl mx-auto">
+    <div
+      className={
+        embedded
+          ? "w-full text-foreground font-sans space-y-4"
+          : "min-h-screen bg-background text-foreground p-4 sm:p-6 font-sans"
+      }
+      dir="rtl"
+    >
+      <div className={embedded ? "w-full" : "w-full max-w-6xl mx-auto"}>
         <EasyOrdersTabsNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
         {activeTab === "products" ? (
