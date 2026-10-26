@@ -160,6 +160,13 @@ describe('CustomerListCriteriaV2 Unit Tests', () => {
     test('rule: city checks orders.city', () => {
       const sql = compileRuleToSql({ field: 'city', value: 'Cairo' }, ctx);
       expect(sql).toContain('EXISTS');
+      // exact match by default — contains over-matches ("القاهرة الجديدة")
+      expect(sql).toContain('o."city" = $2');
+      expect(params[1]).toBe('Cairo');
+    });
+
+    test('rule: city contains is opt-in only', () => {
+      const sql = compileRuleToSql({ field: 'city', value: 'Cairo', match: 'contains' }, ctx);
       expect(sql).toContain('o."city" ILIKE $2');
       expect(params[1]).toBe('%Cairo%');
     });
@@ -174,8 +181,8 @@ describe('CustomerListCriteriaV2 Unit Tests', () => {
     test('rule: governorate checks orders.governorate', () => {
       const sql = compileRuleToSql({ field: 'governorate', value: 'Alexandria' }, ctx);
       expect(sql).toContain('EXISTS');
-      expect(sql).toContain('o."governorate" ILIKE $2');
-      expect(params[1]).toBe('%Alexandria%');
+      expect(sql).toContain('o."governorate" = $2');
+      expect(params[1]).toBe('Alexandria');
     });
 
     // 11. deliveryRate
@@ -220,8 +227,8 @@ describe('CustomerListCriteriaV2 Unit Tests', () => {
       const flat = sql.replace(/\s+/g, ' ');
       const orIdx = flat.indexOf(') OR EXISTS (');
       expect(orIdx).toBeGreaterThan(-1);
-      expect(flat.slice(0, orIdx)).toContain('ILIKE $2');
-      expect(flat.slice(orIdx)).toContain('ILIKE $3');
+      expect(flat.slice(0, orIdx)).toContain('o."city" = $2');
+      expect(flat.slice(orIdx)).toContain('o."city" = $3');
     });
 
     test('container with AND groups joins them with AND', () => {

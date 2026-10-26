@@ -135,17 +135,17 @@ async function run() {
             SELECT 1 FROM "orders" o
             WHERE o."customerId" = c."id"
               AND o."companyId" = $1
-              AND o."city" ILIKE '%القاهرة%'
+              AND o."city" = $2
           )
           OR EXISTS (
             SELECT 1 FROM "orders" o
             WHERE o."customerId" = c."id"
               AND o."companyId" = $1
-              AND o."governorate" ILIKE '%الجيزة%'
+              AND o."governorate" = $3
           )
         )`;
 
-    const directRows = await prisma.$queryRawUnsafe(directSql, companyId);
+    const directRows = await prisma.$queryRawUnsafe(directSql, companyId, 'القاهرة', 'الجيزة');
     const directCount = Number(directRows?.[0]?.count ?? 0);
     const pass = engineCount === directCount;
 

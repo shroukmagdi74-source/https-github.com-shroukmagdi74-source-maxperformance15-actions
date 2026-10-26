@@ -255,11 +255,17 @@ function compileRuleToSql(rule, { addParam, companyIdParam }) {
         )`;
       }
       const city = String(rawCity).trim();
+      // Exact match by default (consistent with the legacy `city` criteria type,
+      // which uses orders.some({ city })). A partial/fuzzy match over-matches:
+      // "القاهرة" would also pull "القاهرة الجديدة" / "ستاد القاهرة".
+      // Opt in explicitly with { match: 'contains' }.
+      const cityOp = rule.match === 'contains' ? 'ILIKE' : '=';
+      const cityParam = addParam(rule.match === 'contains' ? `%${city}%` : city);
       return `EXISTS (
         SELECT 1 FROM "orders" o
         WHERE o."customerId" = c."id"
           AND o."companyId" = ${companyIdParam}
-          AND o."city" ILIKE ${addParam(`%${city}%`)}
+          AND o."city" ${cityOp} ${cityParam}
       )`;
     }
 
@@ -278,11 +284,13 @@ function compileRuleToSql(rule, { addParam, companyIdParam }) {
         )`;
       }
       const gov = String(rawGov).trim();
+      const govOp = rule.match === 'contains' ? 'ILIKE' : '=';
+      const govParam = addParam(rule.match === 'contains' ? `%${gov}%` : gov);
       return `EXISTS (
         SELECT 1 FROM "orders" o
         WHERE o."customerId" = c."id"
           AND o."companyId" = ${companyIdParam}
-          AND o."governorate" ILIKE ${addParam(`%${gov}%`)}
+          AND o."governorate" ${govOp} ${govParam}
       )`;
     }
 

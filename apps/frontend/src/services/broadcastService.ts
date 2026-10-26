@@ -357,7 +357,10 @@ class BroadcastService {
     });
   }
 
-  async previewCustomerListCount(criteria: any): Promise<{ success: boolean; data: { count: number } }> {
+  async previewCustomerListCount(criteria: any): Promise<{
+    success: boolean;
+    data: { count: number; before?: number; after?: number; excluded?: number };
+  }> {
     return this.makeRequest("/broadcast/customer-lists/preview-count", {
       method: "POST",
       body: JSON.stringify({ criteria }),
