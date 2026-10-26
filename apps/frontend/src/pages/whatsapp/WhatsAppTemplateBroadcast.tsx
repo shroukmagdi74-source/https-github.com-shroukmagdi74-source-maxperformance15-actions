@@ -94,6 +94,7 @@ const WhatsAppTemplateBroadcast: React.FC<WhatsAppTemplateBroadcastProps> = ({
     clickRate,
     deliveryRate,
     replyRate,
+    fetchCampaigns,
     withCompanyConfig,
   } = useWhatsAppTemplateBroadcastController({ companyId });
 
@@ -205,6 +206,7 @@ const WhatsAppTemplateBroadcast: React.FC<WhatsAppTemplateBroadcastProps> = ({
             clickRate={clickRate}
             deliveryRate={deliveryRate}
             replyRate={replyRate}
+            onRefresh={fetchCampaigns}
           />
         </TabsContent>
 

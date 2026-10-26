@@ -523,13 +523,24 @@ class BroadcastSchedulerService {
       const hadAnySent = resuming && existingRecipients.some(r => r.status === 'sent');
       const hadAnyPendingOrSent = resuming && existingRecipients.some(r => r.status === 'pending' || r.status === 'sent');
       console.log('✅ [BroadcastScheduler] No pending recipients left — campaign already fully processed');
+      const currentCampaign = await safeQuery(async () => {
+        return await getSharedPrismaClient().broadcastCampaign.findUnique({
+          where: { id: campaign.id },
+          select: { status: true }
+        });
+      }, 5);
+      const isPausedOrCancelled = currentCampaign && (currentCampaign.status === 'paused' || currentCampaign.status === 'cancelled');
+
       await safeQuery(async () => {
-        return await getSharedPrismaClient().broadcastCampaign.update({
-        where: { id: campaign.id },
-        data: {
-          status: hadAnySent ? 'sent' : 'failed',
+        const updateData = {
           pausedReason: hadAnyPendingOrSent ? null : 'All recipients failed during interrupted send'
+        };
+        if (!isPausedOrCancelled) {
+          updateData.status = hadAnySent ? 'sent' : 'failed';
         }
+        return await getSharedPrismaClient().broadcastCampaign.update({
+          where: { id: campaign.id },
+          data: updateData
         });
       }, 5);
       return;
@@ -644,6 +655,14 @@ class BroadcastSchedulerService {
     // إرسال رسالة لكل عميل
     for (let i = 0; i < conversations.length; i++) {
       const conv = conversations[i];
+
+      const currentCampaign = await safeQuery(async () => getSharedPrismaClient().broadcastCampaign.findUnique({
+        where: { id: campaign.id }, select: { status: true }
+      }), 5);
+      if (currentCampaign && (currentCampaign.status === 'paused' || currentCampaign.status === 'cancelled')) {
+        console.log(`⏹️ [BroadcastScheduler] تم إيقاف الحملة (${currentCampaign.status}) بعد إرسال ${sentCount} رسالة`);
+        break;
+      }
       
       try {
         if (isWhatsApp) {
@@ -982,11 +1001,19 @@ class BroadcastSchedulerService {
 
     console.log(`📊 [BroadcastScheduler] Campaign results - Sent: ${sentCount}, Failed: ${failedCount}`);
 
+    const finalCampaignCheck = await safeQuery(async () => {
+      return await getSharedPrismaClient().broadcastCampaign.findUnique({
+        where: { id: campaign.id },
+        select: { status: true }
+      });
+    }, 5);
+    const isPausedOrCancelled = finalCampaignCheck && (finalCampaignCheck.status === 'paused' || finalCampaignCheck.status === 'cancelled');
+
     // إرسال إشعار الإتمام
     if (io) {
       io.emit('campaign:progress', {
         campaignId: campaign.id,
-        status: 'completed',
+        status: isPausedOrCancelled ? finalCampaignCheck.status : 'completed',
         total: totalRecipients,
         sent: sentCount,
         failed: failedCount,
@@ -997,15 +1024,18 @@ class BroadcastSchedulerService {
     // تحديث إحصائيات الحملة
     const finalRecipientCount = resuming ? existingRecipients.length : recipients.length;
     await safeQuery(async () => {
-      return await getSharedPrismaClient().broadcastCampaign.update({
-      where: { id: campaign.id },
-      data: {
+      const updateData = {
         recipientCount: finalRecipientCount,
         sentCount: sentCount,
         failedCount: failedCount,
         deliveredCount: 0, // ponytail: starts at 0, updated by webhooks on actual delivery
-        status: sentCount > 0 ? 'sent' : 'failed'
+      };
+      if (!isPausedOrCancelled) {
+        updateData.status = sentCount > 0 ? 'sent' : 'failed';
       }
+      return await getSharedPrismaClient().broadcastCampaign.update({
+        where: { id: campaign.id },
+        data: updateData
       });
     }, 6);
 

@@ -327,6 +327,8 @@ async function executeCampaignSendInBackground({
         targetConvs = targetConvs.slice(0, maxRecipients);
       }
 
+      let lastProgressDbUpdate = Date.now();
+
       for (let i = 0; i < targetConvs.length; i++) {
         const conv = targetConvs[i];
 
@@ -477,6 +479,15 @@ async function executeCampaignSendInBackground({
               progress
             });
           }
+        }
+
+        const now = Date.now();
+        if ((i + 1) % 10 === 0 || (now - lastProgressDbUpdate >= 5000) || (i + 1) === targetConvs.length) {
+          lastProgressDbUpdate = now;
+          await getSharedPrismaClient().broadcastCampaign.update({
+            where: { id: campaignId },
+            data: { sentCount, failedCount }
+          }).catch(e => console.warn('⚠️ [SEND CAMPAIGN BG] فشل تحديث التقدم في قاعدة البيانات:', e.message));
         }
       }
     } else {
@@ -690,39 +701,57 @@ async function executeCampaignSendInBackground({
     console.log(`📊 [SEND CAMPAIGN BG] اكتمل الإرسال - نجح: ${sentCount}, فشل: ${failedCount}`);
 
     try {
+      const currentCampaign = await getSharedPrismaClient().broadcastCampaign.findUnique({
+        where: { id: campaignId },
+        select: { status: true }
+      });
+
+      const isPausedOrCancelled = currentCampaign && (currentCampaign.status === 'paused' || currentCampaign.status === 'cancelled');
+
+      const updateData = {
+        recipientCount: recipients.length,
+        sentCount: sentCount,
+        failedCount: failedCount,
+        deliveredCount: 0
+      };
+
+      if (!isPausedOrCancelled) {
+        updateData.status = sentCount > 0 ? 'sent' : 'failed';
+      }
+
       await getSharedPrismaClient().broadcastCampaign.update({
         where: { id: campaignId },
-        data: {
-          recipientCount: recipients.length,
-          sentCount: sentCount,
-          failedCount: failedCount,
-          deliveredCount: 0,
-          status: sentCount > 0 ? 'sent' : 'failed'
-        }
+        data: updateData
       });
       console.log('✅ [SEND CAMPAIGN BG] تم تحديث إحصائيات الحملة في قاعدة البيانات بنجاح');
+
+      if (io) {
+        io.emit('campaign:progress', {
+          campaignId: campaign.id,
+          status: isPausedOrCancelled ? currentCampaign.status : 'completed',
+          total: totalRecipients,
+          sent: sentCount,
+          failed: failedCount,
+          progress: 100
+        });
+      }
     } catch (updateError) {
       console.error('❌ [SEND CAMPAIGN BG] خطأ في تحديث إحصائيات الحملة:', updateError);
-    }
-
-    if (io) {
-      io.emit('campaign:progress', {
-        campaignId: campaign.id,
-        status: 'completed',
-        total: totalRecipients,
-        sent: sentCount,
-        failed: failedCount,
-        progress: 100
-      });
     }
 
   } catch (error) {
     console.error('❌ [SEND CAMPAIGN BG] خطأ غير متوقع في معالجة الحملة:', error);
     try {
-      await getSharedPrismaClient().broadcastCampaign.update({
+      const finalStatusCheck = await getSharedPrismaClient().broadcastCampaign.findUnique({
         where: { id: campaignId },
-        data: { status: 'failed' }
+        select: { status: true }
       });
+      if (!finalStatusCheck || (finalStatusCheck.status !== 'paused' && finalStatusCheck.status !== 'cancelled')) {
+        await getSharedPrismaClient().broadcastCampaign.update({
+          where: { id: campaignId },
+          data: { status: 'failed' }
+        });
+      }
     } catch (e) {}
 
     if (io) {

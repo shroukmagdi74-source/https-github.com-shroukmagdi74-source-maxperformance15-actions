@@ -1,7 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Clock, Loader2, Megaphone } from 'lucide-react';
+import { AlertCircle, Clock, Loader2, Megaphone, Pause, Play, XCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Campaign, CampaignRun } from '../types';
 import { broadcastService } from '@/services/broadcastService';
 
@@ -14,6 +27,7 @@ interface CampaignsHistoryTabProps {
   clickRate: (c: Campaign) => number;
   deliveryRate: (c: Campaign) => number;
   replyRate: (c: Campaign) => number;
+  onRefresh: () => Promise<void> | void;
 }
 
 const statusLabelMap: Record<string, string> = {
@@ -26,6 +40,10 @@ const statusLabelMap: Record<string, string> = {
   running: 'قيد التشغيل',
   scheduled: 'مجدول',
   draft: 'مسودة',
+  sending: 'جاري الإرسال',
+  cancelled: 'ملغي',
+  canceled: 'ملغي',
+  pending: 'بالانتظار',
 };
 
 const getStatusBadgeVariant = (status: string): 'default' | 'destructive' | 'secondary' | 'outline' => {
@@ -36,9 +54,15 @@ const getStatusBadgeVariant = (status: string): 'default' | 'destructive' | 'sec
     case 'failed':
     case 'stopped':
     case 'paused':
+    case 'cancelled':
+    case 'canceled':
       return 'destructive';
     case 'active':
+    case 'sending':
       return 'outline';
+    case 'pending':
+    case 'scheduled':
+      return 'secondary';
     default:
       return 'secondary';
   }
@@ -122,7 +146,7 @@ const CampaignRunsSection: React.FC<{ campaignId: string }> = ({ campaignId }) =
                     variant={getStatusBadgeVariant(r.status)}
                     className="text-[9px] px-1.5 py-0 font-mono"
                   >
-                    {statusLabelMap[r.status] || r.status}
+                    {statusLabelMap[r.status] || 'غير معروف'}
                   </Badge>
                 </td>
               </tr>
@@ -143,7 +167,76 @@ export const CampaignsHistoryTab: React.FC<CampaignsHistoryTabProps> = ({
   clickRate,
   deliveryRate,
   replyRate,
+  onRefresh,
 }) => {
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+  const [campaignToCancel, setCampaignToCancel] = useState<Campaign | null>(null);
+
+  const handlePause = async (e: React.MouseEvent, campaignId: string) => {
+    e.stopPropagation();
+    if (actionLoading[campaignId]) return;
+    setActionLoading((prev) => ({ ...prev, [campaignId]: true }));
+    try {
+      await broadcastService.pauseCampaign(campaignId);
+      toast.success('تم إيقاف الحملة');
+      await onRefresh();
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('400') || msg.includes('لا يمكن إيقاف') || msg.includes('متوقفة')) {
+        toast.info('الحملة في الحالة دي بالفعل');
+        await onRefresh();
+      } else {
+        toast.error(msg || 'فشل في إيقاف الحملة');
+      }
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [campaignId]: false }));
+    }
+  };
+
+  const handleResume = async (e: React.MouseEvent, campaignId: string) => {
+    e.stopPropagation();
+    if (actionLoading[campaignId]) return;
+    setActionLoading((prev) => ({ ...prev, [campaignId]: true }));
+    try {
+      await broadcastService.resumeCampaign(campaignId);
+      toast.success('تم استكمال الحملة');
+      await onRefresh();
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('400') || msg.includes('ليست متوقفة')) {
+        toast.info('الحملة في الحالة دي بالفعل');
+        await onRefresh();
+      } else {
+        toast.error(msg || 'فشل في استكمال الحملة');
+      }
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [campaignId]: false }));
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!campaignToCancel || actionLoading[campaignToCancel.id]) return;
+    const cid = campaignToCancel.id;
+    setActionLoading((prev) => ({ ...prev, [cid]: true }));
+    try {
+      await broadcastService.cancelCampaign(cid);
+      toast.success('تم إلغاء الحملة');
+      setCampaignToCancel(null);
+      await onRefresh();
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('400') || msg.includes('ملغية')) {
+        toast.info('الحملة في الحالة دي بالفعل');
+        setCampaignToCancel(null);
+        await onRefresh();
+      } else {
+        toast.error(msg || 'فشل في إلغاء الحملة');
+      }
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [cid]: false }));
+    }
+  };
+
   if (loadingCampaigns) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -205,13 +298,84 @@ export const CampaignsHistoryTab: React.FC<CampaignsHistoryTabProps> = ({
                       </span>
                     </p>
                   )}
+                  {(c.status === 'sending' || c.status === 'paused') && (
+                    <div className="mt-2.5 space-y-1.5 max-w-md">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground font-mono tabular-nums">
+                        <span>
+                          {c.sentCount || 0} من {c.recipientCount || 0} — {c.recipientCount > 0 ? Math.round(((c.sentCount || 0) / c.recipientCount) * 100) : 0}%
+                        </span>
+                      </div>
+                      <Progress
+                        value={c.recipientCount > 0 ? Math.round(((c.sentCount || 0) / c.recipientCount) * 100) : 0}
+                        className="h-1.5"
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        الإيقاف بيسري بعد الرسالة الجارية
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <Badge
-                  variant={getStatusBadgeVariant(c.status)}
-                  className="shrink-0 text-[10px] font-mono px-2 py-0.5"
-                >
-                  {statusLabelMap[c.status] || c.status}
-                </Badge>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge
+                    variant={getStatusBadgeVariant(c.status)}
+                    className="shrink-0 text-[10px] font-mono px-2 py-0.5"
+                  >
+                    {statusLabelMap[c.status] || 'غير معروف'}
+                  </Badge>
+
+                  {(c.status === 'sending' || c.status === 'scheduled') && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        disabled={!!actionLoading[c.id]}
+                        onClick={(e) => handlePause(e, c.id)}
+                        className="gap-1 text-xs"
+                      >
+                        {actionLoading[c.id] ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Pause className="size-3" />
+                        )}
+                        <span>إيقاف</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="xs"
+                        disabled={!!actionLoading[c.id]}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCampaignToCancel(c);
+                        }}
+                        className="gap-1 text-xs"
+                      >
+                        <XCircle className="size-3" />
+                        <span>إلغاء</span>
+                      </Button>
+                    </>
+                  )}
+
+                  {c.status === 'paused' && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="xs"
+                      disabled={!!actionLoading[c.id]}
+                      onClick={(e) => handleResume(e, c.id)}
+                      className="gap-1 text-xs"
+                    >
+                      {actionLoading[c.id] ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Play className="size-3" />
+                      )}
+                      <span>استكمال</span>
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {(c.status === 'failed' || c.status === 'paused' || c.status === 'stopped' || c.failedCount > 0) && activeReason && (
@@ -256,6 +420,42 @@ export const CampaignsHistoryTab: React.FC<CampaignsHistoryTabProps> = ({
           </Card>
         );
       })}
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog
+        open={!!campaignToCancel}
+        onOpenChange={(open) => !open && setCampaignToCancel(null)}
+      >
+        <AlertDialogContent className="max-w-md rounded-xl p-5" onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-bold">تأكيد إلغاء الحملة</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              الإلغاء نهائي ومش هينفع نكمل الحملة. متأكد؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="pt-2 flex-row-reverse gap-2 sm:justify-start">
+            <AlertDialogCancel
+              className="h-8 rounded-lg text-xs"
+              disabled={actionLoading[campaignToCancel?.id || '']}
+              onClick={() => setCampaignToCancel(null)}
+            >
+              تراجع
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 gap-1.5 rounded-lg text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={actionLoading[campaignToCancel?.id || '']}
+              onClick={handleCancel}
+            >
+              {actionLoading[campaignToCancel?.id || ''] ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <XCircle className="size-3.5" />
+              )}
+              تأكيد الإلغاء
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

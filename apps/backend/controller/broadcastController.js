@@ -653,22 +653,27 @@ exports.cancelCampaign = async (req, res) => {
       });
     }
 
-    // إذا كانت الحملة قيد الإرسال، نوقفها
-    if (campaign.status === 'sending') {
-      await getSharedPrismaClient().broadcastCampaign.update({
-        where: { id: campaignId },
-        data: { status: 'cancelled' }
-      });
-    } else {
-      // حذف الحملة
-      await getSharedPrismaClient().broadcastCampaign.delete({
-        where: { id: campaignId }
+    // إذا كانت الحملة ملغية بالفعل، إرجاع نجاح بدون تعديل (idempotent)
+    if (campaign.status === 'cancelled') {
+      return res.status(200).json({
+        success: true,
+        message: 'الحملة ملغية بالفعل',
+        data: campaign
       });
     }
 
+    const updatedCampaign = await getSharedPrismaClient().broadcastCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: 'cancelled',
+        pausedReason: 'تم الإلغاء يدوياً من المستخدم'
+      }
+    });
+
     res.json({
       success: true,
-      message: 'تم إلغاء الحملة بنجاح'
+      message: 'تم إلغاء الحملة بنجاح',
+      data: updatedCampaign
     });
 
   } catch (error) {
@@ -708,6 +713,15 @@ exports.pauseCampaign = async (req, res) => {
     }
 
     console.log(`📋 [PAUSE CAMPAIGN] تم العثور على الحملة - الاسم: ${campaign.name}, الحالة: ${campaign.status}`);
+
+    if (campaign.status === 'paused') {
+      console.log(`ℹ️ [PAUSE CAMPAIGN] الحملة متوقفة بالفعل - الاسم: ${campaign.name}`);
+      return res.status(200).json({
+        success: true,
+        message: 'تم إيقاف الحملة مؤقتاً',
+        data: campaign
+      });
+    }
 
     if (campaign.status !== 'sending' && campaign.status !== 'scheduled' && campaign.status !== 'active') {
       console.log(`⚠️ [PAUSE CAMPAIGN] لا يمكن إيقاف الحملة - الحالة الحالية: ${campaign.status}`);
@@ -779,18 +793,22 @@ exports.resumeCampaign = async (req, res) => {
     }
 
     const isRecurring = campaign.recurrence && campaign.recurrence !== 'none';
-    const newStatus = isRecurring ? 'active' : (campaign.scheduledAt ? 'scheduled' : 'sending');
+    const newStatus = isRecurring ? 'active' : 'scheduled';
     console.log(`🔄 [RESUME CAMPAIGN] تحديث حالة الحملة إلى "${newStatus}"`);
 
     const updateData = { status: newStatus, pausedReason: null };
-    if (isRecurring && (!campaign.nextRunAt || new Date(campaign.nextRunAt) <= new Date())) {
-      updateData.nextRunAt = computeFirstRunAt({
-        recurrence: campaign.recurrence,
-        recurrenceInterval: campaign.recurrenceInterval || 1,
-        sendHour: campaign.sendHour,
-        sendMinute: campaign.sendMinute || 0,
-        startAt: new Date(),
-      });
+    if (isRecurring) {
+      if (!campaign.nextRunAt || new Date(campaign.nextRunAt) <= new Date()) {
+        updateData.nextRunAt = computeFirstRunAt({
+          recurrence: campaign.recurrence,
+          recurrenceInterval: campaign.recurrenceInterval || 1,
+          sendHour: campaign.sendHour,
+          sendMinute: campaign.sendMinute || 0,
+          startAt: new Date(),
+        });
+      }
+    } else {
+      updateData.scheduledAt = new Date();
     }
 
     const updatedCampaign = await getSharedPrismaClient().broadcastCampaign.update({
