@@ -54,7 +54,12 @@ export function useCopilotSpecialists({
             const matched =
               (serverDefaultSlug &&
                 serverSpecialists.find(
-                  (a) => a.slug === serverDefaultSlug || a.id === serverDefaultSlug
+                  (a) =>
+                    a.slug === serverDefaultSlug ||
+                    a.id === serverDefaultSlug ||
+                    (a as any).templateSlug === serverDefaultSlug ||
+                    (a as any).template_slug === serverDefaultSlug ||
+                    (a.role === 'EXECUTIVE_ASSISTANT' && serverDefaultSlug === 'executive-assistant-agent')
                 )) ||
               serverSpecialists.find((a) => a.isDefault) ||
               serverSpecialists[0];

@@ -11,6 +11,7 @@ import { CopilotInputFooter } from './CopilotInputFooter';
 import { CopilotHeader } from './CopilotHeader';
 import { AgentStudioMarkdownMessage } from '../agent-studio/AgentStudioMarkdownMessage';
 import type { CopilotMessage, ActionCardData } from './types';
+import { toast } from 'sonner';
 
 interface MerchantCopilotDrawerProps {
   isOpen: boolean;
@@ -57,6 +58,7 @@ export const MerchantCopilotDrawer: React.FC<MerchantCopilotDrawerProps> = ({
 
   const handleSelectAgent = useCallback((agent: SpecialistAgent) => {
     setSelectedAgent(agent);
+    toast.success(`تم اختيار ${agent.name}`);
   }, [setSelectedAgent]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);

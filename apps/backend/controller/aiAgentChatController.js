@@ -1103,6 +1103,10 @@ async function getSpecialists(req, res) {
       finalSpecialists = activeAgents.map((a) => {
         const agentChannels = (a.allowedChannels || a.allowed_channels || []);
         const hasDashboardChannel = Array.isArray(agentChannels) && agentChannels.map((c) => String(c).toUpperCase()).includes('DASHBOARD');
+        const baseMatch = baseSpecialists.find(
+          (b) => b.slug === a.templateSlug || b.slug === a.template_slug || b.role === a.role
+        );
+
         // A single agent may own the copilot default. Owning the DASHBOARD
         // channel must never promote an agent to "default" on its own: Swan
         // had three dashboard-channel agents and the copilot opened on the
@@ -1112,15 +1116,13 @@ async function getSpecialists(req, res) {
           a.id === defaultAgentSlug ||
           a.slug === defaultAgentSlug ||
           a.templateSlug === defaultAgentSlug ||
-          a.template_slug === defaultAgentSlug;
-
-        const baseMatch = baseSpecialists.find(
-          (b) => b.slug === a.templateSlug || b.slug === a.template_slug || b.role === a.role
-        );
+          a.template_slug === defaultAgentSlug ||
+          baseMatch?.slug === defaultAgentSlug ||
+          (a.role === 'EXECUTIVE_ASSISTANT' && defaultAgentSlug === 'executive-assistant-agent');
 
         return {
           id: a.id,
-          slug: a.slug || a.templateSlug || a.template_slug || a.id,
+          slug: a.slug || a.templateSlug || a.template_slug || baseMatch?.slug || a.id,
           name: a.name || baseMatch?.name || a.role || 'وكيل ذكاء اصطناعي',
           role: a.role || baseMatch?.role || 'SPECIALIST',
           title: a.description || baseMatch?.title || a.name || 'وكيل متخصص',
