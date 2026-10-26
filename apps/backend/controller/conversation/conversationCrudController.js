@@ -237,7 +237,8 @@ const getConversations = async (req, res) => {
                     },
                     select: { conversationId: true },
                     distinct: ['conversationId'],
-                    take: 500,
+                    orderBy: { conversationId: 'asc' },
+                    take: 1500,
                 }), 3);
                 contentIds = rows.map(r => r.conversationId);
             }
