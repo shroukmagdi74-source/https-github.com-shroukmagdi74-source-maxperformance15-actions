@@ -421,7 +421,7 @@ export function useWhatsAppTemplateBroadcastController({
   );
 
   const handleCreateCampaign = useCallback(async (extraData?: Record<string, any>) => {
-    const isDynamic = extraData?.audienceMode === 'dynamic';
+    const isDynamic = extraData?.['audienceMode'] === 'dynamic';
     if (!campaignName || !selectedTemplate || (!isDynamic && recipients.length === 0)) {
       tToast.error('WhatsAppTemplateBroadcast.msg_03ea');
       return;
@@ -440,7 +440,7 @@ export function useWhatsAppTemplateBroadcastController({
       setSending(true);
       setResult(null);
 
-      const isRecurring = extraData?.recurrence && extraData.recurrence !== 'none';
+      const isRecurring = extraData?.['recurrence'] && extraData['recurrence'] !== 'none';
       const sendNow = (scheduleAt || isRecurring) ? 'false' : 'true';
 
       setSendProgress({ current: 0, total: recipients.length, status: 'sending' });
@@ -483,7 +483,7 @@ export function useWhatsAppTemplateBroadcastController({
 
       const sendRes = await broadcastService.sendCampaign(campaignId, recipients);
       if (sendRes.success) {
-        if (sendRes.status === 'sending' || (sendRes as any).isAsync) {
+        if ((sendRes as any).status === 'sending' || (sendRes as any).isAsync) {
           toast.success(sendRes.message || 'بدأ إرسال الحملة بنجاح في الخلفية');
           setResult({
             status: 'sending',
@@ -506,7 +506,7 @@ export function useWhatsAppTemplateBroadcastController({
       } else {
         const errorMsg =
           (sendRes as any).failureReason ||
-          sendRes.details?.[0]?.error ||
+          (sendRes as any).details?.[0]?.error ||
           (sendRes as any).message ||
           'فشل إرسال الحملة';
         toast.error(`فشل إرسال الحملة: ${errorMsg}`);

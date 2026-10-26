@@ -1,7 +1,21 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Plus, Eye, Search, AlertCircle } from "lucide-react";
+import {
+  Plus,
+  Eye,
+  Pencil,
+  Trash2,
+  Search,
+  AlertCircle,
+  Banknote,
+  Building2,
+  CreditCard,
+  FileText,
+  Receipt,
+  Loader2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { apiClient } from "../../services/apiClient";
 import { formatCurrency } from "../../utils/currency";
 import { formatShortDate } from "../../utils/dateFormat";
@@ -11,6 +25,8 @@ import {
 } from "./ProcurementMobileCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -27,7 +43,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface SupplierPayment {
   id: string;
@@ -35,15 +58,40 @@ interface SupplierPayment {
   paymentDate: string;
   amount: number;
   paymentMethod: string;
+  referenceNumber?: string;
+  bankName?: string;
+  checkNumber?: string;
+  checkDate?: string;
+  notes?: string;
   supplier: {
     id: string;
     name: string;
+    phone?: string;
   };
   purchaseInvoice?: {
     id: string;
     invoiceNumber: string;
   };
 }
+
+interface EditFormData {
+  amount: string;
+  paymentDate: string;
+  paymentMethod: string;
+  referenceNumber: string;
+  bankName: string;
+  checkNumber: string;
+  checkDate: string;
+  notes: string;
+}
+
+const PAYMENT_METHODS = [
+  { value: "CASH", label: "نقدي", icon: Banknote },
+  { value: "BANK_TRANSFER", label: "تحويل بنكي", icon: Building2 },
+  { value: "INSTAPAY", label: "إنستاباي / محفظة إلكترونية", icon: CreditCard },
+  { value: "CHECK", label: "شيك مصرفي", icon: FileText },
+  { value: "OTHER", label: "أخرى", icon: Receipt },
+];
 
 const SupplierPayments: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -57,12 +105,31 @@ const SupplierPayments: React.FC = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Edit Modal State
+  const [editingPayment, setEditingPayment] = useState<SupplierPayment | null>(null);
+  const [editForm, setEditForm] = useState<EditFormData>({
+    amount: "",
+    paymentDate: "",
+    paymentMethod: "CASH",
+    referenceNumber: "",
+    bankName: "",
+    checkNumber: "",
+    checkDate: "",
+    notes: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Delete Modal State
+  const [deletingPayment, setDeletingPayment] = useState<SupplierPayment | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const paymentMethodLabels: Record<string, string> = {
-    CASH: t("procurement.supplierPayments.methodCash"),
-    BANK_TRANSFER: t("procurement.supplierPayments.methodBankTransfer"),
-    CHECK: t("procurement.supplierPayments.methodCheck"),
-    CREDIT_CARD: t("procurement.supplierPayments.methodCreditCard"),
-    OTHER: t("procurement.supplierPayments.methodOther"),
+    CASH: t("procurement.supplierPayments.methodCash", "نقدي"),
+    BANK_TRANSFER: t("procurement.supplierPayments.methodBankTransfer", "تحويل بنكي"),
+    INSTAPAY: "إنستاباي / محفظة",
+    CHECK: t("procurement.supplierPayments.methodCheck", "شيك"),
+    CREDIT_CARD: t("procurement.supplierPayments.methodCreditCard", "بطاقة ائتمان"),
+    OTHER: t("procurement.supplierPayments.methodOther", "أخرى"),
   };
 
   const fetchPayments = useCallback(async () => {
@@ -73,13 +140,21 @@ const SupplierPayments: React.FC = () => {
         payments: SupplierPayment[];
         pagination: { totalPages: number };
       }>("/procurement/supplier-payments", {
-        params: { page, limit: 20, search: searchTerm, paymentMethod: methodFilter },
+        params: {
+          page,
+          limit: 20,
+          search: searchTerm,
+          paymentMethod: methodFilter === "all" ? undefined : methodFilter,
+        },
       });
       setPayments(response.data.payments);
-      setTotalPages(response.data.pagination.totalPages);
+      setTotalPages(response.data.pagination.totalPages || 1);
     } catch (err: any) {
       console.error("Error fetching payments:", err);
-      setError(err?.response?.data?.message || t("procurement.supplierPayments.fetchError", "تعذر تحميل سجل المدفوعات"));
+      setError(
+        err?.response?.data?.message ||
+          t("procurement.supplierPayments.fetchError", "تعذر تحميل سجل المدفوعات")
+      );
     } finally {
       setLoading(false);
     }
@@ -89,8 +164,99 @@ const SupplierPayments: React.FC = () => {
     fetchPayments();
   }, [fetchPayments]);
 
+  // Open Edit Modal
+  const handleOpenEdit = (payment: SupplierPayment) => {
+    setEditingPayment(payment);
+    const dateStr = payment.paymentDate
+      ? new Date(payment.paymentDate).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0];
+    const checkDateStr = payment.checkDate
+      ? new Date(payment.checkDate).toISOString().split("T")[0]
+      : "";
+
+    setEditForm({
+      amount: String(payment.amount ?? ""),
+      paymentDate: dateStr,
+      paymentMethod: payment.paymentMethod || "CASH",
+      referenceNumber: payment.referenceNumber || "",
+      bankName: payment.bankName || "",
+      checkNumber: payment.checkNumber || "",
+      checkDate: checkDateStr,
+      notes: payment.notes || "",
+    });
+  };
+
+  // Submit Edit
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPayment) return;
+
+    const parsedAmount = parseFloat(editForm.amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      toast.error(t("procurement.supplierPayments.invalidAmount", "يرجى إدخال مبلغ صحيح أكبر من الصفر"));
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      await apiClient.put(`/procurement/supplier-payments/${editingPayment.id}`, {
+        amount: parsedAmount,
+        paymentDate: editForm.paymentDate,
+        paymentMethod: editForm.paymentMethod,
+        referenceNumber: editForm.referenceNumber.trim() || undefined,
+        bankName: editForm.bankName.trim() || undefined,
+        checkNumber: editForm.checkNumber.trim() || undefined,
+        checkDate: editForm.checkDate || undefined,
+        notes: editForm.notes.trim() || undefined,
+      });
+
+      toast.success(
+        t("procurement.supplierPayments.editPaymentSuccess", "تم تحديث بيانات الدفعة بنجاح")
+      );
+      setEditingPayment(null);
+      await fetchPayments();
+    } catch (err: any) {
+      console.error("Error updating payment:", err);
+      toast.error(
+        err?.response?.data?.message ||
+          t("procurement.supplierPayments.editPaymentError", "تعذر تحديث بيانات الدفعة")
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Open Delete Confirm
+  const handleOpenDelete = (payment: SupplierPayment) => {
+    setDeletingPayment(payment);
+  };
+
+  // Confirm Delete
+  const handleConfirmDelete = async () => {
+    if (!deletingPayment) return;
+
+    try {
+      setDeleting(true);
+      await apiClient.delete(`/procurement/supplier-payments/${deletingPayment.id}`);
+      toast.success(
+        t("procurement.supplierPayments.deletePaymentSuccess", "تم حذف الدفعة بنجاح وتحديث الحسابات")
+      );
+      setDeletingPayment(null);
+      await fetchPayments();
+    } catch (err: any) {
+      console.error("Error deleting payment:", err);
+      toast.error(
+        err?.response?.data?.message ||
+          t("procurement.supplierPayments.deletePaymentError", "تعذر حذف الدفعة")
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
@@ -137,7 +303,9 @@ const SupplierPayments: React.FC = () => {
               <SelectContent>
                 <SelectItem value="all">{t("procurement.supplierPayments.all")}</SelectItem>
                 {Object.entries(paymentMethodLabels).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                  <SelectItem key={key} value={key}>
+                    {label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -145,6 +313,7 @@ const SupplierPayments: React.FC = () => {
         </div>
       </div>
 
+      {/* Desktop Table */}
       <div className="hidden md:block rounded-xl border bg-card text-card-foreground">
         <Table>
           <TableHeader>
@@ -183,7 +352,8 @@ const SupplierPayments: React.FC = () => {
                   </TableCell>
                   <TableCell className="text-start">{payment.supplier.name}</TableCell>
                   <TableCell className="font-mono text-xs text-start">
-                    {payment.purchaseInvoice?.invoiceNumber || t("procurement.supplierPayments.advancePayment")}
+                    {payment.purchaseInvoice?.invoiceNumber ||
+                      t("procurement.supplierPayments.advancePayment", "دفعة مقدمة")}
                   </TableCell>
                   <TableCell className="text-xs tabular-nums text-start">
                     {formatShortDate(payment.paymentDate, i18n.language)}
@@ -193,20 +363,44 @@ const SupplierPayments: React.FC = () => {
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge variant="outline">
-                      {paymentMethodLabels[payment.paymentMethod]}
+                      {paymentMethodLabels[payment.paymentMethod] || payment.paymentMethod}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() =>
-                        navigate(`/procurement/supplier-payments/${payment.id}`)
-                      }
-                      title={t("procurement.supplierPayments.viewDetails")}
-                    >
-                      <Eye className="size-4" />
-                    </Button>
+                    <div className="flex items-center justify-center gap-1">
+                      {/* View Voucher Button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate(`/procurement/supplier-payments/${payment.id}`)}
+                        title={t("procurement.supplierPayments.viewDetails", "عرض السند")}
+                        aria-label={t("procurement.supplierPayments.viewDetails", "عرض السند")}
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                      {/* Edit Payment Button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenEdit(payment)}
+                        title={t("procurement.supplierPayments.editPayment", "تعديل الدفعة")}
+                        aria-label={t("procurement.supplierPayments.editPayment", "تعديل الدفعة")}
+                        className="hover:text-primary"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      {/* Delete Payment Button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenDelete(payment)}
+                        title={t("procurement.supplierPayments.deletePayment", "حذف الدفعة")}
+                        aria-label={t("procurement.supplierPayments.deletePayment", "حذف الدفعة")}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -215,6 +409,7 @@ const SupplierPayments: React.FC = () => {
         </Table>
       </div>
 
+      {/* Mobile Card List */}
       <div className="grid md:hidden gap-2">
         {loading ? (
           [...Array(3)].map((_, i) => (
@@ -236,7 +431,10 @@ const SupplierPayments: React.FC = () => {
               key={payment.id}
               eyebrow={payment.paymentNumber}
               title={payment.supplier.name}
-              subtitle={payment.purchaseInvoice?.invoiceNumber || t("procurement.supplierPayments.advancePayment")}
+              subtitle={
+                payment.purchaseInvoice?.invoiceNumber ||
+                t("procurement.supplierPayments.advancePayment", "دفعة مقدمة")
+              }
               status={
                 <Badge variant="outline">
                   {paymentMethodLabels[payment.paymentMethod] || payment.paymentMethod}
@@ -244,47 +442,325 @@ const SupplierPayments: React.FC = () => {
               }
               fields={[
                 {
-                  label: t("procurement.supplierPayments.mobilePaymentDate"),
+                  label: t("procurement.supplierPayments.mobilePaymentDate", "تاريخ الدفع"),
                   value: formatShortDate(payment.paymentDate, i18n.language),
                 },
                 {
-                  label: t("procurement.supplierPayments.mobileAmount"),
+                  label: t("procurement.supplierPayments.mobileAmount", "المبلغ"),
                   value: formatCurrency(payment.amount, { locale: i18n.language }),
                   emphasis: true,
                 },
                 {
-                  label: t("procurement.supplierPayments.mobilePaymentMethod"),
+                  label: t("procurement.supplierPayments.mobilePaymentMethod", "طريقة الدفع"),
                   value: paymentMethodLabels[payment.paymentMethod] || payment.paymentMethod,
                 },
               ]}
               actions={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    navigate(`/procurement/supplier-payments/${payment.id}`)
-                  }
-                  title={t("procurement.supplierPayments.viewDetails")}
-                >
-                  <Eye className="size-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => navigate(`/procurement/supplier-payments/${payment.id}`)}
+                    title={t("procurement.supplierPayments.viewDetails", "عرض السند")}
+                    aria-label={t("procurement.supplierPayments.viewDetails", "عرض السند")}
+                  >
+                    <Eye className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleOpenEdit(payment)}
+                    title={t("procurement.supplierPayments.editPayment", "تعديل الدفعة")}
+                    aria-label={t("procurement.supplierPayments.editPayment", "تعديل الدفعة")}
+                    className="hover:text-primary"
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleOpenDelete(payment)}
+                    title={t("procurement.supplierPayments.deletePayment", "حذف الدفعة")}
+                    aria-label={t("procurement.supplierPayments.deletePayment", "حذف الدفعة")}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               }
             />
           ))
         )}
       </div>
 
+      {/* Pagination */}
       <div className="flex justify-center mt-3">
         <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            {t("common.previous")}
+            {t("common.previous", "السابق")}
           </Button>
-          <span className="text-sm px-3">{page} / {totalPages}</span>
+          <span className="text-sm px-3">
+            {page} / {totalPages}
+          </span>
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-            {t("common.next")}
+            {t("common.next", "التالي")}
           </Button>
         </div>
       </div>
+
+      {/* ========================================== */}
+      {/* EDIT PAYMENT MODAL                         */}
+      {/* ========================================== */}
+      <Dialog open={Boolean(editingPayment)} onOpenChange={(open) => !open && setEditingPayment(null)}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" dir={isRtl ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <Pencil className="size-5 text-primary" />
+              <span>{t("procurement.supplierPayments.editPaymentTitle", "تعديل بيانات سند الصرف")}</span>
+              {editingPayment && (
+                <Badge variant="outline" className="font-mono text-xs ms-auto">
+                  {editingPayment.paymentNumber}
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {t("procurement.supplierPayments.editPaymentSubtitle", "تعديل تفاصيل السداد وطريقة الصرف والبيانات المالية")}
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingPayment && (
+            <form onSubmit={handleSaveEdit} className="space-y-4 pt-2">
+              {/* Payment Summary Info */}
+              <div className="p-3 rounded-lg bg-muted/40 border text-xs grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-muted-foreground block">المورد:</span>
+                  <span className="font-bold text-foreground">{editingPayment.supplier.name}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">الفاتورة المرتبطة:</span>
+                  <span className="font-mono font-medium text-foreground">
+                    {editingPayment.purchaseInvoice?.invoiceNumber || "دفعة مقدمة غير مرتبطة بفاتورة"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Amount and Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-amount" className="text-xs font-semibold">
+                    المبلغ المدفوع (ج.م) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="edit-amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    value={editForm.amount}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, amount: e.target.value }))}
+                    className="font-mono font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-date" className="text-xs font-semibold">
+                    تاريخ السداد <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="edit-date"
+                    type="date"
+                    required
+                    value={editForm.paymentDate}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, paymentDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-method" className="text-xs font-semibold">
+                  طريقة الدفع <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={editForm.paymentMethod}
+                  onValueChange={(val) => setEditForm((prev) => ({ ...prev, paymentMethod: val }))}
+                >
+                  <SelectTrigger id="edit-method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_METHODS.map((method) => {
+                      const Icon = method.icon;
+                      return (
+                        <SelectItem key={method.value} value={method.value}>
+                          <div className="flex items-center gap-2">
+                            <Icon className="size-4 text-muted-foreground" />
+                            <span>{method.label}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Bank / Transfer / Check Fields */}
+              {(editForm.paymentMethod === "BANK_TRANSFER" ||
+                editForm.paymentMethod === "INSTAPAY" ||
+                editForm.paymentMethod === "CHECK") && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-bank" className="text-xs font-semibold">
+                    اسم البنك / المحفظة
+                  </Label>
+                  <Input
+                    id="edit-bank"
+                    placeholder="مثال: البنك الأهلي المصري، CIB، فودافون كاش..."
+                    value={editForm.bankName}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, bankName: e.target.value }))}
+                  />
+                </div>
+              )}
+
+              {editForm.paymentMethod === "CHECK" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-check-number" className="text-xs font-semibold">
+                      رقم الشيك
+                    </Label>
+                    <Input
+                      id="edit-check-number"
+                      placeholder="رقم الشيك المصرفي"
+                      value={editForm.checkNumber}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, checkNumber: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-check-date" className="text-xs font-semibold">
+                      تاريخ استحقاق الشيك
+                    </Label>
+                    <Input
+                      id="edit-check-date"
+                      type="date"
+                      value={editForm.checkDate}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, checkDate: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Reference Number */}
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-ref" className="text-xs font-semibold">
+                  رقم المرجع / الحوالة / الإيصال
+                </Label>
+                <Input
+                  id="edit-ref"
+                  placeholder="رقم العملية البنكية أو إيصال الصرف"
+                  value={editForm.referenceNumber}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, referenceNumber: e.target.value }))}
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-notes" className="text-xs font-semibold">
+                  ملاحظات
+                </Label>
+                <Textarea
+                  id="edit-notes"
+                  rows={2}
+                  placeholder="أي ملاحظات إضافية حول السداد..."
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, notes: e.target.value }))}
+                />
+              </div>
+
+              <DialogFooter className="pt-3 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingPayment(null)}
+                  disabled={savingEdit}
+                >
+                  {t("procurement.supplierPayments.cancel", "إلغاء")}
+                </Button>
+                <Button type="submit" disabled={savingEdit} className="gap-2">
+                  {savingEdit && <Loader2 className="size-4 animate-spin" />}
+                  {savingEdit
+                    ? t("procurement.supplierPayments.saving", "جاري الحفظ...")
+                    : t("procurement.supplierPayments.saveChanges", "حفظ التعديلات")}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================== */}
+      {/* DELETE CONFIRMATION DIALOG                 */}
+      {/* ========================================== */}
+      <Dialog open={Boolean(deletingPayment)} onOpenChange={(open) => !open && setDeletingPayment(null)}>
+        <DialogContent className="max-w-md" dir={isRtl ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive text-lg font-bold">
+              <AlertCircle className="size-5" />
+              <span>{t("procurement.supplierPayments.confirmDeletePaymentTitle", "تأكيد حذف الدفعة")}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground pt-1">
+              سيتم التراجع عن هذه المعاملة المالية وإعادة تسوية الحسابات.
+            </DialogDescription>
+          </DialogHeader>
+
+          {deletingPayment && (
+            <div className="space-y-3 py-2 text-sm">
+              <p className="leading-relaxed">
+                هل أنت متأكد من حذف الدفعة رقم{" "}
+                <strong className="font-mono text-primary font-bold">{deletingPayment.paymentNumber}</strong>{" "}
+                بقيمة{" "}
+                <strong className="text-destructive font-bold">
+                  {formatCurrency(deletingPayment.amount)}
+                </strong>{" "}
+                الخاصة بالمورد{" "}
+                <strong className="font-bold">{deletingPayment.supplier.name}</strong> نهائياً؟
+              </p>
+              <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-xs text-destructive space-y-1">
+                <p className="font-semibold">تأثير الحذف:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                  <li>سيتم زيادة مديونية المورد (إرجاع المبلغ لرصيده).</li>
+                  {deletingPayment.purchaseInvoice && (
+                    <li>
+                      سيتم إعادة فتح المبلغ المتبقي على الفاتورة رقم{" "}
+                      <span className="font-mono">{deletingPayment.purchaseInvoice.invoiceNumber}</span>.
+                    </li>
+                  )}
+                  <li>سيتم حذف القيد المالي المرتبط بالدفعة في الخزينة.</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeletingPayment(null)}
+              disabled={deleting}
+            >
+              {t("procurement.supplierPayments.cancel", "إلغاء")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleting}
+              className="gap-2"
+            >
+              {deleting && <Loader2 className="size-4 animate-spin" />}
+              {deleting ? "جاري الحذف..." : t("procurement.supplierPayments.deletePayment", "حذف نهائياً")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

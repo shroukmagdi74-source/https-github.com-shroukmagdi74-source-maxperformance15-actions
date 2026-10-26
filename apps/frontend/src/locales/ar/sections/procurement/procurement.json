@@ -249,7 +249,20 @@
     "deleteError": "تعذر حذف فاتورة الشراء",
     "mobilePaymentDate": "تاريخ الدفع",
     "mobileAmount": "المبلغ",
-    "mobilePaymentMethod": "طريقة الدفع"
+    "mobilePaymentMethod": "طريقة الدفع",
+    "editPayment": "تعديل الدفعة",
+    "deletePayment": "حذف الدفعة",
+    "confirmDeletePaymentTitle": "تأكيد حذف الدفعة",
+    "confirmDeletePaymentContent": "هل أنت متأكد من حذف الدفعة رقم ({{paymentNumber}}) بقيمة {{amount}} للمورد ({{supplierName}}) نهائياً؟ سيتم إلغاء السداد وإعادة المبلغ لرصيد المورد وحساب الفاتورة.",
+    "deletePaymentSuccess": "تم حذف الدفعة بنجاح وتحديث الحسابات",
+    "deletePaymentError": "تعذر حذف الدفعة",
+    "editPaymentTitle": "تعديل بيانات سند الصرف",
+    "editPaymentSubtitle": "تعديل تفاصيل السداد وطريقة الصرف والبيانات المالية",
+    "editPaymentSuccess": "تم تحديث بيانات الدفعة بنجاح",
+    "editPaymentError": "تعذر تحديث بيانات الدفعة",
+    "saveChanges": "حفظ التعديلات",
+    "saving": "جاري الحفظ...",
+    "cancel": "إلغاء"
   },
   "purchaseOrderDetail": {
     "title": "تفاصيل أمر الشراء",

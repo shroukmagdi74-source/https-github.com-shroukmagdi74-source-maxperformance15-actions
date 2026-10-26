@@ -5489,6 +5489,16 @@ const AppContent = () => {
                   }
                 />
                 <Route
+                  path="/procurement/supplier-payments/:id/edit"
+                  element={
+                    <Layout>
+                      <AppAccessRoute requiredAppSlugs={['procurement-pro', 'store-pro']}>
+                        <SupplierPaymentForm />
+                      </AppAccessRoute>
+                    </Layout>
+                  }
+                />
+                <Route
                   path="/procurement/supplier-payments/:id"
                   element={
                     <Layout>

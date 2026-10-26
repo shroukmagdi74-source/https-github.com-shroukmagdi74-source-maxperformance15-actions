@@ -10,7 +10,9 @@ import {
   AlertCircle,
   Tag,
   X,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "../../services/apiClient";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
@@ -172,6 +174,9 @@ const Suppliers: React.FC = () => {
   const [savingQuickTag, setSavingQuickTag] = useState(false);
   const [newTagInput, setNewTagInput] = useState("");
 
+  const [recalculatingAll, setRecalculatingAll] = useState(false);
+  const [recalculatingId, setRecalculatingId] = useState<string | null>(null);
+
   const fetchSuppliers = useCallback(async () => {
     try {
       setLoading(true);
@@ -326,6 +331,36 @@ const Suppliers: React.FC = () => {
     }
   };
 
+  const handleRecalculateAll = async () => {
+    try {
+      setRecalculatingAll(true);
+      const res = await apiClient.post<{ success: boolean; message: string; updatedCount: number }>(
+        "/procurement/suppliers/recalculate-all"
+      );
+      toast.success(res.data.message || "تم تدقيق ومزامنة أرصدة الموردين بنجاح");
+      await fetchSuppliers();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "تعذر تدقيق أرصدة الموردين");
+    } finally {
+      setRecalculatingAll(false);
+    }
+  };
+
+  const handleRecalculateSingle = async (supplierId: string, supplierName: string) => {
+    try {
+      setRecalculatingId(supplierId);
+      const res = await apiClient.post<{ success: boolean; message: string; currentBalance: number }>(
+        `/procurement/suppliers/${supplierId}/recalculate-balance`
+      );
+      toast.success(`تم تدقيق وتحديث رصيد المورد (${supplierName}) بنجاح`);
+      await fetchSuppliers();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "تعذر تدقيق رصيد المورد");
+    } finally {
+      setRecalculatingId(null);
+    }
+  };
+
   const handleViewDetails = (supplier: Supplier) => {
     navigate(`/procurement/suppliers/${supplier.id}`);
   };
@@ -341,9 +376,21 @@ const Suppliers: React.FC = () => {
             سجل الموردين المعتمدين، بيانات الاتصال، والأرصدة الدائنة والتقييمات
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus className="size-4" /> {t("procurement.suppliers.addNew")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRecalculateAll}
+            disabled={recalculatingAll || loading}
+            className="gap-2"
+            title="تدقيق ومزامنة أرصدة كافة الموردين مع الفواتير وسندات الصرف الحقيقية"
+          >
+            <RefreshCw className={`size-4 ${recalculatingAll ? "animate-spin text-primary" : ""}`} />
+            <span>{recalculatingAll ? "جاري التدقيق..." : "مزامنة وتدقيق الأرصدة"}</span>
+          </Button>
+          <Button onClick={() => handleOpenDialog()} className="gap-2">
+            <Plus className="size-4" /> {t("procurement.suppliers.addNew")}
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -430,7 +477,25 @@ const Suppliers: React.FC = () => {
                     )}
                   </TableCell>
                   <TableCell className="text-end tabular-nums font-medium">
-                    {formatCurrency(supplier.currentBalance, { locale: i18n.language })}
+                    {Number(supplier.currentBalance) > 0 ? (
+                      <div className="flex flex-col items-end">
+                        <span className="text-amber-500 font-semibold">
+                          {formatCurrency(supplier.currentBalance, { locale: i18n.language })}
+                        </span>
+                        <span className="text-[10px] text-amber-500/80 font-normal">مستحق للمورد</span>
+                      </div>
+                    ) : Number(supplier.currentBalance) < 0 ? (
+                      <div className="flex flex-col items-end">
+                        <span className="text-sky-400 font-semibold">
+                          {formatCurrency(Math.abs(supplier.currentBalance), { locale: i18n.language })}
+                        </span>
+                        <span className="text-[10px] text-sky-400/80 font-normal">دفعة مقدمة</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground font-mono">
+                        {formatCurrency(0, { locale: i18n.language })}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StarRating value={supplier.rating || 0} readonly />
@@ -444,6 +509,15 @@ const Suppliers: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={recalculatingId === supplier.id}
+                        onClick={() => handleRecalculateSingle(supplier.id, supplier.name)}
+                        title="تدقيق ومزامنة رصيد المورد"
+                      >
+                        <RefreshCw className={`size-4 ${recalculatingId === supplier.id ? "animate-spin text-primary" : ""}`} />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -555,6 +629,15 @@ const Suppliers: React.FC = () => {
               ]}
               actions={
                 <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={recalculatingId === supplier.id}
+                    onClick={() => handleRecalculateSingle(supplier.id, supplier.name)}
+                    title="تدقيق ومزامنة رصيد المورد"
+                  >
+                    <RefreshCw className={`size-4 ${recalculatingId === supplier.id ? "animate-spin text-primary" : ""}`} />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"

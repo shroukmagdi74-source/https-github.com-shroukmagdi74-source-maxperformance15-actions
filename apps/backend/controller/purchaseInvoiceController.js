@@ -4,6 +4,7 @@ const {
 } = require("../services/sharedDatabase");
 const { recordSupplierPayment } = require("../services/supplierPaymentService");
 const { logProcurementActivity } = require("../services/procurementAuditService");
+const { recalculateSupplierBalance } = require("../services/supplierBalanceService");
 
 const syncInvoiceItemsStock = async ({ companyId, items, direction = 1 }) => {
   if (!Array.isArray(items) || items.length === 0) return;
@@ -331,6 +332,13 @@ exports.createPurchaseInvoice = async (req, res) => {
           },
         }),
       );
+    }
+
+    // Dynamic balance reconciliation (Source of truth audit)
+    try {
+      await recalculateSupplierBalance(supplierId, companyId);
+    } catch (balErr) {
+      console.warn("[Supplier Balance] Recalculate notice on invoice create:", balErr.message);
     }
 
     // Synchronize inventory stock for invoice items
@@ -736,6 +744,16 @@ exports.updatePurchaseInvoice = async (req, res) => {
       }),
     );
 
+    // Dynamic balance reconciliation (Source of truth audit)
+    try {
+      await recalculateSupplierBalance(newSupplierId, companyId);
+      if (existingInvoice.supplierId && existingInvoice.supplierId !== newSupplierId) {
+        await recalculateSupplierBalance(existingInvoice.supplierId, companyId);
+      }
+    } catch (balErr) {
+      console.warn("[Supplier Balance] Recalculate notice on invoice update:", balErr.message);
+    }
+
     // Synchronize inventory stock changes if items were updated
     if (newItemsToCreate) {
       try {
@@ -877,6 +895,13 @@ exports.deletePurchaseInvoice = async (req, res) => {
         }
       }),
     );
+
+    // Dynamic balance reconciliation (Source of truth audit)
+    try {
+      await recalculateSupplierBalance(invoice.supplierId, companyId);
+    } catch (balErr) {
+      console.warn("[Supplier Balance] Recalculate notice on invoice delete:", balErr.message);
+    }
 
     // Revert inventory stock that was added by this invoice
     try {

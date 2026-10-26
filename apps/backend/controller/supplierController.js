@@ -1,6 +1,7 @@
 const { getSharedPrismaClient, safeQuery } = require('../services/sharedDatabase');
 const { logProcurementActivity } = require('../services/procurementAuditService');
 const { toCanonicalE164 } = require('../utils/phoneNormalization');
+const { recalculateSupplierBalance, recalculateAllSuppliersForCompany } = require('../services/supplierBalanceService');
 
 exports.createSupplier = async (req, res) => {
   try {
@@ -385,6 +386,10 @@ exports.updateSupplier = async (req, res) => {
       }
     }));
 
+    if (req.body.openingBalance !== undefined) {
+      await recalculateSupplierBalance(id, companyId);
+    }
+
     res.json({
       message: 'تم تحديث بيانات المورد بنجاح',
       supplier
@@ -494,5 +499,42 @@ exports.getSupplierStats = async (req, res) => {
   } catch (error) {
     console.error('Error fetching supplier stats:', error);
     res.status(500).json({ message: 'حدث خطأ أثناء جلب إحصائيات المورد' });
+  }
+};
+
+exports.recalculateSingleSupplierBalance = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const { id } = req.params;
+
+    const result = await recalculateSupplierBalance(id, companyId);
+    if (!result) {
+      return res.status(404).json({ success: false, message: 'المورد غير موجود' });
+    }
+
+    res.json({
+      success: true,
+      message: 'تم إعادة احتساب وتدقيق رصيد المورد بنجاح',
+      ...result,
+    });
+  } catch (error) {
+    console.error('Error recalculating supplier balance:', error);
+    res.status(500).json({ success: false, message: 'حدث خطأ أثناء تدقيق رصيد المورد: ' + error.message });
+  }
+};
+
+exports.recalculateAllSuppliersBalance = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const result = await recalculateAllSuppliersForCompany(companyId);
+
+    res.json({
+      success: true,
+      message: `تم تدقيق وتحديث أرصدة ${result.updatedCount} مورد بنجاح`,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Error recalculating all suppliers balances:', error);
+    res.status(500).json({ success: false, message: 'حدث خطأ أثناء تدقيق أرصدة الموردين: ' + error.message });
   }
 };

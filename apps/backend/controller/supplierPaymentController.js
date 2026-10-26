@@ -1,6 +1,7 @@
 const { getSharedPrismaClient, safeQuery } = require('../services/sharedDatabase');
 const { recordSupplierPayment, generatePaymentNumber } = require('../services/supplierPaymentService');
 const { logProcurementActivity } = require('../services/procurementAuditService');
+const { recalculateSupplierBalance } = require('../services/supplierBalanceService');
 
 exports.createSupplierPayment = async (req, res) => {
   try {
@@ -138,6 +139,7 @@ exports.updateSupplierPayment = async (req, res) => {
     const { companyId } = req.user;
     const { id = req.params.id } = req.params;
     const {
+      amount,
       paymentDate,
       paymentMethod,
       referenceNumber,
@@ -155,22 +157,99 @@ exports.updateSupplierPayment = async (req, res) => {
       return res.status(404).json({ message: 'الدفعة غير موجودة' });
     }
 
+    let updatedAmount = undefined;
+    if (amount !== undefined && amount !== null && amount !== '') {
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ message: 'المبلغ يجب أن يكون رقماً أكبر من الصفر' });
+      }
+
+      const oldAmount = parseFloat(existingPayment.amount);
+      const diff = Math.round((parsedAmount - oldAmount) * 100) / 100;
+
+      if (diff !== 0) {
+        // If linked to an invoice, validate remaining balance and update invoice
+        if (existingPayment.purchaseInvoiceId) {
+          const invoice = await safeQuery(() => getSharedPrismaClient().purchaseInvoice.findUnique({
+            where: { id: existingPayment.purchaseInvoiceId }
+          }));
+
+          if (invoice) {
+            const currentRemaining = parseFloat(invoice.remainingAmount || 0);
+            if (diff > currentRemaining + 0.001) {
+              return res.status(400).json({
+                message: `المبلغ الجديد يتجاوز المبلغ المتبقي على الفاتورة (${(currentRemaining + oldAmount).toFixed(2)})`
+              });
+            }
+
+            const newPaid = Math.max(0, Math.round((parseFloat(invoice.paidAmount || 0) + diff) * 100) / 100);
+            const newRem = Math.max(0, Math.round((parseFloat(invoice.totalAmount || 0) - newPaid) * 100) / 100);
+            const newStatus = newRem <= 0 ? 'PAID' : (newPaid > 0 ? 'PARTIALLY_PAID' : 'PENDING');
+
+            await safeQuery(() => getSharedPrismaClient().purchaseInvoice.update({
+              where: { id: existingPayment.purchaseInvoiceId },
+              data: {
+                paidAmount: newPaid,
+                remainingAmount: newRem,
+                status: newStatus
+              }
+            }));
+          }
+        }
+
+        // Adjust supplier current balance directly
+        await safeQuery(() => getSharedPrismaClient().supplier.update({
+          where: { id: existingPayment.supplierId },
+          data: {
+            currentBalance: {
+              decrement: diff
+            }
+          }
+        }));
+
+        // Adjust financial posting if one exists
+        try {
+          await safeQuery(() => getSharedPrismaClient().financialPosting.updateMany({
+            where: {
+              companyId,
+              sourceType: 'SUPPLIER_PAYMENT',
+              sourceId: id,
+            },
+            data: {
+              amount: parsedAmount,
+            }
+          }));
+        } catch (finErr) {
+          console.warn('Financial posting update warning:', finErr.message);
+        }
+
+        updatedAmount = parsedAmount;
+      }
+    }
+
     const payment = await safeQuery(() => getSharedPrismaClient().supplierPayment.update({
       where: { id },
       data: {
+        ...(updatedAmount !== undefined ? { amount: updatedAmount } : {}),
         paymentDate: paymentDate ? new Date(paymentDate) : undefined,
-        paymentMethod,
-        referenceNumber,
-        bankName,
-        checkNumber,
-        checkDate: checkDate ? new Date(checkDate) : undefined,
-        notes
+        paymentMethod: paymentMethod || undefined,
+        referenceNumber: referenceNumber !== undefined ? referenceNumber : undefined,
+        bankName: bankName !== undefined ? bankName : undefined,
+        checkNumber: checkNumber !== undefined ? checkNumber : undefined,
+        checkDate: checkDate ? new Date(checkDate) : (checkDate === null || checkDate === '' ? null : undefined),
+        notes: notes !== undefined ? notes : undefined
       },
       include: {
         supplier: true,
         purchaseInvoice: true
       }
     }));
+
+    try {
+      await recalculateSupplierBalance(existingPayment.supplierId, companyId);
+    } catch (balErr) {
+      console.warn('[Supplier Payment Update] Recalculate notice:', balErr.message);
+    }
 
     await logProcurementActivity({
       companyId,
@@ -179,8 +258,8 @@ exports.updateSupplierPayment = async (req, res) => {
       targetType: 'SUPPLIER_PAYMENT',
       targetId: payment.id,
       targetName: payment.paymentNumber,
-      description: `تعديل بيانات دفعة المورد ${payment.paymentNumber}`,
-      metadata: { paymentMethod, referenceNumber },
+      description: `تعديل بيانات دفعة المورد ${payment.paymentNumber}${updatedAmount !== undefined ? ` (المبلغ: ${updatedAmount} ج.م)` : ''}`,
+      metadata: { paymentMethod, referenceNumber, amount: updatedAmount },
       severity: 'LOW',
     });
 
@@ -207,6 +286,7 @@ exports.deleteSupplierPayment = async (req, res) => {
       return res.status(404).json({ message: 'الدفعة غير موجودة' });
     }
 
+    // 1. Revert supplier balance
     await safeQuery(() =>
       getSharedPrismaClient().supplier.update({
         where: { id: payment.supplierId },
@@ -218,32 +298,58 @@ exports.deleteSupplierPayment = async (req, res) => {
       })
     );
 
+    // 2. Revert invoice paid/remaining amounts if linked
     if (payment.purchaseInvoiceId) {
       const invoice = await safeQuery(() => getSharedPrismaClient().purchaseInvoice.findUnique({
         where: { id: payment.purchaseInvoiceId }
       }));
 
-      const newPaidAmount = parseFloat(invoice.paidAmount) - parseFloat(payment.amount);
-      const newRemainingAmount = parseFloat(invoice.totalAmount) - newPaidAmount;
+      if (invoice) {
+        const newPaidAmount = Math.max(0, Math.round((parseFloat(invoice.paidAmount || 0) - parseFloat(payment.amount)) * 100) / 100);
+        const newRemainingAmount = Math.max(0, Math.round((parseFloat(invoice.totalAmount || 0) - newPaidAmount) * 100) / 100);
+        const newStatus = newRemainingAmount <= 0 ? 'PAID' : (newPaidAmount > 0 ? 'PARTIALLY_PAID' : 'PENDING');
 
-      const newStatus = newRemainingAmount <= 0 ? 'PAID' : 'PENDING';
+        await safeQuery(() =>
+          getSharedPrismaClient().purchaseInvoice.update({
+            where: { id: payment.purchaseInvoiceId },
+            data: {
+              paidAmount: newPaidAmount,
+              remainingAmount: newRemainingAmount,
+              status: newStatus
+            }
+          })
+        );
+      }
+    }
 
+    // 3. Remove financial posting if linked
+    try {
       await safeQuery(() =>
-        getSharedPrismaClient().purchaseInvoice.update({
-          where: { id: payment.purchaseInvoiceId },
-          data: {
-            paidAmount: newPaidAmount,
-            remainingAmount: newRemainingAmount,
-            status: newStatus
+        getSharedPrismaClient().financialPosting.deleteMany({
+          where: {
+            companyId,
+            sourceType: 'SUPPLIER_PAYMENT',
+            sourceId: id,
           }
         })
       );
+    } catch (finErr) {
+      console.warn('Financial posting delete warning:', finErr.message);
     }
 
+    // 4. Delete the supplier payment record
     await safeQuery(() => getSharedPrismaClient().supplierPayment.delete({
       where: { id }
     }));
 
+    // 5. Recalculate supplier balance
+    try {
+      await recalculateSupplierBalance(payment.supplierId, companyId);
+    } catch (balErr) {
+      console.warn('[Supplier Payment Delete] Recalculate notice:', balErr.message);
+    }
+
+    // 6. Audit log
     await logProcurementActivity({
       companyId,
       userId: req.user.id,

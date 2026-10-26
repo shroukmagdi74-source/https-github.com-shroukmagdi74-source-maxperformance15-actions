@@ -249,7 +249,20 @@
     "deleteError": "Failed to delete purchase invoice",
     "mobilePaymentDate": "Payment Date",
     "mobileAmount": "Amount",
-    "mobilePaymentMethod": "Payment Method"
+    "mobilePaymentMethod": "Payment Method",
+    "editPayment": "Edit Payment",
+    "deletePayment": "Delete Payment",
+    "confirmDeletePaymentTitle": "Confirm Payment Deletion",
+    "confirmDeletePaymentContent": "Are you sure you want to permanently delete payment ({{paymentNumber}}) of amount {{amount}} for supplier ({{supplierName}})? The settlement will be reversed and the supplier balance and invoice updated.",
+    "deletePaymentSuccess": "Payment deleted successfully and accounts updated",
+    "deletePaymentError": "Failed to delete payment",
+    "editPaymentTitle": "Edit Payment Voucher",
+    "editPaymentSubtitle": "Update payment details, payment method, and financial references",
+    "editPaymentSuccess": "Payment updated successfully",
+    "editPaymentError": "Failed to update payment",
+    "saveChanges": "Save Changes",
+    "saving": "Saving...",
+    "cancel": "Cancel"
   },
   "purchaseOrderDetail": {
     "title": "Purchase Order Details",

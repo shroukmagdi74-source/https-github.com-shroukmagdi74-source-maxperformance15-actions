@@ -19,6 +19,8 @@ router.put('/settings', procurementSettingsController.updateSettings);
 // Suppliers
 router.post('/suppliers', supplierController.createSupplier);
 router.get('/suppliers', supplierController.getAllSuppliers);
+router.post('/suppliers/recalculate-all', supplierController.recalculateAllSuppliersBalance);
+router.post('/suppliers/:id/recalculate-balance', supplierController.recalculateSingleSupplierBalance);
 router.get('/suppliers/:id', supplierController.getSupplierById);
 router.put('/suppliers/:id', supplierController.updateSupplier);
 router.delete('/suppliers/:id', supplierController.deleteSupplier);

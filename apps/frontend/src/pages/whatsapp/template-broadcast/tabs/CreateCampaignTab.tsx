@@ -236,7 +236,7 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">جلسة واتساب المعتمدة</Label>
-              <Select value={selectedSessionId} onValueChange={(v) => setSelectedSessionId(v ?? '')}>
+              <Select value={selectedSessionId} onValueChange={(v: string | null) => setSelectedSessionId(v ?? '')}>
                 <SelectTrigger className="h-8 rounded-lg text-xs font-mono">
                   <SelectValue placeholder="اختر جلسة" />
                 </SelectTrigger>
@@ -338,7 +338,7 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">لغة القالب</Label>
-                <Select value={languageCode} onValueChange={(v) => setLanguageCode(v ?? '')}>
+                <Select value={languageCode} onValueChange={(v: string | null) => setLanguageCode(v ?? '')}>
                   <SelectTrigger className="h-8 rounded-lg text-xs font-mono">
                     <SelectValue />
                   </SelectTrigger>
@@ -354,7 +354,7 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">قائمة العملاء</Label>
-                <Select value={selectedListId} onValueChange={(v) => void handleSelectList(v ?? '')}>
+                <Select value={selectedListId} onValueChange={(v: string | null) => void handleSelectList(v ?? '')}>
                   <SelectTrigger className="h-8 rounded-lg text-xs">
                     <SelectValue placeholder="اختر قائمة" />
                   </SelectTrigger>
@@ -373,7 +373,7 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
             {availableTags.length > 0 && (
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">تصفية بالوسم (Tag)</Label>
-                <Select value={selectedTag} onValueChange={(v) => void handleSelectTag(v ?? '')}>
+                <Select value={selectedTag} onValueChange={(v: string | null) => void handleSelectTag(v ?? '')}>
                   <SelectTrigger className="h-8 rounded-lg text-xs">
                     <SelectValue placeholder="اختر وسماً لتحميل الأرقام" />
                   </SelectTrigger>
@@ -394,7 +394,7 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">تصنيف جهات الاتصال</Label>
-              <Select value={selectedLeadCategoryId} onValueChange={(v) => setSelectedLeadCategoryId(v ?? '')}>
+              <Select value={selectedLeadCategoryId} onValueChange={(v: string | null) => setSelectedLeadCategoryId(v ?? '')}>
                 <SelectTrigger className="h-8 rounded-lg text-xs">
                   <SelectValue placeholder="جميع التصنيفات" />
                 </SelectTrigger>
@@ -500,7 +500,7 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
                 <Label className="text-xs font-semibold">التكرار</Label>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <Select value={recurrence} onValueChange={(v) => setRecurrence((v || 'none') as Recurrence)}>
+                <Select value={recurrence} onValueChange={(v: string | null) => setRecurrence((v || 'none') as Recurrence)}>
                   <SelectTrigger className="h-8 rounded-lg text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -528,7 +528,7 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
 
                 <Select
                   value={String(sendHour)}
-                  onValueChange={(v) => setSendHour(Number(v ?? '10'))}
+                  onValueChange={(v: string | null) => setSendHour(Number(v ?? '10'))}
                   disabled={recurrence === 'none'}
                 >
                   <SelectTrigger className="h-8 rounded-lg text-xs">

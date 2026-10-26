@@ -3,6 +3,8 @@ import {
   ArrowLeft,
   Save,
   Printer,
+  Pencil,
+  Trash2,
   Banknote,
   CreditCard,
   Building2,
@@ -17,7 +19,7 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { apiClient } from "../../services/apiClient";
 import { formatCurrency } from "../../utils/currency";
 import { formatShortDate } from "../../utils/dateFormat";
@@ -41,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 interface Supplier {
@@ -102,11 +105,16 @@ const SupplierPaymentForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const queryInvoiceId = searchParams.get("invoiceId");
 
-  const isView = Boolean(id && id !== "new");
+  const isPathEdit = location.pathname.endsWith("/edit");
+  const [isEditing, setIsEditing] = useState(isPathEdit);
+  const isView = Boolean(id && id !== "new" && !isEditing);
 
   const [loading, setLoading] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [supplierInvoices, setSupplierInvoices] = useState<PurchaseInvoiceSummary[]>([]);
@@ -152,12 +160,19 @@ const SupplierPaymentForm: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isView) {
+    if (id && id !== "new") {
       fetchExistingPayment();
+      fetchInitialData();
     } else {
       fetchInitialData();
     }
   }, [id, queryInvoiceId]);
+
+  useEffect(() => {
+    if (isPathEdit) {
+      setIsEditing(true);
+    }
+  }, [isPathEdit]);
 
   // When supplier changes, fetch their open invoices
   useEffect(() => {
@@ -236,6 +251,20 @@ const SupplierPaymentForm: React.FC = () => {
       const res = await apiClient.get(`/procurement/supplier-payments/${id}`);
       const payment = res.data?.payment || res.data;
       setExistingPayment(payment);
+      if (payment) {
+        setFormData({
+          supplierId: payment.supplier?.id || payment.supplierId || "",
+          purchaseInvoiceId: payment.purchaseInvoice?.id || payment.purchaseInvoiceId || "",
+          paymentDate: payment.paymentDate ? new Date(payment.paymentDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+          amount: String(payment.amount ?? ""),
+          paymentMethod: payment.paymentMethod || "CASH",
+          referenceNumber: payment.referenceNumber || "",
+          bankName: payment.bankName || "",
+          checkNumber: payment.checkNumber || "",
+          checkDate: payment.checkDate ? new Date(payment.checkDate).toISOString().split("T")[0] : "",
+          notes: payment.notes || "",
+        });
+      }
     } catch (error: any) {
       console.error("Error loading payment:", error);
       toast.error(error.response?.data?.message || "تعذر تحميل بيانات الدفعة");
@@ -329,19 +358,42 @@ const SupplierPaymentForm: React.FC = () => {
         notes: formData.notes || undefined,
       };
 
-      const res = await apiClient.post("/procurement/supplier-payments", payload);
-      const created = res.data?.payment || res.data;
-      toast.success("تم تسجيل سند الصرف بنجاح وتحديث حساب المورد");
-      if (created?.id) {
-        navigate(`/procurement/supplier-payments/${created.id}`);
+      if (isEditing && id) {
+        await apiClient.put(`/procurement/supplier-payments/${id}`, payload);
+        toast.success("تم تحديث سند الصرف بنجاح وتحديث الحسابات");
+        setIsEditing(false);
+        await fetchExistingPayment();
       } else {
-        navigate("/procurement/supplier-payments");
+        const res = await apiClient.post("/procurement/supplier-payments", payload);
+        const created = res.data?.payment || res.data;
+        toast.success("تم تسجيل سند الصرف بنجاح وتحديث حساب المورد");
+        if (created?.id) {
+          navigate(`/procurement/supplier-payments/${created.id}`);
+        } else {
+          navigate("/procurement/supplier-payments");
+        }
       }
     } catch (error: any) {
-      console.error("Error creating payment:", error);
-      toast.error(error.response?.data?.message || "حدث خطأ أثناء تسجيل الدفعة");
+      console.error("Error saving payment:", error);
+      toast.error(error.response?.data?.message || "حدث خطأ أثناء حفظ الدفعة");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeletePayment = async () => {
+    if (!existingPayment?.id) return;
+    try {
+      setDeleting(true);
+      await apiClient.delete(`/procurement/supplier-payments/${existingPayment.id}`);
+      toast.success("تم حذف سند الصرف بنجاح وتحديث حساب المورد");
+      navigate("/procurement/supplier-payments");
+    } catch (err: any) {
+      console.error("Error deleting payment:", err);
+      toast.error(err.response?.data?.message || "تعذر حذف سند الصرف");
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
     }
   };
 
@@ -370,13 +422,27 @@ const SupplierPaymentForm: React.FC = () => {
             <ArrowLeft className="size-4" /> العودة لقائمة المدفوعات
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               onClick={() => window.print()}
               className="gap-2 rounded-xl"
             >
               <Printer className="size-4" /> طباعة السند
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditing(true)}
+              className="gap-2 rounded-xl hover:text-primary"
+            >
+              <Pencil className="size-4" /> تعديل السند
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(true)}
+              className="gap-2 rounded-xl text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="size-4" /> حذف السند
             </Button>
             <Button
               onClick={() => navigate("/procurement/supplier-payments/new")}
@@ -548,6 +614,68 @@ const SupplierPaymentForm: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent className="max-w-md" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive text-lg font-bold">
+                <AlertCircle className="size-5" />
+                <span>تأكيد حذف سند الصرف</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground pt-1">
+                سيتم التراجع عن هذه المعاملة المالية وإعادة تسوية الحسابات.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-sm">
+              <p className="leading-relaxed">
+                هل أنت متأكد من حذف سند الصرف رقم{" "}
+                <strong className="font-mono text-primary font-bold">{existingPayment.paymentNumber}</strong>{" "}
+                بقيمة{" "}
+                <strong className="text-destructive font-bold">
+                  {formatCurrency(existingPayment.amount)}
+                </strong>{" "}
+                الخاص بالمورد{" "}
+                <strong className="font-bold">{existingPayment.supplier?.name}</strong> نهائياً؟
+              </p>
+              <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-xs text-destructive space-y-1">
+                <p className="font-semibold">تأثير الحذف:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
+                  <li>سيتم زيادة مديونية المورد (إرجاع المبلغ لرصيده).</li>
+                  {existingPayment.purchaseInvoice && (
+                    <li>
+                      سيتم إعادة فتح المبلغ المتبقي على الفاتورة رقم{" "}
+                      <span className="font-mono">{existingPayment.purchaseInvoice.invoiceNumber}</span>.
+                    </li>
+                  )}
+                  <li>سيتم حذف القيد المالي المرتبط بالدفعة في الخزينة.</li>
+                </ul>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteConfirmOpen(false)}
+                disabled={deleting}
+              >
+                إلغاء
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDeletePayment}
+                disabled={deleting}
+                className="gap-2"
+              >
+                {deleting && <LoadingSpinner size="sm" />}
+                {deleting ? "جاري الحذف..." : "حذف نهائياً"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -570,11 +698,11 @@ const SupplierPaymentForm: React.FC = () => {
           </Button>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Banknote className="size-6 text-primary" />
-              تسجيل سند صرف / دفعة جديدة للمورد
+              {isEditing ? <Pencil className="size-6 text-primary" /> : <Banknote className="size-6 text-primary" />}
+              {isEditing ? `تعديل سند الصرف (${existingPayment?.paymentNumber || ""})` : "تسجيل سند صرف / دفعة جديدة للمورد"}
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              صرف نقدية أو تحويل بنكي للمورد وخصمها فورياً من رصيده المالي أو ربطها بفاتورة معينة
+              {isEditing ? "تعديل تفاصيل السداد والمبلغ والبيانات البنكية للسند" : "صرف نقدية أو تحويل بنكي للمورد وخصمها فورياً من رصيده المالي أو ربطها بفاتورة معينة"}
             </p>
           </div>
         </div>
@@ -1096,7 +1224,7 @@ const SupplierPaymentForm: React.FC = () => {
                     ) : (
                       <Save className="size-4 me-1.5" />
                     )}
-                    تأكيد وصرف السند
+                    {isEditing ? "حفظ التعديلات على السند" : "تأكيد وصرف السند"}
                   </Button>
 
                   <Button
@@ -1138,7 +1266,7 @@ const SupplierPaymentForm: React.FC = () => {
               className="rounded-xl px-5 font-bold shadow-md text-white bg-emerald-600 hover:bg-emerald-700"
             >
               {saving ? <LoadingSpinner size="sm" /> : <Save className="size-4 me-1" />}
-              صرف السند
+              {isEditing ? "حفظ التعديلات" : "صرف السند"}
             </Button>
           </div>
         </div>

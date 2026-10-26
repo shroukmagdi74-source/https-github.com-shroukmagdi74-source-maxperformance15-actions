@@ -93,6 +93,7 @@ export default function SupplierDetails() {
   const [supplier, setSupplier] = useState<SupplierDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recalculating, setRecalculating] = useState(false);
 
   // Payment modal state
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -147,6 +148,22 @@ export default function SupplierDetails() {
       notes: '',
     });
     setPaymentModalOpen(true);
+  };
+
+  const handleRecalculateBalance = async () => {
+    if (!id) return;
+    try {
+      setRecalculating(true);
+      const res = await apiClient.post<{ success: boolean; message: string; currentBalance: number }>(
+        `/procurement/suppliers/${id}/recalculate-balance`
+      );
+      toast.success(res.data.message || 'تم تدقيق وتحديث رصيد المورد بنجاح');
+      await fetchSupplierDetails();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'تعذر تدقيق رصيد المورد');
+    } finally {
+      setRecalculating(false);
+    }
   };
 
   const handleRecordPayment = async (e: React.FormEvent) => {
@@ -304,6 +321,16 @@ export default function SupplierDetails() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRecalculateBalance}
+            disabled={recalculating}
+            className="gap-2 print:hidden"
+            title="تدقيق ومزامنة رصيد المورد من واقع الفواتير وسندات الصرف"
+          >
+            <RefreshCw className={`size-4 ${recalculating ? "animate-spin text-primary" : ""}`} />
+            <span>{recalculating ? "جاري التدقيق..." : "تدقيق الرصيد"}</span>
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => window.print()} 

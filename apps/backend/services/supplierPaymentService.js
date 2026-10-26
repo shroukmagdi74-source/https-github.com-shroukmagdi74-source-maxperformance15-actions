@@ -195,17 +195,23 @@ async function recordSupplierPayment({
     throw lastError || new Error('فشل تسجيل الدفعة بعد عدة محاولات بسبب تعارض الترقيم');
   }
 
-  // 4. Decrement Supplier Balance (Supplier debt decreases when paid)
-  await safeQuery(() =>
-    prisma.supplier.update({
-      where: { id: supplierId },
-      data: {
-        currentBalance: {
-          decrement: paymentAmount,
+  // 4. Update Supplier Balance via dynamic source-of-truth calculation
+  try {
+    const { recalculateSupplierBalance } = require('./supplierBalanceService');
+    await recalculateSupplierBalance(supplierId, companyId, prisma);
+  } catch (balErr) {
+    console.warn('[Supplier Payment] Dynamic balance fallback:', balErr.message);
+    await safeQuery(() =>
+      prisma.supplier.update({
+        where: { id: supplierId },
+        data: {
+          currentBalance: {
+            decrement: paymentAmount,
+          },
         },
-      },
-    })
-  );
+      })
+    );
+  }
 
   // 5. Update Purchase Invoice state if payment was linked to an invoice
   if (purchaseInvoiceId) {

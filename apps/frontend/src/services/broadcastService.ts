@@ -329,6 +329,14 @@ class BroadcastService {
     return this.makeRequest("/broadcast/customer-lists");
   }
 
+  async searchCustomerListProducts(
+    q: string = "",
+    limit: number = 20,
+  ): Promise<{ success: boolean; data: Array<{ id: string; name: string; sku?: string }> }> {
+    const query = new URLSearchParams({ q, limit: String(limit) });
+    return this.makeRequest(`/broadcast/customer-lists/product-search?${query.toString()}`);
+  }
+
   async getCustomersInList(listId: string): Promise<any[]> {
     return this.makeRequest(`/broadcast/customer-lists/${listId}/customers`);
   }
