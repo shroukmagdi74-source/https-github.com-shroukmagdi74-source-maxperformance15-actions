@@ -276,24 +276,46 @@ const queueNotificationTasks = (tasks, label) => {
 };
 
 const maybeTrackLandingConversion = async (prisma, companyId, pageSlug) => {
-  const cleanSlug = cleanLeadText(pageSlug, 120);
-  if (!cleanSlug) return;
+  try {
+    const cleanSlug = cleanLeadText(pageSlug, 120);
+    if (!cleanSlug) return;
 
-  const page = await prisma.landingPage.findFirst({
-    where: {
-      companyId,
-      slug: cleanSlug,
-      isPublished: true,
-    },
-    select: { id: true },
-  });
+    if (prisma?.productLandingPage) {
+      const page = await prisma.productLandingPage.findFirst({
+        where: {
+          companyId,
+          slug: cleanSlug,
+          status: 'PUBLISHED',
+        },
+        select: { id: true },
+      });
 
-  if (!page?.id) return;
+      if (page?.id) {
+        await prisma.productLandingPage.update({
+          where: { id: page.id },
+          data: { orders: { increment: 1 } },
+        });
+      }
+    } else if (prisma?.landingPage) {
+      const page = await prisma.landingPage.findFirst({
+        where: {
+          companyId,
+          slug: cleanSlug,
+          isPublished: true,
+        },
+        select: { id: true },
+      });
 
-  await prisma.landingPage.update({
-    where: { id: page.id },
-    data: { conversions: { increment: 1 } },
-  });
+      if (page?.id) {
+        await prisma.landingPage.update({
+          where: { id: page.id },
+          data: { conversions: { increment: 1 } },
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ [PUBLIC-CUSTOMER] Conversion tracking skipped:', err?.message || err);
+  }
 };
 
 const sendOtpViaWhatsApp = async ({ companyId, phone, code }) => {
