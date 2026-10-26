@@ -1,9 +1,56 @@
-import { CriteriaType, SMART_PRESETS, STATUS_LABELS, STATUS_LABELS_EN, CriteriaV2 } from "./types";
+import {
+  CriteriaType,
+  SMART_PRESETS,
+  STATUS_LABELS,
+  STATUS_LABELS_EN,
+  CriteriaV2,
+  GroupV2,
+  RuleV2,
+  RuleFieldV2,
+} from "./types";
 
 export function isV2Criteria(c: any): boolean {
   if (!c) return false;
   const parsed = typeof c === "string" ? (() => { try { return JSON.parse(c); } catch { return {}; } })() : c;
   return Boolean(parsed?.version >= 2 || parsed?.include);
+}
+
+export function buildEmptyRule(field: RuleFieldV2 = "ordersCount"): RuleV2 {
+  switch (field) {
+    case "receivedProduct":
+      return { field: "receivedProduct", sku: "", statuses: ["DELIVERED"] };
+    case "orderedInPeriod":
+      return { field: "orderedInPeriod", dateFrom: "", dateTo: "" };
+    case "ordersCount":
+      return { field: "ordersCount", op: "gte", value: 1 };
+    case "totalSpent":
+      return { field: "totalSpent", op: "gte", value: 500 };
+    case "lastOrderBefore":
+      return { field: "lastOrderBefore", value: "" };
+    case "lastOrderAfter":
+      return { field: "lastOrderAfter", value: "" };
+    case "deliveryRate":
+      return { field: "deliveryRate", op: "gte", value: 70 };
+    case "tags":
+      return { field: "tags", op: "contains", value: "" };
+    case "customerStatus":
+      return { field: "customerStatus", op: "in", value: ["ACTIVE"] };
+    case "city":
+      return { field: "city", op: "eq", value: "" };
+    case "governorate":
+      return { field: "governorate", op: "eq", value: "" };
+    case "customerRating":
+      return { field: "customerRating", op: "in", value: ["EXCELLENT"] };
+    default:
+      return { field, op: "eq", value: "" };
+  }
+}
+
+export function buildEmptyGroup(operator: "AND" | "OR" = "AND"): GroupV2 {
+  return {
+    operator,
+    rules: [buildEmptyRule("ordersCount")],
+  };
 }
 
 export function buildEmptyV2Criteria(): CriteriaV2 {
