@@ -34,6 +34,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { WhatsAppSurfaceCard } from '../../components/WhatsAppPageShell';
 import { BroadcastResult, CustomerList, LeadCategory, MetaTemplate, Session } from '../types';
+import { TemplatePicker } from './TemplatePicker';
 
 interface CreateCampaignTabProps {
   campaignName: string;
@@ -153,26 +154,13 @@ export const CreateCampaignTab: React.FC<CreateCampaignTabProps> = ({
 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">القالب (المعتمد رسمياً فقط)</Label>
-              <Select
-                value={selectedTemplate}
-                onValueChange={(name) => {
-                  const selectedName = name ?? '';
-                  setSelectedTemplate(selectedName);
-                  const tpl = templates.find((t) => t.name === selectedName);
-                  if (tpl) setLanguageCode(tpl.language);
-                }}
-              >
-                <SelectTrigger className="h-8 rounded-lg text-xs font-mono">
-                  <SelectValue placeholder="اختر قالباً" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.name} value={t.name} className="text-xs font-mono">
-                      {t.name} ({t.language})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <TemplatePicker
+                templates={templates}
+                selectedTemplate={selectedTemplate}
+                setSelectedTemplate={setSelectedTemplate}
+                languageCode={languageCode}
+                setLanguageCode={setLanguageCode}
+              />
             </div>
 
             {/* Header Media */}
