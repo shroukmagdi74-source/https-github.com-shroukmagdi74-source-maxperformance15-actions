@@ -11,6 +11,7 @@ const { conversationCache } = require('../../utils/cachingUtils');
 const { isPermissionError, getPermissionErrorMessage } = require('../../utils/dbPermissionHelper');
 const { proxyCustomerAvatarUrl } = require('../../utils/facebookMediaProxy');
 const { normalizeConversationStatus } = require('../../utils/validator');
+const { extractContentTokens, buildConversationSearchWhere } = require('./conversationSearchWhere');
 
 const parseJsonSafely = (value, fallback = {}) => {
     if (!value || typeof value !== 'string') {
@@ -223,66 +224,79 @@ const getConversations = async (req, res) => {
         // Split promise for better error isolation
         let conversations, total;
 
-        // 🆕 For unreplied tab, we now use the database column directly!
-        // Extended logic for ALL tabs to ensure server-side filtering works
-        let tabWhere = { ...where };
+        const searchActive = Boolean(search && search.trim());
+        let contentIds = [];
 
-        if (tab === 'unreplied') {
-            tabWhere = {
-                ...where,
-                status: { in: ['ACTIVE', 'PENDING'] },
-                lastMessageIsFromCustomer: true
-            };
-        } else if (tab === 'done' || tab === 'resolved') {
-            // 🆕 FIX: Use valid enum values - RESOLVED and CLOSED
-            tabWhere = {
-                ...where,
-                status: { in: ['RESOLVED', 'CLOSED'] }
-            };
-        } else if (tab === 'spam') {
-            // SPAM is not a valid status enum, so we filter by metadata or skip
-            // For now, just use CLOSED as fallback
-            tabWhere = {
-                ...where,
-                status: 'CLOSED'
-            };
-        } else if (['main', 'general', 'requests'].includes(tab)) {
-            tabWhere = {
-                ...where,
-                status: { in: ['ACTIVE', 'PENDING'] }
-            };
+        if (searchActive) {
+            const contentTokens = extractContentTokens(search);
+            if (contentTokens.length) {
+                const rows = await executeWithRetry(() => prisma.message.findMany({
+                    where: {
+                        conversation: { companyId, channel: where.channel },
+                        AND: contentTokens.map(t => ({ content: { contains: t, mode: 'insensitive' } })),
+                    },
+                    select: { conversationId: true },
+                    distinct: ['conversationId'],
+                    take: 500,
+                }), 3);
+                contentIds = rows.map(r => r.conversationId);
+            }
+        }
+
+        let queryWhere;
+
+        if (searchActive) {
+            queryWhere = { ...where };
+            const namePart = buildConversationSearchWhere(search);
+            const contentPart = contentIds.length ? { id: { in: contentIds } } : null;
+            const searchPart = contentPart ? { AND: [{ OR: [namePart, contentPart] }] } : namePart;
+            queryWhere.AND = [...(queryWhere.AND || []), ...(searchPart?.AND || [])];
         } else {
-            // 'all' or undefined - usually excludes RESOLVED/CLOSED
-            tabWhere = {
-                ...where,
-                status: { in: ['ACTIVE', 'PENDING'] }
-            };
-        }
+            // 🆕 For unreplied tab, we now use the database column directly!
+            // Extended logic for ALL tabs to ensure server-side filtering works
+            let tabWhere = { ...where };
 
-        // 🆕 Priority filter support (priority > 1 means high priority / starred)
-        if (priority === 'true' || priority === true || tab === 'priority') {
-            tabWhere.priority = { gt: 1 };
-            // When priority is explicitly filtered, include all priority chats regardless of status or reply state
-            delete tabWhere.status;
-            delete tabWhere.lastMessageIsFromCustomer;
-        }
+            if (tab === 'unreplied') {
+                tabWhere = {
+                    ...where,
+                    status: { in: ['ACTIVE', 'PENDING'] },
+                    lastMessageIsFromCustomer: true
+                };
+            } else if (tab === 'done' || tab === 'resolved') {
+                // 🆕 FIX: Use valid enum values - RESOLVED and CLOSED
+                tabWhere = {
+                    ...where,
+                    status: { in: ['RESOLVED', 'CLOSED'] }
+                };
+            } else if (tab === 'spam') {
+                // SPAM is not a valid status enum, so we filter by metadata or skip
+                // For now, just use CLOSED as fallback
+                tabWhere = {
+                    ...where,
+                    status: 'CLOSED'
+                };
+            } else if (['main', 'general', 'requests'].includes(tab)) {
+                tabWhere = {
+                    ...where,
+                    status: { in: ['ACTIVE', 'PENDING'] }
+                };
+            } else {
+                // 'all' or undefined - usually excludes RESOLVED/CLOSED
+                tabWhere = {
+                    ...where,
+                    status: { in: ['ACTIVE', 'PENDING'] }
+                };
+            }
 
-        // For unreplied, filter directly from database using the new column
-        const queryWhere = tabWhere;
+            // 🆕 Priority filter support (priority > 1 means high priority / starred)
+            if (priority === 'true' || priority === true || tab === 'priority') {
+                tabWhere.priority = { gt: 1 };
+                // When priority is explicitly filtered, include all priority chats regardless of status or reply state
+                delete tabWhere.status;
+                delete tabWhere.lastMessageIsFromCustomer;
+            }
 
-        // 🆕 Add server-side search filter (search in customer name, last message, and phone)
-        if (search && search.trim()) {
-            const searchTerm = search.trim();
-            queryWhere.AND = [
-                {
-                    OR: [
-                        { lastMessagePreview: { contains: searchTerm } },
-                        { customer: { firstName: { contains: searchTerm } } },
-                        { customer: { lastName: { contains: searchTerm } } },
-                        { customer: { phone: { contains: searchTerm } } },
-                    ]
-                }
-            ];
+            queryWhere = tabWhere;
         }
 
         try {
@@ -349,7 +363,7 @@ const getConversations = async (req, res) => {
             // Also get total unreplied count for stats
             // ✅ FIX: استخدام نفس where clause مع channel filter
             const unrepliedWhere = {
-                ...where,
+                ...(searchActive ? queryWhere : where),
                 status: { in: ['ACTIVE', 'PENDING'] },
                 lastMessageIsFromCustomer: true
             };
@@ -362,7 +376,7 @@ const getConversations = async (req, res) => {
 
             // Also get total priority count for stats badge across whole channel
             const priorityWhere = {
-                ...where,
+                ...(searchActive ? queryWhere : where),
                 priority: { gt: 1 }
             };
 
