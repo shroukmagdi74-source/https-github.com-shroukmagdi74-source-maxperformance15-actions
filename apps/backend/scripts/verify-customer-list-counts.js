@@ -292,6 +292,7 @@ async function run() {
   if (prisma?.$disconnect) {
     await prisma.$disconnect();
   }
+  process.exit(allPassed ? 0 : 1);
 }
 
 run().catch((err) => {
