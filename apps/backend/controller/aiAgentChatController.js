@@ -1103,12 +1103,16 @@ async function getSpecialists(req, res) {
       finalSpecialists = activeAgents.map((a) => {
         const agentChannels = (a.allowedChannels || a.allowed_channels || []);
         const hasDashboardChannel = Array.isArray(agentChannels) && agentChannels.map((c) => String(c).toUpperCase()).includes('DASHBOARD');
+        // A single agent may own the copilot default. Owning the DASHBOARD
+        // channel must never promote an agent to "default" on its own: Swan
+        // had three dashboard-channel agents and the copilot opened on the
+        // wrong one (course coach) while ai_settings asked for the executive
+        // assistant.
         const isDefault =
           a.id === defaultAgentSlug ||
           a.slug === defaultAgentSlug ||
           a.templateSlug === defaultAgentSlug ||
-          a.template_slug === defaultAgentSlug ||
-          hasDashboardChannel;
+          a.template_slug === defaultAgentSlug;
 
         const baseMatch = baseSpecialists.find(
           (b) => b.slug === a.templateSlug || b.slug === a.template_slug || b.role === a.role
@@ -1124,6 +1128,7 @@ async function getSpecialists(req, res) {
           badge: isDefault ? 'المساعد التنفيذي' : (a.departmentName || baseMatch?.badge || a.role || 'متخصص'),
           icon: a.icon || baseMatch?.icon || '🤖',
           isDefault,
+          hasDashboardChannel,
           allowedChannels: agentChannels,
           suggestedPrompts: baseMatch?.suggestedPrompts || [
             `أعطني ملخصاً عن أداء ${a.name || a.role}`,

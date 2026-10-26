@@ -48,9 +48,16 @@ export function useCopilotSpecialists({
           // If user hasn't explicitly picked someone, lock strictly to the DASHBOARD routed agent
           if (!userHasExplicitlySelectedRef.current) {
             const serverDefaultSlug = res.data?.defaultAgentSlug;
-            const matched = serverSpecialists.find(
-              (a) => a.isDefault || a.slug === serverDefaultSlug || a.id === serverDefaultSlug
-            ) || serverSpecialists[0];
+            // The configured default wins over any isDefault flag: several
+            // agents can carry the DASHBOARD channel, and the first of them
+            // would otherwise silently override the company's choice.
+            const matched =
+              (serverDefaultSlug &&
+                serverSpecialists.find(
+                  (a) => a.slug === serverDefaultSlug || a.id === serverDefaultSlug
+                )) ||
+              serverSpecialists.find((a) => a.isDefault) ||
+              serverSpecialists[0];
 
             if (matched) {
               setSelectedAgentState(matched);
