@@ -41,6 +41,8 @@ export function useCustomerListsController() {
   const [formCriteriaType, setFormCriteriaType] = useState<CriteriaType>("all");
   const [formCriteria, setFormCriteria] = useState<any>({ type: "all" });
   const [previewCount, setPreviewCount] = useState<number | null>(null);
+  // عدّاد «قبل الاستبعاد / بعده» القادم من preview-count (v2)
+  const [previewCounts, setPreviewCounts] = useState<{ before: number; after: number; excluded: number } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
@@ -177,9 +179,22 @@ export function useCustomerListsController() {
       setPreviewLoading(true);
       try {
         const res = await broadcastService.previewCustomerListCount(formCriteria);
-        if (!cancelled) setPreviewCount(res?.data?.count ?? null);
+        if (!cancelled) {
+          const d: any = res?.data || {};
+          const after = typeof d.after === "number" ? d.after : typeof d.count === "number" ? d.count : null;
+          const before = typeof d.before === "number" ? d.before : after;
+          setPreviewCount(after);
+          setPreviewCounts(
+            after === null
+              ? null
+              : { before: before ?? after, after, excluded: Math.max(0, (before ?? after) - after) }
+          );
+        }
       } catch {
-        if (!cancelled) setPreviewCount(null);
+        if (!cancelled) {
+          setPreviewCount(null);
+          setPreviewCounts(null);
+        }
       } finally {
         if (!cancelled) setPreviewLoading(false);
       }
@@ -336,6 +351,8 @@ export function useCustomerListsController() {
     formCriteriaType,
     formCriteria,
     previewCount,
+    previewCounts,
+    setFormCriteria,
     previewLoading,
     saving,
     availableTags,

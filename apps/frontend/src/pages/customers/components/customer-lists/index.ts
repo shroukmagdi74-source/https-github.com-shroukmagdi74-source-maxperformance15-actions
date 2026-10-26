@@ -9,3 +9,4 @@ export * from "./CustomerListCreateModal";
 export * from "./CustomerListCriteriaFields";
 export * from "./CustomerListDeleteDialog";
 export * from "./CustomerListMembersDrawer";
+export * from "./CustomerListRuleBuilderV2";

@@ -1,4 +1,33 @@
-import { CriteriaType, SMART_PRESETS, STATUS_LABELS } from "./types";
+import { CriteriaType, SMART_PRESETS, STATUS_LABELS, CriteriaV2 } from "./types";
+
+export function isV2Criteria(c: any): boolean {
+  if (!c) return false;
+  const parsed = typeof c === "string" ? (() => { try { return JSON.parse(c); } catch { return {}; } })() : c;
+  return Boolean(parsed?.version >= 2 || parsed?.include);
+}
+
+export function buildEmptyV2Criteria(): CriteriaV2 {
+  return {
+    version: 2,
+    include: {
+      operator: "AND",
+      groups: [
+        {
+          operator: "AND",
+          rules: [
+            { field: "ordersCount", op: "gte", value: 1 }
+          ]
+        }
+      ]
+    },
+    exclude: {
+      operator: "OR",
+      groups: []
+    },
+    excludeListIds: [],
+    excludeContactedInDays: 0
+  };
+}
 
 export function buildEmptyCriteria(type: CriteriaType): Record<string, any> {
   switch (type) {
@@ -27,7 +56,7 @@ export function criteriaSummary(criteria: any): string {
   if (!criteria) return "جميع العملاء النشطين";
   const c = typeof criteria === "string" ? (() => { try { return JSON.parse(criteria); } catch { return {}; } })() : criteria;
 
-  if (c.version === 2 || c.include) {
+  if (c?.version === 2 || c?.include) {
     const parts: string[] = [];
     const groups = c.include?.groups || [];
     if (groups.length === 0) {
