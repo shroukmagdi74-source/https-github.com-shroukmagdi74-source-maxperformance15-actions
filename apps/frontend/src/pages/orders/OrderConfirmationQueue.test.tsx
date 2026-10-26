@@ -31,6 +31,13 @@ jest.mock("../../services/orderConfirmationService", () => ({
         },
       ],
       pagination: { total: 1, pages: 1 },
+      appliedFilters: {
+        statuses: ['pending'],
+        sources: ['storefront'],
+        requireConfirmedAtNull: true,
+        includeGuestOrders: true,
+        guestTwinReconciliation: 'EXCLUDE_SHADOW_TWINS',
+      },
     }),
     getStats: jest.fn().mockResolvedValue({
       data: {
@@ -119,6 +126,7 @@ describe("OrderConfirmationQueue", () => {
       expect(screen.getByText("ORD-CONF-101")).toBeInTheDocument();
       expect(screen.getByText("سارة محمد")).toBeInTheDocument();
       expect(screen.getByText(/تقرير فريق التأكيد/i)).toBeInTheDocument();
+      expect(screen.getByTestId("applied-filters-ribbon")).toBeInTheDocument();
     });
   });
 });

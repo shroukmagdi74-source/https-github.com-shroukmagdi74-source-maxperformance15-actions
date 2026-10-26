@@ -423,7 +423,23 @@ class OrderConfirmationService {
   async listConfirmationQueue(companyId, filters = {}) {
     const settings = this.normalizeSettings(await this.getSettings(companyId));
     if (!settings.enabled) {
-      return { data: [], pagination: { total: 0, page: 1, limit: 20, pages: 0 }, disabled: true };
+      return {
+        data: [],
+        pagination: { total: 0, page: 1, limit: 20, pages: 0 },
+        disabled: true,
+        appliedFilters: {
+          statuses: (settings.requireStatuses || []).map((s) => String(s).toUpperCase()),
+          sources: (settings.requireSourceTypes || []).map((s) => String(s).toLowerCase()),
+          matchMode: normalizeMatchMode(settings.requireMatchMode),
+          excludeConfirmStatus: settings.confirmStatus ? String(settings.confirmStatus).toUpperCase() : null,
+          requireConfirmedAtNull: true,
+          hasDateFilter: false,
+          startDate: null,
+          endDate: null,
+          includeGuestOrders: false,
+          guestTwinReconciliation: 'EXCLUDE_SHADOW_TWINS'
+        }
+      };
     }
 
     const page = parseInt(filters.page, 10) || 1;
@@ -433,15 +449,29 @@ class OrderConfirmationService {
     const guestFilters = this.buildGuestFilters(settings, { ...filters, companyId });
 
     if (regularFilters.disabled && guestFilters.disabled) {
-      return { data: [], pagination: { total: 0, page, limit, pages: 0 } };
+      return {
+        data: [],
+        pagination: { total: 0, page, limit, pages: 0 },
+        appliedFilters: {
+          statuses: filters.status
+            ? [String(filters.status).toUpperCase()]
+            : (settings.requireStatuses || []).map((s) => String(s).toUpperCase()),
+          sources: filters.sourceType
+            ? [String(filters.sourceType).toLowerCase()]
+            : (settings.requireSourceTypes || []).map((s) => String(s).toLowerCase()),
+          matchMode: normalizeMatchMode(settings.requireMatchMode),
+          excludeConfirmStatus: settings.confirmStatus ? String(settings.confirmStatus).toUpperCase() : null,
+          requireConfirmedAtNull: true,
+          hasDateFilter: Boolean(filters.startDate || filters.endDate),
+          startDate: filters.startDate || null,
+          endDate: filters.endDate || null,
+          includeGuestOrders: false,
+          guestTwinReconciliation: 'EXCLUDE_SHADOW_TWINS'
+        }
+      };
     }
 
     const startIndex = (page - 1) * limit;
-
-    const [totalRegular, totalGuest] = await Promise.all([
-      regularFilters.disabled ? 0 : this.prisma.order.count({ where: regularFilters.where }),
-      guestFilters.disabled ? 0 : this.prisma.guestOrder.count({ where: guestFilters.where })
-    ]);
 
     const createSqlBuilder = () => {
       const values = [];
@@ -554,6 +584,11 @@ class OrderConfirmationService {
       const builder = createSqlBuilder();
       builder.add(builder.equals('g."companyId"', companyId));
 
+      // استبعاد صفوف الظل التي لها توأم أصلي في جدول orders بنفس الشركة ورقم الطلب
+      builder.add(
+        'NOT EXISTS (SELECT 1 FROM "orders" o_sub WHERE o_sub."companyId" = g."companyId" AND LOWER(BTRIM(o_sub."orderNumber")) = LOWER(BTRIM(g."orderNumber")) AND BTRIM(g."orderNumber") <> \'\')'
+      );
+
       const sources = settings.requireSourceTypes.map((s) => String(s).toLowerCase());
       const statuses = normalizeStatusVariants(settings.requireStatuses);
       const includeBySource = sources.includes('storefront');
@@ -630,10 +665,16 @@ class OrderConfirmationService {
     const combinedSql = unionSegments.length
       ? `SELECT * FROM (${unionSegments.join(' UNION ALL ')}) AS combined ORDER BY \"createdAt\" DESC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`
       : null;
+    const countSql = unionSegments.length
+      ? `SELECT COUNT(*)::text AS "count" FROM (${unionSegments.join(' UNION ALL ')}) AS combined_count`
+      : null;
 
-    const rawRows = combinedSql
-      ? await this.prisma.$queryRawUnsafe(combinedSql, ...unionValues, limit, startIndex)
-      : [];
+    const [rawRows, countRows] = await Promise.all([
+      combinedSql ? this.prisma.$queryRawUnsafe(combinedSql, ...unionValues, limit, startIndex) : Promise.resolve([]),
+      countSql ? this.prisma.$queryRawUnsafe(countSql, ...unionValues) : Promise.resolve([])
+    ]);
+
+    const total = countRows && countRows[0] ? Number(countRows[0].count || 0) : 0;
     const paginatedRaw = rawRows.map((row) => ({ type: row.type, id: row.id }));
 
     const paginatedRegularIds = paginatedRaw.filter((item) => item.type === 'regular').map((item) => item.id);
@@ -866,11 +907,27 @@ class OrderConfirmationService {
       .map((item) => (item.type === 'regular' ? regularMap.get(item.id) : guestMap.get(item.id)))
       .filter(Boolean);
 
-    const total = totalRegular + totalGuest;
+    const appliedFilters = {
+      statuses: filters.status
+        ? [String(filters.status).toUpperCase()]
+        : (settings.requireStatuses || []).map((s) => String(s).toUpperCase()),
+      sources: filters.sourceType
+        ? [String(filters.sourceType).toLowerCase()]
+        : (settings.requireSourceTypes || []).map((s) => String(s).toLowerCase()),
+      matchMode: normalizeMatchMode(settings.requireMatchMode),
+      excludeConfirmStatus: settings.confirmStatus ? String(settings.confirmStatus).toUpperCase() : null,
+      requireConfirmedAtNull: true,
+      hasDateFilter: Boolean(filters.startDate || filters.endDate),
+      startDate: filters.startDate || null,
+      endDate: filters.endDate || null,
+      includeGuestOrders: !guestFilters.disabled && Boolean(guestQuery),
+      guestTwinReconciliation: 'EXCLUDE_SHADOW_TWINS'
+    };
 
     return {
       data: paginated,
-      pagination: { total, page, limit, pages: Math.ceil(total / limit) }
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) || 1 },
+      appliedFilters
     };
   }
 

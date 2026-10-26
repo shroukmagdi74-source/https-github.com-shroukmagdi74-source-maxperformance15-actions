@@ -4,6 +4,18 @@ import { Search, SlidersHorizontal, UserX, ChevronDown } from "lucide-react";
 import type { FilterOption } from "./types";
 
 export interface ConfirmationQueueFilterBarProps {
+  appliedFilters?: {
+    statuses?: string[];
+    sources?: string[];
+    matchMode?: string;
+    excludeConfirmStatus?: string | null;
+    requireConfirmedAtNull?: boolean;
+    hasDateFilter?: boolean;
+    startDate?: string | null;
+    endDate?: string | null;
+    includeGuestOrders?: boolean;
+    guestTwinReconciliation?: string;
+  } | null;
   searchInput: string;
   setSearchInput: (val: string) => void;
   statusFilter: string;
@@ -22,6 +34,7 @@ export interface ConfirmationQueueFilterBarProps {
 }
 
 export const ConfirmationQueueFilterBar: React.FC<ConfirmationQueueFilterBarProps> = ({
+  appliedFilters,
   searchInput,
   setSearchInput,
   statusFilter,
@@ -40,8 +53,111 @@ export const ConfirmationQueueFilterBar: React.FC<ConfirmationQueueFilterBarProp
 }) => {
   const { t } = useTranslation();
 
+  // Helper to format status names in Arabic
+  const formatStatus = (s: string) => {
+    const upper = String(s).toUpperCase();
+    if (upper === "PENDING") return t("orders.pendingNew", { defaultValue: "قيد الانتظار" });
+    if (upper === "CONFIRMED") return t("orders.confirmed", { defaultValue: "مؤكد" });
+    if (upper === "PROCESSING") return t("orders.processing", { defaultValue: "قيد التجهيز" });
+    if (upper === "SHIPPED") return t("orders.shipped", { defaultValue: "تم الشحن" });
+    if (upper === "DELIVERED") return t("orders.delivered", { defaultValue: "تم التوصيل" });
+    if (upper === "CANCELLED") return t("orders.cancelled", { defaultValue: "ملغي" });
+    return s;
+  };
+
+  // Helper to format source names in Arabic
+  const formatSource = (src: string) => {
+    const lower = String(src).toLowerCase();
+    if (lower === "storefront") return t("orders.sourceStorefront", { defaultValue: "المتجر" });
+    if (lower === "manual") return t("orders.sourceManual", { defaultValue: "يدوي" });
+    if (lower === "ai_conversation") return t("orders.sourceAutoConversation", { defaultValue: "محادثة ذكية" });
+    if (lower === "woocommerce") return t("orders.sourceWooCommerce", { defaultValue: "ووكومرس" });
+    if (lower === "pos") return t("orders.sourcePOS", { defaultValue: "نقطة بيع" });
+    if (lower === "api") return t("orders.sourceAPI", { defaultValue: "API" });
+    return src;
+  };
+
+  const appliedChips = React.useMemo(() => {
+    const chips: string[] = [];
+
+    // 1. Statuses
+    if (appliedFilters?.statuses && appliedFilters.statuses.length > 0) {
+      chips.push(appliedFilters.statuses.map(formatStatus).join("، "));
+    } else if (statusFilter) {
+      chips.push(statusFilterLabel);
+    } else {
+      chips.push(t("orders.pendingNew", { defaultValue: "قيد الانتظار" }));
+    }
+
+    // 2. Unconfirmed condition
+    if (appliedFilters?.requireConfirmedAtNull !== false) {
+      chips.push(t("orders.withoutConfirmation", { defaultValue: "من غير تأكيد" }));
+    }
+
+    // 3. Excluded confirm status
+    if (appliedFilters?.excludeConfirmStatus) {
+      chips.push(`استبعاد: ${formatStatus(appliedFilters.excludeConfirmStatus)}`);
+    }
+
+    // 4. Sources
+    if (appliedFilters?.sources && appliedFilters.sources.length > 0) {
+      chips.push(appliedFilters.sources.map(formatSource).join("، "));
+    } else if (sourceFilter) {
+      chips.push(sourceFilterLabel);
+    } else {
+      chips.push(t("orders.allSources", { defaultValue: "كل المصادر" }));
+    }
+
+    // 5. Match mode
+    if (appliedFilters?.matchMode === "all") {
+      chips.push(t("orders.matchModeAll", { defaultValue: "مطابقة الكل" }));
+    }
+
+    // 6. Guest orders condition
+    if (appliedFilters?.includeGuestOrders === false) {
+      chips.push(t("orders.withoutGuestOrders", { defaultValue: "بدون أوردرات ضيوف" }));
+    } else if (appliedFilters?.includeGuestOrders === true) {
+      chips.push(t("orders.guestWithoutTwins", { defaultValue: "أوردرات الضيوف (بدون توأم)" }));
+    }
+
+    // 7. Date filter
+    if (appliedFilters?.hasDateFilter) {
+      chips.push(t("orders.dateFilterApplied", { defaultValue: "نطاق تاريخ محدد" }));
+    }
+
+    // 8. Only unassigned
+    if (onlyUnassigned) {
+      chips.push(t("orders.unassigned", { defaultValue: "غير مخصص فقط" }));
+    }
+
+    return chips;
+  }, [appliedFilters, statusFilter, statusFilterLabel, sourceFilter, sourceFilterLabel, onlyUnassigned, t]);
+
   return (
-    <div className="rounded-2xl border border-border/70 bg-card p-3 sm:p-4 shadow-xs">
+    <div className="rounded-2xl border border-border/70 bg-card p-3 sm:p-4 shadow-xs space-y-3">
+      {/* Applied System Filters Ribbon */}
+      <div
+        data-testid="applied-filters-ribbon"
+        className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground pb-2.5 border-b border-border/50"
+      >
+        <span className="font-semibold text-foreground/80 flex items-center gap-1.5 text-xs">
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>{t("orders.appliedFilters", { defaultValue: "الفلاتر المطبقة:" })}</span>
+        </span>
+        <div className="flex flex-wrap items-center gap-1">
+          {appliedChips.map((chip, idx) => (
+            <React.Fragment key={idx}>
+              <span className="inline-flex items-center rounded-lg bg-muted/80 px-2 py-0.5 text-[11px] font-medium text-foreground border border-border/40">
+                {chip}
+              </span>
+              {idx < appliedChips.length - 1 && (
+                <span className="text-muted-foreground/40 text-[10px]">·</span>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-2.5 sm:gap-3 lg:flex-row">
         {/* Search input */}
         <div className="relative flex-1">

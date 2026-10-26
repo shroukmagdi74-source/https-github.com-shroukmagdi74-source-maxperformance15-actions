@@ -8,6 +8,7 @@ export function buildEmptyCriteria(type: CriteriaType): Record<string, any> {
     case "returnRequest": return { type, status: "APPROVED", days: 30 };
     case "paymentStatus": return { type, status: "COMPLETED", days: 30 };
     case "city": return { type, city: "" };
+    case "product": return { type, productId: "", orderStatus: "DELIVERED" };
     case "customerRating": return { type, rating: "EXCELLENT" };
     case "latest": return { type, limit: 100 };
     case "oldest": return { type, limit: 100 };
@@ -34,6 +35,7 @@ export function criteriaSummary(criteria: any): string {
     case "returnRequest": return c.days ? `مرتجعات "${STATUS_LABELS[c.status] || c.status || "الكل"}" خلال ${c.days} يوم` : `مرتجعات بحالة "${STATUS_LABELS[c.status] || c.status || "الكل"}"`;
     case "paymentStatus": return c.days ? `دفع "${STATUS_LABELS[c.status] || c.status}" خلال ${c.days} يوم` : `دفع بحالة "${STATUS_LABELS[c.status] || c.status}"`;
     case "city": return `من مدينة: ${c.city}`;
+    case "product": return c.orderStatus ? `طلب منتج (${c.productId || "غير محدد"}) بحالة ${STATUS_LABELS[c.orderStatus] || c.orderStatus}` : `طلب منتج (${c.productId || "غير محدد"})`;
     case "customerRating": return `التقييم: ${STATUS_LABELS[c.rating] || c.rating}`;
     case "latest": return `أحدث ${c.limit ?? 100} عميل`;
     case "oldest": return `أقدم ${c.limit ?? 100} عميل`;

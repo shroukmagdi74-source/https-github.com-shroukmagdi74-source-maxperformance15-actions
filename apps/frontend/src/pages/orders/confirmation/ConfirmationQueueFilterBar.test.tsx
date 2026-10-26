@@ -79,4 +79,32 @@ describe("ConfirmationQueueFilterBar", () => {
     expect(onOpenMobileFilters).toHaveBeenCalledTimes(1);
     expect(screen.getByText("2")).toBeInTheDocument();
   });
+
+  it("renders applied filters ribbon with accurate chips", () => {
+    const appliedFilters = {
+      statuses: ["PENDING"],
+      sources: ["storefront"],
+      matchMode: "any",
+      excludeConfirmStatus: "CONFIRMED",
+      requireConfirmedAtNull: true,
+      hasDateFilter: false,
+      includeGuestOrders: false,
+      guestTwinReconciliation: "EXCLUDE_SHADOW_TWINS",
+    };
+
+    render(
+      <ConfirmationQueueFilterBar
+        {...defaultProps}
+        appliedFilters={appliedFilters}
+      />,
+    );
+
+    const ribbon = screen.getByTestId("applied-filters-ribbon");
+    expect(ribbon).toBeInTheDocument();
+    expect(ribbon).toHaveTextContent("الفلاتر المطبقة:");
+    expect(ribbon).toHaveTextContent("قيد الانتظار");
+    expect(ribbon).toHaveTextContent("من غير تأكيد");
+    expect(ribbon).toHaveTextContent("المتجر");
+    expect(ribbon).toHaveTextContent("بدون أوردرات ضيوف");
+  });
 });

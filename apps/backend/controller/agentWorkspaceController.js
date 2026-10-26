@@ -775,6 +775,22 @@ const getMyOrders = async (req, res) => {
         ]
       };
 
+      // استبعاد صفوف الظل للضيوف التي لها توأم أصلي في جدول orders بنفس الشركة ورقم الطلب عبر NOT EXISTS
+      try {
+        if (typeof prisma.$queryRawUnsafe === 'function') {
+          const twinRows = await prisma.$queryRawUnsafe(
+            `SELECT g."id" FROM "guest_orders" g WHERE g."companyId" = $1 AND EXISTS (SELECT 1 FROM "orders" o WHERE o."companyId" = g."companyId" AND LOWER(BTRIM(o."orderNumber")) = LOWER(BTRIM(g."orderNumber")) AND BTRIM(g."orderNumber") <> '')`,
+            companyId
+          );
+          const twinGuestIds = Array.isArray(twinRows) ? twinRows.map((r) => r.id).filter(Boolean) : [];
+          if (twinGuestIds.length > 0) {
+            guestWhere.id = { notIn: twinGuestIds };
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to query twin guest orders with NOT EXISTS:', err.message);
+      }
+
       if (todayOnly) {
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);

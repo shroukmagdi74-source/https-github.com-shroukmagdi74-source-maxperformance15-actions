@@ -58,6 +58,7 @@ const mockPrisma = {
   cartConversionLog: {
     findMany: jest.fn().mockResolvedValue([]),
   },
+  $queryRawUnsafe: jest.fn(),
   $transaction: jest.fn(async (cb) => {
     if (typeof cb === 'function') {
       return cb(mockPrisma);
@@ -426,6 +427,150 @@ describe('Guest Twin Reconciliation & Duplicate Prevention', () => {
 
       // Must be excluded!
       expect(matchesWorkspaceFilter(shadowGuestAssignment, where)).toBe(false);
+    });
+  });
+
+  describe('C. Order Confirmation Queue - Twin Deduplication & Unified Total', () => {
+    const queueSettings = {
+      enabled: true,
+      requireSourceTypes: ['storefront', 'manual'],
+      requireStatuses: ['PENDING'],
+      requireMatchMode: 'any',
+      confirmStatus: 'CONFIRMED',
+      distributionEnabled: false,
+    };
+
+    test('listConfirmationQueue excludes guest shadow twins via NOT EXISTS and returns matching total', async () => {
+      jest.spyOn(orderConfirmationService, 'getSettings').mockResolvedValueOnce(queueSettings);
+
+      const regularRows = Array.from({ length: 12 }, (_, i) => ({
+        type: 'regular',
+        id: `reg-${i + 1}`,
+        createdAt: new Date(`2026-10-25T10:${String(i).padStart(2, '0')}:00Z`),
+      }));
+
+      // Combined query returns 12 regular items (shadow guest twins excluded by NOT EXISTS in SQL)
+      // and count query returns total = 12
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce(regularRows) // combinedSql
+        .mockResolvedValueOnce([{ count: '12' }]); // countSql
+
+      mockPrisma.order.findMany.mockResolvedValueOnce(
+        regularRows.map((r, i) => ({
+          id: r.id,
+          orderNumber: `ORD-SWAN-${100 + i}`,
+          customerName: `Customer ${i + 1}`,
+          customerPhone: `010000000${i}`,
+          total: 500,
+          status: 'PENDING',
+          sourceType: 'storefront',
+          createdAt: r.createdAt,
+          orderItems: [],
+        }))
+      );
+
+      const result = await orderConfirmationService.listConfirmationQueue('comp-swan', { status: 'PENDING' });
+
+      // Check SQL in call arguments: guestSql must include NOT EXISTS subquery against orders
+      const combinedCallSql = mockPrisma.$queryRawUnsafe.mock.calls[0][0];
+      const countCallSql = mockPrisma.$queryRawUnsafe.mock.calls[1][0];
+
+      expect(combinedCallSql).toContain('NOT EXISTS (SELECT 1 FROM "orders" o_sub WHERE o_sub."companyId" = g."companyId" AND LOWER(BTRIM(o_sub."orderNumber")) = LOWER(BTRIM(g."orderNumber"))');
+      expect(countCallSql).toContain('SELECT COUNT(*)::text AS "count" FROM');
+
+      // Total must equal 12 (not doubled 24)
+      expect(result.pagination.total).toBe(12);
+      expect(result.data.length).toBe(12);
+
+      // appliedFilters must be present and reflect active filters
+      expect(result.appliedFilters).toBeDefined();
+      expect(result.appliedFilters.statuses).toEqual(['PENDING']);
+      expect(result.appliedFilters.requireConfirmedAtNull).toBe(true);
+      expect(result.appliedFilters.guestTwinReconciliation).toBe('EXCLUDE_SHADOW_TWINS');
+      expect(result.appliedFilters.includeGuestOrders).toBe(true);
+    });
+
+    test('listConfirmationQueue includes pure guest-only orders that have no regular twin', async () => {
+      jest.spyOn(orderConfirmationService, 'getSettings').mockResolvedValueOnce(queueSettings);
+
+      const mixedRows = [
+        { type: 'regular', id: 'reg-solo', createdAt: new Date('2026-10-25T11:00:00Z') },
+        { type: 'guest', id: 'guest-pure', createdAt: new Date('2026-10-25T10:00:00Z') },
+      ];
+
+      mockPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce(mixedRows)
+        .mockResolvedValueOnce([{ count: '2' }]);
+
+      mockPrisma.order.findMany.mockResolvedValueOnce([
+        {
+          id: 'reg-solo',
+          orderNumber: 'ORD-REG-1',
+          customerName: 'Regular Customer',
+          total: 300,
+          status: 'PENDING',
+          createdAt: mixedRows[0].createdAt,
+          orderItems: [],
+        },
+      ]);
+
+      mockPrisma.guestOrder.findMany.mockResolvedValueOnce([
+        {
+          id: 'guest-pure',
+          orderNumber: 'GUEST-PURE-1',
+          guestName: 'Guest Customer',
+          finalTotal: 400,
+          status: 'pending',
+          createdAt: mixedRows[1].createdAt,
+          items: '[]',
+        },
+      ]);
+
+      const result = await orderConfirmationService.listConfirmationQueue('comp-swan', { status: 'PENDING' });
+
+      expect(result.pagination.total).toBe(2);
+      expect(result.data.length).toBe(2);
+      const guestItem = result.data.find((d) => d.id === 'guest-pure');
+      expect(guestItem).toBeDefined();
+      expect(guestItem.isGuestOrder).toBe(true);
+    });
+
+    test('agentWorkspaceController unassigned pool excludes twin guest orders via NOT EXISTS subquery', async () => {
+      const mgrReq = {
+        user: { id: 'mgr-1', role: 'MANAGER', effectiveCompanyId: 'comp-redline' },
+        query: { assignedTo: 'unassigned', status: 'PENDING' },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      // Mock $queryRawUnsafe to return twin guest order IDs
+      mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([
+        { id: 'guest-twin-260' },
+      ]);
+
+      mockPrisma.order.count.mockResolvedValueOnce(234);
+      mockPrisma.guestOrder.count.mockResolvedValueOnce(0); // 0 remaining after excluding twins
+      mockPrisma.order.findMany.mockResolvedValueOnce([]);
+      mockPrisma.guestOrder.findMany.mockResolvedValueOnce([]);
+
+      await agentWorkspaceController.getMyOrders(mgrReq, res);
+
+      // Verify that guestWhere excludes twin guest IDs
+      const guestCountCall = mockPrisma.guestOrder.count.mock.calls.find(
+        (call) => call[0]?.where?.id?.notIn
+      );
+      expect(guestCountCall).toBeDefined();
+      expect(guestCountCall[0].where.id.notIn).toContain('guest-twin-260');
+
+      // Total must be 234 (not 234 + 260 = 494)
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          pagination: expect.objectContaining({ total: 234 }),
+        })
+      );
     });
   });
 });

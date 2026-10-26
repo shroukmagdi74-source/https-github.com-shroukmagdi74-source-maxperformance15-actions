@@ -13,6 +13,19 @@ import type {
 } from "./types";
 import { useConfirmationQueueActions } from "./useConfirmationQueueActions";
 
+export interface AppliedFiltersData {
+  statuses?: string[];
+  sources?: string[];
+  matchMode?: string;
+  excludeConfirmStatus?: string | null;
+  requireConfirmedAtNull?: boolean;
+  hasDateFilter?: boolean;
+  startDate?: string | null;
+  endDate?: string | null;
+  includeGuestOrders?: boolean;
+  guestTwinReconciliation?: string;
+}
+
 export function useConfirmationQueueData() {
   const { t } = useTranslation();
   const { formatDate } = useDateFormat();
@@ -42,6 +55,7 @@ export function useConfirmationQueueData() {
 
   const [eligibleUsers, setEligibleUsers] = useState<OrderConfirmationUser[]>([]);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFiltersData | null>(null);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -137,6 +151,9 @@ export function useConfirmationQueueData() {
         setIsQueueDisabled(true);
       } else if (res?.success) {
         setIsQueueDisabled(false);
+      }
+      if (res?.appliedFilters) {
+        setAppliedFilters(res.appliedFilters);
       }
       setOrders(Array.isArray(res.data) ? res.data : []);
       setTotalOrders(res.pagination?.total || 0);
@@ -298,6 +315,7 @@ export function useConfirmationQueueData() {
     activeQueueFilterCount,
     statusFilterLabel,
     sourceFilterLabel,
+    appliedFilters,
     resetQueueFilters,
     ...actions,
   };

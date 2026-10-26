@@ -75,6 +75,7 @@ export const OrderConfirmationQueue: React.FC<OrderConfirmationQueueProps> = ({ 
     activeQueueFilterCount,
     statusFilterLabel,
     sourceFilterLabel,
+    appliedFilters,
     resetQueueFilters,
     handleConfirm,
     handlePrintSlip,
@@ -113,6 +114,7 @@ export const OrderConfirmationQueue: React.FC<OrderConfirmationQueueProps> = ({ 
 
       {/* Filter Bar */}
       <ConfirmationQueueFilterBar
+        appliedFilters={appliedFilters}
         searchInput={searchInput}
         setSearchInput={setSearchInput}
         statusFilter={statusFilter}
