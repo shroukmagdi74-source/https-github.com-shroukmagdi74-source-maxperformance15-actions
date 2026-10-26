@@ -117,6 +117,7 @@ model GuestOrder {
   status              String               @default("pending")
   notes               String?
   companyId           String
+  storeId             String?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   confirmationNotifiedAt DateTime?
@@ -162,6 +163,7 @@ model GuestOrder {
   @@index([status])
   @@index([turboShipmentId])
   @@index([turboTrackingNumber])
+  @@index([storeId])
   @@map("guest_orders")
 }
 
@@ -337,6 +339,7 @@ model Order {
   billingHoldAt           DateTime?
   billingHoldAmount       Decimal?                  @db.Decimal(10, 2)
   companyId               String
+  storeId                 String?
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @updatedAt
   lastSyncAt              DateTime?
@@ -427,6 +430,7 @@ model Order {
   @@index([turboTrackingNumber])
   @@index([wooCommerceId])
   @@index([companyId, customStatusCode])
+  @@index([storeId])
   @@map("orders")
 }
 

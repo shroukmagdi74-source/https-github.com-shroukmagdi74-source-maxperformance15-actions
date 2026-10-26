@@ -1,0 +1,18 @@
+model Store {
+  id                String   @id @default(cuid())
+  companyId         String
+  name              String
+  slug              String   @unique
+  customDomain      String?  @unique
+  isDefault         Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  settings          String?
+  whatsappSessionId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, isDefault])
+  @@map("stores")
+}

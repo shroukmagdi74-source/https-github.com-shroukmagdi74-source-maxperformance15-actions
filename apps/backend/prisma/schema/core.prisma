@@ -389,6 +389,7 @@ model Company {
     shiftHandovers                   ShiftHandover[]
     storefrontAnalyticsEvents        StorefrontAnalyticsEvent[]
 
+    stores                           Store[]
    @@index([businessSpecialtyId])
   @@map("companies")
 }

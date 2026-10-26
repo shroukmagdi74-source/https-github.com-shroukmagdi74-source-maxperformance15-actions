@@ -325,6 +325,7 @@ model FacebookAd {
 model ProductLandingPage {
   id               String    @id @default(cuid())
   companyId        String
+  storeId          String?
   productId        String
   slug             String
   title            String
@@ -352,6 +353,7 @@ model ProductLandingPage {
   @@unique([companyId, slug])
   @@index([companyId, status])
   @@index([productId])
+  @@index([storeId])
   @@map("product_landing_pages")
 }
 
