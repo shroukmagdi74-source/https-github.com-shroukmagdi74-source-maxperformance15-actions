@@ -26,6 +26,46 @@ export function buildPresetCriteria(preset: string): Record<string, any> {
 export function criteriaSummary(criteria: any): string {
   if (!criteria) return "جميع العملاء النشطين";
   const c = typeof criteria === "string" ? (() => { try { return JSON.parse(criteria); } catch { return {}; } })() : criteria;
+
+  if (c.version === 2 || c.include) {
+    const parts: string[] = [];
+    const groups = c.include?.groups || [];
+    if (groups.length === 0) {
+      parts.push("جميع العملاء النشطين");
+    } else {
+      const gSummaries = groups.map((g: any) => {
+        const rules = g.rules || [];
+        const rTexts = rules.map((r: any) => {
+          switch (r.field) {
+            case "receivedProduct": return `استلم (${r.sku || r.value || "منتج"})`;
+            case "orderedInPeriod": return `طلب في فترة`;
+            case "ordersCount": return `طلبات ${r.op || "≥"} ${r.value}`;
+            case "totalSpent": return `إنفاق ${r.op || "≥"} ${r.value}`;
+            case "lastOrderBefore": return `آخر طلب قبل ${r.value}`;
+            case "lastOrderAfter": return `آخر طلب بعد ${r.value}`;
+            case "tags": return `وسم: ${r.value}`;
+            case "customerStatus": return `حالة: ${Array.isArray(r.value) ? r.value.join("/") : r.value}`;
+            case "city": return `مدينة: ${r.value}`;
+            case "governorate": return `محافظة: ${r.value}`;
+            case "deliveryRate": return `تسليم ${r.op || "≥"} %${r.value}`;
+            case "customerRating": return `تقييم: ${Array.isArray(r.value) ? r.value.join("/") : r.value}`;
+            default: return r.field;
+          }
+        });
+        const gOp = g.operator === "OR" ? " أو " : " و ";
+        return rTexts.join(gOp);
+      });
+      const topOp = c.include?.operator === "OR" ? " أو " : " و ";
+      parts.push(gSummaries.join(topOp));
+    }
+
+    if (c.exclude?.groups?.length > 0) parts.push("مع استبعاد مخصص");
+    if (c.excludeListIds?.length > 0) parts.push(`استبعاد ${c.excludeListIds.length} قوائم`);
+    if (c.excludeContactedInDays > 0) parts.push(`بدون مراسلة ${c.excludeContactedInDays} يوم`);
+
+    return parts.join(" | ");
+  }
+
   const type = c.type || "all";
   switch (type) {
     case "active": return `نشط خلال آخر ${c.hours ?? 24} ساعة`;
