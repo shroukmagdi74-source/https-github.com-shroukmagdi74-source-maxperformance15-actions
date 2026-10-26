@@ -12,9 +12,9 @@ const mockPrisma = {
     update: jest.fn(),
     create: jest.fn(),
   },
-  landingPage: {
-    findFirst: jest.fn(),
-    update: jest.fn(),
+  productLandingPage: {
+    findFirst: jest.fn().mockResolvedValue(null),
+    update: jest.fn().mockResolvedValue({}),
   },
   user: {
     findFirst: jest.fn(),

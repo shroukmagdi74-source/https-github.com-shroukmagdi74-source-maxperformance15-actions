@@ -280,7 +280,7 @@ const maybeTrackLandingConversion = async (prisma, companyId, pageSlug) => {
     const cleanSlug = cleanLeadText(pageSlug, 120);
     if (!cleanSlug) return;
 
-    if (prisma?.productLandingPage) {
+    if (prisma && typeof prisma.productLandingPage?.findFirst === 'function') {
       const page = await prisma.productLandingPage.findFirst({
         where: {
           companyId,
@@ -290,26 +290,10 @@ const maybeTrackLandingConversion = async (prisma, companyId, pageSlug) => {
         select: { id: true },
       });
 
-      if (page?.id) {
+      if (page?.id && typeof prisma.productLandingPage?.update === 'function') {
         await prisma.productLandingPage.update({
           where: { id: page.id },
           data: { orders: { increment: 1 } },
-        });
-      }
-    } else if (prisma?.landingPage) {
-      const page = await prisma.landingPage.findFirst({
-        where: {
-          companyId,
-          slug: cleanSlug,
-          isPublished: true,
-        },
-        select: { id: true },
-      });
-
-      if (page?.id) {
-        await prisma.landingPage.update({
-          where: { id: page.id },
-          data: { conversions: { increment: 1 } },
         });
       }
     }
