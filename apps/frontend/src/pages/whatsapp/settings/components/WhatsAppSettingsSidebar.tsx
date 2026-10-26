@@ -18,7 +18,7 @@ export const WhatsAppSettingsNav: React.FC<WhatsAppSettingsNavProps> = ({
       aria-label="تبويبات إعدادات واتساب"
       className="w-full min-w-0"
     >
-      <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 scrollbar-none touch-pan-x px-0.5">
+      <div className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto pb-1 scrollbar-none touch-pan-x px-0.5">
         {tabs.map((tab) => {
           const selected = activeTab === tab.id;
           const Icon = tab.icon;

@@ -27,7 +27,6 @@ export const WhatsAppQuickRepliesTab: React.FC<WhatsAppQuickRepliesTabProps> = (
   return (
     <WhatsAppSurfaceCard
       title={ts("whatsappSettings.quickReplies")}
-      description={ts("whatsappSettings.quickReplies")}
       action={
         <Button
           className="rounded-full bg-[color:var(--business-success)] px-4 text-white hover:brightness-90"

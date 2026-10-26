@@ -74,12 +74,12 @@ export const WhatsAppSessionsTab: React.FC<WhatsAppSessionsTabProps> = ({
         <WhatsAppSurfaceCard contentClassName="p-4 sm:p-6">
           <Alert className="rounded-2xl border-[color:var(--shell-control-border)] bg-[color:var(--color-card)]">
             <AlertCircle className="size-4 text-[color:var(--color-warning)]" />
-            <AlertTitle>{t("whatsappSettings.sidebarTitle")}</AlertTitle>
+            <AlertTitle>لا توجد جلسات بعد</AlertTitle>
             <AlertDescription>{t("whatsappSettings.noSessions")}</AlertDescription>
           </Alert>
         </WhatsAppSurfaceCard>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,360px),1fr))]">
           {sessions.map((session) => {
             const statusValue = (
               session.liveStatus ||
@@ -98,11 +98,12 @@ export const WhatsAppSessionsTab: React.FC<WhatsAppSessionsTabProps> = ({
             return (
               <div
                 key={session.id}
-                className="flex min-w-0 flex-col justify-between rounded-2xl border border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] p-4 shadow-sm transition-all sm:rounded-3xl sm:p-5"
+                data-session-card
+                className="flex min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] p-4 shadow-sm transition-all sm:rounded-3xl sm:p-5"
               >
                 <div>
-                  {/* Top row: Identity & Status */}
-                  <div className="flex items-start justify-between gap-3 min-w-0">
+                  {/* Top row: Identity */}
+                  <div className="flex items-start gap-3 min-w-0">
                     <div className="flex items-center gap-3 min-w-0">
                       <Avatar
                         size="lg"
@@ -139,26 +140,28 @@ export const WhatsAppSessionsTab: React.FC<WhatsAppSessionsTabProps> = ({
                         </AvatarBadge>
                       </Avatar>
 
-                      <div className="min-w-0 space-y-0.5">
+                      <div className="flex min-w-0 items-baseline gap-2" data-session-identity>
                         <p
-                          className="truncate text-sm font-semibold text-[color:var(--color-foreground)] sm:text-base"
+                          className="min-w-0 truncate text-sm font-semibold text-[color:var(--color-foreground)] sm:text-base"
                           title={session.name}
                         >
                           {session.name}
                         </p>
-                        <p
-                          className="truncate font-mono text-xs text-[color:var(--color-muted-foreground)] tabular-nums sm:text-sm"
+                        <span
+                          className="shrink-0 font-mono text-xs text-[color:var(--color-muted-foreground)] tabular-nums sm:text-sm"
                           dir="ltr"
                         >
                           {phoneLabel}
-                        </p>
+                        </span>
                       </div>
                     </div>
+                  </div>
 
+                  <div className="mt-2 flex min-w-0">
                     <Badge
                       variant="outline"
                       className={cn(
-                        "shrink-0 rounded-full text-[11px] font-medium sm:text-xs",
+                        "w-fit shrink-0 rounded-full text-[11px] font-medium sm:text-xs",
                         statusBadgeClasses[
                           statusValue as keyof typeof statusBadgeClasses
                         ] || statusBadgeClasses["DISCONNECTED"],
@@ -243,118 +246,125 @@ export const WhatsAppSessionsTab: React.FC<WhatsAppSessionsTabProps> = ({
                 </div>
 
                 {/* Bottom actions row: >= 36px touch target */}
-                <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--shell-control-border)_72%,transparent)] pt-3 sm:mt-4 sm:pt-4">
-                  {isConnectedStatus(statusValue) ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 min-h-[36px] flex-1 rounded-full border-rose-300/70 bg-rose-500/10 text-xs font-medium text-rose-800 hover:bg-rose-500/15 dark:border-rose-500/40 dark:text-rose-200 sm:text-sm"
-                      onClick={() => onDisconnectSession(session.id)}
-                    >
-                      <Link2Off className="size-3.5 ms-1 shrink-0" />
-                      <span>{t("whatsappSettings.disconnect")}</span>
-                    </Button>
-                  ) : isReconnectingStatus(statusValue) ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 min-h-[36px] flex-1 rounded-full border-violet-300/70 bg-violet-500/10 text-xs font-medium text-violet-800 hover:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-200 sm:text-sm"
-                      disabled
-                    >
-                      <RefreshCw className="size-3.5 ms-1 shrink-0 animate-spin" />
-                      <span>{t("whatsappSettings.reconnecting") || "Reconnecting..."}</span>
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="h-9 min-h-[36px] flex-1 rounded-full bg-[color:var(--business-success)] text-xs font-medium text-white shadow-sm hover:brightness-90 sm:text-sm"
-                      onClick={() => onConnectSession(session)}
-                      disabled={connectingSessionId === session.id}
-                    >
-                      {connectingSessionId === session.id ? (
-                        <RefreshCw className="size-3.5 ms-1 shrink-0 animate-spin" />
-                      ) : (
-                        <Link2 className="size-3.5 ms-1 shrink-0" />
-                      )}
-                      <span>{t("whatsappSettings.connect")}</span>
-                    </Button>
-                  )}
-
-                  {session.provider === "META_CLOUD" ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 min-h-[36px] shrink-0 gap-1.5 rounded-full border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] px-3 text-xs font-medium text-sky-600 hover:bg-[color:var(--color-muted)] dark:text-sky-400"
-                      onClick={() => onOpenWebhookDetails(session)}
-                      title="بيانات Webhook"
-                    >
-                      <Globe className="size-3.5 shrink-0" />
-                      <span>الويب هوك</span>
-                    </Button>
-                  ) : null}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 min-h-[36px] shrink-0 rounded-full border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] px-3 text-xs font-medium hover:bg-[color:var(--color-muted)]"
-                    onClick={() => onStartEditSession(session)}
-                  >
-                    <Edit className="size-3.5 ms-1 shrink-0" />
-                    <span>{t("whatsappSettings.edit")}</span>
-                  </Button>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                <div
+                  data-session-actions
+                  className="mt-3.5 space-y-2 border-t border-[color:color-mix(in_srgb,var(--shell-control-border)_72%,transparent)] pt-3 sm:mt-4 sm:pt-4"
+                >
+                  <div className="flex">
+                    {isConnectedStatus(statusValue) ? (
                       <Button
                         variant="outline"
-                        size="icon"
-                        className="size-9 min-h-[36px] min-w-[36px] shrink-0 rounded-full border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] text-[color:var(--color-muted-foreground)] hover:bg-[color:var(--color-muted)] hover:text-[color:var(--color-foreground)]"
-                        aria-label="خيارات الجلسة"
+                        size="sm"
+                        className="h-9 min-h-[36px] w-full whitespace-nowrap rounded-full border-rose-300/70 bg-rose-500/10 text-xs font-medium text-rose-800 hover:bg-rose-500/15 dark:border-rose-500/40 dark:text-rose-200 sm:text-sm"
+                        onClick={() => onDisconnectSession(session.id)}
                       >
-                        <MoreVertical className="size-4" />
+                        <Link2Off className="size-3.5 ms-1 shrink-0" />
+                        <span>{t("whatsappSettings.disconnect")}</span>
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="w-44 rounded-2xl border-[color:var(--shell-control-border)] p-1.5 shadow-lg"
-                    >
-                      <DropdownMenuItem
-                        onClick={() => onStartEditSession(session)}
-                        className="flex cursor-pointer items-center gap-2 rounded-xl py-2 text-xs sm:text-sm"
+                    ) : isReconnectingStatus(statusValue) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 min-h-[36px] w-full whitespace-nowrap rounded-full border-violet-300/70 bg-violet-500/10 text-xs font-medium text-violet-800 hover:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-200 sm:text-sm"
+                        disabled
                       >
-                        <Edit className="size-4 text-[color:var(--color-primary)]" />
-                        <span>{t("whatsappSettings.edit")}</span>
-                      </DropdownMenuItem>
-                      {session.provider === "META_CLOUD" && (
-                        <DropdownMenuItem
-                          onClick={() => onOpenWebhookDetails(session)}
-                          className="flex cursor-pointer items-center gap-2 rounded-xl py-2 text-xs text-sky-600 focus:text-sky-700 sm:text-sm"
+                        <RefreshCw className="size-3.5 ms-1 shrink-0 animate-spin" />
+                        <span>{t("whatsappSettings.reconnecting") || "Reconnecting..."}</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="h-9 min-h-[36px] w-full whitespace-nowrap rounded-full bg-[color:var(--business-success)] text-xs font-medium text-white shadow-sm hover:brightness-90 sm:text-sm"
+                        onClick={() => onConnectSession(session)}
+                        disabled={connectingSessionId === session.id}
+                      >
+                        {connectingSessionId === session.id ? (
+                          <RefreshCw className="size-3.5 ms-1 shrink-0 animate-spin" />
+                        ) : (
+                          <Link2 className="size-3.5 ms-1 shrink-0" />
+                        )}
+                        <span>{t("whatsappSettings.connect")}</span>
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    {session.provider === "META_CLOUD" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 min-h-[36px] shrink-0 gap-1.5 rounded-full border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] px-3 text-xs font-medium text-sky-600 hover:bg-[color:var(--color-muted)] dark:text-sky-400"
+                        onClick={() => onOpenWebhookDetails(session)}
+                        title="بيانات Webhook"
+                      >
+                        <Globe className="size-3.5 shrink-0" />
+                        <span>الويب هوك</span>
+                      </Button>
+                    ) : null}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 min-h-[36px] shrink-0 rounded-full border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] px-3 text-xs font-medium hover:bg-[color:var(--color-muted)]"
+                      onClick={() => onStartEditSession(session)}
+                    >
+                      <Edit className="size-3.5 ms-1 shrink-0" />
+                      <span>{t("whatsappSettings.edit")}</span>
+                    </Button>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="size-9 min-h-[36px] min-w-[36px] shrink-0 rounded-full border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] text-[color:var(--color-muted-foreground)] hover:bg-[color:var(--color-muted)] hover:text-[color:var(--color-foreground)]"
+                          aria-label="خيارات الجلسة"
                         >
-                          <Globe className="size-4" />
-                          <span>بيانات Webhook</span>
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        className="w-44 rounded-2xl border-[color:var(--shell-control-border)] p-1.5 shadow-lg"
+                      >
+                        <DropdownMenuItem
+                          onClick={() => onStartEditSession(session)}
+                          className="flex cursor-pointer items-center gap-2 rounded-xl py-2 text-xs sm:text-sm"
+                        >
+                          <Edit className="size-4 text-[color:var(--color-primary)]" />
+                          <span>{t("whatsappSettings.edit")}</span>
                         </DropdownMenuItem>
-                      )}
-                      {session.provider === "BAILEYS" &&
-                        isConnectedStatus(statusValue) && (
+                        {session.provider === "META_CLOUD" && (
                           <DropdownMenuItem
-                            onClick={() => onConnectSession(session)}
-                            className="flex cursor-pointer items-center gap-2 rounded-xl py-2 text-xs sm:text-sm"
+                            onClick={() => onOpenWebhookDetails(session)}
+                            className="flex cursor-pointer items-center gap-2 rounded-xl py-2 text-xs text-sky-600 focus:text-sky-700 sm:text-sm"
                           >
-                            <RefreshCw className="size-4 text-[color:var(--color-muted-foreground)]" />
-                            <span>إعادة المزامنة</span>
+                            <Globe className="size-4" />
+                            <span>بيانات Webhook</span>
                           </DropdownMenuItem>
                         )}
-                      <DropdownMenuSeparator className="my-1" />
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onClick={() => onDeleteSession(session)}
-                        className="flex cursor-pointer items-center gap-2 rounded-xl py-2 text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600 dark:focus:bg-rose-950/30 sm:text-sm"
-                      >
-                        <Trash2 className="size-4" />
-                        <span>{t("whatsappSettings.delete")}</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        {session.provider === "BAILEYS" &&
+                          isConnectedStatus(statusValue) && (
+                            <DropdownMenuItem
+                              onClick={() => onConnectSession(session)}
+                              className="flex cursor-pointer items-center gap-2 rounded-xl py-2 text-xs sm:text-sm"
+                            >
+                              <RefreshCw className="size-4 text-[color:var(--color-muted-foreground)]" />
+                              <span>إعادة المزامنة</span>
+                            </DropdownMenuItem>
+                          )}
+                        <DropdownMenuSeparator className="my-1" />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => onDeleteSession(session)}
+                          className="flex cursor-pointer items-center gap-2 rounded-xl py-2 text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-600 dark:focus:bg-rose-950/30 sm:text-sm"
+                        >
+                          <Trash2 className="size-4" />
+                          <span>{t("whatsappSettings.delete")}</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </div>
             );

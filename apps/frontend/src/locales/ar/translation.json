@@ -10092,8 +10092,8 @@
   },
   "whatsappSettings": {
     "title": "إعدادات WhatsApp",
-    "description": "إدارة إعدادات WhatsApp",
-    "sidebarTitle": "الإعدادات",
+    "description": "إدارة الجلسات والأرقام والردود السريعة وسياسة المراسلة",
+    "sidebarTitle": "جلسات واتساب",
     "update": "تحديث",
     "addSession": "إضافة جلسة",
     "noSessions": "لا توجد جلسات. اضغط على \"إضافة جلسة\" لربط رقم WhatsApp جديد.",

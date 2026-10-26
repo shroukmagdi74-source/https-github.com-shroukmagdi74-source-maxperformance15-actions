@@ -192,17 +192,18 @@ export function WhatsAppMetricCard({
   const isZero = !Number.isNaN(numValue) && numValue === 0;
 
   return (
-    <Card className="h-full rounded-2xl border border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] shadow-sm transition-shadow sm:rounded-3xl sm:shadow-md">
+    <Card className="h-full min-w-0 rounded-2xl border border-[color:var(--shell-control-border)] bg-[color:var(--color-card)] shadow-sm transition-shadow sm:rounded-3xl sm:shadow-md">
       <CardContent className="flex h-full items-start justify-between gap-3 p-3.5 sm:gap-4 sm:p-5">
         <div className="min-w-0 space-y-1 sm:space-y-2">
           <p className="line-clamp-1 text-[11px] font-normal text-[color:var(--color-muted-foreground)] sm:text-xs">
             {label}
           </p>
           <div
+            data-metric-value
             className={cn(
-              "font-mono text-[1.875rem] leading-none tracking-tight tabular-nums sm:text-[2.25rem]",
+              "font-mono text-3xl leading-none tracking-tight tabular-nums sm:text-4xl",
               isZero
-                ? "font-medium text-[color:var(--color-muted-foreground)]/60"
+                ? "font-medium text-[color:var(--color-muted-foreground)]/60 text-xl sm:text-2xl"
                 : "font-bold text-[color:var(--color-foreground)]",
             )}
           >

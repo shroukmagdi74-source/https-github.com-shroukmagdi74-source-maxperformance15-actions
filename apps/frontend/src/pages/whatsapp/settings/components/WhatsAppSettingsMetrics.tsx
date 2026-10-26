@@ -19,7 +19,7 @@ export const WhatsAppSettingsMetrics: React.FC<WhatsAppSettingsMetricsProps> = (
   const { t } = useTranslation();
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4 items-stretch">
+    <div className="grid auto-rows-fr grid-cols-2 items-stretch gap-3 sm:gap-4 xl:grid-cols-4">
       <WhatsAppMetricCard
         label={t("whatsappSettings.connected")}
         value={connectedCount}

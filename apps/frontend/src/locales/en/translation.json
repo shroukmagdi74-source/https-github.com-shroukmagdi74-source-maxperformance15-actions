@@ -10092,8 +10092,8 @@
   },
   "whatsappSettings": {
     "title": "WhatsApp Settings",
-    "description": "Manage WhatsApp settings",
-    "sidebarTitle": "Settings",
+    "description": "Manage sessions, numbers, quick replies and messaging policy",
+    "sidebarTitle": "WhatsApp sessions",
     "update": "Update",
     "addSession": "Add Session",
     "noSessions": "No sessions found. Click 'Add Session' to link a new WhatsApp number.",

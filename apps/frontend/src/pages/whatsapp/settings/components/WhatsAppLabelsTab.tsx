@@ -43,7 +43,6 @@ export const WhatsAppLabelsTab: React.FC<WhatsAppLabelsTabProps> = ({
   return (
     <WhatsAppSurfaceCard
       title={ts("whatsappSettings.manageLabels")}
-      description={ts("whatsappSettings.manageLabels")}
       action={
         <div className="flex flex-wrap items-center gap-2">
           <SessionScopeSelector
