@@ -1,5 +1,14 @@
 jest.mock('@prisma/client', () => ({ Prisma: {} }), { virtual: true });
-jest.mock('../../../../prisma/generated/postgresql_v2', () => ({ Prisma: {} }), { virtual: true });
+jest.mock(
+  '../../../prisma/generated/postgresql_v2',
+  () => ({
+    Prisma: {
+      sql: (strings, ...values) => ({ strings, values }),
+      join: (values) => values,
+    },
+  }),
+  { virtual: true },
+);
 jest.mock('../../../services/orderWorkflowService', () => ({}));
 jest.mock('../../../services/orderService', () => ({
   getOrderSettings: jest.fn().mockResolvedValue({}),
@@ -78,6 +87,13 @@ const agentWorkspaceController = require('../../../controller/agentWorkspaceCont
 describe('Guest Twin Reconciliation & Duplicate Prevention', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // قوائم mockResolvedValueOnce بتتراكم عبر الاختبارات لو مااتصرفتش،
+    // فبنصفّرها مع قيم افتراضية آمنة عشان كل اختبار يبدأ نضيف.
+    mockPrisma.$queryRawUnsafe.mockReset();
+    mockPrisma.order.findMany.mockReset();
+    mockPrisma.guestOrder.findMany.mockReset();
+    mockPrisma.orderAssignment.findMany.mockReset().mockResolvedValue([]);
+    mockPrisma.user.findMany.mockReset().mockResolvedValue([]);
   });
 
   describe('A.2 orderConfirmationService.autoAssignGuest', () => {
