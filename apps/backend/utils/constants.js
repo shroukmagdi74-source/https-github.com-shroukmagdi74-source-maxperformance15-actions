@@ -58,11 +58,18 @@ const VALID_ORDER_STATUSES = [
     'ON_HOLD_STOCK', 'PENDING_CANCELLATION'
 ];
 
+/**
+ * Multi-Store Phase 1 (Shadow Phase) Flag
+ * ⚠️ مرحلة Shadow: ممنوع تماماً أي اعتماد أو فلترة بـ storeId في أي كود أو استعلام.
+ * هذا الـ flag مخصص للتحويل في المرحلة القادمة فقط.
+ */
+const STORES_ENABLED = process.env.STORES_ENABLED === 'true';
 module.exports = {
     CONVERSATION_STATUS,
     CONVERSATION_CHANNEL,
     MESSAGE_TYPE,
     WHATSAPP_SESSION_STATUS,
     WHATSAPP_STATUS_TYPE,
-    VALID_ORDER_STATUSES
+    VALID_ORDER_STATUSES,
+    STORES_ENABLED
 };

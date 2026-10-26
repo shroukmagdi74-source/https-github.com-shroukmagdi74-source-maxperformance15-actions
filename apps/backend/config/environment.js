@@ -229,6 +229,10 @@ const createEnvironmentConfig = () => {
     wsUrl,
     mainDomain: MAIN_DOMAIN,
     allowedDomains,
+    // Multi-Store Feature Flag (Phase 1: Shadow Stage)
+    // ⚠️ في هذه المرحلة (Shadow Phase) ممنوع تماماً أي اعتماد أو فلترة بـ storeId في أي استعلام أو كود.
+    // هذا المتغير (STORES_ENABLED) مخصص للتحويل في المرحلة القادمة فقط بعد اكتمال مرحلة الـ shadow واختبارها.
+    storesEnabled: process.env.STORES_ENABLED === 'true',
 
     // CORS Origins - Allow both www, non-www, and all subdomains
     // Using function to dynamically validate origins

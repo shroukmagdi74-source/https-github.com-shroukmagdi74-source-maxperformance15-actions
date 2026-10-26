@@ -246,6 +246,7 @@ model Company {
   storePromotion                  StorePromotion?
   storeVisits                     StoreVisit[]
   storefrontSettings              StorefrontSettings?
+  stores                          Store[]
   supplierPayments                SupplierPayment[]
   suppliers                       Supplier[]
   systemPrompts                   SystemPrompt[]

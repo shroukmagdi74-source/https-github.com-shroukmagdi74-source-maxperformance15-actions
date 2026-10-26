@@ -89,10 +89,99 @@ const inferSubdomainSlug = (hostname, configuredMainDomain) => {
  * 4. دعم query parameter كبديل (companyId)
  */
 
+// --- [STORE-SHADOW] Phase 1 Shadow Resolution & Rate-Limited Logger ---
+const STORE_SHADOW_CACHE_MAX_ENTRIES = 1000;
+const STORE_SHADOW_CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+const STORE_SHADOW_LOG_INTERVAL_MS = 60 * 1000; // Max 1 log per host per 60s
+const storeShadowCache = new Map();
+
+const pruneStoreShadowCacheIfNeeded = () => {
+  if (storeShadowCache.size < STORE_SHADOW_CACHE_MAX_ENTRIES) return;
+  const now = Date.now();
+  for (const [key, entry] of storeShadowCache.entries()) {
+    if (now - entry.cachedAt > STORE_SHADOW_CACHE_TTL_MS) {
+      storeShadowCache.delete(key);
+    }
+  }
+  if (storeShadowCache.size >= STORE_SHADOW_CACHE_MAX_ENTRIES) {
+    const keysToDelete = Array.from(storeShadowCache.keys()).slice(0, 200);
+    for (const k of keysToDelete) {
+      storeShadowCache.delete(k);
+    }
+  }
+};
+
+const resolveStoreShadowAndLog = async (req, company, getPrisma, exactHostname, inferredSlug, matchedBareSlug) => {
+  try {
+    const rawHostHeader = req.headers['x-subdomain'] || req.headers['host'];
+    const hostKey = normalizeHostname(rawHostHeader) || 'unknown';
+    const now = Date.now();
+
+    pruneStoreShadowCacheIfNeeded();
+
+    let entry = storeShadowCache.get(hostKey);
+    let storeId = null;
+
+    if (entry && (now - entry.cachedAt < STORE_SHADOW_CACHE_TTL_MS)) {
+      storeId = entry.storeId;
+    } else {
+      try {
+        const prisma = await getPrisma();
+        let store = null;
+
+        // 1. Store.customDomain = normalized hostname
+        if (exactHostname && !isLocalHostname(exactHostname) && prisma?.store) {
+          store = await prisma.store.findUnique({
+            where: { customDomain: exactHostname },
+            select: { id: true, companyId: true },
+          });
+        }
+
+        // 2. Otherwise Store.slug = inferred or bare slug or company.slug
+        const candidateSlug = inferredSlug || matchedBareSlug || company.slug;
+        if (!store && candidateSlug && prisma?.store) {
+          store = await prisma.store.findUnique({
+            where: { slug: candidateSlug },
+            select: { id: true, companyId: true },
+          });
+        }
+
+        // 3. Verify store.companyId === req.company.id
+        if (store && store.companyId === company.id) {
+          storeId = store.id;
+        } else {
+          storeId = 'none';
+        }
+      } catch (err) {
+        // Fallback cleanly if stores table does not exist or query fails
+        storeId = 'none';
+      }
+
+      if (!entry) {
+        entry = { storeId, cachedAt: now, lastLoggedAt: 0 };
+        storeShadowCache.set(hostKey, entry);
+      } else {
+        entry.storeId = storeId;
+        entry.cachedAt = now;
+      }
+    }
+
+    if (!entry.lastLoggedAt || (now - entry.lastLoggedAt >= STORE_SHADOW_LOG_INTERVAL_MS)) {
+      entry.lastLoggedAt = now;
+      console.log(`[STORE-SHADOW] host=${hostKey} company=${company.id} store=${storeId}`);
+    }
+  } catch (err) {
+    console.warn('⚠️ [STORE-SHADOW] Error in shadow resolution:', err.message);
+  }
+};
+
 const extractSubdomainMiddleware = async (req, res, next) => {
   try {
     let company = null;
     let prisma = null;
+    let exactHostname = null;
+    let inferredSlug = null;
+    let matchedBareSlug = null;
     const getPrisma = async () => {
       if (!prisma) {
         prisma = await getSharedPrismaClientAsync();
@@ -118,7 +207,7 @@ const extractSubdomainMiddleware = async (req, res, next) => {
 
       // 1. محاولة البحث أولاً بالدومين الكامل (Custom Domain)
       // هذا يغطي الحالات مثل my-store.com أو www.my-store.com
-      const exactHostname = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+      exactHostname = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
 
       company = await companyCacheService.getCompanyLookup('customDomain', exactHostname, async () => {
         const prisma = await getPrisma();
@@ -131,7 +220,7 @@ const extractSubdomainMiddleware = async (req, res, next) => {
       // 2. إذا لم ينجح، جرب الـ Subdomain (Slug)
       if (!company) {
         const mainDomain = process.env.MAIN_DOMAIN || 'mokhtarelhenawy.online';
-        const inferredSlug = inferSubdomainSlug(hostname, mainDomain);
+        inferredSlug = inferSubdomainSlug(hostname, mainDomain);
 
         if (inferredSlug) {
           company = await companyCacheService.getCompanyLookup('slug', inferredSlug, async () => {
@@ -194,7 +283,10 @@ const extractSubdomainMiddleware = async (req, res, next) => {
             });
           });
 
-          if (company) break;
+          if (company) {
+            matchedBareSlug = slugCandidate;
+            break;
+          }
         }
       }
 
@@ -250,6 +342,9 @@ const extractSubdomainMiddleware = async (req, res, next) => {
     if (company) {
       req.company = company;
       req.companyId = company.id;
+
+      // [STORE-SHADOW] Shadow resolution & rate-limited log (zero decision alteration)
+      await resolveStoreShadowAndLog(req, company, getPrisma, exactHostname, inferredSlug, matchedBareSlug);
 
       // ✅ تفعيل سياق الشركة لقاعدة البيانات (RLS)
       const tenantContext = require('../services/tenantContext');
