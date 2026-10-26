@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useId } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useId, useCallback } from 'react';
 import { Search, Check, ChevronsUpDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MetaTemplate } from '../types';
@@ -37,6 +37,8 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [placement, setPlacement] = useState<'bottom' | 'top'>('bottom');
+  const [listMaxHeight, setListMaxHeight] = useState<number>(224);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -93,6 +95,27 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
     return filteredTemplates.slice(0, MAX_RENDERED);
   }, [filteredTemplates]);
 
+  // Dynamic placement and max-height calculation to prevent viewport overflow
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Full panel height estimate: search header (~45px) + default list (224px) + footer (~28px) + margins (~16px) ≈ 315px
+    const ESTIMATED_PANEL_HEIGHT = 315;
+    const shouldFlipUp = spaceBelow < ESTIMATED_PANEL_HEIGHT && spaceAbove > spaceBelow;
+    const nextPlacement: 'bottom' | 'top' = shouldFlipUp ? 'top' : 'bottom';
+    const availableSpace = shouldFlipUp ? spaceAbove : spaceBelow;
+
+    // Dynamic max-height for list: min(22rem = 352px, availableSpace - search/footer safety margin ~90px)
+    const maxH = Math.max(96, Math.min(352, Math.floor(availableSpace - 90)));
+
+    setPlacement(nextPlacement);
+    setListMaxHeight(maxH);
+  }, []);
+
   // Reset activeIndex when search query changes
   useEffect(() => {
     setActiveIndex(0);
@@ -109,6 +132,23 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
       return () => cancelAnimationFrame(raf);
     }
   }, [open]);
+
+  // Recalculate position on resize and scroll
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+    };
+  }, [open, updatePosition]);
 
   // Handle clicking outside to close
   useEffect(() => {
@@ -146,10 +186,21 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
     triggerRef.current?.focus();
   };
 
+  const toggleOpen = () => {
+    if (disabled) return;
+    if (!open) {
+      updatePosition();
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!open) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
+        updatePosition();
         setOpen(true);
       }
       return;
@@ -188,16 +239,12 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
         ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((prev) => !prev)}
-        role="combobox"
+        onClick={toggleOpen}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
-        aria-activedescendant={
-          open && renderedItems[activeIndex] ? getOptionId(activeIndex) : undefined
-        }
         className={cn(
-          'flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-border/70 bg-card px-2.5 text-xs font-mono transition-colors shadow-xs',
+          'flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-border/70 bg-card px-2.5 text-xs transition-colors shadow-xs',
           'hover:border-border hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary',
           open && 'border-primary ring-1 ring-primary/40',
           disabled && 'cursor-not-allowed opacity-50 bg-muted/40'
@@ -206,10 +253,15 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
         <div className="flex min-w-0 flex-1 items-center gap-1.5 text-start">
           {currentSelected ? (
             <>
-              <span className="truncate text-foreground font-medium">
+              <span
+                dir="ltr"
+                style={{ unicodeBidi: 'plaintext' }}
+                title={currentSelected.name}
+                className="truncate font-medium text-foreground tpl-name-mono"
+              >
                 {currentSelected.name}
               </span>
-              <span className="shrink-0 rounded border border-border/50 bg-muted/70 px-1 py-0.5 text-[10px] font-mono uppercase text-muted-foreground leading-none">
+              <span className="shrink-0 rounded border border-border/40 bg-muted/40 px-1 py-0.5 text-[10px] font-mono uppercase text-muted-foreground leading-none">
                 {currentSelected.language}
               </span>
             </>
@@ -224,9 +276,14 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
 
       {/* Dropdown Panel */}
       {open && (
-        <div className="absolute top-full start-0 z-50 mt-1 w-full rounded-xl border border-border/70 bg-popover text-popover-foreground shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100">
+        <div
+          className={cn(
+            'absolute start-0 z-50 w-full rounded-xl border border-border/70 bg-popover text-popover-foreground shadow-xl overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95 duration-100',
+            placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
+          )}
+        >
           {/* Search Box */}
-          <div className="p-2 border-b border-border/40 bg-muted/20">
+          <div className="p-2 border-b border-border/40 bg-muted/20 shrink-0">
             <div className="relative">
               <Search className="pointer-events-none absolute start-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
               <input
@@ -268,7 +325,8 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
             id={listboxId}
             role="listbox"
             aria-label="قائمة قوالب واتساب"
-            className="max-h-56 overflow-y-auto p-1 divide-y divide-border/20"
+            style={{ maxHeight: `${listMaxHeight}px` }}
+            className="overflow-y-auto p-1 divide-y divide-border/20 flex-1"
           >
             {renderedItems.length === 0 ? (
               <div className="px-3 py-6 text-center text-xs text-muted-foreground">
@@ -296,8 +354,15 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
                     )}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                      <span className="truncate font-mono">{item.name}</span>
-                      <span className="shrink-0 rounded border border-border/40 bg-muted/60 px-1 py-0.5 text-[10px] font-mono uppercase text-muted-foreground leading-none">
+                      <span
+                        dir="ltr"
+                        style={{ unicodeBidi: 'plaintext' }}
+                        title={item.name}
+                        className="truncate font-medium text-foreground tpl-name-mono"
+                      >
+                        {item.name}
+                      </span>
+                      <span className="shrink-0 rounded border border-border/40 bg-muted/40 px-1 py-0.5 text-[10px] font-mono uppercase text-muted-foreground leading-none">
                         {item.language}
                       </span>
                       {item.category && (
@@ -316,9 +381,11 @@ export const TemplatePicker: React.FC<TemplatePickerProps> = ({
           </div>
 
           {/* Footer Counter */}
-          {filteredTemplates.length > MAX_RENDERED && (
-            <div className="border-t border-border/40 bg-muted/20 px-3 py-1.5 text-center text-[10px] text-muted-foreground">
-              عرض 100 من {filteredTemplates.length} — اكتب للتصفية
+          {filteredTemplates.length > 0 && (
+            <div className="border-t border-border/40 bg-muted/20 px-3 py-1.5 text-center text-[10px] text-muted-foreground select-none shrink-0">
+              {filteredTemplates.length > MAX_RENDERED
+                ? `عرض ${MAX_RENDERED} من ${filteredTemplates.length} — اكتب للتصفية`
+                : `${filteredTemplates.length} نتيجة`}
             </div>
           )}
         </div>

@@ -7268,3 +7268,10 @@ select {
 }
 
 
+
+/* WhatsApp Template Picker: force monospace font for template names against theme universal font overrides */
+.tpl-name-mono,
+[data-theme] .tpl-name-mono {
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
+  letter-spacing: normal !important;
+}
