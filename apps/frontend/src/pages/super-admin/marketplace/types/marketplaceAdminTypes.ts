@@ -129,15 +129,41 @@ export const getErrorMessage = (
 export const parseStringList = (value: unknown): string[] => {
   if (Array.isArray(value)) {
     return value
-      .filter((entry): entry is string => typeof entry === "string")
-      .map((entry) => entry.trim())
+      .map((entry) => {
+        if (typeof entry === "string") return entry.trim();
+        if (isRecord(entry) && typeof entry["name"] === "string") return (entry["name"] as string).trim();
+        if (isRecord(entry) && typeof entry["title"] === "string") return (entry["title"] as string).trim();
+        return "";
+      })
       .filter(Boolean);
   }
 
   if (typeof value === "string") {
-    return value
+    const trimmed = value.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parseStringList(parsed);
+        }
+      } catch {
+        // Fall back to comma split
+      }
+    }
+    return trimmed
       .split(",")
       .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  if (isRecord(value)) {
+    return Object.entries(value)
+      .map(([, entry]) => {
+        if (typeof entry === "string") return entry.trim();
+        if (isRecord(entry) && typeof entry["name"] === "string") return (entry["name"] as string).trim();
+        if (isRecord(entry) && typeof entry["title"] === "string") return (entry["title"] as string).trim();
+        return "";
+      })
       .filter(Boolean);
   }
 

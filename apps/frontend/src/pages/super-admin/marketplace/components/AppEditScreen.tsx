@@ -71,6 +71,7 @@ export const AppEditScreen: React.FC<AppEditScreenProps> = ({
       ...(app || {}),
       features: parseStringList(app?.features),
       screenshots: parseStringList(app?.screenshots ?? app?.images),
+      requiredApps: parseStringList(app?.requiredApps),
     });
   }, [app]);
 

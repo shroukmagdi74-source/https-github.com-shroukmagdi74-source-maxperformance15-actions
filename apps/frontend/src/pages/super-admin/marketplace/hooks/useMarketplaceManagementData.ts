@@ -11,6 +11,7 @@ import {
   type CatalogDiffPayload,
   getAuthHeaders,
   getErrorMessage,
+  parseStringList,
 } from "../types/marketplaceAdminTypes";
 
 export interface UseMarketplaceManagementDataOptions {
@@ -200,7 +201,19 @@ export const useMarketplaceManagementData = (
           typePath = item?.feature ? "pricing-rules" : "bundles";
         }
 
-        const { apps: _apps, screenshots, ...restData } = itemData;
+        const {
+          apps: _apps,
+          screenshots,
+          _count: _countMeta,
+          installCount: _installCountMeta,
+          rating: _ratingMeta,
+          reviewCount: _reviewCountMeta,
+          createdAt: _createdAtMeta,
+          updatedAt: _updatedAtMeta,
+          companyId: _companyIdMeta,
+          positioning: _positioningMeta,
+          ...restData
+        } = itemData;
         const payload =
           typePath === "bundles"
             ? {
@@ -215,6 +228,9 @@ export const useMarketplaceManagementData = (
               ? {
                   ...restData,
                   images: (screenshots || []).filter(Boolean),
+                  requiredApps: Array.isArray(restData.requiredApps)
+                    ? restData.requiredApps
+                    : parseStringList(restData.requiredApps),
                 }
               : restData;
 

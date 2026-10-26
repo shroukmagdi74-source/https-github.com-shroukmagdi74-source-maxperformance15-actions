@@ -597,9 +597,33 @@ exports.updateApp = async (req, res) => {
       updateData.features = updateData.features;
     }
 
+    const prisma = getSharedPrismaClient();
+    let targetApp = await prisma.marketplaceApp.findUnique({
+      where: { id }
+    });
+
+    if (!targetApp) {
+      const strippedSlug = id.replace(/^cat-app-/, '');
+      targetApp = await prisma.marketplaceApp.findFirst({
+        where: {
+          OR: [
+            { slug: id },
+            { slug: strippedSlug }
+          ]
+        }
+      });
+    }
+
+    if (!targetApp) {
+      return res.status(404).json({
+        success: false,
+        message: 'الأداة غير موجودة'
+      });
+    }
+
     const app = await executeWithRetry(async () => {
-      return await getSharedPrismaClient().marketplaceApp.update({
-        where: { id },
+      return await prisma.marketplaceApp.update({
+        where: { id: targetApp.id },
         data: updateData
       });
     });
@@ -649,7 +673,7 @@ exports.deleteApp = async (req, res) => {
     const { id } = req.params;
     const prisma = getSharedPrismaClient();
 
-    const app = await prisma.marketplaceApp.findUnique({
+    let app = await prisma.marketplaceApp.findUnique({
       where: { id },
       include: {
         _count: {
@@ -657,6 +681,23 @@ exports.deleteApp = async (req, res) => {
         }
       }
     });
+
+    if (!app) {
+      const strippedSlug = id.replace(/^cat-app-/, '');
+      app = await prisma.marketplaceApp.findFirst({
+        where: {
+          OR: [
+            { slug: id },
+            { slug: strippedSlug }
+          ]
+        },
+        include: {
+          _count: {
+            select: { installations: true }
+          }
+        }
+      });
+    }
 
     if (!app) {
       return res.status(404).json({
@@ -674,7 +715,7 @@ exports.deleteApp = async (req, res) => {
 
     await executeWithRetry(async () => {
       return await prisma.marketplaceApp.delete({
-        where: { id }
+        where: { id: app.id }
       });
     });
 

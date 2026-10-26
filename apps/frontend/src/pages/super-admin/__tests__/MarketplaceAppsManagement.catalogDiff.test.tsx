@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
 import axios from "axios";
 import MarketplaceAppsManagement from "../MarketplaceAppsManagement";
 import { toast } from "sonner";
@@ -72,7 +73,11 @@ describe("MarketplaceAppsManagement Catalog Diff UI", () => {
       mockMainEndpoint(String(url), diffResponse),
     );
 
-    render(<MarketplaceAppsManagement />);
+    render(
+      <BrowserRouter>
+        <MarketplaceAppsManagement />
+      </BrowserRouter>,
+    );
 
     await waitFor(() =>
       expect(mockedAxios.get).toHaveBeenCalledWith(
@@ -87,6 +92,9 @@ describe("MarketplaceAppsManagement Catalog Diff UI", () => {
       throw new Error("Marketplace tab was not rendered");
     }
     fireEvent.click(marketplaceTab);
+
+    const devToolsBtn = await screen.findByTitle("أدوات المطور");
+    fireEvent.click(devToolsBtn);
 
     expect(await screen.findByText(/الملفات مقابل قاعدة البيانات/i)).toBeInTheDocument();
     expect(screen.getByText("التطبيقات (الملفات/قاعدة البيانات)")).toBeInTheDocument();
@@ -152,7 +160,11 @@ describe("MarketplaceAppsManagement Catalog Diff UI", () => {
       return mockMainEndpoint(String(url), firstDiff);
     });
 
-    render(<MarketplaceAppsManagement />);
+    render(
+      <BrowserRouter>
+        <MarketplaceAppsManagement />
+      </BrowserRouter>,
+    );
 
     const tabs = await screen.findAllByRole("tab");
     const marketplaceTab = tabs[0];
@@ -160,6 +172,9 @@ describe("MarketplaceAppsManagement Catalog Diff UI", () => {
       throw new Error("Marketplace tab was not rendered");
     }
     fireEvent.click(marketplaceTab);
+
+    const devToolsBtn = await screen.findByTitle("أدوات المطور");
+    fireEvent.click(devToolsBtn);
 
     expect(await screen.findByText(/الملفات مقابل قاعدة البيانات/i)).toBeInTheDocument();
 

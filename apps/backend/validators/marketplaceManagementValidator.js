@@ -25,8 +25,8 @@ const appSchema = z.object({
   unitPrice: z.number().min(0).nullish(),
   unitName: z.string().max(100).nullish(),
   ppuBillingMethod: z.enum(['PER_ORDER', 'PER_ITEM', 'PERCENTAGE']).nullish(),
-  features: z.union([z.string(), z.array(z.string())]).nullish(),
-  requiredApps: z.array(z.string()).nullish(),
+  features: z.union([z.string(), z.array(z.any()), z.record(z.any())]).nullish(),
+  requiredApps: z.union([z.array(z.string()), z.string()]).nullish(),
 });
 
 const bundleSchema = z.object({
@@ -38,7 +38,7 @@ const bundleSchema = z.object({
   discount: z.number().min(0).max(100).nullish(),
   isActive: z.boolean().nullish(),
   isFeatured: z.boolean().nullish(),
-  appIds: z.array(z.string()).nullish(),
+  appIds: z.union([z.array(z.string()), z.string()]).nullish(),
 });
 
 const pricingRuleSchema = z.object({
@@ -49,20 +49,96 @@ const pricingRuleSchema = z.object({
   isActive: z.boolean().nullish(),
 });
 
+function sanitizePayload(rawBody) {
+  const sanitized = { ...rawBody };
+  const numericFields = ['monthlyPrice', 'yearlyPrice', 'trialDays', 'unitPrice', 'discount', 'price'];
+
+  for (const key in sanitized) {
+    if (sanitized[key] === '') {
+      sanitized[key] = null;
+    } else if (numericFields.includes(key) && typeof sanitized[key] === 'string' && !isNaN(Number(sanitized[key]))) {
+      sanitized[key] = Number(sanitized[key]);
+    }
+  }
+
+  // Normalize slug
+  if (typeof sanitized.slug === 'string') {
+    const trimmedSlug = sanitized.slug.trim().toLowerCase();
+    sanitized.slug = trimmedSlug || null;
+  }
+
+  // Normalize pricingModel
+  if (typeof sanitized.pricingModel === 'string') {
+    const pm = sanitized.pricingModel.trim().toUpperCase();
+    if (['FREE', 'SUBSCRIPTION', 'PAY_PER_USE'].includes(pm)) {
+      sanitized.pricingModel = pm;
+    }
+  }
+
+  // Normalize ppuBillingMethod
+  if (typeof sanitized.ppuBillingMethod === 'string') {
+    const ppu = sanitized.ppuBillingMethod.trim().toUpperCase();
+    if (['PER_ORDER', 'PER_ITEM', 'PERCENTAGE'].includes(ppu)) {
+      sanitized.ppuBillingMethod = ppu;
+    } else {
+      sanitized.ppuBillingMethod = null;
+    }
+  }
+
+  // Normalize requiredApps
+  if (typeof sanitized.requiredApps === 'string') {
+    const trimmed = sanitized.requiredApps.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          sanitized.requiredApps = parsed.map(String).filter(Boolean);
+        }
+      } catch (_) {
+        sanitized.requiredApps = [];
+      }
+    } else if (trimmed) {
+      sanitized.requiredApps = trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+    } else {
+      sanitized.requiredApps = [];
+    }
+  }
+
+  // Normalize bundle appIds
+  if (typeof sanitized.appIds === 'string') {
+    const trimmed = sanitized.appIds.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          sanitized.appIds = parsed.map(String).filter(Boolean);
+        }
+      } catch (_) {
+        sanitized.appIds = [];
+      }
+    } else if (trimmed) {
+      sanitized.appIds = trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+    } else {
+      sanitized.appIds = [];
+    }
+  }
+
+  // Normalize images if stringified JSON array
+  if (typeof sanitized.images === 'string' && sanitized.images.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(sanitized.images);
+      if (Array.isArray(parsed)) {
+        sanitized.images = parsed.map(String).filter(Boolean);
+      }
+    } catch (_) {}
+  }
+
+  return sanitized;
+}
+
 function validate(schema) {
   return (req, res, next) => {
-    // Sanitize body: convert empty strings to null for nullish fields,
-    // and coerce numeric fields that come as strings.
-    const sanitizedBody = { ...req.body };
-    const numericFields = ['monthlyPrice', 'yearlyPrice', 'trialDays', 'unitPrice', 'discount', 'price'];
-    
-    for (const key in sanitizedBody) {
-      if (sanitizedBody[key] === '') {
-        sanitizedBody[key] = null;
-      } else if (numericFields.includes(key) && typeof sanitizedBody[key] === 'string' && !isNaN(Number(sanitizedBody[key]))) {
-        sanitizedBody[key] = Number(sanitizedBody[key]);
-      }
-    }
+    const sanitizedBody = sanitizePayload(req.body);
 
     const result = schema.safeParse(sanitizedBody);
     if (!result.success) {
