@@ -702,6 +702,7 @@ model FacebookAdsBudgetAlertLog {
 /// UNUSED - Planned feature for Facebook product catalog sync
 model FacebookCatalogProduct {
   id                     String                 @id @default(cuid())
+  storeId  String?
   catalogId              String
   productId              String?
   name                   String
@@ -898,6 +899,7 @@ model FacebookPost {
   postId      String    @unique
   pageId      String
   companyId   String
+  storeId  String?
   message     String?   @db.Text
   mediaUrl    String?
   permalink   String?
@@ -1021,6 +1023,7 @@ model FacebookProductFeed {
 model WhatsAppNotificationLog {
   id                              String                                @id @default(cuid())
   companyId                       String
+  storeId  String?
   templateId                      String?
   sessionId                       String
   recipientPhone                  String
@@ -1352,6 +1355,7 @@ model OverlayCampaign {
 /// منتجات حملة الإطار
 model OverlayCampaignProduct {
   id          String           @id @default(cuid())
+  storeId  String?
   campaignId  String
   productId   String
   framedImage String?          @db.Text
