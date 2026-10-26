@@ -7,6 +7,8 @@
 
 const cron = require('node-cron');
 const { getSharedPrismaClient, safeQuery, isInConnectionLimitCooldown, getCooldownInfo } = require('./sharedDatabase');
+const { runCampaign } = require('./broadcastCampaignRunner');
+const { resolveAudience } = require('./broadcastAudienceResolver');
 // const prisma = getSharedPrismaClient(); // ❌ Removed to prevent early loading issues
 
 /**
@@ -149,6 +151,31 @@ class BroadcastSchedulerService {
       const now = new Date();
       console.log(`🔍 [BroadcastScheduler] Checking for scheduled campaigns at ${now.toISOString()}`);
 
+      // فحص الحملات المتكررة النشطة التي حان وقت إرسالها
+      const recurringCampaigns = await safeQuery(async () => {
+        return await getSharedPrismaClient().broadcastCampaign.findMany({
+          where: {
+            status: 'active',
+            recurrence: { not: 'none' },
+            nextRunAt: { lte: now }
+          },
+          select: { id: true, name: true, companyId: true }
+        });
+      }, 5);
+
+      if (recurringCampaigns && recurringCampaigns.length > 0) {
+        console.log(`🔁 [BroadcastScheduler] Found ${recurringCampaigns.length} recurring campaign(s) ready to run`);
+        for (const recCamp of recurringCampaigns) {
+          try {
+            await runCampaign({ campaignId: recCamp.id, trigger: 'cron', now });
+            this.stats.campaignsSent++;
+          } catch (recErr) {
+            this.stats.errors++;
+            console.error(`❌ [BroadcastScheduler] Error running recurring campaign ${recCamp.id}:`, recErr.message);
+          }
+        }
+      }
+
       // البحث عن الحملات المجدولة التي حان وقت إرسالها
       const scheduledCampaigns = await safeQuery(async () => {
         return await getSharedPrismaClient().broadcastCampaign.findMany({
@@ -189,7 +216,7 @@ class BroadcastSchedulerService {
               where: { id: campaign.id },
               data: {
                 status: 'failed',
-                failureReason: 'Company is inactive'
+                pausedReason: 'Company is inactive'
               }
             });
           }, 5);
@@ -213,7 +240,7 @@ class BroadcastSchedulerService {
               where: { id: campaign.id },
               data: {
                 status: 'failed',
-                failureReason: error.message
+                pausedReason: error.message
               }
             });
           }, 5).catch(err => console.error('Error updating campaign status:', err));
@@ -250,7 +277,97 @@ class BroadcastSchedulerService {
     let conversations = [];
 
     if (isWhatsApp) {
-      console.log('🌐 [BroadcastScheduler] Fetching all WhatsApp conversations/customers (no 24h limit)');
+      // 🎯 Fix Bug A: Resolve audience via snapshot / customer list before falling back to all conversations
+      const snapshotCount = await safeQuery(async () => {
+        return await getSharedPrismaClient().broadcastCampaignSnapshot.count({
+          where: { campaignId: campaign.id }
+        });
+      }, 3);
+
+      let resolvedPhones = null;
+      if (snapshotCount > 0) {
+        console.log(`📸 [BroadcastScheduler] Using frozen snapshot (${snapshotCount} phones) for campaign ${campaign.id}`);
+        const resolved = await resolveAudience({
+          prisma: getSharedPrismaClient(),
+          campaign,
+          companyId: campaign.companyId,
+          maxRecipients: campaign.maxRecipientsPerRun || 5000
+        });
+        resolvedPhones = resolved.phones;
+      } else if (campaign.targetAudience && campaign.targetAudience !== 'all' && campaign.targetAudience !== 'manual') {
+        const matchedList = await safeQuery(async () => {
+          return await getSharedPrismaClient().customerList.findFirst({
+            where: { id: campaign.targetAudience, companyId: campaign.companyId }
+          });
+        }, 3);
+        if (matchedList) {
+          console.log(`📋 [BroadcastScheduler] Resolving list "${matchedList.name}" (${matchedList.id}) for campaign ${campaign.id}`);
+          const dummyCampaign = {
+            ...campaign,
+            audienceMode: 'dynamic',
+            audienceListId: matchedList.id
+          };
+          const resolved = await resolveAudience({
+            prisma: getSharedPrismaClient(),
+            campaign: dummyCampaign,
+            companyId: campaign.companyId,
+            maxRecipients: campaign.maxRecipientsPerRun || 5000
+          });
+          resolvedPhones = resolved.phones;
+        }
+      }
+
+      if (resolvedPhones && resolvedPhones.length > 0) {
+        const customerIds = resolvedPhones.map(p => p.customerId).filter(Boolean);
+        const phonesList = resolvedPhones.map(p => p.phone);
+        const existingConvs = await safeQuery(async () => {
+          return await getSharedPrismaClient().conversation.findMany({
+            where: {
+              companyId: campaign.companyId,
+              OR: [
+                { customerId: { in: customerIds } },
+                { customer: { phone: { in: phonesList } } }
+              ]
+            },
+            include: { customer: true }
+          });
+        }, 4) || [];
+
+        const convByCustomerId = new Map(existingConvs.filter(c => c.customerId).map(c => [c.customerId, c]));
+        const convByPhone = new Map(existingConvs.filter(c => c.customer?.phone).map(c => [c.customer.phone, c]));
+
+        conversations = [];
+        for (const item of resolvedPhones) {
+          let conv = (item.customerId ? convByCustomerId.get(item.customerId) : null) || convByPhone.get(item.phone);
+          if (!conv) {
+            try {
+              conv = await safeQuery(async () => {
+                return await getSharedPrismaClient().conversation.create({
+                  data: {
+                    id: 'cm' + Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9),
+                    companyId: campaign.companyId,
+                    customerId: item.customerId || undefined,
+                    status: 'ACTIVE',
+                    channel: 'whatsapp'
+                  },
+                  include: { customer: true }
+                });
+              }, 4);
+            } catch (err) {
+              console.error(`❌ [BroadcastScheduler] Error creating conversation for ${item.phone}:`, err.message);
+            }
+          }
+          if (conv) {
+            if (!conv.customer) {
+              conv.customer = { id: item.customerId, phone: item.phone, firstName: item.name || '', lastName: '' };
+            }
+            conversations.push(conv);
+          }
+        }
+      } else if (snapshotCount > 0 && (!resolvedPhones || resolvedPhones.length === 0)) {
+        conversations = [];
+      } else {
+        console.log('🌐 [BroadcastScheduler] Fetching all WhatsApp conversations/customers (no 24h limit)');
       conversations = await safeQuery(async () => {
         return await getSharedPrismaClient().conversation.findMany({
           where: {
@@ -301,6 +418,7 @@ class BroadcastSchedulerService {
       }
 
       conversations = conversations.filter(c => c.customer?.phone && c.customer.phone.trim() !== '');
+      } // End legacy else branch
 
       // تصفية تصنيف العملاء إذا تم تحديده
       if (campaign.leadCategoryId) {
@@ -410,7 +528,7 @@ class BroadcastSchedulerService {
         where: { id: campaign.id },
         data: {
           status: hadAnySent ? 'sent' : 'failed',
-          failureReason: hadAnyPendingOrSent ? null : 'All recipients failed during interrupted send'
+          pausedReason: hadAnyPendingOrSent ? null : 'All recipients failed during interrupted send'
         }
         });
       }, 5);

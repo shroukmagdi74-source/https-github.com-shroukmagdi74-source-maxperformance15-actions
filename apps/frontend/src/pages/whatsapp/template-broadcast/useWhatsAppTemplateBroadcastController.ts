@@ -420,8 +420,9 @@ export function useWhatsAppTemplateBroadcastController({
     [withCompanyConfig]
   );
 
-  const handleCreateCampaign = useCallback(async () => {
-    if (!campaignName || !selectedTemplate || recipients.length === 0) {
+  const handleCreateCampaign = useCallback(async (extraData?: Record<string, any>) => {
+    const isDynamic = extraData?.audienceMode === 'dynamic';
+    if (!campaignName || !selectedTemplate || (!isDynamic && recipients.length === 0)) {
       tToast.error('WhatsAppTemplateBroadcast.msg_03ea');
       return;
     }
@@ -439,9 +440,12 @@ export function useWhatsAppTemplateBroadcastController({
       setSending(true);
       setResult(null);
 
+      const isRecurring = extraData?.recurrence && extraData.recurrence !== 'none';
+      const sendNow = (scheduleAt || isRecurring) ? 'false' : 'true';
+
       setSendProgress({ current: 0, total: recipients.length, status: 'sending' });
 
-      const body = {
+      const body: Record<string, any> = {
         name: campaignName,
         channel: 'whatsapp',
         message: `WhatsApp broadcast: ${selectedTemplate}${
@@ -454,13 +458,14 @@ export function useWhatsAppTemplateBroadcastController({
         headerMediaUrl: waHeaderMediaUrl || undefined,
         whatsAppSessionId: selectedSessionId,
         manualPhones: JSON.stringify(recipients),
-        sendNow: scheduleAt ? 'false' : 'true',
+        sendNow,
         scheduledAt: scheduleAt || undefined,
+        ...(extraData || {}),
       };
 
       const campaignRes = await broadcastService.createCampaign(
         Object.entries(body).reduce((fd, [k, v]) => {
-          if (v !== undefined) fd.append(k, String(v));
+          if (v !== undefined && v !== null) fd.append(k, String(v));
           return fd;
         }, new FormData())
       );
@@ -468,8 +473,8 @@ export function useWhatsAppTemplateBroadcastController({
       currentCampaignIdRef.current = campaignId;
 
       setSendProgress({ current: 0, total: recipients.length, status: 'sending' });
-      if (scheduleAt) {
-        setResult({ scheduled: true, scheduledAt: scheduleAt });
+      if (scheduleAt || isRecurring) {
+        setResult({ scheduled: true, scheduledAt: scheduleAt || (campaignRes as any)?.data?.nextRunAt });
         tToast.success('WhatsAppTemplateBroadcast.msg_be37');
         setSending(false);
         setSendProgress(null);

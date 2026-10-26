@@ -364,14 +364,6 @@ class BroadcastService {
     });
   }
 
-  async searchCustomerListProducts(
-    q: string = "",
-    limit: number = 20,
-  ): Promise<{ success: boolean; data: Array<{ id: string; name: string; sku: string | null }> }> {
-    const qParam = q ? `q=${encodeURIComponent(q)}&` : "";
-    return this.makeRequest(`/broadcast/customer-lists/product-search?${qParam}limit=${limit}`);
-  }
-
   async getCustomersInListPaginated(
     listId: string,
     page = 1,
@@ -388,6 +380,51 @@ class BroadcastService {
     const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
     return this.makeRequest(
       `/broadcast/customer-lists/${listId}/customers?page=${page}&limit=${limit}${searchParam}`,
+    );
+  }
+
+  // Recurring broadcast & audience preview methods
+  async previewAudience(payload: {
+    audienceMode: "fixed" | "dynamic";
+    audienceListId?: string;
+    audienceCriteria?: any;
+    manualPhones?: string[] | string;
+    onlyNew?: boolean;
+    maxRecipients?: number;
+    campaignId?: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      totalMatched: number;
+      excludedCount: number;
+      cappedCount: number;
+      willSendCount: number;
+    };
+  }> {
+    return this.makeRequest("/broadcast/campaigns/preview-audience", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getCampaignRuns(
+    campaignId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{
+    success: boolean;
+    data: {
+      runs: any[];
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+      };
+    };
+  }> {
+    return this.makeRequest(
+      `/broadcast/campaigns/${campaignId}/runs?page=${page}&limit=${limit}`,
     );
   }
 

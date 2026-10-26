@@ -709,7 +709,7 @@ exports.pauseCampaign = async (req, res) => {
 
     console.log(`📋 [PAUSE CAMPAIGN] تم العثور على الحملة - الاسم: ${campaign.name}, الحالة: ${campaign.status}`);
 
-    if (campaign.status !== 'sending' && campaign.status !== 'scheduled') {
+    if (campaign.status !== 'sending' && campaign.status !== 'scheduled' && campaign.status !== 'active') {
       console.log(`⚠️ [PAUSE CAMPAIGN] لا يمكن إيقاف الحملة - الحالة الحالية: ${campaign.status}`);
       return res.status(400).json({
         success: false,
@@ -778,12 +778,24 @@ exports.resumeCampaign = async (req, res) => {
       });
     }
 
-    const newStatus = campaign.scheduledAt ? 'scheduled' : 'sending';
+    const isRecurring = campaign.recurrence && campaign.recurrence !== 'none';
+    const newStatus = isRecurring ? 'active' : (campaign.scheduledAt ? 'scheduled' : 'sending');
     console.log(`🔄 [RESUME CAMPAIGN] تحديث حالة الحملة إلى "${newStatus}"`);
+
+    const updateData = { status: newStatus, pausedReason: null };
+    if (isRecurring && (!campaign.nextRunAt || new Date(campaign.nextRunAt) <= new Date())) {
+      updateData.nextRunAt = computeFirstRunAt({
+        recurrence: campaign.recurrence,
+        recurrenceInterval: campaign.recurrenceInterval || 1,
+        sendHour: campaign.sendHour,
+        sendMinute: campaign.sendMinute || 0,
+        startAt: new Date(),
+      });
+    }
 
     const updatedCampaign = await getSharedPrismaClient().broadcastCampaign.update({
       where: { id: campaignId },
-      data: { status: newStatus }
+      data: updateData
     });
 
     console.log(`✅ [RESUME CAMPAIGN] تم استئناف الحملة بنجاح`);
