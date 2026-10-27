@@ -567,7 +567,7 @@ const compressImageFile = (file: File): Promise<string> => {
                             key={pIdx}
                             type="button"
                             onClick={() => handleSendMessage(prompt)}
-                            className="group flex items-center justify-between p-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-850 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 hover:border-indigo-300 dark:hover:border-indigo-700 text-right transition-all active:scale-[0.98] shadow-2xs cursor-pointer"
+                            className="group flex items-center justify-between p-3.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/60 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 hover:border-indigo-300 dark:hover:border-indigo-700 text-right transition-all active:scale-[0.98] shadow-2xs cursor-pointer"
                           >
                             <span className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-relaxed">
                               {prompt}

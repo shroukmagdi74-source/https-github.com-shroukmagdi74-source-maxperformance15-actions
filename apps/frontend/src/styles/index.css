@@ -396,6 +396,8 @@ html *::after {
   --color-foreground: var(--color-foreground);
   --color-card: var(--color-card);
   --color-card-foreground: var(--color-card-foreground);
+  --color-popover: var(--color-popover);
+  --color-popover-foreground: var(--color-popover-foreground);
   --color-accent: var(--color-accent);
   --color-accent-foreground: var(--color-accent-foreground);
   --color-muted: var(--color-muted);

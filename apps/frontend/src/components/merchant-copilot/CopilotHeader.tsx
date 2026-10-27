@@ -101,7 +101,7 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
   const canSwitchAgent = Boolean(specialists && specialists.length > 1 && onSelectAgent);
 
   return (
-    <header className="relative flex items-center justify-between px-4 sm:px-5 py-3 border-b border-border/60 bg-card/95 text-foreground backdrop-blur-md select-none">
+    <header className="relative flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 backdrop-blur-md select-none">
       <div className="flex items-center gap-2 min-w-0">
         <button
           ref={triggerRef}
@@ -114,7 +114,7 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
           disabled={!canSwitchAgent}
           className={cn(
             "flex items-center gap-2.5 p-1 rounded-xl text-right transition-colors min-w-0",
-            canSwitchAgent ? "cursor-pointer hover:bg-muted/50 active:scale-[0.99]" : "cursor-default"
+            canSwitchAgent ? "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/60 active:scale-[0.99]" : "cursor-default"
           )}
           title={canSwitchAgent ? "اضغط لاختيار أو تبديل الوكيل" : undefined}
           aria-label={canSwitchAgent ? "اضغط لاختيار أو تبديل الوكيل" : undefined}
@@ -124,13 +124,13 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h3 className="text-xs sm:text-sm font-semibold text-foreground tracking-tight truncate">
+              <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 tracking-tight truncate">
                 {selectedAgent.name}
               </h3>
               {canSwitchAgent && (
                 <ChevronDown
                   className={cn(
-                    "size-3.5 text-muted-foreground transition-transform duration-200 shrink-0",
+                    "size-3.5 text-slate-400 dark:text-slate-500 transition-transform duration-200 shrink-0",
                     isAgentMenuOpen ? "rotate-180 text-primary" : ""
                   )}
                 />
@@ -142,11 +142,11 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex-wrap">
               <span className="size-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
               <span className="truncate max-w-[140px] sm:max-w-[180px]">{pageContextLabel}</span>
               {contextReason && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted border border-border/60 px-1.5 py-0.2 text-[9px] font-medium text-foreground">
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.2 text-[9px] font-medium text-slate-700 dark:text-slate-300">
                   <span className="size-1 rounded-full bg-emerald-500" />
                   {contextReason}
                 </span>
@@ -162,10 +162,10 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
           type="button"
           onClick={onToggleSessionsList}
           className={cn(
-            "size-8 rounded-lg flex items-center justify-center transition-colors active:scale-95",
+            "size-8 rounded-lg flex items-center justify-center transition-colors active:scale-95 cursor-pointer",
             showSessionsList
               ? "bg-primary/10 text-primary border border-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60",
           )}
           title="سجل الجلسات السحابية"
           aria-label="سجل الجلسات السحابية"
@@ -176,7 +176,7 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
         <button
           type="button"
           onClick={onNewSession}
-          className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors active:scale-95 cursor-pointer"
+          className="size-8 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors active:scale-95 cursor-pointer"
           title="بدء محادثة جديدة"
           aria-label="بدء محادثة جديدة"
         >
@@ -188,7 +188,7 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
             <button
               type="button"
               onClick={handleCopyCurrentSession}
-              className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted/40 transition-colors active:scale-95 cursor-pointer"
+              className="size-8 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors active:scale-95 cursor-pointer"
               title="نسخ لينك الجلسة الحالية"
               aria-label="نسخ لينك الجلسة الحالية"
             >
@@ -202,7 +202,7 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
             <button
               type="button"
               onClick={() => openCopilotSessionInNewTab(activeSessionId)}
-              className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-muted/40 transition-colors active:scale-95 cursor-pointer"
+              className="size-8 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors active:scale-95 cursor-pointer"
               title="افتح في تاب جديد"
               aria-label="افتح في تاب جديد"
             >
@@ -214,7 +214,7 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors active:scale-95 mr-1 cursor-pointer"
+          className="size-8 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors active:scale-95 mr-1 cursor-pointer"
           title="إغلاق (Esc)"
           aria-label="إغلاق المساعد"
         >
@@ -226,13 +226,13 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
       {isAgentMenuOpen && canSwitchAgent && specialists && (
         <div
           ref={menuRef}
-          className="absolute top-full right-3 left-3 sm:left-auto sm:w-84 mt-1 z-50 bg-popover text-popover-foreground border border-border shadow-2xl rounded-2xl p-2 animate-in fade-in-0 zoom-in-95 duration-150 max-h-88 overflow-y-auto backdrop-blur-xl"
+          className="absolute top-full right-3 left-3 sm:left-auto sm:w-88 mt-1.5 z-50 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 shadow-2xl shadow-slate-950/20 dark:shadow-black/70 rounded-2xl p-2 animate-in fade-in-0 zoom-in-95 duration-150 max-h-88 overflow-y-auto"
         >
-          <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-border/50 mb-1.5">
-            <span className="text-[11px] font-semibold text-foreground/80">
+          <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-200/80 dark:border-slate-800 mb-1.5">
+            <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
               تبديل وكيل الذكاء الاصطناعي
             </span>
-            <span className="text-[10px] text-muted-foreground font-mono">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
               {specialists.length} وكيل متاح
             </span>
           </div>
@@ -248,10 +248,10 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
                     setIsAgentMenuOpen(false);
                   }}
                   className={cn(
-                    "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-right text-xs transition-all cursor-pointer",
+                    "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-right text-xs transition-all cursor-pointer border",
                     isSelected
-                      ? "bg-primary/10 text-primary font-semibold border border-primary/25 shadow-xs"
-                      : "text-foreground hover:bg-muted/60 active:scale-[0.99]"
+                      ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold border-indigo-200 dark:border-indigo-800/80 shadow-xs"
+                      : "text-slate-800 dark:text-slate-200 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/70 active:scale-[0.99]"
                   )}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -260,19 +260,19 @@ export const CopilotHeader: React.FC<CopilotHeaderProps> = ({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="truncate font-semibold">{agent.name}</span>
                         {agent.isDefault && (
-                          <span className="text-[9px] bg-primary/15 text-primary border border-primary/25 rounded px-1.5 py-0.2 font-mono shrink-0">
+                          <span className="text-[9px] bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded px-1.5 py-0.2 font-mono shrink-0">
                             لوحة التحكم
                           </span>
                         )}
                       </div>
                       {agent.badge && (
-                        <span className="text-[10px] text-muted-foreground block truncate mt-0.5">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate mt-0.5">
                           {agent.badge}
                         </span>
                       )}
                     </div>
                   </div>
-                  {isSelected && <Check className="size-4 text-primary shrink-0" />}
+                  {isSelected && <Check className="size-4 text-indigo-600 dark:text-indigo-400 shrink-0" />}
                 </button>
               );
             })}
