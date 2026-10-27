@@ -46,9 +46,24 @@ export interface StudioDimensions {
   h: number;
 }
 
+export type StudioElementType =
+  | "heading"
+  | "subtitle"
+  | "button"
+  | "image"
+  | "badge"
+  | "custom"
+  | "product-price"
+  | "product-rating"
+  | "product-stock"
+  | "add-to-cart"
+  | "product-options"
+  | "wishlist"
+  | "compare";
+
 export interface StudioSelectedElement {
   sectionKey: string;
-  type: "heading" | "subtitle" | "button" | "image" | "badge" | "custom";
+  type: StudioElementType;
   label: string;
   field: string;
   linkField?: string;
@@ -173,6 +188,75 @@ export interface StudioGlobalComponentSettings {
   [key: string]: unknown;
 }
 
+
+export type StudioCommerceElementType =
+  | "product-price"
+  | "product-rating"
+  | "product-stock"
+  | "add-to-cart"
+  | "product-options"
+  | "wishlist"
+  | "compare";
+
+export interface StudioCommerceElementDefinition {
+  id: string;
+  label: string;
+  type: StudioCommerceElementType;
+  description: string;
+  iconName?: string;
+}
+
+export const STUDIO_COMMERCE_ELEMENTS: StudioCommerceElementDefinition[] = [
+  {
+    id: "product-price",
+    label: "سعر المنتج",
+    type: "product-price",
+    description: "عرض سعر البيع والسعر قبل الخصم منسقاً بالعملة",
+    iconName: "TagIcon",
+  },
+  {
+    id: "product-rating",
+    label: "تقييم المنتج",
+    type: "product-rating",
+    description: "نجوم التقييم وعدد مراجعات المنتج",
+    iconName: "SparklesIcon",
+  },
+  {
+    id: "product-stock",
+    label: "شريط الستوك",
+    type: "product-stock",
+    description: "شريط التوفر والمخزون المتبقي أو غير متوفر",
+    iconName: "QueueListIcon",
+  },
+  {
+    id: "add-to-cart",
+    label: "أضف للسلة",
+    type: "add-to-cart",
+    description: "زر إضافة المنتج للسلة مع فحص الخيارات والتوفر",
+    iconName: "CursorArrowRaysIcon",
+  },
+  {
+    id: "product-options",
+    label: "خيارات المنتج",
+    type: "product-options",
+    description: "محدد المقاس واللون والمتغيرات المتاحة",
+    iconName: "Squares2X2Icon",
+  },
+  {
+    id: "wishlist",
+    label: "المفضلة",
+    type: "wishlist",
+    description: "زر إضافة وحفظ المنتج في قائمة الرغبات",
+    iconName: "BookmarkIcon",
+  },
+  {
+    id: "compare",
+    label: "المقارنة",
+    type: "compare",
+    description: "زر مقارنة مواصفات المنتج مع منتجات أخرى",
+    iconName: "ArrowPathIcon",
+  },
+];
 
 export interface StudioQuickElement {
   id: string;

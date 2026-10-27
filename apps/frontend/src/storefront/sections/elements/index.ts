@@ -34,3 +34,28 @@ export type { ShippingPartnersElementProps, ShippingPartnersElementSettings } fr
 
 export { default as CodBadgeElement } from './CodBadgeElement';
 export type { CodBadgeElementProps, CodBadgeElementSettings } from './CodBadgeElement';
+
+// Commerce & Product Elements (Ticket COMM-1)
+export { default as ProductPriceElement } from './ProductPriceElement';
+export type { ProductPriceElementProps, ProductPriceElementSettings } from './ProductPriceElement';
+
+export { default as ProductRatingElement } from './ProductRatingElement';
+export type { ProductRatingElementProps, ProductRatingElementSettings } from './ProductRatingElement';
+
+export { default as ProductStockElement } from './ProductStockElement';
+export type { ProductStockElementProps, ProductStockElementSettings } from './ProductStockElement';
+
+export { default as AddToCartElement } from './AddToCartElement';
+export type { AddToCartElementProps, AddToCartElementSettings } from './AddToCartElement';
+
+export { default as ProductOptionsElement } from './ProductOptionsElement';
+export type { ProductOptionsElementProps, ProductOptionsElementSettings } from './ProductOptionsElement';
+
+export { default as WishlistElement } from './WishlistElement';
+export type { WishlistElementProps, WishlistElementSettings } from './WishlistElement';
+
+export { default as CompareElement } from './CompareElement';
+export type { CompareElementProps, CompareElementSettings } from './CompareElement';
+
+export * from './commerceElementHelpers';
+

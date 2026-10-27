@@ -485,6 +485,132 @@ export const STOREFRONT_SECTION_MANIFEST = {
       },
     ],
   },
+  "product-price": {
+    label: "سعر المنتج",
+    component: "product-price",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "currency", label: "العملة", type: "text", placeholder: "EGP أو SAR أو USD" },
+      { key: "showCompareAt", label: "عرض السعر قبل الخصم", type: "checkbox" },
+      { key: "showDiscountBadge", label: "عرض شارة نسبة الخصم", type: "checkbox" },
+      {
+        key: "align",
+        label: "المحاذاة",
+        type: "select",
+        options: [
+          { value: "start", label: "بداية (يمين)" },
+          { value: "center", label: "توسيط" },
+          { value: "end", label: "نهاية (يسار)" },
+        ],
+      },
+    ],
+  },
+  "product-rating": {
+    label: "تقييم المنتج",
+    component: "product-rating",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "showCount", label: "عرض عدد التقييمات", type: "checkbox" },
+      { key: "showNumber", label: "عرض الرقم العشري للتقييم", type: "checkbox" },
+      { key: "starColor", label: "لون النجوم", type: "text", placeholder: "#f59e0b" },
+      {
+        key: "align",
+        label: "المحاذاة",
+        type: "select",
+        options: [
+          { value: "start", label: "بداية (يمين)" },
+          { value: "center", label: "توسيط" },
+          { value: "end", label: "نهاية (يسار)" },
+        ],
+      },
+    ],
+  },
+  "product-stock": {
+    label: "شريط الستوك",
+    component: "product-stock",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "showBar", label: "عرض شريط التقدم", type: "checkbox" },
+      { key: "inStockTemplate", label: "قالب التوفر", type: "text", placeholder: "متبقي {stock}" },
+      { key: "outOfStockText", label: "نص نفاد المخزون", type: "text", placeholder: "غير متوفر" },
+      { key: "lowStockThreshold", label: "حد المخزون المنخفض", type: "number", placeholder: "10" },
+    ],
+  },
+  "add-to-cart": {
+    label: "زر أضف للسلة",
+    component: "add-to-cart",
+    pages: [],
+    variants: [
+      { value: "primary", label: "أساسي" },
+      { value: "outline", label: "محدد" },
+      { value: "ghost", label: "شفاف" },
+    ],
+    fields: [
+      { key: "label", label: "نص الزر", type: "text", placeholder: "أضف للسلة" },
+      { key: "outOfStockLabel", label: "نص الزر عند النفاد", type: "text", placeholder: "غير متوفر" },
+      { key: "missingOptionsMessage", label: "رسالة الخيارات المفقودة", type: "text", placeholder: "يرجى تحديد الخيارات أولاً" },
+      {
+        key: "size",
+        label: "الحجم",
+        type: "select",
+        options: [
+          { value: "sm", label: "صغير" },
+          { value: "md", label: "متوسط" },
+          { value: "lg", label: "كبير" },
+        ],
+      },
+      { key: "fullWidth", label: "عرض كامل", type: "checkbox" },
+    ],
+  },
+  "product-options": {
+    label: "خيارات المنتج",
+    component: "product-options",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "showLabels", label: "عرض عناوين الخيارات", type: "checkbox" },
+      {
+        key: "displayStyle",
+        label: "طريقة العرض",
+        type: "select",
+        options: [
+          { value: "buttons", label: "أزرار وشرائح (Buttons)" },
+          { value: "dropdown", label: "قائمة منسدلة (Dropdown)" },
+        ],
+      },
+    ],
+  },
+  wishlist: {
+    label: "المفضلة",
+    component: "wishlist",
+    pages: [],
+    variants: [
+      { value: "icon", label: "أيقونة فقط" },
+      { value: "button", label: "زر مع نص" },
+    ],
+    fields: [
+      { key: "showLabel", label: "عرض النص", type: "checkbox" },
+      { key: "label", label: "النص الافتراضي", type: "text", placeholder: "المفضلة" },
+      { key: "activeLabel", label: "النص عند الإضافة", type: "text", placeholder: "في المفضلة" },
+    ],
+  },
+  compare: {
+    label: "المقارنة",
+    component: "compare",
+    pages: [],
+    variants: [
+      { value: "icon", label: "أيقونة فقط" },
+      { value: "button", label: "زر مع نص" },
+    ],
+    fields: [
+      { key: "showLabel", label: "عرض النص", type: "checkbox" },
+      { key: "label", label: "النص الافتراضي", type: "text", placeholder: "مقارنة" },
+      { key: "activeLabel", label: "النص عند الإضافة", type: "text", placeholder: "في المقارنة" },
+    ],
+  },
   "look-mosaic": {
     label: "فسيفساء اللوكات",
     component: "look-mosaic",

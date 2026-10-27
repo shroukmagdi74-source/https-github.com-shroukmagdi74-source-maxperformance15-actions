@@ -86,6 +86,15 @@ const PaymentMethodsElement = React.lazy(() => import('../sections/elements/Paym
 const ShippingPartnersElement = React.lazy(() => import('../sections/elements/ShippingPartnersElement'));
 const CodBadgeElement = React.lazy(() => import('../sections/elements/CodBadgeElement'));
 
+// Commerce & Product Elements (Ticket COMM-1)
+const ProductPriceElement = React.lazy(() => import('../sections/elements/ProductPriceElement'));
+const ProductRatingElement = React.lazy(() => import('../sections/elements/ProductRatingElement'));
+const ProductStockElement = React.lazy(() => import('../sections/elements/ProductStockElement'));
+const AddToCartElement = React.lazy(() => import('../sections/elements/AddToCartElement'));
+const ProductOptionsElement = React.lazy(() => import('../sections/elements/ProductOptionsElement'));
+const WishlistElement = React.lazy(() => import('../sections/elements/WishlistElement'));
+const CompareElement = React.lazy(() => import('../sections/elements/CompareElement'));
+
 // Loop Section (Ticket LOOP-1)
 const StorefrontLoopSection = React.lazy(() => import('../sections/StorefrontLoopSection'));
 
@@ -195,6 +204,15 @@ const baseComponentRegistry: Record<
   'payment-methods': PaymentMethodsElement,
   'shipping-partners': ShippingPartnersElement,
   'cod-badge': CodBadgeElement,
+
+  // Commerce & Product Elements (Ticket COMM-1)
+  'product-price': ProductPriceElement,
+  'product-rating': ProductRatingElement,
+  'product-stock': ProductStockElement,
+  'add-to-cart': AddToCartElement,
+  'product-options': ProductOptionsElement,
+  wishlist: WishlistElement,
+  compare: CompareElement,
 
   // Global Component Fallback & Placeholder (Ticket GLOBAL-1)
   placeholder: PlaceholderSection,
