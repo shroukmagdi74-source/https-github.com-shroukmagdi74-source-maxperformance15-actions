@@ -1,5 +1,10 @@
 import React, { useState } from "react";
-import { ChevronDownIcon, Squares2X2Icon, ArrowsPointingOutIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronDownIcon,
+  Squares2X2Icon,
+  ArrowsPointingOutIcon,
+  DevicePhoneMobileIcon,
+} from "@heroicons/react/24/outline";
 import type { StudioDeviceMode } from "../StudioTypes";
 import {
   StudioPaddingControl,
@@ -7,7 +12,11 @@ import {
   StudioDimensionsLayoutControl,
 } from "./StudioDimensionControls";
 import { isPropertyOverridden } from "../utils/studioStyleUtils";
-import { ResponsiveFieldBadge } from "./StudioResponsiveControls";
+import {
+  ResponsiveFieldBadge,
+  StudioDeviceVisibilityControl,
+  StudioBreakpointsControl,
+} from "./StudioResponsiveControls";
 
 interface StudioInspectorLayoutTabProps {
   settings: Record<string, any>;
@@ -29,6 +38,7 @@ export const StudioInspectorLayoutTab: React.FC<StudioInspectorLayoutTabProps> =
   const [openAcc, setOpenAcc] = useState<{ [key: string]: boolean }>({
     spacing: true,
     layout: true,
+    responsive: true,
   });
 
   const toggleAcc = (key: string) => {
@@ -367,6 +377,43 @@ export const StudioInspectorLayoutTab: React.FC<StudioInspectorLayoutTabProps> =
                   />
                 </div>
               )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Accordion: التجاوب والظهور بالجهاز (Responsive & Device Visibility - Ticket RESP-1) */}
+      <div className="overflow-hidden rounded-lg border border-[#ececee]">
+        <button
+          type="button"
+          onClick={() => toggleAcc("responsive")}
+          className="flex w-full items-center justify-between bg-[#fafbfc] px-3 py-2 text-start font-medium text-[#3f434a]"
+        >
+          <div className="flex items-center gap-1.5 font-bold">
+            <DevicePhoneMobileIcon className="h-3.5 w-3.5 text-[#2b6cf6]" />
+            <span>التجاوب ونقاط التوقف (Responsive & Breakpoints)</span>
+          </div>
+          <ChevronDownIcon
+            className={`h-3.5 w-3.5 text-[#9aa0a8] transition-transform ${
+              openAcc.responsive ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {openAcc.responsive && (
+          <div className="p-3 bg-white space-y-3.5">
+            {/* Device Visibility (hiddenOn) */}
+            <StudioDeviceVisibilityControl
+              hiddenOn={settings.hiddenOn}
+              onChange={(nextHiddenOn) => onUpdateField("hiddenOn", nextHiddenOn)}
+            />
+
+            {/* Custom Breakpoints */}
+            <div className="border-t border-[#f0f1f3] pt-3">
+              <StudioBreakpointsControl
+                breakpoints={settings.breakpoints}
+                onChange={(nextBreakpoints) => onUpdateField("breakpoints", nextBreakpoints)}
+              />
             </div>
           </div>
         )}

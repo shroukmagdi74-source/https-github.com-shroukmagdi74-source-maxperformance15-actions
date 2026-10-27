@@ -1,8 +1,49 @@
 import React from 'react';
 
+export interface ClampFontSizeConfig {
+  min: number | string;
+  vw: number | string;
+  max: number | string;
+}
+
+export function formatClampFontSize(
+  clamp?: ClampFontSizeConfig | string | null
+): string | null {
+  if (!clamp) return null;
+  if (typeof clamp === "string") {
+    const trimmed = clamp.trim();
+    if (trimmed.startsWith("clamp(")) return trimmed;
+    return null;
+  }
+  if (typeof clamp !== "object") return null;
+
+  const minRaw = clamp.min;
+  const vwRaw = clamp.vw;
+  const maxRaw = clamp.max;
+
+  if (minRaw === undefined || vwRaw === undefined || maxRaw === undefined) {
+    return null;
+  }
+
+  const formatPart = (val: number | string, defaultUnit: string): string => {
+    if (typeof val === "number") return `${val}${defaultUnit}`;
+    const str = String(val).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString()).trim();
+    if (/^-?\d+(\.\d+)?$/.test(str)) {
+      return `${str}${defaultUnit}`;
+    }
+    return str;
+  };
+
+  const minStr = formatPart(minRaw, "px");
+  const vwStr = formatPart(vwRaw, "vw");
+  const maxStr = formatPart(maxRaw, "px");
+
+  return `clamp(${minStr}, ${vwStr}, ${maxStr})`;
+}
+
 export interface ElementTypographySettings {
   fontFamily?: string;
-  fontSize?: number | string;
+  fontSize?: number | string | ClampFontSizeConfig;
   fontWeight?: number | string;
   lineHeight?: number | string;
   letterSpacing?: number | string;
@@ -49,9 +90,14 @@ export function buildElementTypographyStyle(
     }
   }
 
-  // 2. fontSize: number -> 'px', string -> as-is
+  // 2. fontSize: number -> 'px', string -> as-is, object with min/vw/max -> clamp(...)
   if (settings?.fontSize !== undefined && settings?.fontSize !== null && settings?.fontSize !== '') {
-    if (typeof settings.fontSize === 'number') {
+    if (typeof settings.fontSize === 'object') {
+      const clampStr = formatClampFontSize(settings.fontSize as any);
+      if (clampStr) {
+        style.fontSize = clampStr;
+      }
+    } else if (typeof settings.fontSize === 'number') {
       style.fontSize = `${settings.fontSize}px`;
     } else if (typeof settings.fontSize === 'string') {
       const trimmed = settings.fontSize.trim();

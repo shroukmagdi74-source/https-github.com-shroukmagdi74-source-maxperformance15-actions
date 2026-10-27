@@ -10,6 +10,179 @@ import { buildElementTypographyStyle } from "../../sections/elements/elementTypo
 
 export type StorefrontBreakpoint = "desktop" | "tablet" | "mobile";
 
+export interface StudioBreakpoints {
+  mobile: number;
+  tablet: number;
+  desktop: number;
+}
+
+export const DEFAULT_STUDIO_BREAKPOINTS: StudioBreakpoints = {
+  mobile: 767,
+  tablet: 1024,
+  desktop: 1280,
+};
+
+export const MIN_BREAKPOINT = 320;
+export const MAX_BREAKPOINT = 1920;
+
+export interface BreakpointValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+export interface ClampFontSizeConfig {
+  min: number | string;
+  vw: number | string;
+  max: number | string;
+}
+
+export interface DeviceHiddenOnConfig {
+  mobile?: boolean;
+  tablet?: boolean;
+  desktop?: boolean;
+}
+
+/**
+ * Validates custom responsive breakpoints (Ticket RESP-1).
+ * Constraints:
+ * - Safe range: 320px to 1920px
+ * - Strictly ascending order: mobile < tablet < desktop (rejects intersecting values)
+ */
+export function validateBreakpoints(
+  breakpoints: Partial<StudioBreakpoints> | null | undefined,
+  current: StudioBreakpoints = DEFAULT_STUDIO_BREAKPOINTS
+): BreakpointValidationResult {
+  if (!breakpoints || typeof breakpoints !== "object") {
+    return { valid: false, error: "البريكبوينت يجب أن تكون كائناً صحيحاً (Breakpoints must be an object)" };
+  }
+
+  const mobile =
+    breakpoints.mobile !== undefined ? parseFreeNumber(breakpoints.mobile, NaN) : current.mobile;
+  const tablet =
+    breakpoints.tablet !== undefined ? parseFreeNumber(breakpoints.tablet, NaN) : current.tablet;
+  const desktop =
+    breakpoints.desktop !== undefined ? parseFreeNumber(breakpoints.desktop, NaN) : current.desktop;
+
+  if (isNaN(mobile) || isNaN(tablet) || isNaN(desktop)) {
+    return { valid: false, error: "قيم نقاط التوقف يجب أن تكون أرقاماً صحيحة" };
+  }
+
+  if (mobile < MIN_BREAKPOINT || mobile > MAX_BREAKPOINT) {
+    return {
+      valid: false,
+      error: `بريكبوينت الجوال (${mobile}px) خارج الحدود الآمنة [${MIN_BREAKPOINT}-${MAX_BREAKPOINT}]`,
+    };
+  }
+  if (tablet < MIN_BREAKPOINT || tablet > MAX_BREAKPOINT) {
+    return {
+      valid: false,
+      error: `بريكبوينت التابلت (${tablet}px) خارج الحدود الآمنة [${MIN_BREAKPOINT}-${MAX_BREAKPOINT}]`,
+    };
+  }
+  if (desktop < MIN_BREAKPOINT || desktop > MAX_BREAKPOINT) {
+    return {
+      valid: false,
+      error: `بريكبوينت سطح المكتب (${desktop}px) خارج الحدود الآمنة [${MIN_BREAKPOINT}-${MAX_BREAKPOINT}]`,
+    };
+  }
+
+  if (mobile >= tablet) {
+    return {
+      valid: false,
+      error: `قيم متقاطعة: بريكبوينت الجوال (${mobile}px) يجب أن تكون أصغر تماماً من التابلت (${tablet}px)`,
+    };
+  }
+  if (tablet >= desktop) {
+    return {
+      valid: false,
+      error: `قيم متقاطعة: بريكبوينت التابلت (${tablet}px) يجب أن تكون أصغر تماماً من سطح المكتب (${desktop}px)`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Sanitizes and applies breakpoints safely, reverting to current/previous on validation failure.
+ */
+export function sanitizeBreakpoints(
+  incoming: Partial<StudioBreakpoints> | null | undefined,
+  current: StudioBreakpoints = DEFAULT_STUDIO_BREAKPOINTS
+): { breakpoints: StudioBreakpoints; error?: string } {
+  const result = validateBreakpoints(incoming, current);
+  if (!result.valid) {
+    return { breakpoints: current, error: result.error };
+  }
+  return {
+    breakpoints: {
+      mobile: parseFreeNumber(incoming?.mobile, current.mobile),
+      tablet: parseFreeNumber(incoming?.tablet, current.tablet),
+      desktop: parseFreeNumber(incoming?.desktop, current.desktop),
+    },
+  };
+}
+
+/**
+ * Formats min/vw/max parameters into standard CSS clamp() syntax (Ticket RESP-1).
+ * e.g. { min: 18, vw: 2.5, max: 32 } -> "clamp(18px, 2.5vw, 32px)"
+ */
+export function formatClampFontSize(
+  clamp?: ClampFontSizeConfig | string | null
+): string | null {
+  if (!clamp) return null;
+  if (typeof clamp === "string") {
+    const trimmed = clamp.trim();
+    if (trimmed.startsWith("clamp(")) return trimmed;
+    return null;
+  }
+  if (typeof clamp !== "object") return null;
+
+  const minRaw = clamp.min;
+  const vwRaw = clamp.vw;
+  const maxRaw = clamp.max;
+
+  if (minRaw === undefined || vwRaw === undefined || maxRaw === undefined) {
+    return null;
+  }
+
+  const formatPart = (val: number | string, defaultUnit: string): string => {
+    if (typeof val === "number") return `${val}${defaultUnit}`;
+    const str = normalizeArabicDigits(String(val)).trim();
+    if (/^-?\d+(\.\d+)?$/.test(str)) {
+      return `${str}${defaultUnit}`;
+    }
+    return str;
+  };
+
+  const minStr = formatPart(minRaw, "px");
+  const vwStr = formatPart(vwRaw, "vw");
+  const maxStr = formatPart(maxRaw, "px");
+
+  return `clamp(${minStr}, ${vwStr}, ${maxStr})`;
+}
+
+/**
+ * Resolves font size to either a px value or a clamp() string.
+ */
+export function resolveFontSizeValue(value: any): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "object") {
+    const clampStr = formatClampFontSize(value);
+    if (clampStr) return clampStr;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("clamp(")) return trimmed;
+    const num = parseFreeNumber(trimmed, NaN);
+    if (!isNaN(num) && num > 0) return `${num}px`;
+    return trimmed;
+  }
+  if (typeof value === "number" && value > 0) {
+    return `${value}px`;
+  }
+  return undefined;
+}
+
 /**
  * All styling / layout fields that can be overridden per device (Ticket 2G).
  */
@@ -76,6 +249,8 @@ export const RESPONSIVE_STYLE_FIELDS = new Set<string>([
   "overflowX",
   "overflowY",
   "aspectRatio",
+  "hiddenOn",
+  "breakpoints",
 ]);
 
 /**
@@ -144,6 +319,13 @@ export function hasDeviceOverrides(
   device: "tablet" | "mobile" = "mobile"
 ): boolean {
   if (!settings) return false;
+  const hiddenOn =
+    settings.hiddenOn ||
+    settings.config?.hiddenOn ||
+    settings.settings?.hiddenOn;
+  if (hiddenOn && typeof hiddenOn === "object" && hiddenOn[device]) {
+    return true;
+  }
   const responsive =
     settings.responsive ||
     settings.config?.responsive ||
@@ -656,9 +838,9 @@ export function buildSectionStyle(
 
   // 8. Typography / Font Size
   if (effective.fontSize !== undefined && effective.fontSize !== null) {
-    const fSize = parseFreeNumber(effective.fontSize);
-    if (fSize > 0) {
-      style.fontSize = `${fSize}px`;
+    const fVal = resolveFontSizeValue(effective.fontSize);
+    if (fVal) {
+      style.fontSize = fVal;
     }
   }
 
@@ -769,11 +951,13 @@ export interface GenerateResponsiveCssOptions {
   tabletMin?: number;
   tabletMax?: number;
   mobileMax?: number;
+  desktopMin?: number;
+  breakpoints?: Partial<StudioBreakpoints>;
 }
 
 /**
  * Generates pure CSS media query declarations for responsive style overrides
- * (Ticket 5R / 5B pattern).
+ * (Ticket 5R / 5B pattern) + device visibility and custom breakpoints (Ticket RESP-1).
  * Cascades: base -> tablet -> mobile.
  */
 export function generateResponsiveCss(
@@ -782,35 +966,79 @@ export function generateResponsiveCss(
   options: GenerateResponsiveCssOptions = {}
 ): string | null {
   if (!settings || !selector) return null;
+
+  const hiddenOn =
+    settings.hiddenOn ||
+    settings.config?.hiddenOn ||
+    settings.settings?.hiddenOn;
+
+  const customBreakpoints =
+    settings.breakpoints ||
+    settings.config?.breakpoints ||
+    settings.settings?.breakpoints ||
+    options.breakpoints;
+
   const responsive =
     settings.responsive ||
     settings.config?.responsive ||
     settings.settings?.responsive;
-  if (!responsive || typeof responsive !== "object") return null;
 
-  const tabletOverrides = responsive.tablet;
-  const mobileOverrides = responsive.mobile;
+  const tabletOverrides = responsive && typeof responsive === "object" ? responsive.tablet : undefined;
+  const mobileOverrides = responsive && typeof responsive === "object" ? responsive.mobile : undefined;
 
-  const hasTablet = Boolean(
+  const hasTabletOverrides = Boolean(
     tabletOverrides &&
       typeof tabletOverrides === "object" &&
       Object.keys(tabletOverrides).length > 0
   );
-  const hasMobile = Boolean(
+  const hasMobileOverrides = Boolean(
     mobileOverrides &&
       typeof mobileOverrides === "object" &&
       Object.keys(mobileOverrides).length > 0
   );
 
-  if (!hasTablet && !hasMobile) return null;
+  const isHiddenMobile = Boolean(hiddenOn?.mobile === true);
+  const isHiddenTablet = Boolean(hiddenOn?.tablet === true);
+  const isHiddenDesktop = Boolean(hiddenOn?.desktop === true);
 
-  const tabletMin = options.tabletMin ?? 768;
-  const tabletMax = options.tabletMax ?? 1023.98;
-  const mobileMax = options.mobileMax ?? 767.98;
+  const hasTablet = hasTabletOverrides || isHiddenTablet;
+  const hasMobile = hasMobileOverrides || isHiddenMobile;
+  const hasDesktop = isHiddenDesktop;
+
+  if (!hasTablet && !hasMobile && !hasDesktop) return null;
+
+  let mobileMax: number = options.mobileMax ?? (hiddenOn ? 767 : 767.98);
+  let tabletMin: number = options.tabletMin ?? 768;
+  let tabletMax: number = options.tabletMax ?? 1023.98;
+  let desktopMin: number = options.desktopMin ?? 1024;
+
+  if (customBreakpoints && typeof customBreakpoints === "object") {
+    if (customBreakpoints.mobile !== undefined) {
+      mobileMax = parseFreeNumber(customBreakpoints.mobile, mobileMax);
+      tabletMin = mobileMax + 1;
+    }
+    if (customBreakpoints.tablet !== undefined) {
+      tabletMax = parseFreeNumber(customBreakpoints.tablet, tabletMax);
+      desktopMin = tabletMax + 1;
+    }
+    if (customBreakpoints.desktop !== undefined) {
+      if (customBreakpoints.tablet === undefined) {
+        desktopMin = parseFreeNumber(customBreakpoints.desktop, desktopMin);
+      }
+    }
+  }
 
   const buildDeclarations = (device: "tablet" | "mobile"): string[] => {
     const effective = resolveEffectiveSectionSettings(settings, device);
     const decls: string[] = [];
+
+    // Device hide (Ticket RESP-1)
+    if (device === "mobile" && isHiddenMobile) {
+      decls.push("display: none !important;");
+    }
+    if (device === "tablet" && isHiddenTablet) {
+      decls.push("display: none !important;");
+    }
 
     // Padding
     if (effective.paddingTop !== undefined && effective.paddingTop !== null) {
@@ -851,11 +1079,11 @@ export function generateResponsiveCss(
       decls.push(`border-radius: ${radius} !important;`);
     }
 
-    // Font Size
+    // Font Size (with clamp support)
     if (effective.fontSize !== undefined && effective.fontSize !== null) {
-      const fSize = parseFreeNumber(effective.fontSize);
-      if (fSize > 0) {
-        decls.push(`font-size: ${fSize}px !important;`);
+      const fVal = resolveFontSizeValue(effective.fontSize);
+      if (fVal) {
+        decls.push(`font-size: ${fVal} !important;`);
       }
     }
 
@@ -942,6 +1170,12 @@ export function generateResponsiveCss(
   };
 
   const rules: string[] = [];
+
+  if (hasDesktop && isHiddenDesktop) {
+    rules.push(
+      `@media (min-width: ${desktopMin}px) {\n  ${selector} {\n    display: none !important;\n  }\n}`
+    );
+  }
 
   if (hasTablet) {
     const tabletDecls = buildDeclarations("tablet");
@@ -1062,8 +1296,8 @@ export function styleObjectToCssDeclarations(styleObj?: Record<string, any> | nu
         decls.push(`box-shadow: ${buildBoxShadowString(rawVal)};`);
       }
     } else if (key === "fontSize") {
-      const fNum = parseFreeNumber(rawVal);
-      if (fNum > 0) decls.push(`font-size: ${fNum}px;`);
+      const fVal = resolveFontSizeValue(rawVal);
+      if (fVal) decls.push(`font-size: ${fVal};`);
     } else if (key === "fontWeight") {
       decls.push(`font-weight: ${rawVal};`);
     } else if (key === "lineHeight") {
@@ -1330,6 +1564,8 @@ export const STYLE_PROPERTIES_TO_COPY = new Set<string>([
   "overflowX",
   "overflowY",
   "aspectRatio",
+  "hiddenOn",
+  "breakpoints",
 ]);
 
 /**

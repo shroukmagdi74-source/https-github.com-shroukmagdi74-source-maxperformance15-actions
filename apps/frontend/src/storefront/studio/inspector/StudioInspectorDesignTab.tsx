@@ -24,6 +24,9 @@ import {
   isPropertyOverridden,
   copySectionStyle,
   pasteSectionStyle,
+  formatClampFontSize,
+  resolveFontSizeValue,
+  ClampFontSizeConfig,
 } from "../utils/studioStyleUtils";
 import { StudioSectionVariantSelector } from "./StudioSectionVariantSelector";
 import { ResponsiveFieldBadge } from "./StudioResponsiveControls";
@@ -485,8 +488,8 @@ export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> =
 
         {openAcc.typography && (
           <div className="p-3 bg-white space-y-3">
-            {/* Font Size (Ticket 5R) */}
-            <div className="space-y-1.5">
+            {/* Font Size & Clamp (Ticket 5R + RESP-1) */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="block text-[10px] font-bold text-[#8a8f96]">
                   حجم الخط (Font Size)
@@ -501,39 +504,166 @@ export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> =
                     />
                   )}
               </div>
-              <FreeNumberInput
-                label="حجم الخط (px)"
-                value={settings.fontSize ?? 16}
-                min={10}
-                max={96}
-                placeholder="16"
-                deviceMode={deviceMode}
-                isCustomized={isPropertyOverridden(targetSource, "fontSize", deviceMode as "mobile" | "tablet")}
-                propName="fontSize"
-                onReset={() => onResetField ? onResetField("fontSize") : onUpdateField("fontSize", null)}
-                onChange={(val) => onUpdateField("fontSize", val)}
-              />
-              <div className="grid grid-cols-4 gap-1 pt-0.5">
-                {[
-                  { label: "14px", val: 14 },
-                  { label: "16px", val: 16 },
-                  { label: "18px", val: 18 },
-                  { label: "24px", val: 24 },
-                ].map((opt) => (
-                  <button
-                    key={opt.val}
-                    type="button"
-                    onClick={() => onUpdateField("fontSize", opt.val)}
-                    className={`rounded border py-1 text-center text-[9.5px] transition-all ${
-                      parseFreeNumber(settings.fontSize, 16) === opt.val
-                        ? "border-[#2b6cf6] bg-[#2b6cf6]/10 text-[#2b6cf6] font-bold"
-                        : "border-[#ececee] bg-[#f6f7f8] text-[#6f747b] hover:text-[#17181c]"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+
+              {/* Mode Switcher: Fixed vs Fluid (Clamp) */}
+              <div className="flex rounded-lg border border-[#ececee] bg-[#f6f7f8] p-0.5 text-[10px]">
+                <button
+                  type="button"
+                  data-testid="btn-font-mode-fixed"
+                  onClick={() => {
+                    const currentVal = settings.fontSize;
+                    if (typeof currentVal === "object" && currentVal !== null) {
+                      onUpdateField("fontSize", parseFreeNumber(currentVal.min, 16));
+                    }
+                  }}
+                  className={`flex-1 rounded-md py-1 text-center font-medium transition-all ${
+                    typeof settings.fontSize !== "object" && !(typeof settings.fontSize === "string" && settings.fontSize.startsWith("clamp("))
+                      ? "bg-white text-[#2b6cf6] shadow-xs font-bold"
+                      : "text-[#6f747b] hover:text-[#17181c]"
+                  }`}
+                >
+                  حجم ثابت (Fixed)
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-font-mode-clamp"
+                  onClick={() => {
+                    if (typeof settings.fontSize !== "object" || !settings.fontSize) {
+                      const base = parseFreeNumber(settings.fontSize, 18);
+                      onUpdateField("fontSize", {
+                        min: Math.max(12, Math.round(base * 0.75)),
+                        vw: 2.5,
+                        max: Math.round(base * 1.5),
+                      });
+                    }
+                  }}
+                  className={`flex-1 rounded-md py-1 text-center font-medium transition-all ${
+                    typeof settings.fontSize === "object" || (typeof settings.fontSize === "string" && settings.fontSize.startsWith("clamp("))
+                      ? "bg-white text-[#2b6cf6] shadow-xs font-bold"
+                      : "text-[#6f747b] hover:text-[#17181c]"
+                  }`}
+                >
+                  حجم مرن (Clamp)
+                </button>
               </div>
+
+              {/* Mode: Fluid (Clamp) */}
+              {(typeof settings.fontSize === "object" || (typeof settings.fontSize === "string" && settings.fontSize.startsWith("clamp("))) ? (
+                <div className="space-y-2 rounded-lg border border-[#ececee] bg-[#fafbfc] p-2" data-testid="clamp-controls-container">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {/* min px */}
+                    <div>
+                      <label className="block text-[8.5px] text-[#8a8f96] mb-0.5">أدنى (Min)</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          dir="ltr"
+                          data-testid="input-clamp-min"
+                          value={typeof settings.fontSize === "object" && settings.fontSize?.min !== undefined ? settings.fontSize.min : 18}
+                          onChange={(e) => {
+                            const clampObj: ClampFontSizeConfig = typeof settings.fontSize === "object" && settings.fontSize
+                              ? { ...settings.fontSize, min: parseFreeNumber(e.target.value, 16) }
+                              : { min: parseFreeNumber(e.target.value, 16), vw: 2.5, max: 32 };
+                            onUpdateField("fontSize", clampObj);
+                          }}
+                          className="w-full rounded border border-[#ececee] bg-white px-1.5 py-1 text-center font-mono text-[10px] text-[#17181c] outline-none focus:border-[#2b6cf6]"
+                        />
+                        <span className="absolute end-1 top-1 text-[8px] text-[#8a8f96] pointer-events-none">px</span>
+                      </div>
+                    </div>
+
+                    {/* vw % */}
+                    <div>
+                      <label className="block text-[8.5px] text-[#8a8f96] mb-0.5">مرن (Vw)</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          dir="ltr"
+                          data-testid="input-clamp-vw"
+                          value={typeof settings.fontSize === "object" && settings.fontSize?.vw !== undefined ? settings.fontSize.vw : 2.5}
+                          onChange={(e) => {
+                            const clampObj: ClampFontSizeConfig = typeof settings.fontSize === "object" && settings.fontSize
+                              ? { ...settings.fontSize, vw: parseFreeNumber(e.target.value, 2.5) }
+                              : { min: 18, vw: parseFreeNumber(e.target.value, 2.5), max: 32 };
+                            onUpdateField("fontSize", clampObj);
+                          }}
+                          className="w-full rounded border border-[#ececee] bg-white px-1.5 py-1 text-center font-mono text-[10px] text-[#17181c] outline-none focus:border-[#2b6cf6]"
+                        />
+                        <span className="absolute end-1 top-1 text-[8px] text-[#8a8f96] pointer-events-none">vw</span>
+                      </div>
+                    </div>
+
+                    {/* max px */}
+                    <div>
+                      <label className="block text-[8.5px] text-[#8a8f96] mb-0.5">أقصى (Max)</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          dir="ltr"
+                          data-testid="input-clamp-max"
+                          value={typeof settings.fontSize === "object" && settings.fontSize?.max !== undefined ? settings.fontSize.max : 32}
+                          onChange={(e) => {
+                            const clampObj: ClampFontSizeConfig = typeof settings.fontSize === "object" && settings.fontSize
+                              ? { ...settings.fontSize, max: parseFreeNumber(e.target.value, 32) }
+                              : { min: 18, vw: 2.5, max: parseFreeNumber(e.target.value, 32) };
+                            onUpdateField("fontSize", clampObj);
+                          }}
+                          className="w-full rounded border border-[#ececee] bg-white px-1.5 py-1 text-center font-mono text-[10px] text-[#17181c] outline-none focus:border-[#2b6cf6]"
+                        />
+                        <span className="absolute end-1 top-1 text-[8px] text-[#8a8f96] pointer-events-none">px</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live Preview Display */}
+                  <div
+                    data-testid="clamp-live-preview"
+                    className="flex items-center justify-between rounded border border-[#e2e8f0] bg-white p-1.5 text-[9px]"
+                  >
+                    <span className="text-[#8a8f96]">المعادلة:</span>
+                    <span className="font-mono font-bold text-[#2b6cf6] dir-ltr text-left">
+                      {formatClampFontSize(settings.fontSize) || "clamp(18px, 2.5vw, 32px)"}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                /* Mode: Fixed */
+                <>
+                  <FreeNumberInput
+                    label="حجم الخط (px)"
+                    value={settings.fontSize ?? 16}
+                    min={10}
+                    max={96}
+                    placeholder="16"
+                    deviceMode={deviceMode}
+                    isCustomized={isPropertyOverridden(targetSource, "fontSize", deviceMode as "mobile" | "tablet")}
+                    propName="fontSize"
+                    onReset={() => onResetField ? onResetField("fontSize") : onUpdateField("fontSize", null)}
+                    onChange={(val) => onUpdateField("fontSize", val)}
+                  />
+                  <div className="grid grid-cols-4 gap-1 pt-0.5">
+                    {[
+                      { label: "14px", val: 14 },
+                      { label: "16px", val: 16 },
+                      { label: "18px", val: 18 },
+                      { label: "24px", val: 24 },
+                    ].map((opt) => (
+                      <button
+                        key={opt.val}
+                        type="button"
+                        onClick={() => onUpdateField("fontSize", opt.val)}
+                        className={`rounded border py-1 text-center text-[9.5px] transition-all ${
+                          parseFreeNumber(settings.fontSize, 16) === opt.val
+                            ? "border-[#2b6cf6] bg-[#2b6cf6]/10 text-[#2b6cf6] font-bold"
+                            : "border-[#ececee] bg-[#f6f7f8] text-[#6f747b] hover:text-[#17181c]"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Alignment / Content Alignment */}
