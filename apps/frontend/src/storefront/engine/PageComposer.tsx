@@ -19,6 +19,8 @@ import {
 } from '../sections/manifest';
 import { buildStorefrontPath } from '../utils/paths';
 import { sanitizeStorefrontSectionConfig } from '../utils/runtimeBrandText';
+import { evaluateDisplayConditions } from '../studio/utils/displayConditions';
+import { resolveDynamicSettings } from '../studio/utils/dynamicValues';
 import { useInRouterContext, useLocation } from 'react-router-dom';
 import {
   getStorefrontLocale,
@@ -487,7 +489,19 @@ export const PageComposer: React.FC<PageComposerProps> = ({
     const isHidden =
       (isRecord(sectionEntry["settings"]) && sectionEntry["settings"]["hidden"] === true) ||
       sectionEntry["hidden"] === true;
-    return !isHidden;
+    if (isHidden) return false;
+
+    const displayConditions =
+      (isRecord(sectionEntry["settings"]) &&
+        (sectionEntry["settings"]["displayConditions"] ??
+          sectionEntry["settings"]["visibilityConditions"])) ??
+      (sectionEntry as any)["displayConditions"] ??
+      (sectionEntry as any)["visibilityConditions"];
+
+    if (displayConditions && !evaluateDisplayConditions(displayConditions, (sectionEntry as any)?.dynamicContext)) {
+      return false;
+    }
+    return true;
   });
 
   if (indexedSections.length === 0) {
@@ -627,7 +641,11 @@ export const PageComposer: React.FC<PageComposerProps> = ({
       >
         <SectionComponent
           section={typeof renderedSectionEntry === 'string' ? undefined : renderedSectionEntry}
-          settings={typeof renderedSectionEntry === 'string' ? undefined : renderedSectionEntry.settings}
+          settings={
+            typeof renderedSectionEntry === 'string'
+              ? undefined
+              : resolveDynamicSettings(renderedSectionEntry.settings, (sectionEntry as any)?.dynamicContext)
+          }
         />
       </Suspense>
     );

@@ -6,6 +6,8 @@ import { buildSectionStyle, hasDeviceOverrides, generateResponsiveCss } from "..
 import { useCurrentBreakpoint } from "../hooks/useCurrentBreakpoint";
 import { observeSectionView, trackClick } from "../analytics/beacon";
 import "../styles/storefront-animations.css";
+import { evaluateDisplayConditions } from "../studio/utils/displayConditions";
+import { useStorefrontDynamicContext } from "../studio/utils/dynamicValues";
 
 export const resolveStorefrontPageLayout = (
   pageConfig: StorefrontPageConfig | undefined,
@@ -53,6 +55,20 @@ export const StorefrontSectionFrame: React.FC<RenderSectionFrameArgs> = ({
     sectionEntry !== null &&
     (sectionEntry.hidden === true || sectionEntry.settings?.hidden === true);
   if (isHidden) {
+    return null;
+  }
+
+  const dynamicCtx = useStorefrontDynamicContext();
+  const effectiveDynamicCtx = (sectionEntry as any)?.dynamicContext || dynamicCtx;
+  const displayConditions =
+    typeof sectionEntry === "object" && sectionEntry !== null
+      ? (sectionEntry.settings?.displayConditions ??
+         sectionEntry.settings?.visibilityConditions ??
+         (sectionEntry as any).displayConditions ??
+         (sectionEntry as any).visibilityConditions)
+      : undefined;
+
+  if (displayConditions && !evaluateDisplayConditions(displayConditions, effectiveDynamicCtx)) {
     return null;
   }
   const { theme, pageStyleVars } = useStorefrontTheme();

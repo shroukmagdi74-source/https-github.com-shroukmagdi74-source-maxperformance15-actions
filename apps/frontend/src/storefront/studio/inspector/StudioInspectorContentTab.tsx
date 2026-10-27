@@ -1,5 +1,7 @@
 import React from "react";
 import { PhotoIcon, LinkIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { StudioDynamicTokenPicker } from "./StudioDynamicTokenPicker";
+import { StudioDisplayConditionsControl } from "./StudioDisplayConditionsControl";
 
 export const HERO_PANEL_VARIANTS = new Set([
   "drop-board",
@@ -129,7 +131,16 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
     <div className="space-y-3 select-none text-[11.5px] text-[#17181c]">
       {/* 1. Main Heading */}
       <div className="space-y-1">
-        <label className="block text-[10px] font-bold text-[#6f747b]">العنوان الرئيسي</label>
+        <div className="flex items-center justify-between">
+          <label className="block text-[10px] font-bold text-[#6f747b]">العنوان الرئيسي</label>
+          <StudioDynamicTokenPicker
+            currentValue={title}
+            onSelectToken={(token) => {
+              onUpdateField("title", token);
+              onUpdateField("heading", token);
+            }}
+          />
+        </div>
         <input
           type="text"
           value={title}
@@ -149,7 +160,16 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
 
       {/* 2. Subtitle / Description */}
       <div className="space-y-1">
-        <label className="block text-[10px] font-bold text-[#6f747b]">الوصف التوضيحي</label>
+        <div className="flex items-center justify-between">
+          <label className="block text-[10px] font-bold text-[#6f747b]">الوصف التوضيحي</label>
+          <StudioDynamicTokenPicker
+            currentValue={subtitle}
+            onSelectToken={(token) => {
+              onUpdateField("subtitle", token);
+              onUpdateField("description", token);
+            }}
+          />
+        </div>
         <textarea
           rows={2}
           value={subtitle}
@@ -164,7 +184,16 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
 
       {/* 3. Eyebrow Badge */}
       <div className="space-y-1">
-        <label className="block text-[10px] font-bold text-[#6f747b]">الشارة العلوية (Badge)</label>
+        <div className="flex items-center justify-between">
+          <label className="block text-[10px] font-bold text-[#6f747b]">الشارة العلوية (Badge)</label>
+          <StudioDynamicTokenPicker
+            currentValue={eyebrow}
+            onSelectToken={(token) => {
+              onUpdateField("eyebrow", token);
+              onUpdateField("badge", token);
+            }}
+          />
+        </div>
         <input
           type="text"
           value={eyebrow}
@@ -180,7 +209,13 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
       {/* 4. Action Button (CTA) */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="block text-[10px] font-bold text-[#6f747b]">نص الزر</label>
+          <div className="flex items-center justify-between">
+            <label className="block text-[10px] font-bold text-[#6f747b]">نص الزر</label>
+            <StudioDynamicTokenPicker
+              currentValue={ctaText}
+              onSelectToken={(token) => onUpdateField("ctaText", token)}
+            />
+          </div>
           <input
             type="text"
             value={ctaText}
@@ -190,7 +225,13 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
           />
         </div>
         <div className="space-y-1">
-          <label className="block text-[10px] font-bold text-[#6f747b]">رابط الزر</label>
+          <div className="flex items-center justify-between">
+            <label className="block text-[10px] font-bold text-[#6f747b]">رابط الزر</label>
+            <StudioDynamicTokenPicker
+              currentValue={ctaLink}
+              onSelectToken={(token) => onUpdateField("ctaLink", token)}
+            />
+          </div>
           <div className="flex items-center rounded-lg border border-[#ececee] bg-[#f6f7f8] px-2 text-[#8a8f96] focus-within:border-[#2b6cf6] focus-within:bg-white">
             <LinkIcon className="h-3.5 w-3.5 shrink-0 me-1" />
             <input
@@ -440,6 +481,12 @@ export const StudioInspectorContentTab: React.FC<StudioInspectorContentTabProps>
           </div>
         </div>
       )}
+
+      {/* 7. Display Conditions (Ticket DYN-1) */}
+      <StudioDisplayConditionsControl
+        conditions={settings.displayConditions ?? settings.visibilityConditions}
+        onChangeConditions={(val) => onUpdateField("displayConditions", val)}
+      />
     </div>
   );
 };
