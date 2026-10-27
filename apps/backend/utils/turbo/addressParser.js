@@ -273,10 +273,23 @@ function extractCleanStreetAddress(addressFields, rawFallback = '', options = {}
 
   // Strip customer name if embedded in the address
   if (options.customerName) {
-    const nameParts = String(options.customerName).trim().split(/\s+/).filter(p => p.length > 2);
+    const nameParts = String(options.customerName)
+      .trim()
+      .split(/\s+/)
+      .filter(p => p.length > 2)
+      .map(p => p.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
     if (nameParts.length > 0) {
-      const nameRegex = new RegExp(nameParts.join('|'), 'gi');
-      streetText = streetText.replace(nameRegex, '');
+      try {
+        const nameRegex = new RegExp(nameParts.join('|'), 'gi');
+        streetText = streetText.replace(nameRegex, '');
+      } catch (_regexErr) {
+        // Fallback safe removal if regex construction ever fails
+        for (const rawPart of String(options.customerName).trim().split(/\s+/)) {
+          if (rawPart.length > 2) {
+            streetText = streetText.split(rawPart).join('');
+          }
+        }
+      }
     }
   }
 

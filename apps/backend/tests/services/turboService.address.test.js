@@ -227,4 +227,16 @@ describe('TurboService shipping address formatting', () => {
     expect(payload.address).toBe('14 Gabr Tamam Street, Imbaba');
     expect(payload.invoice_number).toBe('ORD-839842-557');
   });
+
+  test('handles customer names with regex special characters safely without throwing', () => {
+    const { extractCleanStreetAddress, getBestShippingAddressFields } = require('../../utils/turbo/addressParser');
+    const fields = getBestShippingAddressFields('14 Street, El Obour');
+    expect(() => {
+      const result = extractCleanStreetAddress(fields, '14 Street, El Obour', {
+        customerName: '(*)ام زياد [VIP] (Test+User)',
+        city: 'العبور',
+      });
+      expect(typeof result).toBe('string');
+    }).not.toThrow();
+  });
 });
