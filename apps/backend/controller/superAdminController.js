@@ -7249,6 +7249,112 @@ const getBillingActivity = async (req, res) => {
   }
 };
 
+const getSignupFunnelReport = async (req, res) => {
+  try {
+    const prisma = getPrisma();
+    const rawDays = parseInt(req.query.days, 10);
+    const days = Number.isFinite(rawDays) && rawDays > 0 ? Math.min(rawDays, 365) : 7;
+    const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    if (!prisma?.activityLog?.findMany) {
+      return res.json({
+        attempts: 0,
+        success: 0,
+        failed: 0,
+        byErrorCode: [],
+        bySource: [],
+        days,
+        since: sinceDate.toISOString()
+      });
+    }
+
+    const logs = await prisma.activityLog.findMany({
+      where: {
+        category: 'AUTH',
+        action: {
+          in: ['REGISTER_ATTEMPT', 'REGISTER', 'REGISTER_FAILED']
+        },
+        createdAt: {
+          gte: sinceDate
+        }
+      },
+      select: {
+        id: true,
+        action: true,
+        metadata: true,
+        errorMessage: true,
+        isSuccess: true,
+        createdAt: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    let attemptsCount = 0;
+    let successCount = 0;
+    let failedCount = 0;
+
+    const errorCodeCounts = {};
+    const sourceCounts = {};
+
+    for (const log of logs) {
+      let meta = {};
+      if (log.metadata) {
+        try {
+          meta = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
+        } catch {
+          meta = {};
+        }
+      }
+
+      if (log.action === 'REGISTER_ATTEMPT') {
+        attemptsCount++;
+      } else if (log.action === 'REGISTER') {
+        successCount++;
+      } else if (log.action === 'REGISTER_FAILED') {
+        failedCount++;
+        const errCode = meta.errorCode || log.errorMessage || 'UNKNOWN_ERROR';
+        errorCodeCounts[errCode] = (errorCodeCounts[errCode] || 0) + 1;
+      }
+
+      const src =
+        meta.source ||
+        meta.landingBundle ||
+        (meta.utm && typeof meta.utm === 'object' ? meta.utm.utm_source : null) ||
+        'direct';
+      sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+    }
+
+    const effectiveAttempts = Math.max(attemptsCount, successCount + failedCount);
+
+    const byErrorCode = Object.entries(errorCodeCounts)
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const bySource = Object.entries(sourceCounts)
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return res.json({
+      attempts: effectiveAttempts,
+      success: successCount,
+      failed: failedCount,
+      byErrorCode,
+      bySource,
+      days,
+      since: sinceDate.toISOString()
+    });
+  } catch (error) {
+    console.error('[SUPER-ADMIN] signup-funnel report error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to generate signup funnel report',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getBillingActivity,
   triggerImageCompression,
@@ -7318,4 +7424,5 @@ module.exports = {
   calculateEvaluation,
   compareEvaluations,
   globalSearch,
+  getSignupFunnelReport,
 };

@@ -93,6 +93,18 @@ export const trackPlatformSiteLogin = (
 };
 
 
+export const trackPlatformSiteCustomEvent = (
+  eventName: string,
+  data: Record<string, unknown> = {},
+  eventSource = "platform_custom",
+) => {
+  if (!currentPlatformSiteMetaPixelSettings.enabled) {
+    return;
+  }
+
+  return trackCustom(eventName, buildContextPayload(eventSource, data));
+};
+
 export const trackPlatformSiteInitiateCheckout = (
   eventSource: string,
   data: Record<string, unknown> = {},

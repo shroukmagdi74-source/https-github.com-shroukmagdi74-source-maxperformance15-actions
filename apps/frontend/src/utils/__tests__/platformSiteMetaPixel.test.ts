@@ -6,6 +6,7 @@ import {
   trackPlatformSiteInitiateCheckout,
   trackPlatformSiteLead,
   trackPlatformSiteCompleteRegistration,
+  trackPlatformSiteCustomEvent,
 } from "../platformSiteMetaPixel";
 import * as fbModule from "../facebookPixel";
 
@@ -120,6 +121,37 @@ describe("platformSiteMetaPixel", () => {
           num_items: 17,
         }),
         undefined,
+      );
+    });
+  });
+describe("trackPlatformSiteCustomEvent", () => {
+    it("returns early when pixel is not enabled", () => {
+      setPlatformSiteMetaPixelSettings({ enabled: false, pixelId: "123456789012345" });
+      const result = trackPlatformSiteCustomEvent("RegisterView", {
+        source: "test",
+      });
+      expect(result).toBeUndefined();
+      expect(fbModule.trackCustom).not.toHaveBeenCalled();
+    });
+
+    it("sends custom event with context payload when enabled", () => {
+      setPlatformSiteMetaPixelSettings({
+        enabled: true,
+        pixelId: "123456789012345",
+      });
+
+      trackPlatformSiteCustomEvent("RegisterView", {
+        source: "campaign_1",
+        landingBundle: "store-complete-bundle",
+      }, "auth_register_view");
+
+      expect(fbModule.trackCustom).toHaveBeenCalledWith(
+        "RegisterView",
+        expect.objectContaining({
+          event_source: "auth_register_view",
+          source: "campaign_1",
+          landingBundle: "store-complete-bundle",
+        }),
       );
     });
   });

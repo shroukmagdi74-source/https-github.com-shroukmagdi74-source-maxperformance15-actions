@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const systemManager = require('../services/systemManager');
+const superAdminController = require('../controller/superAdminController');
 const { authenticateToken, requireSuperAdmin } = require('../middleware/superAdminMiddleware');
 const { cacheMiddleware } = require('../middleware/performanceOptimization');
 const { t } = require('../services/i18n');
@@ -14,6 +15,8 @@ const { t } = require('../services/i18n');
  * GET /api/v1/admin/systems
  * الحصول على جميع الأنظمة
  */
+router.get('/signup-funnel', authenticateToken, requireSuperAdmin, superAdminController.getSignupFunnelReport);
+
 router.get('/systems', authenticateToken, requireSuperAdmin, async (req, res) => {
   try {
     const systems = await systemManager.getAllSystems();

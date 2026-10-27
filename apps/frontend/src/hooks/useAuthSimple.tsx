@@ -653,11 +653,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (!response.ok) {
         const specificError = result.errors?.[0];
-        throw new Error(
-          specificError
-            ? repairMojibakeText(specificError, 'فشل في إنشاء الحساب')
-            : repairMojibakeText(result.message, 'فشل في إنشاء الحساب'),
-        );
+        const errorMsg = specificError
+          ? repairMojibakeText(specificError, 'فشل في إنشاء الحساب')
+          : repairMojibakeText(result.message, 'فشل في إنشاء الحساب');
+        const authError: any = new Error(errorMsg);
+        if (result?.errorCode) {
+          authError.errorCode = result.errorCode;
+        }
+        throw authError;
       }
 
       // 🧹 Purge any lingering technician/session role artifacts before establishing new account

@@ -5,7 +5,10 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuthSimple";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
 import { AuthNotice, AuthSurface } from "../../components/auth/AuthSurface";
-import { trackPlatformSiteCompleteRegistration } from "../../utils/platformSiteMetaPixel";
+import {
+  trackPlatformSiteCompleteRegistration,
+  trackPlatformSiteCustomEvent,
+} from "../../utils/platformSiteMetaPixel";
 import { getApiUrl } from "../../config/environment";
 
 interface BusinessSpecialty {
@@ -248,11 +251,28 @@ const Register: React.FC = () => {
   // utm_* captured by the server-level middleware (maxp_utm cookie) — sent
   // back explicitly so the attribution survives even without cookies.
   const utmKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
+  const source = searchParams.get("source") || undefined;
   const utm: Record<string, string> = {};
   utmKeys.forEach((k) => {
     const v = searchParams.get(k);
     if (v) utm[k] = v;
   });
+
+  const hasTrackedViewRef = useRef(false);
+  useEffect(() => {
+    if (!hasTrackedViewRef.current) {
+      hasTrackedViewRef.current = true;
+      trackPlatformSiteCustomEvent(
+        "RegisterView",
+        {
+          source: source || null,
+          landingBundle: landingBundle || null,
+          utm_source: utm.utm_source || null,
+        },
+        "auth_register_view"
+      );
+    }
+  }, [source, landingBundle, utm.utm_source]);
 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -316,7 +336,23 @@ const Register: React.FC = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!validate()) return;
+    trackPlatformSiteCustomEvent(
+      "RegisterSubmit",
+      {
+        source: source || null,
+        landingBundle: landingBundle || null,
+        utm_source: utm.utm_source || null,
+      },
+      "auth_register_submit"
+    );
+    if (!validate()) {
+      trackPlatformSiteCustomEvent(
+        "RegisterError",
+        { errorCode: "VALIDATION_ERROR" },
+        "auth_register_error"
+      );
+      return;
+    }
     try {
       setIsLoading(true);
       setError("");
@@ -408,6 +444,12 @@ const Register: React.FC = () => {
         setTimeout(() => navigate(redirectPath, { replace: true }), 100);
       }
     } catch (err: any) {
+      const errorCode = err?.errorCode || (err?.message?.includes("التحقق") ? "VALIDATION_ERROR" : "REGISTRATION_FAILED");
+      trackPlatformSiteCustomEvent(
+        "RegisterError",
+        { errorCode: String(errorCode) },
+        "auth_register_error"
+      );
       setError(extractErrorMessage(err, copy.errors.register));
     } finally {
       setIsLoading(false);

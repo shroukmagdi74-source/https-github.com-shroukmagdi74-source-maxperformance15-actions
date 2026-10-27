@@ -25,6 +25,9 @@ router.use(addPublicCORS);
 router.use(authenticateToken);
 router.use(requireSuperAdmin);
 
+// 📊 Signup Funnel (P2)
+router.get("/signup-funnel", superAdminController.getSignupFunnelReport);
+
 // 📊 System Stats
 router.get(
   "/key-stats",

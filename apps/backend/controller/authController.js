@@ -150,40 +150,153 @@ const initializeRegisteredCompany = async (companyId, trialDays = 0, options = {
   }
 };
 
+const maskEmail = (rawEmail) => {
+  if (!rawEmail || typeof rawEmail !== 'string') return null;
+  const trimmed = rawEmail.trim().toLowerCase();
+  const parts = trimmed.split('@');
+  if (parts.length < 2 || !parts[1]) return '***';
+  const first = parts[0].charAt(0) || '*';
+  return `${first}***@${parts[1]}`;
+};
+
+const getPhoneTail = (rawPhone) => {
+  if (!rawPhone || typeof rawPhone !== 'string') return null;
+  const digits = rawPhone.replace(/\D/g, '');
+  if (!digits) return null;
+  return digits.length >= 4 ? digits.slice(-4) : digits;
+};
+
 const register = async (req, res) => {
+  const {
+    email,
+    password,
+    firstName,
+    lastName,
+    companyName,
+    phone,
+    timezone,
+    promoCode,
+    businessSpecialtyId,
+    businessSpecialtySlug,
+    specialtySlug,
+    landingBundle,
+    source: bodySource,
+    hasGoogle: bodyHasGoogle,
+    utm: bodyUtm
+  } = req.body || {};
+
+  const registrationIp = req.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+  const registrationUserAgent = req.headers?.['user-agent'] || null;
+  const landingUtm = (bodyUtm && typeof bodyUtm === 'object' && Object.keys(bodyUtm).length > 0)
+    ? bodyUtm
+    : (req.utm || null);
+  const resolvedSource = bodySource || req.query?.source || landingUtm?.utm_source || landingBundle || 'direct';
+  const hasGoogle = Boolean(bodyHasGoogle || req.body?.google || false);
+  const phoneTail = getPhoneTail(phone);
+  const maskedEmail = maskEmail(email);
+
+  const prisma = getSharedPrismaClient();
+
+  const logRegisterFailed = async ({ stage, errorCode, errorMessage }) => {
+    try {
+      if (!prisma?.activityLog?.create) return;
+      await prisma.activityLog.create({
+        data: {
+          category: 'AUTH',
+          action: 'REGISTER_FAILED',
+          description: `فشل تسجيل حساب: ${errorCode}`,
+          targetType: 'USER',
+          targetName: maskedEmail || 'unknown',
+          errorMessage: errorMessage ? String(errorMessage).slice(0, 500) : null,
+          metadata: JSON.stringify({
+            stage,
+            errorCode,
+            errorMessage: errorMessage ? String(errorMessage).slice(0, 500) : null,
+            source: resolvedSource,
+            landingBundle: landingBundle || null,
+            utm: landingUtm,
+            hasGoogle,
+            phoneTail,
+            emailMasked: maskedEmail,
+            ip: registrationIp,
+            userAgent: registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null,
+            failedAt: new Date().toISOString()
+          }),
+          severity: 'MEDIUM',
+          isSuccess: false
+        }
+      });
+    } catch (failedLogErr) {
+      console.warn('[REGISTER] Failed to log register failure:', failedLogErr?.message);
+    }
+  };
+
   try {
-    const {
-      email,
-      password,
-      firstName,
-      lastName,
-      companyName,
-      phone,
-      timezone,
-      promoCode,
-      businessSpecialtyId,
-      businessSpecialtySlug,
-      specialtySlug,
-      landingBundle,
-      utm: bodyUtm
-    } = req.body;
+    // 🫀 [AUTH] سجل محاولة بدء التسجيل (REGISTER_ATTEMPT)
+    try {
+      if (!prisma?.activityLog?.create) return;
+      await prisma.activityLog.create({
+        data: {
+          category: 'AUTH',
+          action: 'REGISTER_ATTEMPT',
+          description: `محاولة تسجيل حساب جديد${landingBundle ? ` [${landingBundle}]` : ''}`,
+          targetType: 'USER',
+          targetName: maskedEmail || 'unknown',
+          metadata: JSON.stringify({
+            stage: 'init',
+            source: resolvedSource,
+            landingBundle: landingBundle || null,
+            utm: landingUtm,
+            hasGoogle,
+            phoneTail,
+            emailMasked: maskedEmail,
+            ip: registrationIp,
+            userAgent: registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null,
+            attemptedAt: new Date().toISOString()
+          }),
+          severity: 'LOW',
+          isSuccess: true
+        }
+      });
+    } catch (attemptLogErr) {
+      console.warn('[REGISTER] Failed to log register attempt:', attemptLogErr?.message);
+    }
+
     const trimmedCompanyName = String(companyName || '').trim() || 'حساب جديد';
     const normalizedEmail = normalizeEmail(email);
-    const prisma = getSharedPrismaClient();
     const platformSignupCouponService = require('../services/platformSignupCouponService');
 
     if (!email || !password || !firstName || !lastName || !phone) {
+      await logRegisterFailed({
+        stage: 'validation',
+        errorCode: 'MISSING_FIELDS',
+        errorMessage: 'جميع الحقول مطلوبة'
+      });
       return res.status(400).json({
         success: false,
-        message: 'جميع الحقول مطلوبة'
+        message: 'جميع الحقول مطلوبة',
+        errorCode: 'MISSING_FIELDS'
+      });
+    }
+
+    const cleanPhone = String(phone || '').replace(/[\s\-]/g, '');
+    const isEgyptPhone = /^(\+20|0020|0)?1[0125][0-9]{8}$/.test(cleanPhone);
+    const isIntlPhone = /^\+?[1-9]\d{7,14}$/.test(cleanPhone);
+    if (!isEgyptPhone && !isIntlPhone) {
+      await logRegisterFailed({
+        stage: 'validation',
+        errorCode: 'INVALID_PHONE',
+        errorMessage: 'رقم الهاتف غير صحيح'
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'رقم الهاتف غير صحيح',
+        errorCode: 'INVALID_PHONE'
       });
     }
 
     const userTimezone = timezone || 'Asia/Riyadh';
     console.log('[REGISTER] Using timezone:', userTimezone);
-
-    const registrationIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || null;
-    const registrationUserAgent = req.headers['user-agent'] || null;
 
     const existingUser = await prisma.user.findFirst({
       where: {
@@ -195,9 +308,15 @@ const register = async (req, res) => {
     });
 
     if (existingUser) {
+      await logRegisterFailed({
+        stage: 'check_existing',
+        errorCode: 'EMAIL_ALREADY_EXISTS',
+        errorMessage: 'فشل إنشاء الحساب، يرجى التحقق من البيانات'
+      });
       return res.status(400).json({
         success: false,
-        message: 'فشل إنشاء الحساب، يرجى التحقق من البيانات'
+        message: 'فشل إنشاء الحساب، يرجى التحقق من البيانات',
+        errorCode: 'EMAIL_ALREADY_EXISTS'
       });
     }
 
@@ -208,9 +327,15 @@ const register = async (req, res) => {
           promoCode,
         );
       } catch (couponError) {
+        await logRegisterFailed({
+          stage: 'validate_coupon',
+          errorCode: 'INVALID_COUPON',
+          errorMessage: couponError.message || 'الكوبون غير صالح'
+        });
         return res.status(400).json({
           success: false,
-          message: couponError.message || 'الكوبون غير صالح'
+          message: couponError.message || 'الكوبون غير صالح',
+          errorCode: 'INVALID_COUPON'
         });
       }
     }
@@ -389,6 +514,7 @@ const register = async (req, res) => {
           targetName: company.name,
           metadata: JSON.stringify({
             landingBundle: landingBundle || null,
+            source: resolvedSource,
             utm: landingUtm,
             registeredAt: new Date().toISOString()
           }),
@@ -606,9 +732,17 @@ const register = async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
+    try {
+      await logRegisterFailed({
+        stage: 'server_error',
+        errorCode: error.code || 'REGISTRATION_ERROR',
+        errorMessage: error.message || 'خطأ في إنشاء الحساب'
+      });
+    } catch (_) {}
     res.status(error.statusCode || 500).json({
       success: false,
       message: error.statusCode ? error.message : 'خطأ في إنشاء الحساب',
+      errorCode: error.code || 'REGISTRATION_ERROR',
       error: error.message
     });
   }
