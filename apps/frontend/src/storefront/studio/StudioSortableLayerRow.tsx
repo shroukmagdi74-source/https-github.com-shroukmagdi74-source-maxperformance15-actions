@@ -31,7 +31,7 @@ export interface StudioSortableLayerRowProps {
   onToggleCollapse?: () => void;
   childrenCount?: number;
   parentKey?: string;
-  onSelect: () => void;
+  onSelect: (e?: React.MouseEvent) => void;
   onRename: (newLabel: string) => void;
   onToggleVisibility: () => void;
   onToggleLock: () => void;
@@ -133,7 +133,7 @@ export const StudioSortableLayerRow: React.FC<StudioSortableLayerRowProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      onClick={onSelect}
+      onClick={(e) => onSelect(e)}
       onContextMenu={handleContextMenu}
       data-studio-layer-row={sectionKey}
       data-is-hidden={isHidden ? "true" : "false"}

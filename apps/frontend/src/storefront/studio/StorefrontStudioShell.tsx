@@ -17,6 +17,9 @@ import { StudioCanvasStage } from "./StudioCanvasStage";
 import { StudioSortableSection } from "./StudioSortableSection";
 import { StudioStatusBar } from "./StudioStatusBar";
 import { StudioSectionCatalogModal } from "./StudioSectionCatalogModal";
+import { StudioShortcutsModal } from "./StudioShortcutsModal";
+import { StudioSearchReplacePanel } from "./StudioSearchReplacePanel";
+import { StudioMultiSelectActionBar } from "./StudioMultiSelectActionBar";
 import { StudioPagesPanel } from "./StudioPagesPanel";
 import { StudioHeaderFooterPanel } from "./StudioHeaderFooterPanel";
 import { StudioTemplateGalleryPanel } from "./StudioTemplateGalleryPanel";
@@ -434,7 +437,17 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     activePageKey,
     setActivePageKey,
     selectedSectionKey,
+
     setSelectedSectionKey,
+    selectedSectionKeys,
+    setSelectedSectionKeys,
+    toggleSectionSelection,
+    handleBulkDelete,
+    handleBulkToggleVisibility,
+    handleBulkToggleLock,
+    handleBulkDuplicate,
+    handleBulkAlign,
+    handleUpdateActiveSections,
     currentDesignTokens,
     previewTheme,
     activePageConfig,
@@ -474,6 +487,21 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     onChange,
     onSave,
   });
+
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showSearchReplacePanel, setShowSearchReplacePanel] = useState(false);
+
+  const handleSelectSection = useCallback(
+    (key: string, e?: React.MouseEvent) => {
+      if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+        toggleSectionSelection(key, { multi: e.ctrlKey || e.metaKey, range: e.shiftKey });
+      } else {
+        setSelectedSectionKey(key);
+        setSelectedSectionKeys([key]);
+      }
+    },
+    [toggleSectionSelection, setSelectedSectionKey, setSelectedSectionKeys]
+  );
 
   const handleTouchReorder = useCallback(
     (fromIndex: number, toIndex: number) => {
@@ -630,6 +658,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
       activePageConfig,
       handleDesignTokensChange,
       selectedSectionKey,
+
       setSelectedSectionKey,
     ]
   );
@@ -650,6 +679,12 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         } else if (showSpacingOverlay) {
           setShowSpacingOverlay(false);
           toast.info("تم إخفاء أداة المسافات");
+        } else if (showShortcutsModal) {
+          setShowShortcutsModal(false);
+        } else if (showSearchReplacePanel) {
+          setShowSearchReplacePanel(false);
+        } else if (selectedSectionKeys.length > 1) {
+          setSelectedSectionKeys(selectedSectionKey ? [selectedSectionKey] : []);
         }
       }
 
@@ -665,7 +700,30 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
               Boolean(target.closest("input, textarea, select, [contenteditable='true']"))))
       );
 
+      if (!isInput && (e.key === "?" || (e.shiftKey && (e.key === "?" || e.code === "Slash")))) {
+        e.preventDefault();
+        setShowShortcutsModal(true);
+        return;
+      }
+
+      if (!isInput && (e.key === "Delete" || e.key === "Backspace")) {
+        if (selectedSectionKeys.length > 1) {
+          e.preventDefault();
+          handleBulkDelete();
+          return;
+        } else if (selectedSectionKey) {
+          e.preventDefault();
+          handleDeleteSection(selectedSectionKey);
+          return;
+        }
+      }
+
       if (!isInput && (e.ctrlKey || e.metaKey)) {
+        if (e.key === "f" || e.key === "F") {
+          e.preventDefault();
+          setShowSearchReplacePanel((prev) => !prev);
+          return;
+        }
         if (e.key === "c" || e.key === "C") {
           if (selectedSectionKey) {
             e.preventDefault();
@@ -693,6 +751,12 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   }, [
     contextMenu,
     selectedSectionKey,
+
+    selectedSectionKeys,
+    showShortcutsModal,
+    showSearchReplacePanel,
+    handleBulkDelete,
+    handleDeleteSection,
     clipboardSection,
     handleCopySection,
     handlePasteSection,
@@ -1215,10 +1279,12 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                       sections={activeSections}
                       sectionKeys={sectionKeys}
                       selectedSectionKey={selectedSectionKey}
+                      selectedSectionKeys={selectedSectionKeys}
                       leftPanelTab={layersPanelTab}
                       designTokens={currentDesignTokens}
-                      onSelectSection={(key) => {
-                        setSelectedSectionKey(key);
+                      onSelectSection={(key, e) => {
+                        handleSelectSection(key, e);
+
                         if (typeof window !== "undefined" && window.innerWidth < 1024) {
                           setIsLeftDrawerOpen(false);
                         }
@@ -1493,7 +1559,8 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                             sectionKey={stableKey}
                             sectionLabel={sectionLabel}
                             sectionType={sectionType}
-                            selected={isSelected}
+                            selected={isSelected || selectedSectionKeys.includes(stableKey)}
+                            selectedSectionKeys={selectedSectionKeys}
                             totalSections={activeSections.length}
                             deviceMode={deviceMode}
                             showSpacingOverlay={showSpacingOverlay}
@@ -1502,13 +1569,16 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                             locked={isSectionLocked}
                             libraryDropSlot={libraryDropSlot}
                             selectedElement={selectedElement}
-                            onSelect={() => {
-                              setSelectedSectionKey(stableKey);
+                            onSelect={(e) => {
+                              handleSelectSection(stableKey, e);
+
                               setIsInspectorOpen(true);
                             }}
                             onToggleVisibility={() => handleToggleSectionVisibility(stableKey)}
                             onSelectElement={(el) => {
                               setSelectedSectionKey(stableKey);
+                              setSelectedSectionKeys([stableKey]);
+
                               setSelectedElement(el);
                               setIsInspectorOpen(true);
                             }}
@@ -1718,6 +1788,36 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
             : undefined
         }
         deviceMode={deviceMode}
+        onOpenShortcuts={() => setShowShortcutsModal(true)}
+      />
+
+      {/* Search & Replace Floating Panel */}
+      <StudioSearchReplacePanel
+        isOpen={showSearchReplacePanel}
+        onClose={() => setShowSearchReplacePanel(false)}
+        sections={activeSections}
+        onUpdateSections={handleUpdateActiveSections}
+        onNavigateToSection={(key) => {
+          setSelectedSectionKey(key);
+          setSelectedSectionKeys([key]);
+        }}
+      />
+
+      {/* Floating Multi-Select Action Bar */}
+      <StudioMultiSelectActionBar
+        selectedCount={selectedSectionKeys.length}
+        onHide={() => handleBulkToggleVisibility()}
+        onLock={() => handleBulkToggleLock()}
+        onDuplicate={() => handleBulkDuplicate()}
+        onDelete={() => handleBulkDelete()}
+        onAlign={(alignment) => handleBulkAlign(alignment)}
+        onClear={() => setSelectedSectionKeys(selectedSectionKey ? [selectedSectionKey] : [])}
+      />
+
+      {/* Keyboard Shortcuts Palette Modal */}
+      <StudioShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
       />
 
       {/* Modals */}

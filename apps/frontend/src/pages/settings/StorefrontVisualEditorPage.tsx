@@ -136,6 +136,7 @@ const StorefrontVisualEditorPage: React.FC = () => {
         companySlug: storefrontSettings.companySlug,
         customDomain: storefrontSettings.customDomain,
         previewTheme: activeStorefrontThemeId,
+        preview: "1",
       }) || null
     );
   }, [

@@ -151,7 +151,8 @@ interface StudioSortableSectionProps {
   locked?: boolean;
   libraryDropSlot?: number | null;
   selectedElement?: StudioSelectedElement | null;
-  onSelect: () => void;
+  selectedSectionKeys?: string[];
+  onSelect: (e?: React.MouseEvent) => void;
   onToggleVisibility?: () => void;
   onSelectElement?: (element: StudioSelectedElement) => void;
   onClearSelectedElement?: () => void;
@@ -188,6 +189,7 @@ export const StudioSortableSection: React.FC<StudioSortableSectionProps> = ({
   locked = false,
   libraryDropSlot,
   selectedElement,
+  selectedSectionKeys,
   onSelect,
   onToggleVisibility,
   onSelectElement,
@@ -216,6 +218,7 @@ export const StudioSortableSection: React.FC<StudioSortableSectionProps> = ({
     originalText: string;
   } | null>(null);
 
+  const isEffectiveSelected = selected || Boolean(selectedSectionKeys?.includes(sectionKey));
   const effectiveSettings = resolveEffectiveSectionSettings(settings, deviceMode);
   const hasActiveDeviceOverrides =
     deviceMode !== "desktop" &&
@@ -371,7 +374,7 @@ export const StudioSortableSection: React.FC<StudioSortableSectionProps> = ({
     }
     e.preventDefault();
     e.stopPropagation();
-    onSelect();
+    onSelect(e);
     onContextMenu?.(e);
   };
 
@@ -393,7 +396,7 @@ export const StudioSortableSection: React.FC<StudioSortableSectionProps> = ({
     if (contentRef.current && contentRef.current.contains(target)) {
       const detected = detectElementUnderCursor(target, settings);
       if (detected) {
-        onSelect();
+        onSelect(e);
         onSelectElement?.({
           sectionKey,
           type: detected.type,
@@ -409,7 +412,7 @@ export const StudioSortableSection: React.FC<StudioSortableSectionProps> = ({
       }
     }
 
-    onSelect();
+    onSelect(e);
     onClearSelectedElement?.();
   };
 
@@ -522,7 +525,7 @@ export const StudioSortableSection: React.FC<StudioSortableSectionProps> = ({
         }
       }}
       className={`group relative transition-all cursor-pointer ${
-        selected ? "z-20" : "z-10 hover:z-15"
+        isEffectiveSelected ? "z-20" : "z-10 hover:z-15"
       }`}
     >
       {/* Hidden section badge indicator */}
@@ -578,7 +581,7 @@ export const StudioSortableSection: React.FC<StudioSortableSectionProps> = ({
       )}
 
       {/* Selected Blue Outline & Handles */}
-      {selected && (
+      {isEffectiveSelected && (
         <>
           {/* Main selection outline */}
           <div className="pointer-events-none absolute inset-0 z-30 outline outline-2 outline-[#2b6cf6] outline-offset-[-2px]" />

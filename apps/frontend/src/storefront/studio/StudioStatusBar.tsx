@@ -5,6 +5,7 @@ interface StudioStatusBarProps {
   selectedSectionLabel?: string;
   selectedSectionType?: string;
   deviceMode: string;
+  onOpenShortcuts?: () => void;
 }
 
 export const StudioStatusBar: React.FC<StudioStatusBarProps> = ({
@@ -12,6 +13,7 @@ export const StudioStatusBar: React.FC<StudioStatusBarProps> = ({
   selectedSectionLabel,
   selectedSectionType,
   deviceMode,
+  onOpenShortcuts,
 }) => {
   return (
     <footer
@@ -50,7 +52,18 @@ export const StudioStatusBar: React.FC<StudioStatusBarProps> = ({
         <span>اختصارات ⌨:</span>
         <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+S حفظ</span>
         <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+Z تراجع</span>
-        <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+Y إعادة</span>
+        <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+F بحث</span>
+        {onOpenShortcuts && (
+          <button
+            type="button"
+            data-testid="open-shortcuts-palette"
+            onClick={onOpenShortcuts}
+            className="rounded bg-[#2b6cf6]/20 px-1.5 py-0.5 text-[9.5px] font-semibold text-[#60a5fa] hover:bg-[#2b6cf6]/30 transition-colors"
+            title="عرض جميع الاختصارات (?)"
+          >
+            ? جميع الاختصارات
+          </button>
+        )}
       </div>
     </footer>
   );

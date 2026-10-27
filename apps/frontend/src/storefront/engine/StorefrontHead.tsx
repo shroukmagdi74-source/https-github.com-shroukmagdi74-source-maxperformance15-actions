@@ -381,6 +381,7 @@ export const StorefrontHead: React.FC<StorefrontHeadProps> = ({
       searchParams.has('maxPrice') ||
       searchParams.has('sortBy') ||
       searchParams.has('sort') ||
+      searchParams.has('preview') ||
       searchParams.has('previewTheme');
 
     if (pageSeo?.noindex) {
@@ -466,6 +467,7 @@ export const StorefrontHead: React.FC<StorefrontHeadProps> = ({
           'fbclid',
           'gclid',
           'msclkid',
+          'preview',
           'previewTheme',
           '_ga',
           '_gl',

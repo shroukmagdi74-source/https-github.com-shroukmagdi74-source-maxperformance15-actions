@@ -15,6 +15,7 @@ const STOREFRONT_PREVIEW_QUERY_KEYS = [
   "previewSource",
   "previewAdminOrigin",
   "lang",
+  "preview",
 ] as const;
 
 const isIpAddress = (hostname: string): boolean =>
@@ -181,6 +182,7 @@ interface BuildStorefrontPreviewPathOptions {
   previewTheme?: string | null;
   previewSource?: string | null;
   previewAdminOrigin?: string | null;
+  preview?: boolean | string | null;
 }
 
 export const buildStorefrontPreviewPath = (
@@ -230,7 +232,26 @@ export const buildStorefrontPreviewPath = (
     url.searchParams.set("previewAdminOrigin", options.previewAdminOrigin.trim());
   }
 
+  if (options.preview !== undefined && options.preview !== null && options.preview !== false) {
+    url.searchParams.set("preview", typeof options.preview === "string" ? options.preview : "1");
+  }
+
   return url.toString();
+};
+
+export const buildStorefrontShareablePreviewUrl = (
+  route: NullablePathInput = "/",
+  options: BuildStorefrontPreviewPathOptions = {},
+): string => {
+  const base = buildStorefrontPreviewPath(route, {
+    ...options,
+    preview: options.preview ?? "1",
+  });
+  if (base) return base;
+  const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+  const normalized = normalizeRouteInput(route);
+  const sep = normalized.includes("?") ? "&" : "?";
+  return `${origin}/store${normalized}${sep}preview=1`;
 };
 
 export const resolveStorefrontPreviewAdminOrigin = (

@@ -31,9 +31,10 @@ export interface StudioLayersDrawerProps {
   sections: any[];
   sectionKeys?: string[];
   selectedSectionKey: string;
+  selectedSectionKeys?: string[];
   leftPanelTab: StudioLeftPanelTab;
   designTokens?: Record<string, unknown>;
-  onSelectSection: (key: string) => void;
+  onSelectSection: (key: string, e?: React.MouseEvent) => void;
   onRenameSection?: (key: string, newLabel: string) => void;
   onToggleSectionVisibility?: (key: string) => void;
   onToggleSectionLock?: (key: string) => void;
@@ -62,6 +63,7 @@ export const StudioLayersDrawer: React.FC<StudioLayersDrawerProps> = ({
   sections,
   sectionKeys,
   selectedSectionKey,
+  selectedSectionKeys,
   leftPanelTab,
   designTokens,
   onSelectSection,
@@ -173,7 +175,9 @@ export const StudioLayersDrawer: React.FC<StudioLayersDrawerProps> = ({
                       typeof section === "string"
                         ? `${section}-${index}`
                         : section.key || `${sectionType}-${index}`;
-                    const isSelected = selectedSectionKey === sectionKey;
+                    const isSelected =
+                      selectedSectionKey === sectionKey ||
+                      Boolean(selectedSectionKeys?.includes(sectionKey));
                     const customLabel =
                       typeof section === "object" && section !== null
                         ? (section.label || section.settings?.label)
@@ -228,7 +232,7 @@ export const StudioLayersDrawer: React.FC<StudioLayersDrawerProps> = ({
                           }
                           childrenCount={children.length}
                           parentKey={parentKey}
-                          onSelect={() => onSelectSection(sectionKey)}
+                          onSelect={(e) => onSelectSection(sectionKey, e)}
                           onRename={(newLabel) => onRenameSection?.(sectionKey, newLabel)}
                           onToggleVisibility={() => onToggleSectionVisibility?.(sectionKey)}
                           onToggleLock={() => onToggleSectionLock?.(sectionKey)}

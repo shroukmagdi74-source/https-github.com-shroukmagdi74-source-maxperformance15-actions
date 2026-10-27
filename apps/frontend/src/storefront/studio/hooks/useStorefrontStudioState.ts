@@ -150,6 +150,7 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
   const externalDesignTokens = props.externalDesignTokens || props.designTokens || {};
   const [activePageKey, setActivePageKeyInternal] = useState<string>("home");
   const [selectedSectionKey, setSelectedSectionKey] = useState<string>("");
+  const [selectedSectionKeys, setSelectedSectionKeys] = useState<string[]>([]);
 
   // Seed cart items for preview
   useEffect(() => {
@@ -416,7 +417,9 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
   // Auto-select first section
   useEffect(() => {
     if (activeSections.length > 0 && !selectedSectionKey) {
-      setSelectedSectionKey(getSectionKey(activeSections[0], 0));
+      const firstKey = getSectionKey(activeSections[0], 0);
+      setSelectedSectionKey(firstKey);
+      setSelectedSectionKeys([firstKey]);
     }
   }, [activeSections, selectedSectionKey]);
 
@@ -591,6 +594,300 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
       pageOverrides: nextPages,
     });
   };
+
+  const toggleSectionSelection = useCallback(
+    (key: string, options?: { multi?: boolean; range?: boolean }) => {
+      if (options?.multi) {
+        setSelectedSectionKeys((prev) => {
+          const exists = prev.includes(key);
+          const next = exists ? prev.filter((k) => k !== key) : [...prev, key];
+          if (next.length > 0) {
+            setSelectedSectionKey(next[next.length - 1]!);
+          } else {
+            setSelectedSectionKey("");
+          }
+          return next;
+        });
+      } else if (options?.range && selectedSectionKey) {
+        const fromIdx = sectionKeys.indexOf(selectedSectionKey);
+        const toIdx = sectionKeys.indexOf(key);
+        if (fromIdx !== -1 && toIdx !== -1) {
+          const start = Math.min(fromIdx, toIdx);
+          const end = Math.max(fromIdx, toIdx);
+          const ranged = sectionKeys.slice(start, end + 1);
+          setSelectedSectionKeys(ranged);
+          setSelectedSectionKey(key);
+          return;
+        }
+        setSelectedSectionKey(key);
+        setSelectedSectionKeys([key]);
+      } else {
+        setSelectedSectionKey(key);
+        setSelectedSectionKeys([key]);
+      }
+    },
+    [selectedSectionKey, sectionKeys]
+  );
+
+  const handleBulkDelete = useCallback(
+    (keysToDelete?: string[]) => {
+      const targetList = keysToDelete && keysToDelete.length > 0 ? keysToDelete : selectedSectionKeys;
+      const targets = new Set(targetList);
+      if (targets.size === 0) return;
+
+      const nextSections = activeSections.filter(
+        (s: any, idx: number) => !targets.has(getSectionKey(s, idx))
+      );
+
+      const remainingFirst = nextSections[0] ? getSectionKey(nextSections[0], 0) : "";
+      setSelectedSectionKey(remainingFirst);
+      setSelectedSectionKeys(remainingFirst ? [remainingFirst] : []);
+
+      const nextPages = {
+        ...((currentDesignTokens?.pages as Record<string, unknown>) || {}),
+        ...((currentDesignTokens?.pageOverrides as Record<string, unknown>) || {}),
+        [activePageKey]: {
+          ...activePageConfig,
+          sections: nextSections,
+        },
+      };
+
+      handleDesignTokensChange({
+        ...currentDesignTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      });
+    },
+    [
+      selectedSectionKeys,
+      activeSections,
+      activePageKey,
+      activePageConfig,
+      currentDesignTokens,
+      handleDesignTokensChange,
+    ]
+  );
+
+  const handleBulkToggleVisibility = useCallback(
+    (keysToToggle?: string[]) => {
+      const targetList = keysToToggle && keysToToggle.length > 0 ? keysToToggle : selectedSectionKeys;
+      const targets = new Set(targetList);
+      if (targets.size === 0) return;
+
+      const nextSections = activeSections.map((s: any, idx: number) => {
+        const key = getSectionKey(s, idx);
+        if (!targets.has(key)) return s;
+        const secObj = typeof s === "string" ? { type: s } : { ...s };
+        const currentHidden = Boolean(secObj.hidden ?? secObj.settings?.hidden);
+        const nextHidden = !currentHidden;
+        return {
+          ...secObj,
+          hidden: nextHidden,
+          settings: {
+            ...(secObj.settings || {}),
+            hidden: nextHidden,
+          },
+        };
+      });
+
+      const nextPages = {
+        ...((currentDesignTokens?.pages as Record<string, unknown>) || {}),
+        ...((currentDesignTokens?.pageOverrides as Record<string, unknown>) || {}),
+        [activePageKey]: {
+          ...activePageConfig,
+          sections: nextSections,
+        },
+      };
+
+      handleDesignTokensChange({
+        ...currentDesignTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      });
+    },
+    [
+      selectedSectionKeys,
+      activeSections,
+      activePageKey,
+      activePageConfig,
+      currentDesignTokens,
+      handleDesignTokensChange,
+    ]
+  );
+
+  const handleBulkToggleLock = useCallback(
+    (keysToToggle?: string[]) => {
+      const targetList = keysToToggle && keysToToggle.length > 0 ? keysToToggle : selectedSectionKeys;
+      const targets = new Set(targetList);
+      if (targets.size === 0) return;
+
+      const nextSections = activeSections.map((s: any, idx: number) => {
+        const key = getSectionKey(s, idx);
+        if (!targets.has(key)) return s;
+        const secObj = typeof s === "string" ? { type: s } : { ...s };
+        const currentLocked = Boolean(secObj.locked ?? secObj.settings?.locked);
+        const nextLocked = !currentLocked;
+        return {
+          ...secObj,
+          locked: nextLocked,
+          settings: {
+            ...(secObj.settings || {}),
+            locked: nextLocked,
+          },
+        };
+      });
+
+      const nextPages = {
+        ...((currentDesignTokens?.pages as Record<string, unknown>) || {}),
+        ...((currentDesignTokens?.pageOverrides as Record<string, unknown>) || {}),
+        [activePageKey]: {
+          ...activePageConfig,
+          sections: nextSections,
+        },
+      };
+
+      handleDesignTokensChange({
+        ...currentDesignTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      });
+    },
+    [
+      selectedSectionKeys,
+      activeSections,
+      activePageKey,
+      activePageConfig,
+      currentDesignTokens,
+      handleDesignTokensChange,
+    ]
+  );
+
+  const handleBulkDuplicate = useCallback(
+    (keysToDuplicate?: string[]) => {
+      const targetList =
+        keysToDuplicate && keysToDuplicate.length > 0 ? keysToDuplicate : selectedSectionKeys;
+      const targets = new Set(targetList);
+      if (targets.size === 0) return;
+
+      const nextSections: any[] = [];
+      const newKeys: string[] = [];
+
+      activeSections.forEach((s: any, idx: number) => {
+        nextSections.push(s);
+        const key = getSectionKey(s, idx);
+        if (targets.has(key)) {
+          const secObj = typeof s === "string" ? { type: s } : JSON.parse(JSON.stringify(s));
+          const dupKey = `${secObj.type || "section"}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          const cloned = {
+            ...secObj,
+            key: dupKey,
+            settings: {
+              ...(secObj.settings || {}),
+              title: secObj.settings?.title ? `${secObj.settings.title} (نسخة)` : undefined,
+            },
+          };
+          nextSections.push(cloned);
+          newKeys.push(dupKey);
+        }
+      });
+
+      if (newKeys.length > 0) {
+        setSelectedSectionKeys(newKeys);
+        setSelectedSectionKey(newKeys[0]!);
+      }
+
+      const nextPages = {
+        ...((currentDesignTokens?.pages as Record<string, unknown>) || {}),
+        ...((currentDesignTokens?.pageOverrides as Record<string, unknown>) || {}),
+        [activePageKey]: {
+          ...activePageConfig,
+          sections: nextSections,
+        },
+      };
+
+      handleDesignTokensChange({
+        ...currentDesignTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      });
+    },
+    [
+      selectedSectionKeys,
+      activeSections,
+      activePageKey,
+      activePageConfig,
+      currentDesignTokens,
+      handleDesignTokensChange,
+    ]
+  );
+
+  const handleBulkAlign = useCallback(
+    (alignment: "left" | "center" | "right", keysToAlign?: string[]) => {
+      const targetList = keysToAlign && keysToAlign.length > 0 ? keysToAlign : selectedSectionKeys;
+      const targets = new Set(targetList);
+      if (targets.size === 0) return;
+
+      const nextSections = activeSections.map((s: any, idx: number) => {
+        const key = getSectionKey(s, idx);
+        if (!targets.has(key)) return s;
+        const secObj = typeof s === "string" ? { type: s } : { ...s };
+        return {
+          ...secObj,
+          settings: {
+            ...(secObj.settings || {}),
+            alignment,
+            textAlign: alignment,
+          },
+        };
+      });
+
+      const nextPages = {
+        ...((currentDesignTokens?.pages as Record<string, unknown>) || {}),
+        ...((currentDesignTokens?.pageOverrides as Record<string, unknown>) || {}),
+        [activePageKey]: {
+          ...activePageConfig,
+          sections: nextSections,
+        },
+      };
+
+      handleDesignTokensChange({
+        ...currentDesignTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      });
+    },
+    [
+      selectedSectionKeys,
+      activeSections,
+      activePageKey,
+      activePageConfig,
+      currentDesignTokens,
+      handleDesignTokensChange,
+    ]
+  );
+
+  const handleUpdateActiveSections = useCallback(
+    (nextSections: any[], actionLabel?: string) => {
+      const nextPages = {
+        ...((currentDesignTokens?.pages as Record<string, unknown>) || {}),
+        ...((currentDesignTokens?.pageOverrides as Record<string, unknown>) || {}),
+        [activePageKey]: {
+          ...activePageConfig,
+          sections: nextSections,
+        },
+      };
+
+      handleDesignTokensChange({
+        ...currentDesignTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      });
+      if (actionLabel) {
+        toast.success(actionLabel);
+      }
+    },
+    [currentDesignTokens, activePageKey, activePageConfig, handleDesignTokensChange]
+  );
 
   const handleAddSection = (sectionType: string, insertAtIndex?: number) => {
     if (!isStorefrontSectionKnown(sectionType)) {
@@ -1627,6 +1924,15 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     setActivePageKey,
     selectedSectionKey,
     setSelectedSectionKey,
+    selectedSectionKeys,
+    setSelectedSectionKeys,
+    toggleSectionSelection,
+    handleBulkDelete,
+    handleBulkToggleVisibility,
+    handleBulkToggleLock,
+    handleBulkDuplicate,
+    handleBulkAlign,
+    handleUpdateActiveSections,
     currentDesignTokens,
     previewTheme,
     activePageConfig,
