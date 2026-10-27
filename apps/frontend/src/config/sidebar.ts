@@ -229,7 +229,7 @@ export const getSidebarConfig = (
     userSidebarSettings?: { enabled: boolean; sections: Record<string, SidebarSectionSettings> },
     assignedApps?: string[],
 ): SidebarSection[] => {
-    const savedLang = typeof window !== 'undefined' ? localStorage.getItem('language') : null;
+    const savedLang = typeof window !== 'undefined' && typeof localStorage !== 'undefined' ? localStorage.getItem('language') : null;
     const docLang = typeof document !== 'undefined' ? document.documentElement.lang : null;
     const isExplicitAr = savedLang === 'ar' || docLang === 'ar';
 
@@ -956,7 +956,7 @@ export const getSidebarConfig = (
             id: 'affiliate',
             title: t('sidebar.affiliateSection'),
             icon: DollarSign,
-            hidden: !isAppActive('affiliate-program'),
+            hidden: !isAnyAppActive(['affiliate-pro', 'affiliate-program']),
             items: [
                 ...(user?.role === 'OWNER' || user?.role === 'COMPANY_ADMIN' || user?.role === 'SUPER_ADMIN' ? [
                     { to: '/affiliates/management', icon: Users, label: t('sidebar.affiliateManagement') },

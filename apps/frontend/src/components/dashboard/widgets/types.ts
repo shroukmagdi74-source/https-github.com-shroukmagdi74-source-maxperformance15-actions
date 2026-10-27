@@ -17,6 +17,7 @@ export type WidgetData = {
 
 export type WidgetDefinition = {
   appSlug: string;
+  aliases?: string[];
   id: string;
   titleKey: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;

@@ -55,6 +55,7 @@ export const APP_SLUG_ALIASES: Record<string, string[]> = {
   ],
   "pos-pro": ["cafe-restaurant-pro", "store-pro", "ecommerce-pro"],
   "business-tools": ["tasks", "tasks-management", "projects"],
+  "affiliate-pro": ["affiliate-program"],
 };
 
 function getCandidateSlugs(slug: string): string[] {

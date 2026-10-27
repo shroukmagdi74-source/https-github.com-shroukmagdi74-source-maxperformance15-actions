@@ -33,6 +33,7 @@ export const APP_ROUTE_MAP: Record<string, string> = {
   "coupons-pro": "/coupons",
   "wholesale-pro": "/wholesale",
   "affiliate-pro": "/affiliates/dashboard",
+  "affiliate-program": "/affiliates/dashboard",
   "amazon-affiliate-pro": "/amazon-affiliate",
   "blog-pro": "/articles",
   "order-shipping-turbo": "/shipping",

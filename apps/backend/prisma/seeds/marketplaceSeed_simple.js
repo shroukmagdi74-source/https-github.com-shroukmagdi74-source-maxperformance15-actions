@@ -90,7 +90,8 @@ async function seedMarketplace() {
       // تطبيقات التحكم في الظهور بالـ sidebar
       { slug: 'business-tools', name: 'المهام والمواعيد', description: 'إدارة المهام والمواعيد وجدولة الأعمال', category: 'PRODUCTIVITY', monthlyPrice: 0, yearlyPrice: 0, features: JSON.stringify(['إدارة المهام', 'المواعيد']), isActive: true, isPublic: true },
       { slug: 'competitor-analysis', name: 'تحليل المنافسين', description: 'تحليل السوق والمنافسين وتقارير المقارنة', category: 'ANALYTICS', monthlyPrice: 0, yearlyPrice: 0, features: JSON.stringify(['تحليل المنافسين', 'تقارير السوق']), isActive: true, isPublic: true },
-      { slug: 'affiliate-program', name: 'الأفليت والدروب شيبنج', description: 'نظام الأفليت والتسويق بالعمولة', category: 'MARKETING', monthlyPrice: 0, yearlyPrice: 0, features: JSON.stringify(['إدارة الأفليت', 'دروب شيبنج']), isActive: true, isPublic: true },
+      // Legacy alias: unified into surviving affiliate-pro; disabled so fresh databases never recreate duplicate app row
+      // { slug: 'affiliate-program', name: 'الأفليت والدروب شيبنج', description: 'نظام الأفليت والتسويق بالعمولة', category: 'MARKETING', monthlyPrice: 0, yearlyPrice: 0, features: JSON.stringify(['إدارة الأفليت', 'دروب شيبنج']), isActive: true, isPublic: true },
       { slug: 'partner-program', name: 'برنامج الشركاء', description: 'برنامج شركاء المنصة و نظام العمولات', category: 'MARKETING', monthlyPrice: 0, yearlyPrice: 0, features: JSON.stringify(['برنامج الشركاء', 'العمولات']), isActive: true, isPublic: true },
     ];
 

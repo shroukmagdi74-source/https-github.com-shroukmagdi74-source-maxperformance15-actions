@@ -347,7 +347,8 @@ export const widgetRegistry: WidgetDefinition[] = [
 
   // 🤝 Affiliate
   {
-    appSlug: "affiliate-program",
+    appSlug: "affiliate-pro",
+    aliases: ["affiliate-program"],
     id: "affiliate",
     titleKey: "companyDashboard.widgets.affiliate.title",
     icon: UserPlusIcon,
@@ -467,6 +468,9 @@ export const widgetRegistry: WidgetDefinition[] = [
 export function getWidgetsForApps(activeApps: string[]): WidgetDefinition[] {
   const activeLower = activeApps.map((a) => a.toLowerCase());
   return widgetRegistry
-    .filter((w) => activeLower.includes(w.appSlug))
+    .filter((w) => {
+      const candidates = [w.appSlug, ...(w.aliases || [])].map((s) => s.toLowerCase());
+      return candidates.some((c) => activeLower.includes(c));
+    })
     .sort((a, b) => a.priority - b.priority);
 }

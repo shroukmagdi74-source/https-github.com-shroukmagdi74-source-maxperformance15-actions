@@ -1,5 +1,11 @@
-export const AFFILIATE_OPERATION_APP_SLUGS = new Set(["affiliate-pro"]);
-export const MERCHANT_OPERATION_APP_SLUGS = new Set(["affiliate-pro"]);
+export const AFFILIATE_OPERATION_APP_SLUGS = new Set([
+  "affiliate-pro",
+  "affiliate-program",
+]);
+export const MERCHANT_OPERATION_APP_SLUGS = new Set([
+  "affiliate-pro",
+  "affiliate-program",
+]);
 export const ORDER_SOURCE_TRACKING_APP_SLUGS = new Set([
   "order-source-tracking",
 ]);

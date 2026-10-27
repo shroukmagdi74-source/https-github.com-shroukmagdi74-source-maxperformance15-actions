@@ -33,6 +33,8 @@ const LEGACY_APP_SLUG_ALIASES = {
   'telegram-business': ['telegram-integration', 'telegram'],
   'telegram-integration': ['telegram-business', 'telegram'],
   'telegram': ['telegram-business', 'telegram-integration'],
+  // Affiliate aliases:
+  'affiliate-pro': ['affiliate-program'],
   // CRM & Marketing aliases:
   'crm-lite': ['crm-basic', 'crm', 'crm-loyalty'],
   'crm-basic': ['crm-lite', 'crm', 'crm-loyalty'],
