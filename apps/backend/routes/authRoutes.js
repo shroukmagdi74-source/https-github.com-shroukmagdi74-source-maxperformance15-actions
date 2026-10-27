@@ -50,7 +50,13 @@ router.get('/business-specialties', authController.getBusinessSpecialties);
 
 
 
-router.post('/register', userValidationRules(), validate, authController.register);
+router.post(
+  '/register',
+  authController.trackRegisterAttemptMiddleware,
+  userValidationRules(),
+  authController.validateRegisterMiddleware,
+  authController.register
+);
 router.post('/signup-coupon/validate', authController.validateSignupCoupon);
 router.post('/login', authRateLimiter, authController.login);
 router.get('/me', verifyToken.authenticateToken, authController.me);

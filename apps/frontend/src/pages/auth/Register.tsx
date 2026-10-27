@@ -8,6 +8,7 @@ import { AuthNotice, AuthSurface } from "../../components/auth/AuthSurface";
 import {
   trackPlatformSiteCompleteRegistration,
   trackPlatformSiteCustomEvent,
+  trackPlatformSiteCustomEventWhenReady,
 } from "../../utils/platformSiteMetaPixel";
 import { getApiUrl } from "../../config/environment";
 
@@ -260,18 +261,24 @@ const Register: React.FC = () => {
 
   const hasTrackedViewRef = useRef(false);
   useEffect(() => {
-    if (!hasTrackedViewRef.current) {
-      hasTrackedViewRef.current = true;
-      trackPlatformSiteCustomEvent(
-        "RegisterView",
-        {
-          source: source || null,
-          landingBundle: landingBundle || null,
-          utm_source: utm.utm_source || null,
-        },
-        "auth_register_view"
-      );
-    }
+    if (hasTrackedViewRef.current) return;
+
+    const payload = {
+      source: source || null,
+      landingBundle: landingBundle || null,
+      utm_source: utm.utm_source || null,
+    };
+
+    const cleanup = trackPlatformSiteCustomEventWhenReady(
+      "RegisterView",
+      payload,
+      "auth_register_view",
+      6,
+      500
+    );
+
+    hasTrackedViewRef.current = true;
+    return cleanup;
   }, [source, landingBundle, utm.utm_source]);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -336,7 +343,7 @@ const Register: React.FC = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    trackPlatformSiteCustomEvent(
+    trackPlatformSiteCustomEventWhenReady(
       "RegisterSubmit",
       {
         source: source || null,
@@ -346,7 +353,7 @@ const Register: React.FC = () => {
       "auth_register_submit"
     );
     if (!validate()) {
-      trackPlatformSiteCustomEvent(
+      trackPlatformSiteCustomEventWhenReady(
         "RegisterError",
         { errorCode: "VALIDATION_ERROR" },
         "auth_register_error"
@@ -445,7 +452,7 @@ const Register: React.FC = () => {
       }
     } catch (err: any) {
       const errorCode = err?.errorCode || (err?.message?.includes("التحقق") ? "VALIDATION_ERROR" : "REGISTRATION_FAILED");
-      trackPlatformSiteCustomEvent(
+      trackPlatformSiteCustomEventWhenReady(
         "RegisterError",
         { errorCode: String(errorCode) },
         "auth_register_error"

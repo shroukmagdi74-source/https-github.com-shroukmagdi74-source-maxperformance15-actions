@@ -233,33 +233,37 @@ const register = async (req, res) => {
 
   try {
     // 🫀 [AUTH] سجل محاولة بدء التسجيل (REGISTER_ATTEMPT)
-    try {
-      if (!prisma?.activityLog?.create) return;
-      await prisma.activityLog.create({
-        data: {
-          category: 'AUTH',
-          action: 'REGISTER_ATTEMPT',
-          description: `محاولة تسجيل حساب جديد${landingBundle ? ` [${landingBundle}]` : ''}`,
-          targetType: 'USER',
-          targetName: maskedEmail || 'unknown',
-          metadata: JSON.stringify({
-            stage: 'init',
-            source: resolvedSource,
-            landingBundle: landingBundle || null,
-            utm: landingUtm,
-            hasGoogle,
-            phoneTail,
-            emailMasked: maskedEmail,
-            ip: registrationIp,
-            userAgent: registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null,
-            attemptedAt: new Date().toISOString()
-          }),
-          severity: 'LOW',
-          isSuccess: true
+    if (!req._registerAttemptLogged) {
+      try {
+        if (prisma?.activityLog?.create) {
+          await prisma.activityLog.create({
+            data: {
+              category: 'AUTH',
+              action: 'REGISTER_ATTEMPT',
+              description: `محاولة تسجيل حساب جديد${landingBundle ? ` [${landingBundle}]` : ''}`,
+              targetType: 'USER',
+              targetName: maskedEmail || 'unknown',
+              metadata: JSON.stringify({
+                stage: 'init',
+                source: resolvedSource,
+                landingBundle: landingBundle || null,
+                utm: landingUtm,
+                hasGoogle,
+                phoneTail,
+                emailMasked: maskedEmail,
+                ip: registrationIp,
+                userAgent: registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null,
+                attemptedAt: new Date().toISOString()
+              }),
+              severity: 'LOW',
+              isSuccess: true
+            }
+          });
+          req._registerAttemptLogged = true;
         }
-      });
-    } catch (attemptLogErr) {
-      console.warn('[REGISTER] Failed to log register attempt:', attemptLogErr?.message);
+      } catch (attemptLogErr) {
+        console.warn('[REGISTER] Failed to log register attempt:', attemptLogErr?.message);
+      }
     }
 
     const trimmedCompanyName = String(companyName || '').trim() || 'حساب جديد';
@@ -3007,8 +3011,181 @@ const sendVerificationEmail = async (req, res) => {
   }
 };
 
+
+const trackRegisterAttemptMiddleware = async (req, res, next) => {
+  try {
+    const {
+      email,
+      phone,
+      landingBundle,
+      source: bodySource,
+      hasGoogle: bodyHasGoogle,
+      utm: bodyUtm
+    } = req.body || {};
+
+    const registrationIp = req.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+    const registrationUserAgent = req.headers?.['user-agent'] || null;
+    const landingUtm = (bodyUtm && typeof bodyUtm === 'object' && Object.keys(bodyUtm).length > 0)
+      ? bodyUtm
+      : (req.utm || null);
+    const resolvedSource = bodySource || req.query?.source || landingUtm?.utm_source || landingBundle || 'direct';
+    const hasGoogle = Boolean(bodyHasGoogle || req.body?.google || false);
+    const phoneTail = getPhoneTail(phone);
+    const maskedEmail = maskEmail(email);
+
+    const prisma = getSharedPrismaClient();
+    if (prisma?.activityLog?.create) {
+      await prisma.activityLog.create({
+        data: {
+          category: 'AUTH',
+          action: 'REGISTER_ATTEMPT',
+          description: `محاولة تسجيل حساب جديد${landingBundle ? ` [${landingBundle}]` : ''}`,
+          targetType: 'USER',
+          targetName: maskedEmail || 'unknown',
+          metadata: JSON.stringify({
+            stage: 'init',
+            source: resolvedSource,
+            landingBundle: landingBundle || null,
+            utm: landingUtm,
+            hasGoogle,
+            phoneTail,
+            emailMasked: maskedEmail,
+            ip: registrationIp,
+            userAgent: registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null,
+            attemptedAt: new Date().toISOString()
+          }),
+          severity: 'LOW',
+          isSuccess: true
+        }
+      });
+      req._registerAttemptLogged = true;
+    }
+  } catch (err) {
+    console.warn('[REGISTER] Failed to log register attempt in middleware:', err?.message);
+  }
+  next();
+};
+
+const validateRegisterMiddleware = async (req, res, next) => {
+  const expressValidator = require('express-validator');
+  const errors = expressValidator.validationResult(req);
+
+  if (errors.isEmpty()) {
+    return next();
+  }
+
+  const errorMessages = errors.array().map((error) => error.msg);
+  const {
+    email,
+    phone,
+    landingBundle,
+    source: bodySource,
+    hasGoogle: bodyHasGoogle,
+    utm: bodyUtm
+  } = req.body || {};
+
+  const registrationIp = req.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+  const registrationUserAgent = req.headers?.['user-agent'] || null;
+  const landingUtm = (bodyUtm && typeof bodyUtm === 'object' && Object.keys(bodyUtm).length > 0)
+    ? bodyUtm
+    : (req.utm || null);
+  const resolvedSource = bodySource || req.query?.source || landingUtm?.utm_source || landingBundle || 'direct';
+  const hasGoogle = Boolean(bodyHasGoogle || req.body?.google || false);
+  const phoneTail = getPhoneTail(phone);
+  const maskedEmail = maskEmail(email);
+
+  const prisma = getSharedPrismaClient();
+
+  if (!req._registerAttemptLogged) {
+    try {
+      if (prisma?.activityLog?.create) {
+        await prisma.activityLog.create({
+          data: {
+            category: 'AUTH',
+            action: 'REGISTER_ATTEMPT',
+            description: `محاولة تسجيل حساب جديد${landingBundle ? ` [${landingBundle}]` : ''}`,
+            targetType: 'USER',
+            targetName: maskedEmail || 'unknown',
+            metadata: JSON.stringify({
+              stage: 'middleware_validation',
+              source: resolvedSource,
+              landingBundle: landingBundle || null,
+              utm: landingUtm,
+              hasGoogle,
+              phoneTail,
+              emailMasked: maskedEmail,
+              ip: registrationIp,
+              userAgent: registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null,
+              attemptedAt: new Date().toISOString()
+            }),
+            severity: 'LOW',
+            isSuccess: true
+          }
+        });
+        req._registerAttemptLogged = true;
+      }
+    } catch (_) {}
+  }
+
+  try {
+    if (prisma?.activityLog?.create) {
+      await prisma.activityLog.create({
+        data: {
+          category: 'AUTH',
+          action: 'REGISTER_FAILED',
+          description: 'فشل تسجيل حساب: VALIDATION_ERROR',
+          targetType: 'USER',
+          targetName: maskedEmail || 'unknown',
+          errorMessage: errorMessages.join(' | ').slice(0, 500),
+          metadata: JSON.stringify({
+            stage: 'middleware_validation',
+            errorCode: 'VALIDATION_ERROR',
+            errorMessage: errorMessages.join(' | ').slice(0, 500),
+            source: resolvedSource,
+            landingBundle: landingBundle || null,
+            utm: landingUtm,
+            hasGoogle,
+            phoneTail,
+            emailMasked: maskedEmail,
+            ip: registrationIp,
+            userAgent: registrationUserAgent ? String(registrationUserAgent).slice(0, 500) : null,
+            failedAt: new Date().toISOString()
+          }),
+          severity: 'MEDIUM',
+          isSuccess: false
+        }
+      });
+    }
+  } catch (logErr) {
+    console.warn('[REGISTER] Failed to log register validation failure:', logErr?.message);
+  }
+
+  try {
+    const { securityLogger } = require('../middleware/inputValidation');
+    securityLogger.log('validation_error', {
+      ip: req.ip,
+      userId: req.user?.id,
+      companyId: req.user?.companyId,
+      path: req.path,
+      method: req.method,
+      errors: errorMessages,
+      userAgent: req.get('User-Agent')
+    });
+  } catch (_) {}
+
+  return res.status(400).json({
+    success: false,
+    message: 'بيانات الإدخال غير صحيحة',
+    errors: errorMessages,
+    code: 'VALIDATION_ERROR',
+    errorCode: 'VALIDATION_ERROR'
+  });
+};
+
 module.exports = {
   register,
+  trackRegisterAttemptMiddleware,
+  validateRegisterMiddleware,
   validateSignupCoupon,
   getBusinessSpecialties,
   login,

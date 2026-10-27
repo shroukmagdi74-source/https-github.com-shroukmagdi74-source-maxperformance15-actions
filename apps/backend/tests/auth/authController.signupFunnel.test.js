@@ -53,7 +53,7 @@ jest.mock('../../utils/imageProcessor', () => ({
 process.env.JWT_SECRET = 'test-jwt-secret-12345678901234567890';
 process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret-12345678901234567890';
 
-const { register } = require('../../controller/authController');
+const { register, trackRegisterAttemptMiddleware, validateRegisterMiddleware } = require('../../controller/authController');
 const { getSignupFunnelReport } = require('../../controller/superAdminController');
 
 const createResponse = () => {
@@ -278,6 +278,76 @@ describe('Signup Funnel Tracking & Audit (P0, P1, P2)', () => {
       expect(response.attempts).toBe(2);
       expect(response.success).toBe(1);
       expect(response.failed).toBe(1);
+    });
+  });
+
+  describe('P2: Registration validation middleware tracking', () => {
+    it('trackRegisterAttemptMiddleware logs REGISTER_ATTEMPT and sets _registerAttemptLogged', async () => {
+      const req = {
+        body: {
+          email: 'valid.user@example.com',
+          phone: '01099998888',
+          source: 'meta-ad',
+        },
+        headers: { 'x-forwarded-for': '127.0.0.1' },
+      };
+      const res = createResponse();
+      const next = jest.fn();
+
+      await trackRegisterAttemptMiddleware(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(req._registerAttemptLogged).toBe(true);
+      expect(mockPrisma.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            category: 'AUTH',
+            action: 'REGISTER_ATTEMPT',
+          }),
+        })
+      );
+    });
+
+    it('validateRegisterMiddleware logs REGISTER_FAILED with VALIDATION_ERROR on validation failure', async () => {
+      const { body } = require('express-validator');
+      const req = {
+        body: {
+          firstName: 'A', // shorter than 2 chars
+          email: 'shortname@example.com',
+          phone: '01011112222',
+        },
+        headers: { 'x-forwarded-for': '127.0.0.1' },
+      };
+
+      await body('firstName')
+        .isLength({ min: 2, max: 50 })
+        .withMessage('الاسم الأول يجب أن يكون بين 2 و 50 حرف')
+        .run(req);
+
+      const res = createResponse();
+      const next = jest.fn();
+
+      await validateRegisterMiddleware(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          errorCode: 'VALIDATION_ERROR',
+        })
+      );
+
+      // Verify REGISTER_FAILED was logged
+      expect(mockPrisma.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            category: 'AUTH',
+            action: 'REGISTER_FAILED',
+            description: expect.stringContaining('VALIDATION_ERROR'),
+          }),
+        })
+      );
     });
   });
 });

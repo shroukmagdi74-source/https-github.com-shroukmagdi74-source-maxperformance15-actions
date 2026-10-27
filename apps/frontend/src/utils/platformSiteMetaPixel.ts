@@ -36,6 +36,18 @@ export const setPlatformSiteMetaPixelSettings = (
     pixelId:
       typeof settings?.pixelId === "string" ? settings.pixelId.trim() : "",
   };
+
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("platform-pixel-ready", {
+          detail: { enabled: currentPlatformSiteMetaPixelSettings.enabled },
+        }),
+      );
+    } catch {
+      window.dispatchEvent(new Event("platform-pixel-ready"));
+    }
+  }
 };
 
 export const resetPlatformSiteMetaPixelSettings = () => {
@@ -93,6 +105,9 @@ export const trackPlatformSiteLogin = (
 };
 
 
+export const isPlatformSiteMetaPixelReady = (): boolean =>
+  Boolean(currentPlatformSiteMetaPixelSettings.enabled);
+
 export const trackPlatformSiteCustomEvent = (
   eventName: string,
   data: Record<string, unknown> = {},
@@ -103,6 +118,62 @@ export const trackPlatformSiteCustomEvent = (
   }
 
   return trackCustom(eventName, buildContextPayload(eventSource, data));
+};
+
+export const trackPlatformSiteCustomEventWhenReady = (
+  eventName: string,
+  data: Record<string, unknown> = {},
+  eventSource = "platform_custom",
+  maxAttempts = 5,
+  intervalMs = 500,
+): (() => void) => {
+  if (currentPlatformSiteMetaPixelSettings.enabled) {
+    trackPlatformSiteCustomEvent(eventName, data, eventSource);
+    return () => {};
+  }
+
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  let attempts = 0;
+  let timerId: number | null = null;
+  let isDone = false;
+
+  const tryTrack = (): boolean => {
+    if (isDone) return true;
+    if (currentPlatformSiteMetaPixelSettings.enabled) {
+      isDone = true;
+      trackPlatformSiteCustomEvent(eventName, data, eventSource);
+      cleanup();
+      return true;
+    }
+    return false;
+  };
+
+  const onReady = () => {
+    tryTrack();
+  };
+
+  const cleanup = () => {
+    isDone = true;
+    if (timerId !== null) {
+      window.clearInterval(timerId);
+      timerId = null;
+    }
+    window.removeEventListener("platform-pixel-ready", onReady);
+  };
+
+  window.addEventListener("platform-pixel-ready", onReady);
+
+  timerId = window.setInterval(() => {
+    attempts += 1;
+    if (tryTrack() || attempts >= maxAttempts) {
+      cleanup();
+    }
+  }, intervalMs);
+
+  return cleanup;
 };
 
 export const trackPlatformSiteInitiateCheckout = (

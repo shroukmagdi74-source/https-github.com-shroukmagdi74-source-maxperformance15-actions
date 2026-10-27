@@ -7,6 +7,7 @@ import {
   trackPlatformSiteLead,
   trackPlatformSiteCompleteRegistration,
   trackPlatformSiteCustomEvent,
+  trackPlatformSiteCustomEventWhenReady,
 } from "../platformSiteMetaPixel";
 import * as fbModule from "../facebookPixel";
 
@@ -151,6 +152,50 @@ describe("trackPlatformSiteCustomEvent", () => {
           event_source: "auth_register_view",
           source: "campaign_1",
           landingBundle: "store-complete-bundle",
+        }),
+      );
+    });
+  });
+  describe("trackPlatformSiteCustomEventWhenReady", () => {
+    it("fires immediately when settings are already enabled", () => {
+      setPlatformSiteMetaPixelSettings({
+        enabled: true,
+        pixelId: "123456789012345",
+      });
+
+      trackPlatformSiteCustomEventWhenReady("RegisterSubmit", {
+        source: "test-src",
+      }, "auth_register_submit");
+
+      expect(fbModule.trackCustom).toHaveBeenCalledWith(
+        "RegisterSubmit",
+        expect.objectContaining({
+          event_source: "auth_register_submit",
+          source: "test-src",
+        }),
+      );
+    });
+
+    it("waits for platform-pixel-ready event when initially disabled", () => {
+      resetPlatformSiteMetaPixelSettings();
+
+      trackPlatformSiteCustomEventWhenReady("RegisterView", {
+        source: "waiting-src",
+      }, "auth_register_view");
+
+      expect(fbModule.trackCustom).not.toHaveBeenCalled();
+
+      // Now settings finish loading and dispatch platform-pixel-ready
+      setPlatformSiteMetaPixelSettings({
+        enabled: true,
+        pixelId: "123456789012345",
+      });
+
+      expect(fbModule.trackCustom).toHaveBeenCalledWith(
+        "RegisterView",
+        expect.objectContaining({
+          event_source: "auth_register_view",
+          source: "waiting-src",
         }),
       );
     });
