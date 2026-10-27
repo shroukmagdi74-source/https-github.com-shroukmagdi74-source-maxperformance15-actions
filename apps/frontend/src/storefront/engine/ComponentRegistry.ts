@@ -86,14 +86,25 @@ const PaymentMethodsElement = React.lazy(() => import('../sections/elements/Paym
 const ShippingPartnersElement = React.lazy(() => import('../sections/elements/ShippingPartnersElement'));
 const CodBadgeElement = React.lazy(() => import('../sections/elements/CodBadgeElement'));
 
-const PlaceholderSection: React.FC<{ section?: any; settings?: any }> = ({ section, settings }) => (
-  <div data-testid="deleted-component-placeholder" className="p-4 border-2 border-dashed border-amber-400 bg-amber-50/80 rounded-lg text-center m-2 text-amber-900">
-    <div className="font-bold text-sm">{section?.label || settings?.title || "مكوّن محذوف"}</div>
-    <div className="text-xs text-amber-700 mt-1">
-      {settings?.content || "تم حذف المكوّن الأصلي المرتبط بهذه النسخة"}
-    </div>
-  </div>
-);
+const PlaceholderSection: React.FC<{ section?: any; settings?: any }> = ({ section, settings }) =>
+  React.createElement(
+    "div",
+    {
+      "data-testid": "deleted-component-placeholder",
+      className:
+        "p-4 border-2 border-dashed border-amber-400 bg-amber-50/80 rounded-lg text-center m-2 text-amber-900",
+    },
+    React.createElement(
+      "div",
+      { className: "font-bold text-sm" },
+      section?.label || settings?.title || "مكوّن محذوف"
+    ),
+    React.createElement(
+      "div",
+      { className: "text-xs text-amber-700 mt-1" },
+      settings?.content || "تم حذف المكوّن الأصلي المرتبط بهذه النسخة"
+    )
+  );
 
 const baseComponentRegistry: Record<
   string,
