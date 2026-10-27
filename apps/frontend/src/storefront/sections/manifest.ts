@@ -611,6 +611,71 @@ export const STOREFRONT_SECTION_MANIFEST = {
       { key: "activeLabel", label: "النص عند الإضافة", type: "text", placeholder: "في المقارنة" },
     ],
   },
+  // Cart & Checkout Elements (Ticket CHECKOUT-1)
+  "cart-items-element": {
+    label: "بنود السلة",
+    component: "cart-items-element",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "emptyTitle", label: "عنوان السلة الفارغة", type: "text", placeholder: "سلة التسوق فارغة" },
+      { key: "emptySubtitle", label: "رسالة السلة الفارغة", type: "text", placeholder: "لم تقم بإضافة أي منتجات بعد" },
+      { key: "showImage", label: "عرض صورة المنتج", type: "checkbox" },
+      { key: "showAttributes", label: "عرض الخصائص والمقاسات", type: "checkbox" },
+      { key: "showLineTotal", label: "عرض إجمالي البند", type: "checkbox" },
+    ],
+  },
+  "cart-totals": {
+    label: "إجمالي السلة",
+    component: "cart-totals",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "subtotalLabel", label: "عنوان المجموع الفرعي", type: "text", placeholder: "المجموع الفرعي" },
+      { key: "shippingLabel", label: "عنوان الشحن", type: "text", placeholder: "الشحن والتوصيل" },
+      { key: "discountLabel", label: "عنوان الخصم", type: "text", placeholder: "الخصم والكوبون" },
+      { key: "totalLabel", label: "عنوان الإجمالي", type: "text", placeholder: "الإجمالي النهائي" },
+      { key: "shippingCost", label: "تكلفة الشحن الثابتة", type: "number", placeholder: "30" },
+      { key: "showSubtotal", label: "عرض المجموع الفرعي", type: "checkbox" },
+      { key: "showShipping", label: "عرض بند الشحن", type: "checkbox" },
+      { key: "showDiscount", label: "عرض بند الخصم", type: "checkbox" },
+    ],
+  },
+  "checkout-button": {
+    label: "زر إتمام الطلب",
+    component: "checkout-button",
+    pages: [],
+    variants: [
+      { value: "primary", label: "أساسي" },
+      { value: "outline", label: "محدد" },
+      { value: "ghost", label: "شفاف" },
+    ],
+    fields: [
+      { key: "label", label: "نص الزر", type: "text", placeholder: "إتمام الطلب" },
+      {
+        key: "size",
+        label: "الحجم",
+        type: "select",
+        options: [
+          { value: "sm", label: "صغير" },
+          { value: "md", label: "متوسط" },
+          { value: "lg", label: "كبير" },
+        ],
+      },
+      { key: "fullWidth", label: "عرض كامل", type: "checkbox" },
+    ],
+  },
+  coupon: {
+    label: "كود الخصم",
+    component: "coupon",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "placeholder", label: "نص الإدخال التوضيحي", type: "text", placeholder: "أدخل كود الخصم" },
+      { key: "buttonLabel", label: "نص زر التطبيق", type: "text", placeholder: "تطبيق" },
+      { key: "removeLabel", label: "نص زر الإزالة", type: "text", placeholder: "إزالة" },
+    ],
+  },
   "look-mosaic": {
     label: "فسيفساء اللوكات",
     component: "look-mosaic",

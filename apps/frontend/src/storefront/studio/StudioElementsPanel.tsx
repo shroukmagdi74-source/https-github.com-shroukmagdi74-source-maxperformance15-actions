@@ -8,7 +8,6 @@ import {
   QueueListIcon,
   SparklesIcon,
   CursorArrowRaysIcon,
-  EnvelopeIcon,
   ShieldCheckIcon,
   ChatBubbleBottomCenterTextIcon,
   TagIcon,
@@ -20,6 +19,9 @@ import {
   TrashIcon,
   CheckIcon,
   ArrowPathIcon,
+  ShoppingCartIcon,
+  CreditCardIcon,
+  CalculatorIcon,
 } from "@heroicons/react/24/outline";
 import { getStudioSectionThumbnail } from "./StudioSectionThumbnails";
 import type { SavedStudioSection } from "./StudioTypes";
@@ -77,6 +79,13 @@ export const StudioElementsPanel: React.FC<StudioElementsPanelProps> = ({
     { id: "compare", label: "المقارنة", type: "compare", icon: ArrowPathIcon },
   ];
 
+  const cartElements = [
+    { id: "cart-items", label: "بنود السلة", type: "cart-items-element", icon: ShoppingCartIcon },
+    { id: "cart-totals", label: "إجمالي السلة", type: "cart-totals", icon: CalculatorIcon },
+    { id: "checkout-button", label: "زر إتمام الطلب", type: "checkout-button", icon: CreditCardIcon },
+    { id: "coupon", label: "كود الخصم", type: "coupon", icon: TagIcon },
+  ];
+
   const quickElements = [
     { id: "container", label: "حاوية", type: "container", icon: Squares2X2Icon },
     { id: "loop", label: "تكرار", type: "loop", icon: ArrowPathIcon },
@@ -103,6 +112,9 @@ export const StudioElementsPanel: React.FC<StudioElementsPanelProps> = ({
     (el) => el.label.includes(searchQuery) || el.type.includes(searchQuery)
   );
   const filteredCommerceElements = commerceElements.filter(
+    (el) => el.label.includes(searchQuery) || el.type.includes(searchQuery)
+  );
+  const filteredCartElements = cartElements.filter(
     (el) => el.label.includes(searchQuery) || el.type.includes(searchQuery)
   );
   const filteredPresets = presets.filter(
@@ -322,6 +334,52 @@ export const StudioElementsPanel: React.FC<StudioElementsPanelProps> = ({
 
             <div className="grid grid-cols-2 gap-2">
               {filteredCommerceElements.map((el) => {
+                const thumbnail = getStudioSectionThumbnail(el.type);
+                return (
+                  <div
+                    key={el.id}
+                    {...getDragProps(el.type, el.label)}
+                    onClick={() => onAddSection(el.type)}
+                    className="group flex flex-col rounded-xl border border-[#33363c] bg-[#26292f] p-1.5 text-start cursor-grab active:cursor-grabbing transition-all hover:border-[#2b6cf6] hover:bg-[#2c313a] hover:shadow-md"
+                    title={`اسحب ${el.label} للكانفس أو انقر للإضافة`}
+                  >
+                    <div className="studio-element-preview-wrapper relative w-full h-[54px] overflow-hidden rounded-lg border border-[#333740] bg-[#1a1c22] pointer-events-none group-hover:border-[#2b6cf6] transition-colors mb-1 flex items-center justify-center">
+                      <img
+                        src={thumbnail}
+                        alt={el.label}
+                        data-studio-preview="true"
+                        className="studio-element-preview-img w-full h-full object-cover pointer-events-none select-none transition-transform duration-200 group-hover:scale-105"
+                        loading="eager"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between w-full px-1 pt-0.5">
+                      <span className="text-[11px] font-bold text-[#e6e8ec] group-hover:text-white truncate">
+                        {el.label}
+                      </span>
+                      <span className="text-[8.5px] font-mono text-[#7e8590] group-hover:text-[#60a5fa]">
+                        +{el.id}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Cart & Checkout Elements Grid (Ticket CHECKOUT-1) */}
+        {filteredCartElements.length > 0 && (
+          <div className="pt-2 border-t border-[#2c2f35]">
+            <div className="flex items-center justify-between mb-2">
+              <span className="block text-[10px] font-bold tracking-wider text-[#8b9199]">
+                عناصر السلة والشيك أوت (ديناميكي)
+              </span>
+              <span className="text-[9px] text-[#707680]">اسحب أو انقر</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {filteredCartElements.map((el) => {
                 const thumbnail = getStudioSectionThumbnail(el.type);
                 return (
                   <div

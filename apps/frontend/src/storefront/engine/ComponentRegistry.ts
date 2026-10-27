@@ -95,6 +95,12 @@ const ProductOptionsElement = React.lazy(() => import('../sections/elements/Prod
 const WishlistElement = React.lazy(() => import('../sections/elements/WishlistElement'));
 const CompareElement = React.lazy(() => import('../sections/elements/CompareElement'));
 
+// Cart & Checkout Elements (Ticket CHECKOUT-1)
+const CartItemsElement = React.lazy(() => import('../sections/elements/CartItemsElement'));
+const CartTotalsElement = React.lazy(() => import('../sections/elements/CartTotalsElement'));
+const CheckoutButtonElement = React.lazy(() => import('../sections/elements/CheckoutButtonElement'));
+const CouponElement = React.lazy(() => import('../sections/elements/CouponElement'));
+
 // Loop Section (Ticket LOOP-1)
 const StorefrontLoopSection = React.lazy(() => import('../sections/StorefrontLoopSection'));
 
@@ -213,6 +219,13 @@ const baseComponentRegistry: Record<
   'product-options': ProductOptionsElement,
   wishlist: WishlistElement,
   compare: CompareElement,
+
+  // Cart & Checkout Elements (Ticket CHECKOUT-1)
+  'cart-items-element': CartItemsElement,
+  'cart-totals': CartTotalsElement,
+  'checkout-button': CheckoutButtonElement,
+  coupon: CouponElement,
+  'cart-coupon': CouponElement,
 
   // Global Component Fallback & Placeholder (Ticket GLOBAL-1)
   placeholder: PlaceholderSection,

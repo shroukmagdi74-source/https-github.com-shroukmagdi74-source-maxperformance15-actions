@@ -59,7 +59,12 @@ export type StudioElementType =
   | "add-to-cart"
   | "product-options"
   | "wishlist"
-  | "compare";
+  | "compare"
+  | "cart-items"
+  | "cart-items-element"
+  | "cart-totals"
+  | "checkout-button"
+  | "coupon";
 
 export interface StudioSelectedElement {
   sectionKey: string;
@@ -255,6 +260,52 @@ export const STUDIO_COMMERCE_ELEMENTS: StudioCommerceElementDefinition[] = [
     type: "compare",
     description: "زر مقارنة مواصفات المنتج مع منتجات أخرى",
     iconName: "ArrowPathIcon",
+  },
+];
+
+export type StudioCartElementType =
+  | "cart-items"
+  | "cart-items-element"
+  | "cart-totals"
+  | "checkout-button"
+  | "coupon";
+
+export interface StudioCartElementDefinition {
+  id: string;
+  label: string;
+  type: StudioCartElementType;
+  description: string;
+  iconName?: string;
+}
+
+export const STUDIO_CART_ELEMENTS: StudioCartElementDefinition[] = [
+  {
+    id: "cart-items",
+    label: "بنود السلة",
+    type: "cart-items-element",
+    description: "عرض منتجات السلة مع تعديل الكمية وحذف المنتجات",
+    iconName: "ShoppingBagIcon",
+  },
+  {
+    id: "cart-totals",
+    label: "إجمالي السلة",
+    type: "cart-totals",
+    description: "ملخص المجموع الفرعي والشحن والخصم والإجمالي النهائي",
+    iconName: "CalculatorIcon",
+  },
+  {
+    id: "checkout-button",
+    label: "زر إتمام الطلب",
+    type: "checkout-button",
+    description: "زر التوجه لصفحة الدفع وإتمام الطلب",
+    iconName: "CreditCardIcon",
+  },
+  {
+    id: "coupon",
+    label: "كود الخصم",
+    type: "coupon",
+    description: "حقل إدخال وتفعيل كوبون الخصم",
+    iconName: "TagIcon",
   },
 ];
 

@@ -59,3 +59,17 @@ export type { CompareElementProps, CompareElementSettings } from './CompareEleme
 
 export * from './commerceElementHelpers';
 
+// Cart & Checkout Elements for Custom Pages (Ticket CHECKOUT-1)
+export { default as CartItemsElement } from './CartItemsElement';
+export type { CartItemsElementProps, CartItemsElementSettings } from './CartItemsElement';
+
+export { default as CartTotalsElement } from './CartTotalsElement';
+export type { CartTotalsElementProps, CartTotalsElementSettings } from './CartTotalsElement';
+
+export { default as CheckoutButtonElement } from './CheckoutButtonElement';
+export type { CheckoutButtonElementProps, CheckoutButtonElementSettings } from './CheckoutButtonElement';
+
+export { default as CouponElement } from './CouponElement';
+export type { CouponElementProps, CouponElementSettings } from './CouponElement';
+
+export * from './cartElementHelpers';
