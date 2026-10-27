@@ -531,7 +531,7 @@ const MedicalLanding: React.FC = () => {
             {[
               { num: "١", title: "اربط واتسابك", desc: "استخدم QR كود أو WhatsApp API. الربط في أقل من دقيقتين.", icon: <Smartphone className="w-6 h-6" /> },
               { num: "٢", title: "ضيف أطباءك وفروعك", desc: "ضيف دكاترة، حدد تخصصاتهم، وحدد أيام العمل لكل فرع.", icon: <Building2 className="w-6 h-6" /> },
-              { num: "٣", title: "فعل الـ AI Agents", desc: "الوكلاء بيبدأوا يستقبلوا المرضى ويحجزوا مواعيد — أوتوماتيك.", icon: <Bot className="w-6 h-6" /> },
+              { num: "٣", title: "فعل الـ AI Agents", desc: "الوكلاء بيستقبلوا المرضى ويسجّلوا طلبات الحجز — والتأكيد من شاشة المواعيد.", icon: <Bot className="w-6 h-6" /> },
             ].map((s, i) => (
               <motion.div key={i} className="flex-1 text-center"
                 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
