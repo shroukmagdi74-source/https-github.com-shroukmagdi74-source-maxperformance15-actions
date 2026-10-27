@@ -1329,11 +1329,23 @@ if (shouldOwnSingletonWork()) {
     billingCronService.start();
     console.log("✅ [BILLING-CRON] Billing Cron Service started");
   } catch (error) {
-  console.error(
-    "❌ [BILLING-CRON] Failed to start Billing Cron Service:",
-    error,
-  );
-}
+    console.error(
+      "❌ [BILLING-CRON] Failed to start Billing Cron Service:",
+      error,
+    );
+  }
+
+  // Start Broadcast Scheduler Service (idempotent, background crons & stuck campaign reaper)
+  try {
+    const broadcastSchedulerService = require("./services/broadcastSchedulerService");
+    broadcastSchedulerService.start();
+    console.log("✅ [BROADCAST-SCHEDULER] Broadcast scheduler service started");
+  } catch (error) {
+    console.error(
+      "❌ [BROADCAST-SCHEDULER] Failed to start Broadcast scheduler service:",
+      error,
+    );
+  }
 
 // Start Amazon Affiliate auto-sync scheduler (price/stock sync for enabled companies)
 try {

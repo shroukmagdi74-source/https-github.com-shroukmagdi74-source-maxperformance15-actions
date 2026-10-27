@@ -221,15 +221,54 @@ async function prepareCampaignRecipients({
     }
     console.log(`📊 [BROADCAST-SERVICE] تم تجهيز ${conversations.length} محادثة للأرقام اليدوية`);
   } else if (isWhatsApp) {
-    console.log('🌐 [BROADCAST-SERVICE] جلب محادثات الواتساب');
-    conversations = await getSharedPrismaClient().conversation.findMany({
-      where: {
-        companyId,
-        customer: { phone: { not: null } }
-      },
-      include: { customer: true }
+    const snapshots = await getSharedPrismaClient().broadcastCampaignSnapshot.findMany({
+      where: { campaignId: campaign.id },
+      select: { phone: true, customerId: true, customerName: true }
     });
-    conversations = conversations.filter(c => c.customer?.phone && c.customer.phone.trim() !== '');
+
+    if (snapshots && snapshots.length > 0) {
+      console.log(`📸 [BROADCAST-SERVICE] استخدام لقطة الجمهور المحفوظة (${snapshots.length} رقم) للحملة ${campaign.id}`);
+      const customerIds = snapshots.map(s => s.customerId).filter(Boolean);
+      const phonesList = snapshots.map(s => s.phone).filter(Boolean);
+
+      const existingConvs = await getSharedPrismaClient().conversation.findMany({
+        where: {
+          companyId,
+          OR: [
+            { customerId: { in: customerIds } },
+            { customer: { phone: { in: phonesList } } }
+          ]
+        },
+        include: { customer: true }
+      });
+
+      const convByCustId = new Map(existingConvs.filter(c => c.customerId).map(c => [c.customerId, c]));
+      const convByPhone = new Map(existingConvs.filter(c => c.customer?.phone).map(c => [c.customer.phone, c]));
+
+      conversations = [];
+      for (const s of snapshots) {
+        let conv = (s.customerId ? convByCustId.get(s.customerId) : null) || convByPhone.get(s.phone);
+        if (conv) {
+          if (!conv.customer) {
+            conv.customer = { id: s.customerId, phone: s.phone, firstName: s.customerName || '', lastName: '' };
+          }
+          conversations.push(conv);
+        }
+      }
+    } else if (campaign.audienceMode === 'fixed' || (campaign.targetAudience && campaign.targetAudience !== 'all' && campaign.targetAudience !== 'manual')) {
+      console.warn(`⚠️ [BROADCAST-SERVICE] الحملة ${campaign.id} ذات استهداف محدد ولكن بدون لقطة محفوظة`);
+      conversations = [];
+    } else {
+      console.log('🌐 [BROADCAST-SERVICE] جلب محادثات الواتساب');
+      conversations = await getSharedPrismaClient().conversation.findMany({
+        where: {
+          companyId,
+          customer: { phone: { not: null } }
+        },
+        include: { customer: true }
+      });
+      conversations = conversations.filter(c => c.customer?.phone && c.customer.phone.trim() !== '');
+    }
   } else {
     // Facebook
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -288,6 +327,7 @@ async function executeCampaignSendInBackground({
   const sendResults = [];
   const totalRecipients = conversations.length;
 
+  console.log(`[BROADCAST-JOB-START] campaignId=${campaignId} totalRecipients=${totalRecipients}`);
   console.log(`🚀 [SEND CAMPAIGN BG] بدء معالجة الحملة في الخلفية لعدد ${totalRecipients} مستلم`);
 
   try {
@@ -353,6 +393,7 @@ async function executeCampaignSendInBackground({
             select: { status: true }
           });
           if (currentCampaign && (currentCampaign.status === 'paused' || currentCampaign.status === 'cancelled')) {
+            console.log(`[BROADCAST-JOB-END] campaignId=${campaignId} status=${currentCampaign.status} totalRecipients=${totalRecipients} sentCount=${sentCount} failedCount=${failedCount}`);
             console.log(`⏹️ [SEND CAMPAIGN BG] تم إيقاف الحملة (${currentCampaign.status}) بعد إرسال ${sentCount} رسالة`);
             break;
           }
@@ -523,6 +564,7 @@ async function executeCampaignSendInBackground({
             select: { status: true }
           });
           if (currentCampaign && (currentCampaign.status === 'paused' || currentCampaign.status === 'cancelled')) {
+            console.log(`[BROADCAST-JOB-END] campaignId=${campaignId} status=${currentCampaign.status} totalRecipients=${totalRecipients} sentCount=${sentCount} failedCount=${failedCount}`);
             console.log(`⏹️ [SEND CAMPAIGN BG] تم إيقاف حملة الفيسبوك (${currentCampaign.status}) بعد إرسال ${sentCount} رسالة`);
             break;
           }
@@ -708,15 +750,37 @@ async function executeCampaignSendInBackground({
 
       const isPausedOrCancelled = currentCampaign && (currentCampaign.status === 'paused' || currentCampaign.status === 'cancelled');
 
+      // جلب الإحصائيات التراكمية الحقيقية من قاعدة البيانات لدعم الاستئناف (resume-safe) بدقة
+      let actualSentCount = sentCount;
+      let actualFailedCount = failedCount;
+      let actualTotalCount = totalRecipients;
+      try {
+        actualSentCount = await getSharedPrismaClient().broadcastRecipient.count({
+          where: { campaignId, status: 'sent' }
+        });
+        actualFailedCount = await getSharedPrismaClient().broadcastRecipient.count({
+          where: { campaignId, status: 'failed' }
+        });
+        actualTotalCount = await getSharedPrismaClient().broadcastRecipient.count({
+          where: { campaignId }
+        });
+      } catch (countErr) {
+        console.warn(`⚠️ [SEND CAMPAIGN BG] فشل جلب إحصائيات المستلمين المحدثة:`, countErr.message);
+      }
+
+      const finalStatus = isPausedOrCancelled ? currentCampaign.status : (actualSentCount > 0 ? 'sent' : 'failed');
+      console.log(`[BROADCAST-JOB-END] campaignId=${campaignId} status=${finalStatus} totalRecipients=${actualTotalCount} sentCount=${actualSentCount} failedCount=${actualFailedCount}`);
+
       const updateData = {
-        recipientCount: recipients.length,
-        sentCount: sentCount,
-        failedCount: failedCount,
-        deliveredCount: 0
+        recipientCount: actualTotalCount > 0 ? actualTotalCount : (recipients?.length || totalRecipients),
+        sentCount: actualSentCount,
+        failedCount: actualFailedCount,
+        deliveredCount: 0,
+        updatedAt: new Date()
       };
 
       if (!isPausedOrCancelled) {
-        updateData.status = sentCount > 0 ? 'sent' : 'failed';
+        updateData.status = finalStatus;
       }
 
       await getSharedPrismaClient().broadcastCampaign.update({
@@ -729,9 +793,9 @@ async function executeCampaignSendInBackground({
         io.emit('campaign:progress', {
           campaignId: campaign.id,
           status: isPausedOrCancelled ? currentCampaign.status : 'completed',
-          total: totalRecipients,
-          sent: sentCount,
-          failed: failedCount,
+          total: actualTotalCount,
+          sent: actualSentCount,
+          failed: actualFailedCount,
           progress: 100
         });
       }
@@ -740,6 +804,7 @@ async function executeCampaignSendInBackground({
     }
 
   } catch (error) {
+    console.log(`[BROADCAST-JOB-END] campaignId=${campaignId} status=failed totalRecipients=${totalRecipients} sentCount=${sentCount} failedCount=${failedCount} error="${error.message}"`);
     console.error('❌ [SEND CAMPAIGN BG] خطأ غير متوقع في معالجة الحملة:', error);
     try {
       const finalStatusCheck = await getSharedPrismaClient().broadcastCampaign.findUnique({
@@ -749,7 +814,7 @@ async function executeCampaignSendInBackground({
       if (!finalStatusCheck || (finalStatusCheck.status !== 'paused' && finalStatusCheck.status !== 'cancelled')) {
         await getSharedPrismaClient().broadcastCampaign.update({
           where: { id: campaignId },
-          data: { status: 'failed' }
+          data: { status: 'failed', updatedAt: new Date() }
         });
       }
     } catch (e) {}

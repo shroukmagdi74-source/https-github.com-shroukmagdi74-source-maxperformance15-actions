@@ -56,20 +56,26 @@ class BroadcastSchedulerService {
    * بدء خدمة الجدولة
    */
   start() {
-    if (this.cronJob) {
+    if (this.isStarted || this.cronJob) {
       console.log('⚠️ [BroadcastScheduler] Service already running');
       return;
     }
+    this.isStarted = true;
 
     console.log('🚀 [BroadcastScheduler] Starting broadcast scheduler...');
 
-    // إعادة جدولة الحملات اللي انقطعت (كانت في منتصف الإرسال لما العملية ماتت)
+    // معالجة الحملات المنقطعة عند الإقلاع (تعليمها كـ failed بدون إرسال)
     this.resumeInterruptedCampaigns().catch(err =>
-      console.error('❌ [BroadcastScheduler] Resume interrupted campaigns failed:', err.message)
+      console.error('❌ [BroadcastScheduler] Recovery of interrupted campaigns failed:', err.message)
     );
 
-    // فحص كل 5 دقائق للحملات المجدولة (تقليل الضغط على قاعدة البيانات)
+    // فحص كل 5 دقائق للحملات المجدولة وكنس الحملات العالقة
     this.cronJob = cron.schedule('*/5 * * * *', async () => {
+      try {
+        await this.reapStuckCampaigns();
+      } catch (reapErr) {
+        console.error('❌ [BroadcastScheduler] Periodic reaper error:', reapErr.message);
+      }
       await this.checkScheduledCampaigns();
     });
 
@@ -77,10 +83,11 @@ class BroadcastSchedulerService {
   }
 
   /**
-   * إعادة جدولة الحملات العالقة في حالة 'sending' (انقطعت العملية في منتصف الإرسال)
-   * — نرجعها لـ 'scheduled' عشان الـ cron يكمّلها من الـ pending بس (من غير تكرار إرسال)
+   * معالجة الحملات العالقة في حالة 'sending' عند بدء تشغيل الخادم
+   * — تعليمها كـ 'failed' مع سبب توقف آمن لمنع الإرسال التلقائي غير المقصود
    */
   async resumeInterruptedCampaigns() {
+    const ARABIC_STOP_REASON = 'توقف غير مكتمل — أعد الإرسال من سجل الحملات';
     try {
       const stuckCampaigns = await safeQuery(async () => {
         return await getSharedPrismaClient().broadcastCampaign.findMany({
@@ -89,26 +96,102 @@ class BroadcastSchedulerService {
         });
       }, 5);
 
-      if (stuckCampaigns.length === 0) {
-        console.log('✅ [BroadcastScheduler] No interrupted campaigns to resume');
+      if (!stuckCampaigns || stuckCampaigns.length === 0) {
+        console.log('✅ [BroadcastScheduler] No interrupted campaigns to recover');
         return;
       }
 
-      console.log(`♻️ [BroadcastScheduler] Resuming ${stuckCampaigns.length} interrupted campaign(s)`);
+      console.log(`🛑 [BroadcastScheduler] Found ${stuckCampaigns.length} interrupted sending campaign(s) at boot -> marking failed`);
       for (const campaign of stuckCampaigns) {
         await safeQuery(async () => {
           return await getSharedPrismaClient().broadcastCampaign.update({
             where: { id: campaign.id },
             data: {
-              status: 'scheduled',
-              scheduledAt: new Date()
+              status: 'failed',
+              pausedReason: ARABIC_STOP_REASON,
+              updatedAt: new Date()
             }
           });
         }, 5);
-        console.log(`♻️ [BroadcastScheduler] Campaign ${campaign.id} (${campaign.name}) requeued for resume`);
+
+        // إغلاق أي سجل تشغيل نشط إن وُجد
+        await safeQuery(async () => {
+          return await getSharedPrismaClient().broadcastCampaignRun.updateMany({
+            where: {
+              campaignId: campaign.id,
+              status: 'running'
+            },
+            data: {
+              status: 'stopped',
+              finishedAt: new Date(),
+              stopReason: ARABIC_STOP_REASON
+            }
+          });
+        }, 5);
+
+        console.log(`🛑 [BroadcastScheduler] Campaign ${campaign.id} (${campaign.name}) marked failed after interruption`);
       }
     } catch (error) {
-      console.error('❌ [BroadcastScheduler] Error resuming interrupted campaigns:', error.message);
+      console.error('❌ [BroadcastScheduler] Error recovering interrupted campaigns:', error.message);
+    }
+  }
+
+  /**
+   * كنس الحملات العالقة في حالة 'sending' لأكثر من 15 دقيقة
+   * @param {Date} [now]
+   * @returns {Promise<number>}
+   */
+  async reapStuckCampaigns(now = new Date()) {
+    const ARABIC_STOP_REASON = 'توقف غير مكتمل — أعد الإرسال من سجل الحملات';
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    try {
+      const stuckCampaigns = await safeQuery(async () => {
+        return await getSharedPrismaClient().broadcastCampaign.findMany({
+          where: {
+            status: 'sending',
+            updatedAt: { lt: fifteenMinutesAgo }
+          },
+          select: { id: true, name: true, updatedAt: true }
+        });
+      }, 5);
+
+      if (!stuckCampaigns || stuckCampaigns.length === 0) {
+        return 0;
+      }
+
+      console.log(`🧹 [BroadcastScheduler] Reaping ${stuckCampaigns.length} stuck sending campaign(s) older than 15 minutes`);
+      for (const campaign of stuckCampaigns) {
+        await safeQuery(async () => {
+          return await getSharedPrismaClient().broadcastCampaign.update({
+            where: { id: campaign.id },
+            data: {
+              status: 'failed',
+              pausedReason: ARABIC_STOP_REASON,
+              updatedAt: new Date()
+            }
+          });
+        }, 5);
+
+        await safeQuery(async () => {
+          return await getSharedPrismaClient().broadcastCampaignRun.updateMany({
+            where: {
+              campaignId: campaign.id,
+              status: 'running'
+            },
+            data: {
+              status: 'stopped',
+              finishedAt: new Date(),
+              stopReason: ARABIC_STOP_REASON
+            }
+          });
+        }, 5);
+
+        console.log(`🧹 [BroadcastScheduler] Campaign ${campaign.id} (${campaign.name}) reaped -> failed`);
+      }
+      return stuckCampaigns.length;
+    } catch (error) {
+      console.error('❌ [BroadcastScheduler] Error reaping stuck campaigns:', error.message);
+      return 0;
     }
   }
 
@@ -119,8 +202,9 @@ class BroadcastSchedulerService {
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;
-      console.log('🛑 [BroadcastScheduler] Scheduler stopped');
     }
+    this.isStarted = false;
+    console.log('🛑 [BroadcastScheduler] Scheduler stopped');
   }
 
   /**
@@ -366,6 +450,19 @@ class BroadcastSchedulerService {
         }
       } else if (snapshotCount > 0 && (!resolvedPhones || resolvedPhones.length === 0)) {
         conversations = [];
+      } else if (campaign.audienceMode === 'fixed' || (campaign.targetAudience && campaign.targetAudience !== 'all' && campaign.targetAudience !== 'manual')) {
+        console.warn(`⚠️ [BroadcastScheduler] Campaign ${campaign.id} has fixed targeting but no snapshot found`);
+        await safeQuery(async () => {
+          return await getSharedPrismaClient().broadcastCampaign.update({
+            where: { id: campaign.id },
+            data: {
+              status: 'failed',
+              pausedReason: 'قائمة الحملة غير محفوظة — أعد اختيار القائمة',
+              updatedAt: new Date()
+            }
+          });
+        }, 5);
+        return;
       } else {
         console.log('🌐 [BroadcastScheduler] Fetching all WhatsApp conversations/customers (no 24h limit)');
       conversations = await safeQuery(async () => {

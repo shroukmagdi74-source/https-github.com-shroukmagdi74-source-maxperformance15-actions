@@ -1,5 +1,3 @@
-const broadcastController = require('../../controller/broadcastController');
-
 const createResponse = () => {
   const res = {};
   res.status = jest.fn(() => res);
@@ -49,6 +47,8 @@ jest.mock('../../services/whatsapp', () => ({
 jest.mock('../../services/whatsapp/providers/MetaCloudProvider', () => ({
   default: class {},
 }));
+
+const broadcastController = require('../../controller/broadcastController');
 
 describe('broadcastController — customer lists', () => {
   const companyId = 'comp_1';

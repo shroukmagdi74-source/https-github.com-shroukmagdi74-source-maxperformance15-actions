@@ -245,7 +245,7 @@ exports.createCampaign = async (req, res) => {
         trackClicks: trackClicks !== false,
         autoResend: (autoResend === true || autoResend === 'true'),
         images: imagesString,
-        status: sendNow ? 'sending' : (isRecurring ? 'active' : (scheduledAt ? 'scheduled' : 'draft')),
+        status: isRecurring ? 'active' : (scheduledAt ? 'scheduled' : 'draft'),
         audienceMode,
         audienceListId: audienceListId || null,
         audienceCriteria: audienceCriteria ? (typeof audienceCriteria === 'string' ? audienceCriteria : JSON.stringify(audienceCriteria)) : null,
@@ -868,6 +868,19 @@ exports.sendCampaign = async (req, res) => {
       });
     }
 
+    // 🛡️ Guard: إذا كانت الحملة في حالة "sending" وتحديثها خلال آخر 15 دقيقة -> 409 Conflict
+    if (campaign.status === 'sending') {
+      const fifteenMinutesMs = 15 * 60 * 1000;
+      const lastUpdated = campaign.updatedAt ? new Date(campaign.updatedAt).getTime() : 0;
+      if (Date.now() - lastUpdated < fifteenMinutesMs) {
+        console.log('⚠️ [SEND CAMPAIGN] الحملة قيد الإرسال بالفعل');
+        return res.status(409).json({
+          success: false,
+          message: 'الحملة قيد الإرسال بالفعل'
+        });
+      }
+    }
+
     let campaignImages = [];
     if (campaign.images) {
       try {
@@ -913,45 +926,123 @@ exports.sendCampaign = async (req, res) => {
 
     const generateId = () => 'cm' + Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9);
 
-    // ⚡ تجهيز المستلمين سريعاً بالدفعات (Batch Optimization) لمنع 502 وتجميد السيرفر
-    const conversations = await prepareCampaignRecipients({
-      companyId,
-      campaign,
-      manualPhonesFromBody: req.body.manualPhones,
-      isWhatsApp
+    // 🛡️ فحص المستلمين الحاليين: إعادة استخدام المستلمين (resume-safe) وتفادي إنشاء تكرارات
+    const existingRecipients = await getSharedPrismaClient().broadcastRecipient.findMany({
+      where: { campaignId: campaign.id },
+      include: {
+        conversation: {
+          include: { customer: true }
+        }
+      }
     });
 
-    if (!conversations || conversations.length === 0) {
-      console.log('⚠️ [SEND CAMPAIGN] لا توجد محادثات صالحة للإرسال');
-      return res.status(400).json({
-        success: false,
-        message: 'لا توجد أرقام هواتف أو محادثات صالحة للإرسال'
+    let conversations = [];
+    let recipientsToRun = [];
+    const isResuming = existingRecipients && existingRecipients.length > 0;
+
+    if (isResuming) {
+      console.log(`♻️ [SEND CAMPAIGN] الحملة تحتوي على ${existingRecipients.length} مستلم سابق — إعادة استخدام المستلمين المعلقين (resume-safe)`);
+      const pendingRecipients = existingRecipients.filter(r => r.status === 'pending');
+
+      if (pendingRecipients.length === 0) {
+        console.log('⚠️ [SEND CAMPAIGN] جميع المستلمين تم إرسالهم أو فشلوا بالفعل');
+        return res.status(400).json({
+          success: false,
+          message: 'تمت معالجة جميع مستلمي هذه الحملة بالفعل'
+        });
+      }
+
+      const convMap = new Map();
+      const missingConvIds = [];
+      for (const rec of pendingRecipients) {
+        if (rec.conversation) {
+          if (!rec.conversation.customer && rec.customerPhone) {
+            rec.conversation.customer = {
+              phone: rec.customerPhone,
+              firstName: rec.customerName || '',
+              lastName: ''
+            };
+          }
+          convMap.set(rec.conversation.id, rec.conversation);
+        } else if (rec.conversationId) {
+          missingConvIds.push(rec.conversationId);
+        }
+      }
+
+      if (missingConvIds.length > 0) {
+        const fetchedConvs = await getSharedPrismaClient().conversation.findMany({
+          where: { id: { in: missingConvIds } },
+          include: { customer: true }
+        });
+        for (const conv of fetchedConvs) {
+          convMap.set(conv.id, conv);
+        }
+      }
+
+      conversations = Array.from(convMap.values());
+      recipientsToRun = pendingRecipients;
+    } else {
+      // 🛡️ منع الإرسال لكافة عملاء الشركة إذا كانت الحملة ذات استهداف محدد/ثابت ولكن بدون لقطة محفوظة
+      const isFixedTargeting = campaign.audienceMode === 'fixed' || (campaign.targetAudience && campaign.targetAudience !== 'all' && campaign.targetAudience !== 'manual');
+      if (isFixedTargeting) {
+        const snapshotCount = await getSharedPrismaClient().broadcastCampaignSnapshot.count({
+          where: { campaignId: campaign.id }
+        });
+        const hasManualPhones = req.body?.manualPhones && (Array.isArray(req.body.manualPhones) ? req.body.manualPhones.length > 0 : String(req.body.manualPhones).trim().length > 0);
+        if (snapshotCount === 0 && !hasManualPhones) {
+          console.log('⚠️ [SEND CAMPAIGN] قائمة الحملة غير محفوظة — أعد اختيار القائمة');
+          return res.status(400).json({
+            success: false,
+            message: 'قائمة الحملة غير محفوظة — أعد اختيار القائمة'
+          });
+        }
+      }
+
+      // ⚡ تجهيز المستلمين سريعاً بالدفعات (Batch Optimization) لمنع 502 وتجميد السيرفر
+      conversations = await prepareCampaignRecipients({
+        companyId,
+        campaign,
+        manualPhonesFromBody: req.body.manualPhones,
+        isWhatsApp
       });
+
+      if (!conversations || conversations.length === 0) {
+        console.log('⚠️ [SEND CAMPAIGN] لا توجد محادثات صالحة للإرسال');
+        return res.status(400).json({
+          success: false,
+          message: 'لا توجد أرقام هواتف أو محادثات صالحة للإرسال'
+        });
+      }
+
+      console.log(`📝 [SEND CAMPAIGN] إنشاء سجلات المستلمين لعدد ${conversations.length}`);
+      const newRecipients = conversations.map(conv => ({
+        id: generateId(),
+        campaignId: campaign.id,
+        conversationId: conv.id,
+        customerPhone: conv.customer?.phone || '',
+        customerName: `${conv.customer?.firstName || ''} ${conv.customer?.lastName || ''}`.trim(),
+        messengerUserId: conv.customer?.facebookId || null,
+        status: 'pending',
+        updatedAt: new Date()
+      }));
+
+      await getSharedPrismaClient().broadcastRecipient.createMany({
+        data: newRecipients,
+        skipDuplicates: true
+      });
+
+      recipientsToRun = newRecipients;
     }
 
-    console.log(`📝 [SEND CAMPAIGN] إنشاء سجلات المستلمين لعدد ${conversations.length}`);
-    const recipients = conversations.map(conv => ({
-      id: generateId(),
-      campaignId: campaign.id,
-      conversationId: conv.id,
-      customerPhone: conv.customer?.phone || '',
-      customerName: `${conv.customer?.firstName || ''} ${conv.customer?.lastName || ''}`.trim(),
-      messengerUserId: conv.customer?.facebookId || null,
-      status: 'pending',
-      updatedAt: new Date()
-    }));
-
-    await getSharedPrismaClient().broadcastRecipient.createMany({
-      data: recipients,
-      skipDuplicates: true
-    });
+    const totalRecipientCount = isResuming ? existingRecipients.length : recipientsToRun.length;
 
     await getSharedPrismaClient().broadcastCampaign.update({
       where: { id: campaignId },
       data: {
         status: 'sending',
-        recipientCount: recipients.length,
-        sentAt: new Date()
+        recipientCount: totalRecipientCount,
+        sentAt: campaign.sentAt || new Date(),
+        updatedAt: new Date()
       }
     });
 
@@ -971,9 +1062,9 @@ exports.sendCampaign = async (req, res) => {
       io.emit('campaign:progress', {
         campaignId: campaign.id,
         status: 'started',
-        total: conversations.length,
-        sent: 0,
-        failed: 0,
+        total: totalRecipientCount,
+        sent: isResuming ? existingRecipients.filter(r => r.status === 'sent').length : 0,
+        failed: isResuming ? existingRecipients.filter(r => r.status === 'failed').length : 0,
         progress: 0
       });
     }
@@ -983,9 +1074,9 @@ exports.sendCampaign = async (req, res) => {
       success: true,
       message: 'بدأ إرسال الحملة بنجاح في الخلفية',
       campaignId: campaign.id,
-      recipientCount: recipients.length,
-      sentCount: 0,
-      failedCount: 0,
+      recipientCount: totalRecipientCount,
+      sentCount: isResuming ? existingRecipients.filter(r => r.status === 'sent').length : 0,
+      failedCount: isResuming ? existingRecipients.filter(r => r.status === 'failed').length : 0,
       status: 'sending',
       isAsync: true
     });
@@ -995,7 +1086,7 @@ exports.sendCampaign = async (req, res) => {
       executeCampaignSendInBackground({
         campaign,
         conversations,
-        recipients,
+        recipients: recipientsToRun,
         companyId,
         campaignId,
         isWhatsApp,
