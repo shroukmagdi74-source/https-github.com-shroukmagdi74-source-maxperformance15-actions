@@ -135,12 +135,14 @@ export interface StorefrontHeadProps {
   settings?: any;
   theme?: any;
   activePageKey?: string;
+  productImage?: string;
 }
 
 export const StorefrontHead: React.FC<StorefrontHeadProps> = ({
   settings: propSettings,
   theme: propTheme,
   activePageKey: propActivePageKey,
+  productImage,
 }) => {
   const themeContext = useStorefrontTheme();
   const settingsContext = useStorefrontSettings();
@@ -427,7 +429,7 @@ export const StorefrontHead: React.FC<StorefrontHeadProps> = ({
       seo.defaultOgImage ||
       storefrontSettings?.company?.logo ||
       undefined;
-    const ogImage = pageSeo?.ogImage?.trim() || defaultOgImage;
+    const ogImage = productImage?.trim() || pageSeo?.ogImage?.trim() || defaultOgImage;
 
     setMetaTag('meta[property="og:title"]', 'property', 'og:title', ogTitle);
     setMetaTag('meta[property="og:description"]', 'property', 'og:description', ogDescription);
@@ -555,7 +557,7 @@ export const StorefrontHead: React.FC<StorefrontHeadProps> = ({
         originalOgImageSnapshot = null;
       }
     };
-  }, [theme, location, storefrontSettings, propSettings, propTheme, propActivePageKey]);
+  }, [theme, location, storefrontSettings, propSettings, propTheme, propActivePageKey, productImage]);
 
   return null;
 };

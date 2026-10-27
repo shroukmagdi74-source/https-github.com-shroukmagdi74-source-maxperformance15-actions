@@ -9,6 +9,7 @@ import { useCartStore } from '../store/useCartStore';
 import { useProduct } from '../hooks/useProduct';
 import { useProductReviews } from '../hooks/useProductReviews';
 import { useStorefrontSettings } from '../hooks/useStorefrontSettings';
+import ProductStructuredData, { useProductStructuredData } from '../engine/ProductStructuredData';
 import { formatStorefrontCurrency } from '../utils/currency';
 import { sanitizeStorefrontHtml } from '../utils/html';
 import { buildStorefrontPath } from '../utils/paths';
@@ -657,6 +658,18 @@ const ProductInfo: React.FC<ProductInfoProps> = ({ section, settings: sectionSet
     storefrontSettings?.storefront?.settings?.currency ||
     storefrontSettings?.company?.currency ||
     'USD';
+
+  useProductStructuredData({
+    product,
+    currency,
+    reviews: reviewsForRating ? { count: reviewsForRating.length, avgRating: reviewsAverageRating } : undefined,
+    storeName:
+      storefrontSettings?.storefront?.settings?.storeName ||
+      storefrontSettings?.company?.name ||
+      theme?.header?.brandName ||
+      theme?.name ||
+      '',
+  });
   const commerceModules =
     (commerceAdvancedSettings['modules'] as Record<string, any> | undefined) || {};
   const commerceUi =

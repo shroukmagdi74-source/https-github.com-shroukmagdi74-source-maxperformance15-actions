@@ -210,20 +210,43 @@ const StorefrontArticlePage: React.FC<StorefrontArticlePageProps> = ({
 
           {/* JSON-LD Article */}
           <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify({
-            "@context":"https://schema.org","@type":"Article",
+            "@context": "https://schema.org",
+            "@type": "Article",
             headline: article.title,
             description: article.excerpt || article.title,
             image: article.heroImage,
-            author: { "@type":"Person", name: article.authorName || 'Jake Morrison' },
-            publisher: { "@type":"Organization", name:"Mens Grooming Pro", logo:{ "@type":"ImageObject", url:"https://mensgroomingpro.com/img/logo.svg"}},
+            author: { "@type": "Person", name: article.authorName || 'Jake Morrison' },
+            publisher: {
+              "@type": "Organization",
+              name: article.authorName || 'Store',
+              logo: {
+                "@type": "ImageObject",
+                url: typeof window !== 'undefined' ? `${window.location.origin}/img/logo.svg` : '/img/logo.svg'
+              }
+            },
             datePublished: article.publishedAt || article.createdAt
           })}} />
           <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify({
-            "@context":"https://schema.org","@type":"BreadcrumbList",
-            itemListElement:[
-              {"@type":"ListItem", position:1, name:"Home", item:"https://mensgroomingpro.com/"},
-              {"@type":"ListItem", position:2, name: article.category || 'Guides', item:"https://mensgroomingpro.com/category"},
-              {"@type":"ListItem", position:3, name: article.title}
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: typeof window !== 'undefined' ? `${window.location.origin}/` : '/'
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: article.category || 'Guides',
+                item: typeof window !== 'undefined' ? `${window.location.origin}/category` : '/category'
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: article.title
+              }
             ]
           })}} />
         </div>
