@@ -1,4 +1,5 @@
 import React from "react";
+import { toast } from "sonner";
 import { AlertCircle, Plus, Menu } from "lucide-react";
 import AgentProfileHeader from "./AgentProfileHeader";
 import AgentSettingsTab from "./AgentSettingsTab";
