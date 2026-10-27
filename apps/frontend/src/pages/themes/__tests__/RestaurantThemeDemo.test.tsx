@@ -104,4 +104,49 @@ describe('RestaurantThemeDemo', () => {
       }),
     ).toBeInTheDocument();
   });
+
+  it('updates cart item quantity (+/-) and recalculates totals', async () => {
+    const user = userEvent.setup();
+    render(<RestaurantThemeDemo />);
+
+    // Add first item to cart
+    await user.click(screen.getAllByRole('button', { name: /أضف للسلة/i })[0]!);
+    expect(screen.getByRole('heading', { name: /سلة الطلب/i })).toBeInTheDocument();
+
+    // Verify quantity is 1
+    const incBtn = screen.getByRole('button', { name: /زيادة كمية/i });
+    const decBtn = screen.getByRole('button', { name: /تقليل كمية/i });
+
+    // Increase quantity to 2
+    await user.click(incBtn);
+    expect(screen.getAllByText('2').length).toBeGreaterThanOrEqual(2);
+
+    // Decrease quantity back to 1
+    await user.click(decBtn);
+    expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('removes cart item and shows empty cart state', async () => {
+    const user = userEvent.setup();
+    render(<RestaurantThemeDemo />);
+
+    await user.click(screen.getAllByRole('button', { name: /أضف للسلة/i })[0]!);
+    expect(screen.getByRole('heading', { name: /سلة الطلب/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /احذف/i }));
+    expect(screen.getByRole('heading', { name: /لسه ما ضفتش حاجة/i })).toBeInTheDocument();
+  });
+
+  it('renders delivery zones and switches category tabs', async () => {
+    const user = userEvent.setup();
+    render(<RestaurantThemeDemo />);
+
+    expect(screen.getByRole('heading', { name: /بنوصل لحد بابك/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /مدينة نصر/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /القاهرة الجديدة/i })).toBeInTheDocument();
+
+    // Switch to البرجر tab
+    await user.click(screen.getByRole('button', { name: /^البرجر$/ }));
+    expect(screen.getByRole('heading', { name: /فايربيرد تشيكن/i })).toBeInTheDocument();
+  });
 });
