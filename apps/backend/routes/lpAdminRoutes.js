@@ -13,6 +13,7 @@ const SEED_PAGES = [
   { slug: 'mg-agency', title: 'MG Agency Lead — تسويق عقاري', componentName: 'MgAgencyLeadLanding', sortOrder: 4, bundleSlug: null, activationType: 'both' },
   { slug: 'medical', title: 'النظام الطبي — الباقة الطبية الشاملة', componentName: 'MedicalLanding', sortOrder: 5, bundleSlug: 'medical-bundle', activationType: 'both' },
   { slug: 'store-complete-bundle', title: 'باقة المتجر الكاملة — 17 أداة', componentName: 'StoreCompleteBundleLanding', sortOrder: 6, bundleSlug: 'store-complete-bundle', activationType: 'paid' },
+  { slug: 'store-ppu', title: 'المتجر — جنيه واحد للأوردر', componentName: 'StorePpuOnePoundLanding', sortOrder: 7, isActive: false, bundleSlug: null, activationType: 'SINGLE' },
 ];
 
 // "updatedAt"/"createdAt" are passed explicitly: when lp_pages is (re)created by
@@ -38,7 +39,7 @@ function buildSeedUpsertParams(p) {
     p.title,
     p.componentName,
     Number.isFinite(p.sortOrder) ? p.sortOrder : 0,
-    true,
+    p.isActive ?? true,
     p.bundleSlug ?? null,
     p.activationType || 'both',
   ];
@@ -95,7 +96,7 @@ async function getAllPages(prisma) {
       slug: p.slug,
       title: p.title,
       description: null,
-      isActive: true,
+      isActive: p.isActive ?? true,
       sortOrder: p.sortOrder,
       componentName: p.componentName,
       bundleSlug: p.bundleSlug,
@@ -109,7 +110,7 @@ publicRouter.get('/', async (req, res) => {
   try {
     const prisma = await getSharedPrismaClientAsync();
     const pages = await getAllPages(prisma);
-    res.json(pages);
+    res.json(pages.filter((p) => p.isActive));
   } catch (err) {
     console.error('[lpAdmin] public GET / error:', err);
     res.status(500).json({ message: 'Internal server error' });

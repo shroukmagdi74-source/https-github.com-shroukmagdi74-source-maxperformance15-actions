@@ -945,6 +945,9 @@ const ClothingStoreTasteLanding = React.lazy(
 const StoreCompleteBundleLanding = React.lazy(
   () => import("./pages/landing/CompleteStoreBundleLanding"),
 );
+const StorePpuOnePoundLanding = React.lazy(
+  () => import("./pages/landing/StorePpuOnePoundLanding"),
+);
 const PlatformLandingPreviewPage = React.lazy(
   () => import("./pages/landing/PlatformLandingPreviewPage"),
 );
@@ -2474,6 +2477,7 @@ const AppContent = () => {
             <Route path="/bundle/store-complete-bundle" element={<StoreCompleteBundleLanding />} />
             <Route path="/lp/complete-store-bundle" element={<StoreCompleteBundleLanding />} />
             <Route path="/bundle/complete-store-bundle" element={<StoreCompleteBundleLanding />} />
+            <Route path="/lp/store-ppu" element={<StorePpuOnePoundLanding />} />
             <Route
               path="/preview/platform-home/:variantId"
               element={<PlatformLandingPreviewPage />}
