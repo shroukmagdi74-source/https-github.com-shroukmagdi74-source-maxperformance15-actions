@@ -39,6 +39,7 @@ export interface DynamicStoreContext {
 
 export interface DynamicContext {
   product?: DynamicProductContext | null;
+  item?: DynamicProductContext | Record<string, unknown> | null;
   collection?: DynamicCollectionContext | null;
   page?: DynamicPageContext | null;
   store?: DynamicStoreContext | null;
@@ -64,6 +65,10 @@ export const DYNAMIC_TOKENS: DynamicTokenOption[] = [
   { token: "{{product.compareAtPrice}}", label: "السعر قبل الخصم", group: "product", example: "350" },
   { token: "{{product.stock}}", label: "المخزون المتوفر", group: "product", example: "12" },
   { token: "{{product.image}}", label: "صورة المنتج", group: "product", example: "https://..." },
+  { token: "{{item.title}}", label: "عنوان العنصر (Loop)", group: "product", example: "قميص كتان" },
+  { token: "{{item.price}}", label: "سعر العنصر (Loop)", group: "product", example: "250" },
+  { token: "{{item.priceFormatted}}", label: "سعر العنصر منسق (Loop)", group: "product", example: "250 ج.م" },
+  { token: "{{item.image}}", label: "صورة العنصر (Loop)", group: "product", example: "https://..." },
   { token: "{{collection.name}}", label: "اسم المجموعة", group: "collection", example: "تشكيلة الصيف" },
   { token: "{{collection.count}}", label: "عدد منتجات المجموعة", group: "collection", example: "24" },
   { token: "{{page.title}}", label: "عنوان الصفحة", group: "page", example: "عروض الموسم" },
@@ -97,10 +102,10 @@ export function resolveDynamicValue(template: string, ctx?: DynamicContext | nul
     // 1. Product tokens
     if (trimmed.startsWith("product.")) {
       const field = trimmed.slice("product.".length);
-      const prod = safeCtx.product;
+      const prod = safeCtx.product ?? (safeCtx.item as DynamicProductContext | undefined);
       if (!prod) return "";
 
-      if (field === "title") {
+      if (field === "title" || field === "name") {
         const val = prod.title ?? prod.name;
         return val !== undefined && val !== null ? String(val) : "";
       }
@@ -115,7 +120,7 @@ export function resolveDynamicValue(template: string, ctx?: DynamicContext | nul
         }
         return formatStorefrontCurrency(Number(prod.price), currency, locale);
       }
-      if (field === "compareAtPrice") {
+      if (field === "compareAtPrice" || field === "comparePrice") {
         const comp = prod.compareAtPrice ?? prod.comparePrice;
         return comp !== undefined && comp !== null && !Number.isNaN(Number(comp))
           ? String(comp)
@@ -133,7 +138,51 @@ export function resolveDynamicValue(template: string, ctx?: DynamicContext | nul
           (Array.isArray(prod.images) && prod.images.length > 0 ? prod.images[0] : "");
         return img ? String(img) : "";
       }
-      return "";
+      const direct = (prod as Record<string, unknown>)[field];
+      return direct !== undefined && direct !== null ? String(direct) : "";
+    }
+
+    // 2. Loop Item tokens (Loop / Repeat item tokens: {{item.title}}, {{item.price}}, etc.)
+    if (trimmed.startsWith("item.")) {
+      const field = trimmed.slice("item.".length);
+      const item = ((safeCtx.item ?? safeCtx.product) || {}) as Record<string, unknown>;
+      if (!item || Object.keys(item).length === 0) return "";
+
+      if (field === "title" || field === "name") {
+        const val = item.title ?? item.name;
+        return val !== undefined && val !== null ? String(val) : "";
+      }
+      if (field === "price") {
+        return item.price !== undefined && item.price !== null && !Number.isNaN(Number(item.price))
+          ? String(item.price)
+          : "";
+      }
+      if (field === "priceFormatted") {
+        if (item.price === undefined || item.price === null || Number.isNaN(Number(item.price))) {
+          return "";
+        }
+        return formatStorefrontCurrency(Number(item.price), currency, locale);
+      }
+      if (field === "compareAtPrice" || field === "comparePrice") {
+        const comp = item.compareAtPrice ?? item.comparePrice;
+        return comp !== undefined && comp !== null && !Number.isNaN(Number(comp))
+          ? String(comp)
+          : "";
+      }
+      if (field === "stock") {
+        return item.stock !== undefined && item.stock !== null && !Number.isNaN(Number(item.stock))
+          ? String(item.stock)
+          : "";
+      }
+      if (field === "image") {
+        const img =
+          item.image ??
+          item.featuredImage ??
+          (Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : "");
+        return img ? String(img) : "";
+      }
+      const direct = item[field];
+      return direct !== undefined && direct !== null ? String(direct) : "";
     }
 
     // 2. Collection tokens

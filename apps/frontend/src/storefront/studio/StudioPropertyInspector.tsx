@@ -18,6 +18,7 @@ import type { StudioInspectorTab, StudioDeviceMode, StudioSelectedElement, Studi
 import { StudioInspectorDesignTab } from "./inspector/StudioInspectorDesignTab";
 import { StudioInspectorLayoutTab } from "./inspector/StudioInspectorLayoutTab";
 import { StudioContainerControls } from "./inspector/StudioContainerControls";
+import { StudioLoopControls } from "./inspector/StudioLoopControls";
 import { StudioInspectorContentTab } from "./inspector/StudioInspectorContentTab";
 import { StudioInspectorAiTab } from "./inspector/StudioInspectorAiTab";
 import { StudioI18nTab } from "./StudioI18nTab";
@@ -648,12 +649,21 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
             )}
 
             {activeTab === "content" && (
-              <StudioInspectorContentTab
-                sectionType={sectionType}
-                settings={settings}
-                onUpdateField={onUpdateField}
-                onOpenImagePicker={onOpenImagePicker}
-              />
+              sectionType === "loop" ? (
+                <StudioLoopControls
+                  settings={settings}
+                  onUpdateField={onUpdateField}
+                  onBatchUpdateFields={onBatchUpdateFields}
+                  sectionType={sectionType}
+                />
+              ) : (
+                <StudioInspectorContentTab
+                  sectionType={sectionType}
+                  settings={settings}
+                  onUpdateField={onUpdateField}
+                  onOpenImagePicker={onOpenImagePicker}
+                />
+              )
             )}
 
             {(activeTab === "interactions" || activeTab === "visibility") && (

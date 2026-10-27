@@ -100,6 +100,33 @@ const STUDIO_STARTER_SETTINGS: Record<string, Record<string, any>> = {
     subtitle: "كن أول من يعلم بالعروض والمنتجات الحصرية فور نزولها",
     buttonText: "اشترك الآن",
   },
+  container: {
+    direction: "column",
+    gap: 12,
+    columns: 1,
+  },
+  loop: {
+    source: "products",
+    limit: 6,
+    columns: 3,
+    emptyMessage: "لا توجد عناصر لعرضها في هذا التكرار",
+    template: [
+      {
+        type: "heading",
+        settings: {
+          text: "{{product.title}}",
+          level: "h3",
+        },
+      },
+      {
+        type: "text",
+        settings: {
+          content: "السعر: {{product.priceFormatted}}",
+          size: "sm",
+        },
+      },
+    ],
+  },
 };
 
 interface UseStorefrontStudioStateProps {

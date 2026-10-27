@@ -122,6 +122,32 @@ export interface SavedStudioSection {
 
 export type StudioSectionShape = SectionNode | Record<string, any>;
 
+export type LoopSourceType = "products" | "collection" | "articles";
+
+export interface StudioLoopSettings {
+  source?: LoopSourceType;
+  collectionId?: string | number;
+  limit?: number;
+  columns?: number;
+  template?: StudioSectionShape[];
+  emptyMessage?: string;
+  [key: string]: unknown;
+}
+
+export interface StudioLoopSection {
+  type: "loop";
+  key?: string;
+  id?: string;
+  label?: string;
+  source?: LoopSourceType;
+  collectionId?: string | number;
+  limit?: number;
+  columns?: number;
+  template: StudioSectionShape[];
+  settings?: StudioLoopSettings;
+  [key: string]: unknown;
+}
+
 export interface StudioGlobalComponent {
   id: string;
   name: string;

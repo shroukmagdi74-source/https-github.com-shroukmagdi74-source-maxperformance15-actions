@@ -21,6 +21,7 @@ import { buildStorefrontPath } from '../utils/paths';
 import { sanitizeStorefrontSectionConfig } from '../utils/runtimeBrandText';
 import { evaluateDisplayConditions } from '../studio/utils/displayConditions';
 import { resolveDynamicSettings } from '../studio/utils/dynamicValues';
+import { expandLoopSection } from '../studio/utils/expandLoopSection';
 import { useInRouterContext, useLocation } from 'react-router-dom';
 import {
   getStorefrontLocale,
@@ -600,6 +601,41 @@ export const PageComposer: React.FC<PageComposerProps> = ({
           renderSectionFrame={renderSectionFrame}
           isEditor={Boolean(renderSectionFrame)}
         />
+      );
+    }
+
+    if (sectionId === 'loop') {
+      const loopData = (sectionEntry as any)?.dynamicContext || (pageConfig as any)?.context || {};
+      const expandedSections = expandLoopSection(sectionEntry, loopData);
+      const loopColumns = Number((sectionEntry as any)?.columns ?? (sectionEntry as any)?.settings?.columns ?? 1) || 1;
+      const emptyMsg = expandedSections.emptyMessage || (sectionEntry as any)?.settings?.emptyMessage || "لا توجد عناصر لعرضها في هذا التكرار";
+
+      if (expandedSections.length === 0) {
+        return (
+          <div
+            key={`loop-empty-${index}`}
+            data-storefront-loop-empty="true"
+            className="w-full py-8 px-4 text-center text-xs text-muted-foreground border border-dashed rounded-lg bg-muted/10 my-2"
+          >
+            <span>{emptyMsg}</span>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          key={`loop-${index}`}
+          data-storefront-loop="true"
+          data-columns={loopColumns}
+          className="storefront-loop-container w-full"
+          style={
+            loopColumns > 1
+              ? { display: 'grid', gridTemplateColumns: `repeat(${loopColumns}, minmax(0, 1fr))`, gap: '16px' }
+              : { display: 'flex', flexDirection: 'column', gap: '16px' }
+          }
+        >
+          {expandedSections.map((childNode, childIdx) => renderSection(childNode, childIdx))}
+        </div>
       );
     }
 

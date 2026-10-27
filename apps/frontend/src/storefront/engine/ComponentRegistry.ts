@@ -86,6 +86,9 @@ const PaymentMethodsElement = React.lazy(() => import('../sections/elements/Paym
 const ShippingPartnersElement = React.lazy(() => import('../sections/elements/ShippingPartnersElement'));
 const CodBadgeElement = React.lazy(() => import('../sections/elements/CodBadgeElement'));
 
+// Loop Section (Ticket LOOP-1)
+const StorefrontLoopSection = React.lazy(() => import('../sections/StorefrontLoopSection'));
+
 const PlaceholderSection: React.FC<{ section?: any; settings?: any }> = ({ section, settings }) =>
   React.createElement(
     "div",
@@ -196,6 +199,9 @@ const baseComponentRegistry: Record<
   // Global Component Fallback & Placeholder (Ticket GLOBAL-1)
   placeholder: PlaceholderSection,
   componentInstance: PlaceholderSection,
+
+  // Loop Section (Ticket LOOP-1)
+  loop: StorefrontLoopSection,
 };
 
 /**

@@ -150,6 +150,35 @@ export const STOREFRONT_CUSTOM_PAGE_STARTER_SECTIONS = [
 ] as const;
 
 export const STOREFRONT_SECTION_MANIFEST = {
+  container: {
+    label: "حاوية",
+    component: "container",
+    pages: [],
+    variants: [],
+    fields: [],
+  },
+  loop: {
+    label: "تكرار (Loop)",
+    component: "loop",
+    pages: [],
+    variants: [],
+    fields: [
+      {
+        key: "source",
+        label: "مصدر البيانات",
+        type: "select",
+        options: [
+          { value: "products", label: "المنتجات (Products)" },
+          { value: "collection", label: "مجموعة محددة (Collection)" },
+          { value: "articles", label: "المقالات (Articles)" },
+        ],
+      },
+      { key: "limit", label: "الحد الأقصى للعدد (سقف 50)", type: "number", placeholder: "6" },
+      { key: "columns", label: "عدد الأعمدة", type: "number", placeholder: "3" },
+      { key: "collectionId", label: "معرّف المجموعة", type: "text", placeholder: "معرف المجموعة..." },
+      { key: "emptyMessage", label: "رسالة الحالة الفارغة", type: "text", placeholder: "لا توجد عناصر لعرضها" },
+    ],
+  },
   heading: {
     label: "عنوان",
     component: "heading",
@@ -3826,7 +3855,7 @@ export const getStorefrontSectionComponentKey = (sectionType: string): string =>
   getStorefrontSectionManifest(sectionType)?.component || sectionType;
 
 export const isStorefrontSectionKnown = (sectionType: string): boolean =>
-  Boolean(getStorefrontSectionManifest(sectionType));
+  sectionType === "container" || sectionType === "loop" || Boolean(getStorefrontSectionManifest(sectionType));
 
 export const getStorefrontSectionVariantValues = (
   sectionType: string,
