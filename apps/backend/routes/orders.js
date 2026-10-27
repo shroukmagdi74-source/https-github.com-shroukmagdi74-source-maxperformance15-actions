@@ -6277,7 +6277,7 @@ router.patch('/simple/notes/:noteId', verifyToken.authenticateToken, async (req,
       where: { id: noteId },
       include: {
         order: { select: { companyId: true, status: true, customStatusCode: true } },
-        guestOrder: { select: { companyId: true, status: true, customStatusCode: true } },
+        guestOrder: { select: { companyId: true, status: true } },
       }
     });
 
@@ -6300,7 +6300,9 @@ router.patch('/simple/notes/:noteId', verifyToken.authenticateToken, async (req,
     const { assertOrderStatusEditable } = require('../utils/orderStatusLock');
     const lockOrder = existingNote.order || existingNote.guestOrder;
     const lockStatus = lockOrder?.customStatusCode || lockOrder?.status;
-    await assertOrderStatusEditable(getSharedPrismaClient(), companyId, lockStatus);
+    if (lockStatus) {
+      await assertOrderStatusEditable(getSharedPrismaClient(), companyId, lockStatus);
+    }
 
     const updatedNote = await getSharedPrismaClient().orderNote.update({
       where: { id: noteId },
@@ -6340,7 +6342,7 @@ router.delete('/simple/notes/:noteId', verifyToken.authenticateToken, async (req
       where: { id: noteId },
       include: {
         order: { select: { companyId: true, status: true, customStatusCode: true } },
-        guestOrder: { select: { companyId: true, status: true, customStatusCode: true } },
+        guestOrder: { select: { companyId: true, status: true } },
       }
     });
 
@@ -6363,7 +6365,9 @@ router.delete('/simple/notes/:noteId', verifyToken.authenticateToken, async (req
     const { assertOrderStatusEditable } = require('../utils/orderStatusLock');
     const lockOrderDelete = existingNote.order || existingNote.guestOrder;
     const lockStatusDelete = lockOrderDelete?.customStatusCode || lockOrderDelete?.status;
-    await assertOrderStatusEditable(getSharedPrismaClient(), companyId, lockStatusDelete);
+    if (lockStatusDelete) {
+      await assertOrderStatusEditable(getSharedPrismaClient(), companyId, lockStatusDelete);
+    }
 
     await getSharedPrismaClient().orderNote.delete({ where: { id: noteId } });
 
