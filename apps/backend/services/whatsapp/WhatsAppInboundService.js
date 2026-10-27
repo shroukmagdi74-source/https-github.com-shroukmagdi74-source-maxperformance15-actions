@@ -692,19 +692,17 @@ async function updateMessageStatus(companyId, messageId, status, options = {}) {
     shouldApplyMessageStatus(message.status, status)
   );
 
-  if (messagesToUpdate.length === 0) {
-    return;
+  if (messagesToUpdate.length > 0) {
+    await prisma.whatsAppMessage.updateMany({
+      where: {
+        id: { in: messagesToUpdate.map((message) => message.id) }
+      },
+      data: {
+        status,
+        updatedAt: new Date()
+      }
+    });
   }
-
-  await prisma.whatsAppMessage.updateMany({
-    where: {
-      id: { in: messagesToUpdate.map((message) => message.id) }
-    },
-    data: {
-      status,
-      updatedAt: new Date()
-    }
-  });
 
   // Update BroadcastRecipient tracking fields when status callbacks arrive
   const updateBroadcastCampaignCount = async (recipientMessageId, field) => {
@@ -722,14 +720,18 @@ async function updateMessageStatus(companyId, messageId, status, options = {}) {
 
   if (status === 'DELIVERED') {
     const { count } = await prisma.broadcastRecipient.updateMany({
-      where: { messageId, deliveredAt: null },
-      data: { deliveredAt: new Date() }
+      where: {
+        messageId,
+        deliveredAt: null,
+        status: { notIn: ['read', 'failed'] }
+      },
+      data: { deliveredAt: new Date(), status: 'delivered' }
     });
     if (count > 0) updateBroadcastCampaignCount(messageId, 'deliveredCount');
   } else if (status === 'READ') {
     const { count } = await prisma.broadcastRecipient.updateMany({
       where: { messageId, openedAt: null },
-      data: { openedAt: new Date() }
+      data: { openedAt: new Date(), status: 'read' }
     });
     if (count > 0) updateBroadcastCampaignCount(messageId, 'openedCount');
   } else if (status === 'FAILED') {

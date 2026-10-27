@@ -128,4 +128,55 @@ describe('updateMessageStatus → notification log sync', () => {
 
     expect(prisma.whatsAppNotificationLog.updateMany).not.toHaveBeenCalled();
   });
+
+  test('DELIVERED writes { deliveredAt, status: "delivered" } on broadcast_recipients', async () => {
+    await updateMessageStatus('company-1', 'wamid.bcast1', 'DELIVERED');
+
+    expect(prisma.broadcastRecipient.updateMany).toHaveBeenCalledWith({
+      where: {
+        messageId: 'wamid.bcast1',
+        deliveredAt: null,
+        status: { notIn: ['read', 'failed'] }
+      },
+      data: {
+        deliveredAt: expect.any(Date),
+        status: 'delivered'
+      }
+    });
+  });
+
+  test('READ writes status: "read" and does not downgrade a "read" row back to "delivered"', async () => {
+    await updateMessageStatus('company-1', 'wamid.bcast2', 'READ');
+
+    expect(prisma.broadcastRecipient.updateMany).toHaveBeenCalledWith({
+      where: {
+        messageId: 'wamid.bcast2',
+        openedAt: null
+      },
+      data: {
+        openedAt: expect.any(Date),
+        status: 'read'
+      }
+    });
+
+    // When DELIVERED arrives after READ, verify where clause prevents downgrading read status
+    await updateMessageStatus('company-1', 'wamid.bcast2', 'DELIVERED');
+    const deliveredCalls = prisma.broadcastRecipient.updateMany.mock.calls.filter(call => call[0].data?.status === 'delivered');
+    expect(deliveredCalls.length).toBe(1);
+    expect(deliveredCalls[0][0].where.status).toEqual({ notIn: ['read', 'failed'] });
+  });
+
+  test('when whatsapp_messages returns [], the broadcast_recipients update STILL happens', async () => {
+    prisma.whatsAppMessage.findMany.mockResolvedValue([]);
+
+    await updateMessageStatus('company-1', 'wamid.bcast3', 'DELIVERED');
+
+    expect(prisma.whatsAppMessage.updateMany).not.toHaveBeenCalled();
+    expect(prisma.broadcastRecipient.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ messageId: 'wamid.bcast3' }),
+        data: expect.objectContaining({ status: 'delivered' })
+      })
+    );
+  });
 });

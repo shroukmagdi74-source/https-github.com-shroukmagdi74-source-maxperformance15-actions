@@ -314,6 +314,10 @@ async function postWebhook(req, res) {
           : null;
 
         if (!session) {
+          const statusesCount = (value.statuses || []).length;
+          if (statusesCount > 0) {
+            console.warn(`⚠️ [حالة-واتساب-ميتا] استلام تحديث حالة (${statusesCount}) ولكن لا توجد جلسة META_CLOUD مطابقة لرقم الهاتف ${phoneNumberId || displayPhoneNumber || 'غير معروف'}`);
+          }
           continue;
         }
 
