@@ -26,6 +26,46 @@ function sanitizeLetters(str) {
     .replace(/[OIL]/g, '');
 }
 
+// تحويل الحروف العربية لاتيني — عشان اسم الشركة العربي يدّي بادئة مفهومة بدل ما ناخدها من الإيميل
+const ARABIC_LATIN_MAP = {
+  'ا': 'A', 'أ': 'A', 'إ': 'A', 'آ': 'A', 'ٱ': 'A',
+  'ب': 'B', 'ت': 'T', 'ث': 'T', 'ج': 'J', 'ح': 'H', 'خ': 'K',
+  'د': 'D', 'ذ': 'D', 'ر': 'R', 'ز': 'Z', 'س': 'S', 'ش': 'SH',
+  'ص': 'S', 'ض': 'D', 'ط': 'T', 'ظ': 'Z', 'ع': 'A', 'غ': 'G',
+  'ف': 'F', 'ق': 'K', 'ك': 'K', 'ل': 'L', 'م': 'M', 'ن': 'N',
+  'ه': 'H', 'ة': 'H', 'و': 'W', 'ؤ': 'W', 'ي': 'Y', 'ئ': 'Y',
+  'ى': 'A', 'ء': '',
+};
+
+const ARABIC_DIACRITICS = /[\u064B-\u0652\u0670\u0640]/g; // تشكيل وتطويل
+
+// كلمات قانونية بتتكرر في أول اسم الشركة ومش مفيدة في الكود
+const LEGAL_PREFIXES = ['شركة', 'مؤسسة', 'مؤسسه', 'مصنع', 'متجر', 'محل', 'مركز', 'مطعم', 'كافيه'];
+
+function transliterateArabic(str) {
+  if (!str || typeof str !== 'string') return '';
+  let text = str.replace(ARABIC_DIACRITICS, '').trim();
+
+  for (const prefix of LEGAL_PREFIXES) {
+    if (text.startsWith(prefix)) {
+      const rest = text.slice(prefix.length).trim();
+      if (rest.length >= 3) { text = rest; break; }
+    }
+  }
+  // أداة التعريف في الأول
+  if (text.startsWith('ال') && text.length > 4) text = text.slice(2);
+  // أول كلمة بس — بادئة الكود 3-4 حروف، والكلمة الأولى هي اسم العلامة
+  text = (text.split(/\s+/)[0] || text);
+
+  let out = '';
+  for (const ch of text) {
+    if (ARABIC_LATIN_MAP[ch] !== undefined) out += ARABIC_LATIN_MAP[ch];
+    else out += ch;
+  }
+  return out;
+}
+
+
 /**
  * Pure, deterministic prefix builder (3–4 letters).
  * - Takes name/slug/email.
@@ -47,7 +87,7 @@ function buildPublicCodePrefix(source) {
     emailStr = source.email || '';
   }
 
-  const cleanName = sanitizeLetters(nameStr);
+  const cleanName = sanitizeLetters(transliterateArabic(nameStr));
   let letters = cleanName;
 
   if (letters.length < 3 && slugStr) {
