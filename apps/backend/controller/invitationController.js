@@ -15,7 +15,7 @@ const verifyInvitationToken = async (req, res) => {
                         name: true
                     }
                 },
-                inviter: {
+                user: {
                     select: {
                         firstName: true,
                         lastName: true
@@ -61,7 +61,9 @@ const verifyInvitationToken = async (req, res) => {
                     lastName: invitation.lastName,
                     role: invitation.role,
                     companyName: invitation.company.name,
-                    inviterName: `${invitation.inviter.firstName} ${invitation.inviter.lastName}`,
+                    inviterName: invitation.user
+                        ? `${invitation.user.firstName} ${invitation.user.lastName}`
+                        : (invitation.inviter ? `${invitation.inviter.firstName} ${invitation.inviter.lastName}` : "فريق الإدارة"),
                     expiresAt: invitation.expiresAt
                 }
             }

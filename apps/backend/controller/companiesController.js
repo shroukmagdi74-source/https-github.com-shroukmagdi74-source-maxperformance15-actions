@@ -3032,6 +3032,13 @@ const sendUserInvitation = async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
 
     // Create invitation (works for both new users and existing users from other companies)
+    const inviterId = req.user?.id || req.user?.userId;
+    if (!inviterId) {
+      return res.status(401).json({
+        success: false,
+        message: "المستخدم الحالي غير مصرح له بإنشاء دعوة",
+      });
+    }
     const invitation = await getSharedPrismaClient().userInvitation.create({
       data: {
         email,
@@ -3039,12 +3046,12 @@ const sendUserInvitation = async (req, res) => {
         lastName: existingUser ? existingUser.lastName : lastName,
         role,
         token,
-        invitedBy: req.user.userId,
+        invitedBy: inviterId,
         companyId,
         expiresAt,
       },
       include: {
-        inviter: {
+        user: {
           select: {
             firstName: true,
             lastName: true,
@@ -3057,6 +3064,11 @@ const sendUserInvitation = async (req, res) => {
         },
       },
     });
+
+    invitation.inviter = invitation.user;
+    const inviterName = invitation.user
+      ? `${invitation.user.firstName} ${invitation.user.lastName}`
+      : "فريق الإدارة";
 
     // 🔔 Create in-app notification if user exists (cross-company invitation)
     // Create notification for EACH company the user belongs to, so they see it regardless of which company they're logged into
@@ -3084,14 +3096,14 @@ const sendUserInvitation = async (req, res) => {
                   userId: existingUser.id,
                   companyId: uc.companyId, // User's current company, not the inviting company
                   title: `🎉 دعوة للانضمام إلى ${invitation.company.name}`,
-                    message: `${invitation.inviter.firstName} ${invitation.inviter.lastName} يدعوك للانضمام إلى ${invitation.company.name} كـ ${getRoleDisplayName(role)}`,
+                    message: `${inviterName} يدعوك للانضمام إلى ${invitation.company.name} كـ ${getRoleDisplayName(role)}`,
                   type: "invitation",
                   isRead: false,
                   data: JSON.stringify({
                     invitationId: invitation.id,
                     token: token,
                     companyName: invitation.company.name,
-                    inviterName: `${invitation.inviter.firstName} ${invitation.inviter.lastName}`,
+                    inviterName: inviterName,
                     role: role,
                     expiresAt: expiresAt.toISOString(),
                     invitationLink: `${process.env.FRONTEND_URL || "https://maxp.online"}/auth/accept-invitation?token=${token}`,
@@ -3161,7 +3173,7 @@ const sendUserInvitation = async (req, res) => {
                             
                             <p style="color: #555; font-size: 16px; line-height: 1.6;">
                                 تم دعوتك للانضمام إلى <strong style="color: #667eea;">${invitation.company.name}</strong> من قبل 
-                                <strong>${invitation.inviter.firstName} ${invitation.inviter.lastName}</strong>.
+                                <strong>${inviterName}</strong>.
                             </p>
                             
                             <div style="background-color: #f8f9fa; border-right: 4px solid #667eea; padding: 15px; margin: 20px 0; border-radius: 5px;">
@@ -3370,7 +3382,7 @@ const resendInvitation = async (req, res) => {
         companyId,
       },
       include: {
-        inviter: {
+        user: {
           select: {
             firstName: true,
             lastName: true,
@@ -3383,6 +3395,10 @@ const resendInvitation = async (req, res) => {
         },
       },
     });
+
+    if (invitation) {
+      invitation.inviter = invitation.user;
+    }
 
     if (!invitation) {
       return res.status(404).json({
