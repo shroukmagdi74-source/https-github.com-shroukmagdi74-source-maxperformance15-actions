@@ -2,6 +2,7 @@ const { getSharedPrismaClient, executeWithRetry } = require('../services/sharedD
 const { resolveProductMediaState } = require('../utils/productMediaUtils');
 const { ensureWithinPlanLimit } = require('../utils/planLimitPayloads');
 const { validateStock } = require('../utils/stockValidation');
+const tenantContext = require('../services/tenantContext');
 
 const parseDecimalOrNull = (value) => {
     if (value === null || value === undefined || value === '') {
@@ -395,8 +396,9 @@ exports.fetchProductsFromProvider = async (req, res) => {
             return res.status(403).json({ success: false, message: 'لا تملك صلاحية سحب المنتجات من هذه الشركة' });
         }
 
-        const products = await prisma.product.findMany({
-            where: { companyId: providerId, isActive: true },
+        const products = await tenantContext.run(providerId, async () => {
+            return prisma.product.findMany({
+                where: { companyId: providerId, isActive: true },
             select: {
                 id: true,
                 name: true,
@@ -430,6 +432,7 @@ exports.fetchProductsFromProvider = async (req, res) => {
                     }
                 }
             }
+        });
         });
 
         const formattedProducts = products.map(p => ({
@@ -646,8 +649,9 @@ exports.fetchOrdersFromProvider = async (req, res) => {
             };
         }
 
-        const orders = await prisma.order.findMany({
-            where,
+        const orders = await tenantContext.run(providerId, async () => {
+            return prisma.order.findMany({
+                where,
             include: {
                 customer: {
                     select: {
@@ -674,6 +678,7 @@ exports.fetchOrdersFromProvider = async (req, res) => {
             orderBy: { createdAt: 'desc' },
             take: parseInt(limit),
             skip: parseInt(offset)
+        });
         });
 
         res.json({
