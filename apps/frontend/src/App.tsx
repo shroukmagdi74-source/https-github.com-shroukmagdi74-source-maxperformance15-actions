@@ -5637,6 +5637,16 @@ const AppContent = () => {
                   }
                 />
                 <Route
+                  path="/wholesale/customers/new"
+                  element={
+                    <Layout>
+                      <AppAccessRoute requiredAppSlugs={['wholesale-pro']}>
+                        <WholesaleCustomerDetail />
+                      </AppAccessRoute>
+                    </Layout>
+                  }
+                />
+                <Route
                   path="/wholesale/customers/:id"
                   element={
                     <Layout>

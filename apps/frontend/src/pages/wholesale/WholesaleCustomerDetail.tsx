@@ -43,7 +43,7 @@ interface CustomerSearchResult {
 export default function WholesaleCustomerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const isNew = !id;
+  const isNew = !id || id === "new";
   const [form, setForm] = useState<WholesaleCustomerData>({
     customerId: "",
     customerName: "",
@@ -67,7 +67,7 @@ export default function WholesaleCustomerDetail() {
         setLoading(true);
         const [plRes] = await Promise.all([apiClient.get("/wholesale/price-lists")]);
         setPriceLists(plRes?.data?.data || []);
-        if (!isNew) {
+        if (!isNew && id) {
           const res = await apiClient.get(`/wholesale/customers/${id}`);
           const data = res?.data?.data;
           if (data)
@@ -119,17 +119,28 @@ export default function WholesaleCustomerDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isNew && !form.customerId) {
+      setError("يرجى اختيار عميل مسجل للربط بحساب الجملة أولاً");
+      return;
+    }
     try {
       setSaving(true);
       setError(null);
+      const payload = {
+        customerId: form.customerId,
+        creditLimit: Number(form.creditLimit) || 0,
+        paymentTermsDays: Number(form.paymentTermsDays) || 30,
+        priceListId: form.priceListId || undefined,
+        isActive: form.isActive,
+      };
       if (isNew) {
-        await apiClient.post("/wholesale/customers", form);
+        await apiClient.post("/wholesale/customers", payload);
       } else {
-        await apiClient.put(`/wholesale/customers/${id}`, form);
+        await apiClient.put(`/wholesale/customers/${id}`, payload);
       }
       navigate("/wholesale/customers");
     } catch (err: any) {
-      setError(err?.response?.data?.message || "فشل حفظ بيانات التاجر");
+      setError(err?.response?.data?.message || err?.response?.data?.error || "فشل حفظ بيانات التاجر");
     } finally {
       setSaving(false);
     }

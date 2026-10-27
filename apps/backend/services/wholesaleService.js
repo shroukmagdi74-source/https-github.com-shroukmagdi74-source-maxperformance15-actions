@@ -72,15 +72,35 @@ const wholesaleService = {
   },
 
   async getWholesaleCustomer(id, companyId) {
+    if (!id || id === 'new') return null;
     const prisma = getSharedPrismaClient();
-    return prisma.wholesaleCustomer.findFirst({
+    const wc = await prisma.wholesaleCustomer.findFirst({
       where: { id, companyId },
       include: {
-        customer: { select: { id: true, firstName: true, lastName: true, phone: true, email: true, totalOrdersCount: true, totalDelivered: true, status: true, createdAt: true } },
+        customer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            email: true,
+            totalOrdersCount: true,
+            totalDelivered: true,
+            status: true,
+            createdAt: true,
+            wholesaleCustomerPriceLists: {
+              select: { priceListId: true },
+              take: 1,
+            },
+          },
+        },
         transactions: { orderBy: { createdAt: 'desc' }, take: 50 },
         statements: { orderBy: { periodEnd: 'desc' }, take: 12 },
       },
     });
+    if (!wc) return null;
+    const priceListId = wc.customer?.wholesaleCustomerPriceLists?.[0]?.priceListId || null;
+    return { ...wc, priceListId };
   },
 
   async getWholesaleCustomerByCustomerId(customerId, companyId) {
@@ -96,12 +116,49 @@ const wholesaleService = {
     const prisma = getSharedPrismaClient();
     const existing = await prisma.wholesaleCustomer.findFirst({ where: { customerId: data.customerId, companyId: data.companyId } });
     if (existing) throw new Error('Customer is already a wholesale customer');
-    return prisma.wholesaleCustomer.create({ data });
+
+    const { customerId, companyId, creditLimit, currentBalance, isActive, notes, priceListId } = data;
+    const wc = await prisma.wholesaleCustomer.create({
+      data: {
+        customerId,
+        companyId,
+        creditLimit: creditLimit !== undefined ? Number(creditLimit) : 0,
+        currentBalance: currentBalance !== undefined ? Number(currentBalance) : 0,
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
+        notes: notes || null,
+      },
+      include: {
+        customer: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } },
+      },
+    });
+
+    if (priceListId) {
+      await wholesaleService.assignPriceListToCustomer(customerId, priceListId, companyId);
+    }
+    return wc;
   },
 
   async updateWholesaleCustomer(id, companyId, data) {
     const prisma = getSharedPrismaClient();
-    return prisma.wholesaleCustomer.updateMany({ where: { id, companyId }, data });
+    const wc = await prisma.wholesaleCustomer.findFirst({ where: { id, companyId } });
+    if (!wc) throw new Error('Wholesale customer not found');
+
+    const updateData = {};
+    if (data.creditLimit !== undefined) updateData.creditLimit = Number(data.creditLimit);
+    if (data.currentBalance !== undefined) updateData.currentBalance = Number(data.currentBalance);
+    if (data.isActive !== undefined) updateData.isActive = Boolean(data.isActive);
+    if (data.notes !== undefined) updateData.notes = data.notes;
+
+    const result = await prisma.wholesaleCustomer.updateMany({ where: { id, companyId }, data: updateData });
+
+    if (data.priceListId !== undefined) {
+      if (data.priceListId) {
+        await wholesaleService.assignPriceListToCustomer(wc.customerId, data.priceListId, companyId);
+      } else {
+        await prisma.wholesaleCustomerPriceList.deleteMany({ where: { customerId: wc.customerId } });
+      }
+    }
+    return result;
   },
 
   // ── Customer-PriceList Link ──
