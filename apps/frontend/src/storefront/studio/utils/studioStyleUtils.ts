@@ -40,6 +40,42 @@ export const RESPONSIVE_STYLE_FIELDS = new Set<string>([
   "backgroundColor",
   "bgColor",
   "spacing",
+  "border",
+  "borders",
+  "borderWidth",
+  "borderColor",
+  "borderStyle",
+  "borderTop",
+  "borderRight",
+  "borderBottom",
+  "borderLeft",
+  "borderTopWidth",
+  "borderRightWidth",
+  "borderBottomWidth",
+  "borderLeftWidth",
+  "borderRadiusTopLeft",
+  "borderRadiusTopRight",
+  "borderRadiusBottomRight",
+  "borderRadiusBottomLeft",
+  "overlay",
+  "overlayColor",
+  "overlayOpacity",
+  "opacity",
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "zIndex",
+  "transform",
+  "rotate",
+  "scale",
+  "translateX",
+  "translateY",
+  "overflow",
+  "overflowX",
+  "overflowY",
+  "aspectRatio",
 ]);
 
 /**
@@ -326,6 +362,218 @@ export function resolveBorderRadius(value: any): string | undefined {
  * Used in both StudioSortableSection (canvas) and StorefrontSectionFrame (live storefront).
  * Supports optional deviceMode for responsive overrides resolution.
  */
+/**
+ * Normalizes an aspect ratio setting into standard CSS aspect-ratio syntax.
+ * Converts "16:9" -> "16/9", "4:3" -> "4/3", "1:1" -> "1/1".
+ */
+export function normalizeAspectRatio(value: any): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const str = String(value).trim();
+  if (str === "auto") return "auto";
+  return str.replace(/\s*:\s*/g, "/");
+}
+
+/**
+ * Builds CSS transform string from rotate, scale, and translate parameters or custom transform string.
+ */
+export function buildTransformString(config?: Record<string, any> | null): string | undefined {
+  if (!config || typeof config !== "object") return undefined;
+  if (config.transform && typeof config.transform === "string" && config.transform.trim() !== "") {
+    return config.transform.trim();
+  }
+  const parts: string[] = [];
+  if (config.rotate !== undefined && config.rotate !== null && config.rotate !== "" && Number(config.rotate) !== 0) {
+    const r = parseFreeNumber(config.rotate);
+    parts.push(`rotate(${r}deg)`);
+  }
+  if (config.scale !== undefined && config.scale !== null && config.scale !== "" && Number(config.scale) !== 1) {
+    const s = parseFreeNumber(config.scale, 1);
+    parts.push(`scale(${s})`);
+  }
+  const tx = config.translateX !== undefined && config.translateX !== null && config.translateX !== "" ? parseFreeNumber(config.translateX) : 0;
+  const ty = config.translateY !== undefined && config.translateY !== null && config.translateY !== "" ? parseFreeNumber(config.translateY) : 0;
+  if (tx !== 0 || ty !== 0) {
+    parts.push(`translate(${tx}px, ${ty}px)`);
+  }
+  return parts.length > 0 ? parts.join(" ") : undefined;
+}
+
+/**
+ * Converts overlay settings (overlayColor, overlayOpacity) to rgba string.
+ */
+export function buildOverlayString(settings?: Record<string, any> | null): string | undefined {
+  if (!settings || typeof settings !== "object") return undefined;
+  const overlay = settings.overlay;
+  if (typeof overlay === "string" && overlay.trim() !== "" && overlay !== "none") {
+    return overlay.trim();
+  }
+  const color = settings.overlayColor || (typeof overlay === "object" ? overlay?.color : undefined);
+  const rawOpacity = settings.overlayOpacity !== undefined
+    ? settings.overlayOpacity
+    : typeof overlay === "object"
+    ? overlay?.opacity
+    : undefined;
+
+  if (color && rawOpacity !== undefined && rawOpacity !== null && rawOpacity !== "") {
+    const opacityNum = Math.max(0, Math.min(1, parseFreeNumber(rawOpacity, 0)));
+    if (opacityNum > 0) {
+      return hexToRgba(color, opacityNum);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Builds pure CSS declaration strings for borders per side.
+ * e.g. { top: 2, bottom: 0, left: 4, right: 0, color: '#f00' }
+ * -> ["border-top: 2px solid #f00;", "border-left: 4px solid #f00;"]
+ * Omits sides with 0 or undefined width.
+ */
+export function buildBorderDeclarations(borders?: Record<string, any> | null): string[] {
+  if (!borders || typeof borders !== "object") return [];
+  const decls: string[] = [];
+
+  const color = borders.color || borders.borderColor || "#000000";
+  const style = borders.style || borders.borderStyle || "solid";
+
+  const top =
+    borders.top !== undefined
+      ? parseFreeNumber(borders.top, 0)
+      : borders.borderTopWidth !== undefined
+      ? parseFreeNumber(borders.borderTopWidth, 0)
+      : borders.borderTop !== undefined
+      ? parseFreeNumber(borders.borderTop, 0)
+      : undefined;
+
+  const right =
+    borders.right !== undefined
+      ? parseFreeNumber(borders.right, 0)
+      : borders.borderRightWidth !== undefined
+      ? parseFreeNumber(borders.borderRightWidth, 0)
+      : borders.borderRight !== undefined
+      ? parseFreeNumber(borders.borderRight, 0)
+      : undefined;
+
+  const bottom =
+    borders.bottom !== undefined
+      ? parseFreeNumber(borders.bottom, 0)
+      : borders.borderBottomWidth !== undefined
+      ? parseFreeNumber(borders.borderBottomWidth, 0)
+      : borders.borderBottom !== undefined
+      ? parseFreeNumber(borders.borderBottom, 0)
+      : undefined;
+
+  const left =
+    borders.left !== undefined
+      ? parseFreeNumber(borders.left, 0)
+      : borders.borderLeftWidth !== undefined
+      ? parseFreeNumber(borders.borderLeftWidth, 0)
+      : borders.borderLeft !== undefined
+      ? parseFreeNumber(borders.borderLeft, 0)
+      : undefined;
+
+  if (top !== undefined && top > 0) {
+    decls.push(`border-top: ${top}px ${style} ${color};`);
+  }
+  if (right !== undefined && right > 0) {
+    decls.push(`border-right: ${right}px ${style} ${color};`);
+  }
+  if (bottom !== undefined && bottom > 0) {
+    decls.push(`border-bottom: ${bottom}px ${style} ${color};`);
+  }
+  if (left !== undefined && left > 0) {
+    decls.push(`border-left: ${left}px ${style} ${color};`);
+  }
+
+  // If uniform borderWidth is specified without sides
+  if (top === undefined && right === undefined && bottom === undefined && left === undefined) {
+    const uniform =
+      borders.borderWidth !== undefined
+        ? parseFreeNumber(borders.borderWidth, 0)
+        : borders.width !== undefined
+        ? parseFreeNumber(borders.width, 0)
+        : undefined;
+    if (uniform !== undefined && uniform > 0) {
+      decls.push(`border: ${uniform}px ${style} ${color};`);
+    }
+  }
+
+  return decls;
+}
+
+/**
+ * Builds React CSSProperties for borders per side.
+ */
+export function buildBorderStyle(borders?: Record<string, any> | null): React.CSSProperties {
+  if (!borders || typeof borders !== "object") return {};
+  const style: React.CSSProperties = {};
+  const color = borders.color || borders.borderColor || "#000000";
+  const bStyle = borders.style || borders.borderStyle || "solid";
+
+  const top =
+    borders.top !== undefined
+      ? parseFreeNumber(borders.top, 0)
+      : borders.borderTopWidth !== undefined
+      ? parseFreeNumber(borders.borderTopWidth, 0)
+      : borders.borderTop !== undefined
+      ? parseFreeNumber(borders.borderTop, 0)
+      : undefined;
+
+  const right =
+    borders.right !== undefined
+      ? parseFreeNumber(borders.right, 0)
+      : borders.borderRightWidth !== undefined
+      ? parseFreeNumber(borders.borderRightWidth, 0)
+      : borders.borderRight !== undefined
+      ? parseFreeNumber(borders.borderRight, 0)
+      : undefined;
+
+  const bottom =
+    borders.bottom !== undefined
+      ? parseFreeNumber(borders.bottom, 0)
+      : borders.borderBottomWidth !== undefined
+      ? parseFreeNumber(borders.borderBottomWidth, 0)
+      : borders.borderBottom !== undefined
+      ? parseFreeNumber(borders.borderBottom, 0)
+      : undefined;
+
+  const left =
+    borders.left !== undefined
+      ? parseFreeNumber(borders.left, 0)
+      : borders.borderLeftWidth !== undefined
+      ? parseFreeNumber(borders.borderLeftWidth, 0)
+      : borders.borderLeft !== undefined
+      ? parseFreeNumber(borders.borderLeft, 0)
+      : undefined;
+
+  if (top !== undefined && top > 0) {
+    style.borderTop = `${top}px ${bStyle} ${color}`;
+  }
+  if (right !== undefined && right > 0) {
+    style.borderRight = `${right}px ${bStyle} ${color}`;
+  }
+  if (bottom !== undefined && bottom > 0) {
+    style.borderBottom = `${bottom}px ${bStyle} ${color}`;
+  }
+  if (left !== undefined && left > 0) {
+    style.borderLeft = `${left}px ${bStyle} ${color}`;
+  }
+
+  if (top === undefined && right === undefined && bottom === undefined && left === undefined) {
+    const uniform =
+      borders.borderWidth !== undefined
+        ? parseFreeNumber(borders.borderWidth, 0)
+        : borders.width !== undefined
+        ? parseFreeNumber(borders.width, 0)
+        : undefined;
+    if (uniform !== undefined && uniform > 0) {
+      style.border = `${uniform}px ${bStyle} ${color}`;
+    }
+  }
+
+  return style;
+}
+
 export function buildSectionStyle(
   settings?: Record<string, any> | null,
   baseStyle?: React.CSSProperties,
@@ -430,6 +678,88 @@ export function buildSectionStyle(
   // 10. Text Color
   if (effective.color && typeof effective.color === "string") {
     style.color = effective.color === "accent" ? "var(--store-accent, #2563eb)" : effective.color;
+  }
+
+  // 11. Borders per side (Ticket LAYOUT-1)
+  const borderObj = effective.border || effective.borders || effective;
+  const borderStyles = buildBorderStyle(borderObj);
+  Object.assign(style, borderStyles);
+
+  // 12. Corner Radii per corner
+  if (effective.borderRadiusTopLeft !== undefined) {
+    const r = resolveBorderRadius(effective.borderRadiusTopLeft);
+    if (r) style.borderTopLeftRadius = r;
+  }
+  if (effective.borderRadiusTopRight !== undefined) {
+    const r = resolveBorderRadius(effective.borderRadiusTopRight);
+    if (r) style.borderTopRightRadius = r;
+  }
+  if (effective.borderRadiusBottomRight !== undefined) {
+    const r = resolveBorderRadius(effective.borderRadiusBottomRight);
+    if (r) style.borderBottomRightRadius = r;
+  }
+  if (effective.borderRadiusBottomLeft !== undefined) {
+    const r = resolveBorderRadius(effective.borderRadiusBottomLeft);
+    if (r) style.borderBottomLeftRadius = r;
+  }
+
+  // 13. Position, insets & zIndex
+  if (effective.position) {
+    style.position = effective.position as React.CSSProperties["position"];
+  }
+  if (effective.top !== undefined && effective.top !== null && effective.top !== "") {
+    style.top = typeof effective.top === "number" ? `${effective.top}px` : effective.top;
+  }
+  if (effective.right !== undefined && effective.right !== null && effective.right !== "") {
+    style.right = typeof effective.right === "number" ? `${effective.right}px` : effective.right;
+  }
+  if (effective.bottom !== undefined && effective.bottom !== null && effective.bottom !== "") {
+    style.bottom = typeof effective.bottom === "number" ? `${effective.bottom}px` : effective.bottom;
+  }
+  if (effective.left !== undefined && effective.left !== null && effective.left !== "") {
+    style.left = typeof effective.left === "number" ? `${effective.left}px` : effective.left;
+  }
+  if (effective.zIndex !== undefined && effective.zIndex !== null && effective.zIndex !== "") {
+    style.zIndex = Number(effective.zIndex);
+  }
+
+  // 14. Transform
+  const transformStr = buildTransformString(effective);
+  if (transformStr) {
+    style.transform = transformStr;
+  }
+
+  // 15. Aspect Ratio & Overflow
+  if (effective.aspectRatio) {
+    const ar = normalizeAspectRatio(effective.aspectRatio);
+    if (ar && ar !== "auto") {
+      (style as any).aspectRatio = ar;
+    }
+  }
+  if (effective.overflow) {
+    style.overflow = effective.overflow as React.CSSProperties["overflow"];
+  }
+  if (effective.overflowX) {
+    style.overflowX = effective.overflowX as React.CSSProperties["overflowX"];
+  }
+  if (effective.overflowY) {
+    style.overflowY = effective.overflowY as React.CSSProperties["overflowY"];
+  }
+
+  // 16. Opacity
+  if (effective.opacity !== undefined && effective.opacity !== null && effective.opacity !== "") {
+    style.opacity = Math.max(0, Math.min(1, parseFreeNumber(effective.opacity, 1)));
+  }
+
+  // 17. Overlay
+  const overlayRgba = buildOverlayString(effective);
+  if (overlayRgba) {
+    (style as any)["--sf-overlay"] = overlayRgba;
+    if (!style.backgroundImage) {
+      style.backgroundImage = `linear-gradient(${overlayRgba}, ${overlayRgba})`;
+    } else {
+      style.backgroundImage = `linear-gradient(${overlayRgba}, ${overlayRgba}), ${style.backgroundImage}`;
+    }
   }
 
   return style;
@@ -541,6 +871,73 @@ export function generateResponsiveCss(
       }
     }
 
+    // Borders (LAYOUT-1)
+    const borderObj = effective.border || effective.borders || effective;
+    const borderDecls = buildBorderDeclarations(borderObj);
+    borderDecls.forEach((d) => {
+      decls.push(d.replace(";", " !important;"));
+    });
+
+    // Corner Radii per corner
+    if (effective.borderRadiusTopLeft !== undefined) {
+      const r = resolveBorderRadius(effective.borderRadiusTopLeft);
+      if (r) decls.push(`border-top-left-radius: ${r} !important;`);
+    }
+    if (effective.borderRadiusTopRight !== undefined) {
+      const r = resolveBorderRadius(effective.borderRadiusTopRight);
+      if (r) decls.push(`border-top-right-radius: ${r} !important;`);
+    }
+    if (effective.borderRadiusBottomRight !== undefined) {
+      const r = resolveBorderRadius(effective.borderRadiusBottomRight);
+      if (r) decls.push(`border-bottom-right-radius: ${r} !important;`);
+    }
+    if (effective.borderRadiusBottomLeft !== undefined) {
+      const r = resolveBorderRadius(effective.borderRadiusBottomLeft);
+      if (r) decls.push(`border-bottom-left-radius: ${r} !important;`);
+    }
+
+    // Position & Insets
+    if (effective.position) {
+      decls.push(`position: ${effective.position} !important;`);
+    }
+    if (effective.top !== undefined && effective.top !== null && effective.top !== "") {
+      decls.push(`top: ${typeof effective.top === "number" ? `${effective.top}px` : effective.top} !important;`);
+    }
+    if (effective.right !== undefined && effective.right !== null && effective.right !== "") {
+      decls.push(`right: ${typeof effective.right === "number" ? `${effective.right}px` : effective.right} !important;`);
+    }
+    if (effective.bottom !== undefined && effective.bottom !== null && effective.bottom !== "") {
+      decls.push(`bottom: ${typeof effective.bottom === "number" ? `${effective.bottom}px` : effective.bottom} !important;`);
+    }
+    if (effective.left !== undefined && effective.left !== null && effective.left !== "") {
+      decls.push(`left: ${typeof effective.left === "number" ? `${effective.left}px` : effective.left} !important;`);
+    }
+    if (effective.zIndex !== undefined && effective.zIndex !== null && effective.zIndex !== "") {
+      decls.push(`z-index: ${effective.zIndex} !important;`);
+    }
+
+    // Transform
+    const transformStr = buildTransformString(effective);
+    if (transformStr) {
+      decls.push(`transform: ${transformStr} !important;`);
+    }
+
+    // Aspect Ratio & Overflow
+    if (effective.aspectRatio) {
+      const ar = normalizeAspectRatio(effective.aspectRatio);
+      if (ar && ar !== "auto") {
+        decls.push(`aspect-ratio: ${ar} !important;`);
+      }
+    }
+    if (effective.overflow) {
+      decls.push(`overflow: ${effective.overflow} !important;`);
+    }
+
+    // Opacity
+    if (effective.opacity !== undefined && effective.opacity !== null && effective.opacity !== "") {
+      decls.push(`opacity: ${Math.max(0, Math.min(1, parseFreeNumber(effective.opacity, 1)))} !important;`);
+    }
+
     return decls;
   };
 
@@ -575,6 +972,13 @@ export function generateResponsiveCss(
  * Converts a style/settings object into an array of clean CSS declaration strings.
  */
 export function styleObjectToCssDeclarations(styleObj?: Record<string, any> | null): string[] {
+  const isDirectBorderConfig =
+    styleObj &&
+    typeof styleObj === "object" &&
+    !styleObj["position"] &&
+    (styleObj["top"] !== undefined || styleObj["left"] !== undefined || styleObj["right"] !== undefined || styleObj["bottom"] !== undefined) &&
+    (styleObj["color"] !== undefined || styleObj["borderColor"] !== undefined || styleObj["style"] !== undefined || styleObj["borderStyle"] !== undefined);
+  if (isDirectBorderConfig) return buildBorderDeclarations(styleObj);
   if (!styleObj || typeof styleObj !== "object") return [];
   const decls: string[] = [];
 
@@ -584,7 +988,53 @@ export function styleObjectToCssDeclarations(styleObj?: Record<string, any> | nu
       continue;
     }
 
-    if (key === "backgroundColor" || key === "bgColor") {
+    if (key === "border" || key === "borders") {
+      const bDecls = buildBorderDeclarations(rawVal);
+      decls.push(...bDecls);
+    } else if (key === "position") {
+      decls.push(`position: ${rawVal};`);
+    } else if (key === "top" || key === "right" || key === "bottom" || key === "left") {
+      const formattedVal = typeof rawVal === "number" ? `${rawVal}px` : rawVal;
+      decls.push(`${key}: ${formattedVal};`);
+    } else if (key === "zIndex" || key === "z-index") {
+      decls.push(`z-index: ${rawVal};`);
+    } else if (key === "aspectRatio" || key === "aspect-ratio") {
+      const norm = normalizeAspectRatio(rawVal);
+      if (norm) decls.push(`aspect-ratio: ${norm};`);
+    } else if (key === "overflow") {
+      decls.push(`overflow: ${rawVal};`);
+    } else if (key === "overflowX" || key === "overflow-x") {
+      decls.push(`overflow-x: ${rawVal};`);
+    } else if (key === "overflowY" || key === "overflow-y") {
+      decls.push(`overflow-y: ${rawVal};`);
+    } else if (key === "overlay") {
+      const ov = buildOverlayString(styleObj);
+      if (ov) decls.push(`--sf-overlay: ${ov};`);
+    } else if (key === "borderTop" || key === "borderTopWidth") {
+      const w = parseFreeNumber(rawVal, 0);
+      if (w > 0) decls.push(`border-top: ${w}px ${styleObj["borderStyle"] || "solid"} ${styleObj["borderColor"] || styleObj["color"] || "#000000"};`);
+    } else if (key === "borderRight" || key === "borderRightWidth") {
+      const w = parseFreeNumber(rawVal, 0);
+      if (w > 0) decls.push(`border-right: ${w}px ${styleObj["borderStyle"] || "solid"} ${styleObj["borderColor"] || styleObj["color"] || "#000000"};`);
+    } else if (key === "borderBottom" || key === "borderBottomWidth") {
+      const w = parseFreeNumber(rawVal, 0);
+      if (w > 0) decls.push(`border-bottom: ${w}px ${styleObj["borderStyle"] || "solid"} ${styleObj["borderColor"] || styleObj["color"] || "#000000"};`);
+    } else if (key === "borderLeft" || key === "borderLeftWidth") {
+      const w = parseFreeNumber(rawVal, 0);
+      if (w > 0) decls.push(`border-left: ${w}px ${styleObj["borderStyle"] || "solid"} ${styleObj["borderColor"] || styleObj["color"] || "#000000"};`);
+    } else if (key === "borderRadiusTopLeft" || key === "borderTopLeftRadius") {
+      const r = resolveBorderRadius(rawVal);
+      if (r) decls.push(`border-top-left-radius: ${r};`);
+    } else if (key === "borderRadiusTopRight" || key === "borderTopRightRadius") {
+      const r = resolveBorderRadius(rawVal);
+      if (r) decls.push(`border-top-right-radius: ${r};`);
+    } else if (key === "borderRadiusBottomRight" || key === "borderBottomRightRadius") {
+      const r = resolveBorderRadius(rawVal);
+      if (r) decls.push(`border-bottom-right-radius: ${r};`);
+    } else if (key === "borderRadiusBottomLeft" || key === "borderBottomLeftRadius") {
+      const r = resolveBorderRadius(rawVal);
+      if (r) decls.push(`border-bottom-left-radius: ${r};`);
+    } else if (key === "backgroundColor" || key === "bgColor") {
       decls.push(`background-color: ${rawVal};`);
     } else if (key === "color") {
       decls.push(`color: ${rawVal};`);
@@ -844,6 +1294,42 @@ export const STYLE_PROPERTIES_TO_COPY = new Set<string>([
   "classId",
   "customClass",
   "responsive",
+  "border",
+  "borders",
+  "borderWidth",
+  "borderColor",
+  "borderStyle",
+  "borderTop",
+  "borderRight",
+  "borderBottom",
+  "borderLeft",
+  "borderTopWidth",
+  "borderRightWidth",
+  "borderBottomWidth",
+  "borderLeftWidth",
+  "borderRadiusTopLeft",
+  "borderRadiusTopRight",
+  "borderRadiusBottomRight",
+  "borderRadiusBottomLeft",
+  "overlay",
+  "overlayColor",
+  "overlayOpacity",
+  "opacity",
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "zIndex",
+  "transform",
+  "rotate",
+  "scale",
+  "translateX",
+  "translateY",
+  "overflow",
+  "overflowX",
+  "overflowY",
+  "aspectRatio",
 ]);
 
 /**

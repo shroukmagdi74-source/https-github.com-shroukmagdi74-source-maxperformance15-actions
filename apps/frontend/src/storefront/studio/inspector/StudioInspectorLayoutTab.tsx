@@ -39,6 +39,16 @@ export const StudioInspectorLayoutTab: React.FC<StudioInspectorLayoutTabProps> =
   const align = settings.contentAlign === "center" ? "center" : (settings.align || "right");
   const containerWidth = settings.containerWidth || "fluid";
   const spacingPreset = settings.spacing || "normal";
+  const currentOverflow = settings.overflow || "visible";
+  const currentAspectRatio = settings.aspectRatio || "auto";
+
+  const isOverflowCustomized =
+    isPropertyOverridden(targetSource, "overflow", deviceMode as "mobile" | "tablet") &&
+    deviceMode !== "desktop";
+
+  const isAspectCustomized =
+    isPropertyOverridden(targetSource, "aspectRatio", deviceMode as "mobile" | "tablet") &&
+    deviceMode !== "desktop";
 
   const isAlignCustomized =
     (isPropertyOverridden(targetSource, "contentAlign", deviceMode as "mobile" | "tablet") ||
@@ -249,6 +259,114 @@ export const StudioInspectorLayoutTab: React.FC<StudioInspectorLayoutTabProps> =
                 onResetField={onResetField}
                 onUpdateField={onUpdateField}
               />
+            </div>
+
+            {/* Overflow Control (Ticket LAYOUT-1) */}
+            <div className="border-t border-[#f0f1f3] pt-2.5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="block text-[10px] font-bold text-[#8a8f96]">
+                  سلوك التمرير والفيضان (Overflow)
+                </span>
+                {isOverflowCustomized && (
+                  <ResponsiveFieldBadge
+                    deviceMode={deviceMode}
+                    isCustomized={true}
+                    propName="overflow"
+                    onReset={() => onResetField ? onResetField("overflow") : onUpdateField("overflow", null)}
+                  />
+                )}
+              </div>
+              <div className="flex rounded-lg border border-[#ececee] bg-[#f6f7f8] p-1">
+                {[
+                  { id: "visible", label: "ظاهر (Visible)" },
+                  { id: "hidden", label: "مخفي (Hidden)" },
+                  { id: "auto", label: "تلقائي (Auto)" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    data-testid={`btn-overflow-${item.id}`}
+                    onClick={() => onUpdateField("overflow", item.id)}
+                    className={`flex-1 rounded-md py-1 text-center text-[10.5px] font-medium transition-all ${
+                      currentOverflow === item.id
+                        ? "bg-white text-[#2b6cf6] shadow-xs font-bold"
+                        : "text-[#6f747b] hover:text-[#17181c]"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Aspect Ratio Control (Ticket LAYOUT-1) */}
+            <div className="border-t border-[#f0f1f3] pt-2.5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="block text-[10px] font-bold text-[#8a8f96]">
+                  نسبة الأبعاد (Aspect Ratio)
+                </span>
+                {isAspectCustomized && (
+                  <ResponsiveFieldBadge
+                    deviceMode={deviceMode}
+                    isCustomized={true}
+                    propName="aspectRatio"
+                    onReset={() => onResetField ? onResetField("aspectRatio") : onUpdateField("aspectRatio", null)}
+                  />
+                )}
+              </div>
+              <div className="grid grid-cols-5 gap-1">
+                {[
+                  { id: "auto", label: "تلقائي" },
+                  { id: "1:1", label: "1:1" },
+                  { id: "4:3", label: "4:3" },
+                  { id: "16:9", label: "16:9" },
+                  { id: "custom", label: "مخصص" },
+                ].map((item) => {
+                  const isMatch =
+                    item.id === "custom"
+                      ? !["auto", "1:1", "1/1", "4:3", "4/3", "16:9", "16/9", ""].includes(currentAspectRatio)
+                      : currentAspectRatio === item.id ||
+                        (item.id === "1:1" && currentAspectRatio === "1/1") ||
+                        (item.id === "4:3" && currentAspectRatio === "4/3") ||
+                        (item.id === "16:9" && currentAspectRatio === "16/9");
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      data-testid={`btn-aspect-${item.id}`}
+                      onClick={() => {
+                        if (item.id === "custom") {
+                          onUpdateField("aspectRatio", "21:9");
+                        } else {
+                          onUpdateField("aspectRatio", item.id);
+                        }
+                      }}
+                      className={`rounded-md py-1 text-center font-mono text-[10px] font-bold transition-all ${
+                        isMatch
+                          ? "border border-[#2b6cf6] bg-[#2b6cf6]/10 text-[#2b6cf6]"
+                          : "border border-[#ececee] bg-[#f6f7f8] text-[#6f747b] hover:text-[#17181c]"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {!["auto", "1:1", "1/1", "4:3", "4/3", "16:9", "16/9", ""].includes(currentAspectRatio) && (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[10px] text-[#8a8f96]">النسبة:</span>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    data-testid="input-aspect-ratio-custom"
+                    value={currentAspectRatio}
+                    placeholder="مثال: 21:9"
+                    onChange={(e) => onUpdateField("aspectRatio", e.target.value)}
+                    className="w-24 rounded border border-[#ececee] bg-[#f6f7f8] px-2 py-0.5 text-center font-mono text-[10.5px] text-[#17181c] focus:bg-white focus:border-[#2b6cf6] outline-none"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

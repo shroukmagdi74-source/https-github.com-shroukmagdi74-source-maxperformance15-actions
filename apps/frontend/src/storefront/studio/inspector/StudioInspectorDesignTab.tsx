@@ -6,6 +6,7 @@ import {
   Square3Stack3DIcon,
   SparklesIcon,
   LanguageIcon,
+  ArrowsPointingOutIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioDeviceMode, StudioStyleClass } from "../StudioTypes";
 import {
@@ -15,6 +16,8 @@ import {
   FreeNumberInput,
 } from "./StudioDimensionControls";
 import { StudioShadowControls } from "./StudioShadowControls";
+import { StudioBorderControls } from "./StudioBorderControls";
+import { StudioPositionControls } from "./StudioPositionControls";
 import {
   normalizeArabicDigits,
   parseFreeNumber,
@@ -75,6 +78,7 @@ export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> =
     fill: true,
     corners: true,
     shadow: true,
+    position: false,
     spacing: false,
     layout: false,
     typography: false,
@@ -172,26 +176,6 @@ export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> =
   const customCss = settings.customCss || "";
 
   const targetSource = rawSettings || settings;
-
-  // Border radius numeric resolution
-  const currentRadiusNum = parseFreeNumber(
-    settings.borderRadius === "none"
-      ? 0
-      : settings.borderRadius === "small"
-      ? 8
-      : settings.borderRadius === "medium"
-      ? 16
-      : settings.borderRadius === "large"
-      ? 24
-      : settings.borderRadius,
-    0
-  );
-
-  const isRadiusCustomized = isPropertyOverridden(
-    targetSource,
-    "borderRadius",
-    deviceMode as "mobile" | "tablet"
-  );
 
   const colorSwatches = [
     { label: "أبيض ناصع", val: "#ffffff" },
@@ -341,41 +325,47 @@ export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> =
         </button>
 
         {openAcc.corners && (
-          <div className="p-3 bg-white space-y-2.5">
-            <FreeNumberInput
-              label="استدارة الزوايا (px)"
-              value={currentRadiusNum}
-              min={0}
-              max={100}
-              placeholder="0"
+          <div className="p-3 bg-white">
+            <StudioBorderControls
+              settings={settings}
               deviceMode={deviceMode}
-              isCustomized={isRadiusCustomized}
-              propName="borderRadius"
-              onReset={() => onResetField ? onResetField("borderRadius") : onUpdateField("borderRadius", null)}
-              onChange={(val) => onUpdateField("borderRadius", val)}
+              rawSettings={targetSource}
+              onResetField={onResetField}
+              onUpdateField={onUpdateField}
+              onBatchUpdateFields={onBatchUpdateFields}
             />
+          </div>
+        )}
+      </div>
 
-            <div className="grid grid-cols-4 gap-1 pt-0.5">
-              {[
-                { label: "0px", val: 0 },
-                { label: "8px", val: 8 },
-                { label: "16px", val: 16 },
-                { label: "24px", val: 24 },
-              ].map((opt) => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() => onUpdateField("borderRadius", opt.val)}
-                  className={`rounded border py-1 text-center text-[9.5px] transition-all ${
-                    currentRadiusNum === opt.val
-                      ? "border-[#2b6cf6] bg-[#2b6cf6]/10 text-[#2b6cf6] font-bold"
-                      : "border-[#ececee] bg-[#f6f7f8] text-[#6f747b] hover:text-[#17181c]"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+      {/* 2b. Accordion: موضع وتحويل (Position & Transform) */}
+      <div className="overflow-hidden rounded-lg border border-[#ececee]">
+        <button
+          type="button"
+          onClick={() => toggleAcc("position")}
+          className="flex w-full items-center justify-between bg-[#fafbfc] px-3 py-2 text-start font-medium text-[#3f434a]"
+        >
+          <div className="flex items-center gap-1.5 font-bold">
+            <ArrowsPointingOutIcon className="h-3.5 w-3.5 text-[#2b6cf6]" />
+            <span>الموضع والتحويل (Position & Transform)</span>
+          </div>
+          <ChevronDownIcon
+            className={`h-3.5 w-3.5 text-[#9aa0a8] transition-transform ${
+              openAcc.position ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {openAcc.position && (
+          <div className="p-3 bg-white">
+            <StudioPositionControls
+              settings={settings}
+              deviceMode={deviceMode}
+              rawSettings={targetSource}
+              onResetField={onResetField}
+              onUpdateField={onUpdateField}
+              onBatchUpdateFields={onBatchUpdateFields}
+            />
           </div>
         )}
       </div>

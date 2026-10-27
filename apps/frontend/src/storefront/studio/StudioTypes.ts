@@ -78,6 +78,41 @@ export interface StudioSelectedElement {
   currentImage?: string;
 }
 
+export type StudioPositionMode = "static" | "relative" | "absolute" | "sticky";
+export type StudioOverflowMode = "visible" | "hidden" | "auto" | "scroll";
+export type StudioBorderStyle = "solid" | "dashed" | "dotted" | "double" | "none";
+
+export interface StudioBorderSideSettings {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+  color?: string;
+  style?: StudioBorderStyle;
+  borderColor?: string;
+  borderStyle?: StudioBorderStyle;
+}
+
+export interface StudioCornerRadiusSettings {
+  topLeft?: number;
+  topRight?: number;
+  bottomRight?: number;
+  bottomLeft?: number;
+}
+
+export interface StudioOverlaySettings {
+  color?: string;
+  opacity?: number;
+}
+
+export interface StudioTransformSettings {
+  rotate?: number;
+  scale?: number;
+  translateX?: number;
+  translateY?: number;
+  transform?: string;
+}
+
 export interface ContainerResponsiveSettings {
   direction?: "column" | "row";
   columns?: number;
