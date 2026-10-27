@@ -293,11 +293,11 @@ const MedicalLanding: React.FC = () => {
               </motion.div>
               <motion.h1 variants={itemVariants} className="med-title">
                 <span className="med-title-gradient">عياداتك كلها</span> في نظام واحد<br />
-                والـ AI يرد ويحجز نيابة عنك
+                والـ AI يرد على مرضاك ويسجّل الطلب
               </motion.h1>
               <motion.p variants={itemVariants} className="med-lead">
                 إدارة الفروع والأطباء والمواعيد — كل حاجة من لوحة تحكم واحدة.
-                ٥ وكلاء ذكاء اصطناعي بشخصيات بشرية يردوا على مرضاك ويحجزوا مواعيد — ٢٤ ساعة.
+                ٥ وكلاء ذكاء اصطناعي بشخصيات بشرية يردوا على مرضاك على واتساب — ٢٤ ساعة، وأي طلب حجز بيتسجل ويتأكد من فريق العيادة.
                 واتساب بزنس مربوط — كل حاجة في باقة واحدة.
               </motion.p>
               <motion.div variants={itemVariants} className="flex flex-wrap gap-3 mb-6">
