@@ -343,6 +343,8 @@ woo_check.txt
 # Allow storefront demo images inside public/placeholders (required by CI build check)
 !frontend/public/placeholders/**
 !frontend/public/placeholders/**/*.png
+!apps/backend/tests/fixtures/**
+!apps/backend/tests/fixtures/**/*.png
 # Allow generated storefront landing-page assets that are served from /public.
 !frontend/public/landing-pages/**
 !frontend/public/landing-pages/**/*.png

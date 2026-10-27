@@ -19,6 +19,7 @@ import {
   InformationCircleIcon,
   QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
+import { STOREFRONT_ICONS } from '../../studio/StudioIconPicker';
 
 export interface IconElementSettings {
   name?: string;
@@ -82,8 +83,6 @@ const IconElement: React.FC<IconElementProps> = ({ section, settings: directSett
   const rawAlign = String(mergedSettings?.align || 'start').trim().toLowerCase();
   const customClass = mergedSettings?.className || '';
 
-  const IconComponent = ICON_REGISTRY[rawName] || SparklesIcon;
-
   // Resolve size
   let sizeClass = 'w-6 h-6'; // default md
   let inlineSize: string | undefined;
@@ -120,6 +119,20 @@ const IconElement: React.FC<IconElementProps> = ({ section, settings: directSett
     iconStyle.height = inlineSize;
   }
 
+  const finalClassName = `${inlineSize ? '' : sizeClass} text-[var(--store-accent,currentColor)] transition-colors duration-150 shrink-0`;
+
+  const renderIcon = () => {
+    // 1. Check custom 60+ storefront SVG library
+    if (STOREFRONT_ICONS[rawName]) {
+      const SvgComponent = STOREFRONT_ICONS[rawName].svg;
+      return <SvgComponent className={finalClassName} style={iconStyle} aria-hidden="true" />;
+    }
+
+    // 2. Fall back to classic heroicons registry
+    const HeroiconComponent = ICON_REGISTRY[rawName] || SparklesIcon;
+    return <HeroiconComponent className={finalClassName} style={iconStyle} aria-hidden="true" />;
+  };
+
   return (
     <div
       data-storefront-element="icon"
@@ -128,11 +141,7 @@ const IconElement: React.FC<IconElementProps> = ({ section, settings: directSett
       data-icon-color={color || 'default'}
       className={`storefront-icon-wrapper flex w-full items-center ${alignClass} ${customClass}`.trim()}
     >
-      <IconComponent
-        className={`${inlineSize ? '' : sizeClass} text-[var(--store-accent,currentColor)] transition-colors duration-150 shrink-0`}
-        style={iconStyle}
-        aria-hidden="true"
-      />
+      {renderIcon()}
     </div>
   );
 };

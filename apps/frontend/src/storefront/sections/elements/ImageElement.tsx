@@ -1,6 +1,14 @@
 import React from 'react';
 import { PhotoIcon } from '@heroicons/react/24/outline';
 
+export interface ImageElementWebpVariants {
+  480?: string;
+  960?: string;
+  1440?: string;
+  [key: number]: string | undefined;
+  [key: string]: string | undefined;
+}
+
 export interface ImageElementSettings {
   src?: string;
   alt?: string;
@@ -9,6 +17,13 @@ export interface ImageElementSettings {
   aspectRatio?: 'auto' | '16:9' | '4:3' | '1:1' | '3:4' | string;
   fit?: 'cover' | 'contain' | 'auto' | 'fill' | string;
   className?: string;
+  webp?: ImageElementWebpVariants;
+  srcSet?: string;
+  sizes?: string;
+  width?: number | string;
+  height?: number | string;
+  loading?: 'lazy' | 'eager';
+  decoding?: 'async' | 'sync' | 'auto';
 }
 
 export interface ImageElementProps {
@@ -44,6 +59,33 @@ const resolveBorderRadius = (radius: unknown): string => {
   }
 };
 
+export const buildImageSrcSet = (webp?: ImageElementWebpVariants): string | undefined => {
+  if (!webp || typeof webp !== 'object') return undefined;
+
+  const parts: string[] = [];
+  const standardWidths = [480, 960, 1440];
+
+  for (const w of standardWidths) {
+    const url = webp[w] || webp[String(w)];
+    if (url && typeof url === 'string') {
+      parts.push(`${url} ${w}w`);
+    }
+  }
+
+  // Also include any custom widths if present
+  Object.keys(webp).forEach((k) => {
+    const num = Number.parseInt(k, 10);
+    if (!Number.isNaN(num) && !standardWidths.includes(num)) {
+      const url = webp[k];
+      if (url && typeof url === 'string') {
+        parts.push(`${url} ${num}w`);
+      }
+    }
+  });
+
+  return parts.length > 0 ? parts.join(', ') : undefined;
+};
+
 const ImageElement: React.FC<ImageElementProps> = ({ section, settings: directSettings }) => {
   const mergedSettings = { ...section?.settings, ...directSettings };
   const src = mergedSettings?.src?.trim();
@@ -53,6 +95,18 @@ const ImageElement: React.FC<ImageElementProps> = ({ section, settings: directSe
   const rawRatio = String(mergedSettings?.aspectRatio || 'auto').trim().toLowerCase();
   const rawFit = String(mergedSettings?.fit || 'cover').trim().toLowerCase();
   const customClass = mergedSettings?.className || '';
+
+  const computedSrcSet = mergedSettings?.srcSet || buildImageSrcSet(mergedSettings?.webp);
+  const sizes =
+    mergedSettings?.sizes ||
+    (computedSrcSet
+      ? '(max-width: 640px) 100vw, (max-width: 1024px) 75vw, 1200px'
+      : undefined);
+
+  const loading = mergedSettings?.loading || 'lazy';
+  const decoding = mergedSettings?.decoding || 'async';
+  const width = mergedSettings?.width;
+  const height = mergedSettings?.height;
 
   const borderRadius = resolveBorderRadius(radius);
 
@@ -93,8 +147,13 @@ const ImageElement: React.FC<ImageElementProps> = ({ section, settings: directSe
     return (
       <img
         src={src}
+        srcSet={computedSrcSet}
+        sizes={sizes}
         alt={alt}
-        loading="lazy"
+        loading={loading}
+        decoding={decoding}
+        width={width}
+        height={height}
         className={`w-full h-auto max-w-full ${fitClass} ${aspectClass} transition-opacity duration-200`}
         style={{ borderRadius }}
       />

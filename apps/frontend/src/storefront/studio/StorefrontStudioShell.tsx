@@ -35,6 +35,7 @@ import tokenManager from "../../utils/tokenManager";
 import { useAuth } from "../../hooks/useAuthSimple";
 import type { StudioPageDefinition } from "./StudioTypes";
 import StorefrontImagePickerModal from "../../components/store/StorefrontImagePickerModal";
+import { StudioMediaLibraryPanel } from "./StudioMediaLibraryPanel";
 import { toast } from "sonner";
 import {
   ChevronUpIcon,
@@ -1155,7 +1156,8 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
             isAiActive={isInspectorOpen && inspectorTab === "interactions"}
             onSelectTab={(tab) => {
               if (tab === "media") {
-                handleOpenImagePickerModal();
+                setLeftRailTab("media");
+                setIsLeftDrawerOpen(true);
                 return;
               }
               if (tab === "ai") {
@@ -1296,6 +1298,22 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                     activePageKey={activePageKey}
                     onApplyPreset={handleApplyIndustryPreset}
                     onClose={() => setIsLeftDrawerOpen(false)}
+                  />
+                )}
+
+                {leftRailTab === "media" && (
+                  <StudioMediaLibraryPanel
+                    onClose={() => setIsLeftDrawerOpen(false)}
+                    onInsertImage={(img) => {
+                      handleAddSection("image");
+                      setTimeout(() => {
+                        handleUpdateSectionField("src", img.url, deviceMode);
+                        if (img.alt) handleUpdateSectionField("alt", img.alt, deviceMode);
+                        if (img.webp) handleUpdateSectionField("webp", img.webp, deviceMode);
+                        if (img.width) handleUpdateSectionField("width", img.width, deviceMode);
+                        if (img.height) handleUpdateSectionField("height", img.height, deviceMode);
+                      }, 50);
+                    }}
                   />
                 )}
 

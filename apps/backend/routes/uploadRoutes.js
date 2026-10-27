@@ -5,6 +5,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const verifyToken = require("../utils/verifyToken");
 const { pregenerateCommonUploadVariants } = require("../utils/uploadImageOptimizer");
+const { processStorefrontImage } = require("../services/storefrontImageService");
 
 const router = express.Router();
 
@@ -15,6 +16,7 @@ router.use(verifyToken.authenticateToken);
 const uploadsDir = path.join(__dirname, '../uploads');
 const productsDir = path.join(uploadsDir, 'products');
 const conversationsDir = path.join(uploadsDir, 'conversations');
+const storefrontDir = path.join(uploadsDir, 'storefront');
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -188,6 +190,50 @@ router.post('/multiple', upload.array('images', 10), (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to upload images'
+    });
+  }
+});
+
+// Configure memory storage for storefront webp processing
+const storefrontUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+  },
+});
+
+// Upload storefront image: converts to webp (quality ~82) and generates 480/960/1440 responsive variants
+router.post('/storefront-image', storefrontUpload.any(), async (req, res) => {
+  try {
+    const file = (req.files && req.files[0]) || req.file;
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded',
+      });
+    }
+
+    const result = await processStorefrontImage(file.buffer, {
+      outputDir: storefrontDir,
+      baseUrl: '/uploads/storefront',
+      filename: file.originalname,
+    });
+
+    res.json({
+      success: true,
+      url: result.url,
+      webp: result.webp,
+      width: result.width,
+      height: result.height,
+      bytes: result.bytes,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error uploading storefront image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process storefront image',
     });
   }
 });

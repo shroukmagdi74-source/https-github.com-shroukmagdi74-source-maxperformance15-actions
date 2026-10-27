@@ -55,7 +55,7 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
   ];
 
   const handleClick = (id: StudioLeftRailActiveTab) => {
-    if (id === "media" || id === "ai") {
+    if (id === "ai") {
       onSelectTab(id);
       return;
     }
