@@ -42,7 +42,19 @@ export function useWhatsAppMetaTemplatesController({
   const [sessions, setSessions] = useState<
     { id: string; name?: string; phoneNumber: string }[]
   >([]);
-  const [selectedSessionId, setSelectedSessionId] = useState("");
+  const [selectedSessionId, _setSelectedSessionId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("meta_templates_selected_session") || "";
+    }
+    return "";
+  });
+
+  const setSelectedSessionId = useCallback((id: string) => {
+    _setSelectedSessionId(id);
+    if (typeof window !== "undefined" && id) {
+      localStorage.setItem("meta_templates_selected_session", id);
+    }
+  }, []);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
@@ -107,29 +119,58 @@ export function useWhatsAppMetaTemplatesController({
         (s: any) => s.provider === "META_CLOUD" || s.metaWabaId,
       );
       setSessions(metaSessions);
-      if (metaSessions.length > 0 && !selectedSessionId) {
-        setSelectedSessionId(metaSessions[0].id);
+      if (metaSessions.length > 0) {
+        _setSelectedSessionId((prev) => {
+          if (prev && metaSessions.some((s: any) => s.id === prev)) {
+            return prev;
+          }
+          const defaultId = metaSessions[0].id;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("meta_templates_selected_session", defaultId);
+          }
+          return defaultId;
+        });
       }
     } catch {
       // ignore
     }
-  }, [withCompanyConfig, selectedSessionId]);
+  }, [withCompanyConfig]);
 
-  const fetchTemplates = useCallback(async () => {
-    if (!selectedSessionId) return;
-    try {
-      setLoading(true);
-      const res = await apiClient.get(
-        `/whatsapp-templates/templates?sessionId=${selectedSessionId}`,
-        withCompanyConfig(),
-      );
-      setTemplates((res as any).data?.templates || []);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "فشل تحميل القوالب");
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedSessionId, withCompanyConfig]);
+  const fetchTemplates = useCallback(
+    async (options?: { forceRefresh?: boolean }) => {
+      try {
+        setLoading(true);
+        const queryParams = new URLSearchParams();
+        if (selectedSessionId) {
+          queryParams.set("sessionId", selectedSessionId);
+        }
+        if (options?.forceRefresh) {
+          queryParams.set("refresh", "true");
+        }
+        const queryString = queryParams.toString();
+        const url = `/whatsapp-templates/templates${queryString ? `?${queryString}` : ""}`;
+        const res = await apiClient.get(url, withCompanyConfig());
+        const data = (res as any).data;
+        setTemplates(data?.templates || []);
+        if (data?.sessionId) {
+          _setSelectedSessionId((prev) => {
+            if (!prev) {
+              if (typeof window !== "undefined") {
+                localStorage.setItem("meta_templates_selected_session", data.sessionId);
+              }
+              return data.sessionId;
+            }
+            return prev;
+          });
+        }
+      } catch (err: any) {
+        toast.error(err?.response?.data?.error || "فشل تحميل القوالب");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedSessionId, withCompanyConfig],
+  );
 
   useEffect(() => {
     void fetchSessions();

@@ -94,9 +94,19 @@ async function postMessage(session, payload) {
 const templateListCache = new Map();
 const TEMPLATE_LIST_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
 
+let redisCacheService = null;
+try {
+  redisCacheService = require('../../redisCacheService');
+} catch (e) {
+  // fallback if redis service not available
+}
+
 function invalidateTemplateCache(sessionId) {
   if (sessionId) {
     templateListCache.delete(sessionId);
+    if (redisCacheService && typeof redisCacheService.del === 'function') {
+      redisCacheService.del(`meta_templates:${sessionId}`).catch(() => {});
+    }
   } else {
     templateListCache.clear();
   }
@@ -104,9 +114,27 @@ function invalidateTemplateCache(sessionId) {
 
 async function listTemplates(sessionId, options = {}) {
   const forceRefresh = Boolean(options && (options.forceRefresh || options.refresh));
+
+  // 1. Check in-memory process cache first
   const cached = templateListCache.get(sessionId);
   if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
     return cached.templates;
+  }
+
+  // 2. Check distributed Redis cache (shared across all PM2 cluster workers)
+  if (!forceRefresh && redisCacheService && typeof redisCacheService.get === 'function') {
+    try {
+      const redisCached = await redisCacheService.get(`meta_templates:${sessionId}`);
+      if (Array.isArray(redisCached) && redisCached.length > 0) {
+        templateListCache.set(sessionId, {
+          templates: redisCached,
+          expiresAt: Date.now() + TEMPLATE_LIST_CACHE_TTL_MS
+        });
+        return redisCached;
+      }
+    } catch (redisErr) {
+      console.warn('⚠️ [MetaCloudProvider] Redis cache read failed (falling back to Meta API):', redisErr.message);
+    }
   }
 
   const session = await getSession(sessionId);
@@ -120,8 +148,7 @@ async function listTemplates(sessionId, options = {}) {
     throw new Error('Missing Meta WABA ID for session');
   }
 
-  // 🔧 FIX (2026-08-26): ميتا بترجع 25 قالب بس في الصفحة الواحدة (default limit)
-  // — لازم نعمل pagination بالكامل عشان قوالب الأوردرز متضيعش لو WABA فيه قوالب كتير
+  // 🔧 Meta Graph API pagination
   const baseUrl = `https://graph.facebook.com/${apiVersion}/${wabaId}/message_templates`;
   const allTemplates = [];
   let afterCursor = null;
@@ -139,14 +166,27 @@ async function listTemplates(sessionId, options = {}) {
     allTemplates.push(...pageData);
     afterCursor = response.data?.paging?.cursors?.after || null;
 
-    // حماية من اللوب اللانهائي
-    if (!pageData.length) break;
+    // 🚀 Performance Guard:
+    // Meta always returns cursors.after even on the last page.
+    // We only continue if Meta explicitly returned paging.next AND pageData has reached limit (200).
+    // If pageData is empty or less than 200, or paging.next is missing, break immediately!
+    if (!response.data?.paging?.next || pageData.length < 200) {
+      break;
+    }
   } while (afterCursor);
 
   templateListCache.set(sessionId, {
     templates: allTemplates,
     expiresAt: Date.now() + TEMPLATE_LIST_CACHE_TTL_MS
   });
+
+  if (redisCacheService && typeof redisCacheService.set === 'function') {
+    try {
+      await redisCacheService.set(`meta_templates:${sessionId}`, allTemplates, 600); // 10 minutes TTL
+    } catch (redisSetErr) {
+      // non-fatal
+    }
+  }
 
   return allTemplates;
 }

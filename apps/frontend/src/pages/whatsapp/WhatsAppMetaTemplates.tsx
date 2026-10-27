@@ -97,7 +97,7 @@ const WhatsAppMetaTemplates: React.FC<{
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={ctrl.fetchTemplates}
+                  onClick={() => ctrl.fetchTemplates({ forceRefresh: true })}
                   disabled={ctrl.loading}
                   aria-label="تحديث القوالب"
                   className="size-10 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95"
@@ -107,7 +107,7 @@ const WhatsAppMetaTemplates: React.FC<{
                   />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">تحديث القوالب</TooltipContent>
+              <TooltipContent side="bottom">تحديث القوالب (فرض التحديث من Meta)</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -336,97 +336,109 @@ const WhatsAppMetaTemplates: React.FC<{
           <Plus className="size-6" />
         </Button>
 
-        {/* Create Dialog */}
-        <MetaTemplateCreateDialog
-          open={ctrl.createOpen}
-          onOpenChange={(open) => {
-            if (open) ctrl.setCreateOpen(true);
-            else ctrl.closeCreateDialog();
-          }}
-          createStep={ctrl.createStep}
-          setCreateStep={ctrl.setCreateStep}
-          form={ctrl.form}
-          setForm={ctrl.setForm}
-          sanitizedName={ctrl.sanitizedName}
-          nameValid={ctrl.nameValid}
-          headerVarsOk={ctrl.headerVarsOk}
-          bodyVarsOk={ctrl.bodyVarsOk}
-          buttonUrlOk={ctrl.buttonUrlOk}
-          bodyVars={ctrl.bodyVars}
-          varValues={ctrl.varValues}
-          setVarValues={ctrl.setVarValues}
-          previewText={ctrl.previewText}
-          complianceResults={ctrl.complianceResults}
-          showCompliance={ctrl.showCompliance}
-          setShowCompliance={ctrl.setShowCompliance}
-          uploadingHeader={ctrl.uploadingHeader}
-          onUploadHeaderMedia={ctrl.uploadHeaderMedia}
-          insertBodyVariable={ctrl.insertBodyVariable}
-          sending={ctrl.sending}
-          onCreate={ctrl.handleCreate}
-          onClose={ctrl.closeCreateDialog}
-        />
+        {/* Create Dialog - mounted conditionally to keep initial render lightweight */}
+        {ctrl.createOpen && (
+          <MetaTemplateCreateDialog
+            open={ctrl.createOpen}
+            onOpenChange={(open) => {
+              if (open) ctrl.setCreateOpen(true);
+              else ctrl.closeCreateDialog();
+            }}
+            createStep={ctrl.createStep}
+            setCreateStep={ctrl.setCreateStep}
+            form={ctrl.form}
+            setForm={ctrl.setForm}
+            sanitizedName={ctrl.sanitizedName}
+            nameValid={ctrl.nameValid}
+            headerVarsOk={ctrl.headerVarsOk}
+            bodyVarsOk={ctrl.bodyVarsOk}
+            buttonUrlOk={ctrl.buttonUrlOk}
+            bodyVars={ctrl.bodyVars}
+            varValues={ctrl.varValues}
+            setVarValues={ctrl.setVarValues}
+            previewText={ctrl.previewText}
+            complianceResults={ctrl.complianceResults}
+            showCompliance={ctrl.showCompliance}
+            setShowCompliance={ctrl.setShowCompliance}
+            uploadingHeader={ctrl.uploadingHeader}
+            onUploadHeaderMedia={ctrl.uploadHeaderMedia}
+            insertBodyVariable={ctrl.insertBodyVariable}
+            sending={ctrl.sending}
+            onCreate={ctrl.handleCreate}
+            onClose={ctrl.closeCreateDialog}
+          />
+        )}
 
         {/* View Dialog */}
-        <MetaTemplateViewDialog
-          viewTemplate={ctrl.viewTemplate}
-          onClose={() => ctrl.setViewTemplate(null)}
-        />
+        {ctrl.viewTemplate && (
+          <MetaTemplateViewDialog
+            viewTemplate={ctrl.viewTemplate}
+            onClose={() => ctrl.setViewTemplate(null)}
+          />
+        )}
 
         {/* Edit Dialog */}
-        <MetaTemplateEditDialog
-          open={ctrl.editOpen}
-          onOpenChange={(o) => {
-            if (!o) {
-              ctrl.setEditOpen(false);
-              ctrl.setEditForm(null);
-              ctrl.setEditComplianceResults([]);
-              ctrl.setEditShowCompliance(false);
+        {ctrl.editOpen && (
+          <MetaTemplateEditDialog
+            open={ctrl.editOpen}
+            onOpenChange={(o) => {
+              if (!o) {
+                ctrl.setEditOpen(false);
+                ctrl.setEditForm(null);
+                ctrl.setEditComplianceResults([]);
+                ctrl.setEditShowCompliance(false);
+              }
+            }}
+            editForm={ctrl.editForm}
+            setEditForm={ctrl.setEditForm}
+            editSending={ctrl.editSending}
+            editComplianceResults={ctrl.editComplianceResults}
+            editShowCompliance={ctrl.editShowCompliance}
+            onToggleShowCompliance={() =>
+              ctrl.setEditShowCompliance(!ctrl.editShowCompliance)
             }
-          }}
-          editForm={ctrl.editForm}
-          setEditForm={ctrl.setEditForm}
-          editSending={ctrl.editSending}
-          editComplianceResults={ctrl.editComplianceResults}
-          editShowCompliance={ctrl.editShowCompliance}
-          onToggleShowCompliance={() =>
-            ctrl.setEditShowCompliance(!ctrl.editShowCompliance)
-          }
-          uploadingHeader={ctrl.uploadingHeader}
-          onUploadHeaderMedia={ctrl.uploadHeaderMedia}
-          onSave={ctrl.handleEdit}
-        />
+            uploadingHeader={ctrl.uploadingHeader}
+            onUploadHeaderMedia={ctrl.uploadHeaderMedia}
+            onSave={ctrl.handleEdit}
+          />
+        )}
 
         {/* Delete Dialog */}
-        <MetaTemplateDeleteDialog
-          templateName={ctrl.deleteConfirm}
-          onClose={() => ctrl.setDeleteConfirm(null)}
-          onConfirm={(name) => ctrl.handleDelete(name)}
-        />
+        {ctrl.deleteConfirm && (
+          <MetaTemplateDeleteDialog
+            templateName={ctrl.deleteConfirm}
+            onClose={() => ctrl.setDeleteConfirm(null)}
+            onConfirm={(name) => ctrl.handleDelete(name)}
+          />
+        )}
 
         {/* Library Dialog */}
-        <MetaTemplateLibraryDialog
-          open={ctrl.libraryOpen}
-          onOpenChange={ctrl.setLibraryOpen}
-          librarySearch={ctrl.librarySearch}
-          onSearchChange={ctrl.setLibrarySearch}
-          domainFilter={ctrl.libraryDomainFilter}
-          onDomainFilterChange={ctrl.setLibraryDomainFilter}
-          libraryByCategory={ctrl.libraryByCategory}
-          filteredLibraryCount={ctrl.filteredLibrary.length}
-          onApplyTemplate={ctrl.applyLibraryTemplate}
-        />
+        {ctrl.libraryOpen && (
+          <MetaTemplateLibraryDialog
+            open={ctrl.libraryOpen}
+            onOpenChange={ctrl.setLibraryOpen}
+            librarySearch={ctrl.librarySearch}
+            onSearchChange={ctrl.setLibrarySearch}
+            domainFilter={ctrl.libraryDomainFilter}
+            onDomainFilterChange={ctrl.setLibraryDomainFilter}
+            libraryByCategory={ctrl.libraryByCategory}
+            filteredLibraryCount={ctrl.filteredLibrary.length}
+            onApplyTemplate={ctrl.applyLibraryTemplate}
+          />
+        )}
 
         {/* History Dialog */}
-        <MetaTemplateHistoryDialog
-          open={ctrl.historyOpen}
-          onOpenChange={ctrl.setHistoryOpen}
-          templateHistory={ctrl.templateHistory}
-          onClearHistory={() => {
-            localStorage.removeItem("meta_template_history");
-            ctrl.setTemplateHistory([]);
-          }}
-        />
+        {ctrl.historyOpen && (
+          <MetaTemplateHistoryDialog
+            open={ctrl.historyOpen}
+            onOpenChange={ctrl.setHistoryOpen}
+            templateHistory={ctrl.templateHistory}
+            onClearHistory={() => {
+              localStorage.removeItem("meta_template_history");
+              ctrl.setTemplateHistory([]);
+            }}
+          />
+        )}
       </WhatsAppPageShell>
     </TooltipProvider>
   );

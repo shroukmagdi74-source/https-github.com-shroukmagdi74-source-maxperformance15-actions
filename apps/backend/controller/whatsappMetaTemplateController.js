@@ -19,21 +19,50 @@ async function listMetaTemplates(req, res) {
     const { companyId } = req.user;
     const { sessionId } = req.query;
 
-    if (!sessionId) {
-      return res.status(400).json({ error: 'sessionId مطلوب' });
+    let targetSessionId = sessionId;
+    if (!targetSessionId) {
+      // 🚀 Auto-resolve active Meta Cloud session if not provided, eliminating frontend waterfall delay
+      const defaultSession = await getSharedPrismaClient().whatsAppSession.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { provider: 'META_CLOUD' },
+            { metaWabaId: { not: null } }
+          ],
+          status: 'CONNECTED'
+        },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true }
+      }) || await getSharedPrismaClient().whatsAppSession.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { provider: 'META_CLOUD' },
+            { metaWabaId: { not: null } }
+          ]
+        },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true }
+      });
+      targetSessionId = defaultSession?.id;
     }
 
-    const targetSessionId = await resolveActiveSessionId(companyId, sessionId);
+    if (!targetSessionId) {
+      return res.status(400).json({ error: 'sessionId مطلوب ولا توجد جلسة Meta Cloud نشطة' });
+    }
+
+    const resolvedSessionId = await resolveActiveSessionId(companyId, targetSessionId);
     const session = await getSharedPrismaClient().whatsAppSession.findFirst({
-      where: { id: targetSessionId, companyId }
+      where: { id: resolvedSessionId, companyId }
     });
 
     if (!session) {
       return res.status(404).json({ error: 'الجلسة غير موجودة' });
     }
 
-    const templates = await MetaCloudProvider.listTemplates(targetSessionId);
-    res.json({ success: true, templates });
+    const forceRefresh = req.query.refresh === 'true' || req.query.forceRefresh === 'true';
+    const templates = await MetaCloudProvider.listTemplates(resolvedSessionId, { forceRefresh });
+    res.json({ success: true, templates, sessionId: resolvedSessionId });
   } catch (error) {
     console.error('Error listing Meta templates:', error);
     res.status(500).json({ error: error.message || 'حدث خطأ أثناء جلب القوالب' });
@@ -143,6 +172,7 @@ async function createMetaTemplate(req, res) {
       name, language, category, components: components || [], allowCategoryChange
     });
 
+    MetaCloudProvider.invalidateTemplateCache(targetSessionId);
     res.json({ success: true, result });
   } catch (error) {
     console.error('Error creating Meta template:', error?.response?.data || error);
@@ -199,6 +229,7 @@ async function updateMetaTemplate(req, res) {
     }
 
     const result = await MetaCloudProvider.updateTemplate(targetSessionId, resolvedTemplateId, updateData);
+    MetaCloudProvider.invalidateTemplateCache(targetSessionId);
     res.json({ success: true, result });
   } catch (error) {
     console.error('Error updating Meta template:', error);
@@ -225,6 +256,7 @@ async function deleteMetaTemplate(req, res) {
     }
 
     const result = await MetaCloudProvider.deleteTemplate(targetSessionId, templateName);
+    MetaCloudProvider.invalidateTemplateCache(targetSessionId);
     res.json({ success: true, result });
   } catch (error) {
     console.error('Error deleting Meta template:', error);
