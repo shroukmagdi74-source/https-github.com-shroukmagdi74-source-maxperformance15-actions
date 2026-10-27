@@ -209,4 +209,46 @@ describe("MessageBubble media rendering", () => {
     fireEvent.click(imgTrigger);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+
+  it("renders TEMPLATE message with mediaUrl without falling back to unsupported media error", () => {
+    render(
+      <MessageBubble
+        message={{
+          id: "msg-template-media-1",
+          messageId: "wamid.fixture-template-1",
+          remoteJid: "201111111111@s.whatsapp.net",
+          fromMe: true,
+          messageType: "TEMPLATE",
+          content: "صباح الخير أم عبد الله أوردر حضرتك",
+          mediaUrl: "meta-media:fixture-template-header",
+          mediaType: "image",
+          mediaFileName: null,
+          quotedMessageId: null,
+          quotedContent: null,
+          status: "DELIVERED",
+          timestamp: "2026-05-10T12:00:00.000Z",
+          isAIResponse: false,
+          aiConfidence: null,
+          interactiveData: JSON.stringify({
+            templateName: "order_delivered_v2",
+          }),
+        }}
+        previousMessage={undefined}
+        isGroup={false}
+        onContextMenu={() => undefined}
+        getParticipantName={() => ""}
+      />,
+    );
+
+    expect(screen.queryByText(/unsupported/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/نوع وسائط غير مدعوم/i)).not.toBeInTheDocument();
+    expect(screen.getByText("order_delivered_v2")).toBeInTheDocument();
+    expect(screen.getByText("صباح الخير أم عبد الله أوردر حضرتك")).toBeInTheDocument();
+    const headerImage = screen.getByAltText("order_delivered_v2");
+    expect(headerImage).toBeInTheDocument();
+    expect(headerImage).toHaveAttribute(
+      "src",
+      "http://127.0.0.1:3007/api/v1/proxy-image?whatsAppMessageId=msg-template-media-1",
+    );
+  });
 });
