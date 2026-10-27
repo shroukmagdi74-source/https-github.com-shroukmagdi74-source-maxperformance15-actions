@@ -14,7 +14,7 @@ import {
   PlayIcon,
 } from "@heroicons/react/24/outline";
 import { getStorefrontSectionLabel } from "../sections/manifest";
-import type { StudioInspectorTab, StudioDeviceMode, StudioSelectedElement } from "./StudioTypes";
+import type { StudioInspectorTab, StudioDeviceMode, StudioSelectedElement, StudioStyleClass } from "./StudioTypes";
 import { StudioInspectorDesignTab } from "./inspector/StudioInspectorDesignTab";
 import { StudioInspectorLayoutTab } from "./inspector/StudioInspectorLayoutTab";
 import { StudioContainerControls } from "./inspector/StudioContainerControls";
@@ -42,6 +42,17 @@ interface StudioPropertyInspectorProps {
   onSave?: () => void;
   companyId?: string;
   activePageKey?: string;
+  classes?: StudioStyleClass[];
+  selectedClassId?: string | null;
+  assignedClassId?: string | null;
+  onSelectClass?: (classId: string | null) => void;
+  onAssignClass?: (classId: string | null) => void;
+  onCreateClass?: (name?: string) => void;
+  onUpdateClass?: (classId: string, updates: Partial<StudioStyleClass>) => void;
+  onDeleteClass?: (classId: string) => void;
+  onCopyStyle?: () => void;
+  onPasteStyle?: () => void;
+  hasCopiedStyle?: boolean;
 }
 
 export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = ({
@@ -61,6 +72,17 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
   onSave,
   companyId,
   activePageKey,
+  classes,
+  selectedClassId,
+  assignedClassId,
+  onSelectClass,
+  onAssignClass,
+  onCreateClass,
+  onUpdateClass,
+  onDeleteClass,
+  onCopyStyle,
+  onPasteStyle,
+  hasCopiedStyle,
 }) => {
   const [activeTab, setActiveTab] = useState<StudioInspectorTab>(initialTab);
 
@@ -517,6 +539,17 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
                 onUpdateField={onUpdateField}
                 onBatchUpdateFields={onBatchUpdateFields}
                 onSave={onSave}
+                classes={classes}
+                selectedClassId={selectedClassId}
+                assignedClassId={assignedClassId || settings.classId || settings.customClass || null}
+                onSelectClass={onSelectClass}
+                onAssignClass={onAssignClass}
+                onCreateClass={onCreateClass}
+                onUpdateClass={onUpdateClass}
+                onDeleteClass={onDeleteClass}
+                onCopyStyle={onCopyStyle}
+                onPasteStyle={onPasteStyle}
+                hasCopiedStyle={hasCopiedStyle}
               />
             )}
 
@@ -530,6 +563,17 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
                   onUpdateField={onUpdateField}
                   onBatchUpdateFields={onBatchUpdateFields}
                   onSave={onSave}
+                classes={classes}
+                selectedClassId={selectedClassId}
+                assignedClassId={assignedClassId || settings.classId || settings.customClass || null}
+                onSelectClass={onSelectClass}
+                onAssignClass={onAssignClass}
+                onCreateClass={onCreateClass}
+                onUpdateClass={onUpdateClass}
+                onDeleteClass={onDeleteClass}
+                onCopyStyle={onCopyStyle}
+                onPasteStyle={onPasteStyle}
+                hasCopiedStyle={hasCopiedStyle}
                 />
               ) : (
                 <StudioInspectorLayoutTab
@@ -549,6 +593,17 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
                 onUpdateField={onUpdateField}
                 onBatchUpdateFields={onBatchUpdateFields}
                 onSave={onSave}
+                classes={classes}
+                selectedClassId={selectedClassId}
+                assignedClassId={assignedClassId || settings.classId || settings.customClass || null}
+                onSelectClass={onSelectClass}
+                onAssignClass={onAssignClass}
+                onCreateClass={onCreateClass}
+                onUpdateClass={onUpdateClass}
+                onDeleteClass={onDeleteClass}
+                onCopyStyle={onCopyStyle}
+                onPasteStyle={onPasteStyle}
+                hasCopiedStyle={hasCopiedStyle}
               />
             )}
 
@@ -589,6 +644,17 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
                 onUpdateField={onUpdateField}
                 onBatchUpdateFields={onBatchUpdateFields}
                 onSave={onSave}
+                classes={classes}
+                selectedClassId={selectedClassId}
+                assignedClassId={assignedClassId || settings.classId || settings.customClass || null}
+                onSelectClass={onSelectClass}
+                onAssignClass={onAssignClass}
+                onCreateClass={onCreateClass}
+                onUpdateClass={onUpdateClass}
+                onDeleteClass={onDeleteClass}
+                onCopyStyle={onCopyStyle}
+                onPasteStyle={onPasteStyle}
+                hasCopiedStyle={hasCopiedStyle}
               />
             )}
           </>

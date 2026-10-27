@@ -21,7 +21,21 @@ export type StudioInspectorTab =
   | "visibility"
   | "i18n"
   | "analytics"
-  | "animation";
+  | "animation"
+  | "classes";
+
+export type StudioStyleState = "normal" | "hover" | "focus" | "active";
+
+export interface StudioStyleClass {
+  id: string;
+  name: string;
+  settings: Record<string, any>;
+  states?: {
+    hover?: Record<string, any>;
+    focus?: Record<string, any>;
+    active?: Record<string, any>;
+  };
+}
 
 export type StudioZoomLevel = number;
 
@@ -90,6 +104,7 @@ export interface SectionNode {
   label?: string;
   hidden?: boolean;
   locked?: boolean;
+  classId?: string;
   settings?: Record<string, unknown> | ContainerSettings;
   children?: SectionNode[];
   [key: string]: unknown;

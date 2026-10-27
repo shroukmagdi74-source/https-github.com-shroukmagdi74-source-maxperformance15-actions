@@ -4,6 +4,10 @@
  * and multi-device responsive overrides resolution (Ticket 2G).
  */
 
+import type React from "react";
+import type { StudioStyleClass } from "../StudioTypes";
+import { buildElementTypographyStyle } from "../../sections/elements/elementTypography";
+
 export type StorefrontBreakpoint = "desktop" | "tablet" | "mobile";
 
 /**
@@ -325,11 +329,14 @@ export function resolveBorderRadius(value: any): string | undefined {
 export function buildSectionStyle(
   settings?: Record<string, any> | null,
   baseStyle?: React.CSSProperties,
-  deviceMode?: StorefrontBreakpoint | "desktop" | "tablet" | "mobile"
+  deviceMode?: StorefrontBreakpoint | "desktop" | "tablet" | "mobile",
+  classes?: StudioStyleClass[]
 ): React.CSSProperties {
   if (!settings) return baseStyle || {};
 
-  const effective = deviceMode ? resolveEffectiveSectionSettings(settings, deviceMode) : settings;
+  const resolvedClasses = classes || (Array.isArray(settings.classes) ? (settings.classes as StudioStyleClass[]) : undefined);
+  const settingsWithClasses = resolvedClasses ? mergeClassStyle(settings, resolvedClasses) : settings;
+  const effective = deviceMode ? resolveEffectiveSectionSettings(settingsWithClasses, deviceMode) : settingsWithClasses;
   const style: React.CSSProperties = { ...(baseStyle || {}) };
 
   // 1. Free Padding
@@ -418,6 +425,11 @@ export function buildSectionStyle(
     if (alignVal === "center" || alignVal === "right" || alignVal === "left" || alignVal === "justify") {
       style.textAlign = alignVal as React.CSSProperties["textAlign"];
     }
+  }
+
+  // 10. Text Color
+  if (effective.color && typeof effective.color === "string") {
+    style.color = effective.color === "accent" ? "var(--store-accent, #2563eb)" : effective.color;
   }
 
   return style;
@@ -557,4 +569,317 @@ export function generateResponsiveCss(
   }
 
   return rules.length > 0 ? rules.join("\n") : null;
+}
+
+/**
+ * Converts a style/settings object into an array of clean CSS declaration strings.
+ */
+export function styleObjectToCssDeclarations(styleObj?: Record<string, any> | null): string[] {
+  if (!styleObj || typeof styleObj !== "object") return [];
+  const decls: string[] = [];
+
+  for (const [key, rawVal] of Object.entries(styleObj)) {
+    if (rawVal === undefined || rawVal === null || rawVal === "") continue;
+    if (["id", "name", "classId", "customClass", "type", "key", "sectionKey", "classes", "states", "responsive"].includes(key)) {
+      continue;
+    }
+
+    if (key === "backgroundColor" || key === "bgColor") {
+      decls.push(`background-color: ${rawVal};`);
+    } else if (key === "color") {
+      decls.push(`color: ${rawVal};`);
+    } else if (key === "borderColor") {
+      decls.push(`border-color: ${rawVal};`);
+    } else if (key === "borderWidth") {
+      decls.push(`border-width: ${typeof rawVal === "number" ? `${rawVal}px` : rawVal};`);
+    } else if (key === "borderStyle") {
+      decls.push(`border-style: ${rawVal};`);
+    } else if (key === "borderRadius") {
+      const r = resolveBorderRadius(rawVal);
+      if (r) decls.push(`border-radius: ${r};`);
+    } else if (key === "shadow" || key === "boxShadow") {
+      if (typeof rawVal === "string" && rawVal !== "custom") {
+        const shadowStr =
+          rawVal === "none"
+            ? "none"
+            : rawVal === "soft"
+            ? "0px 4px 12px 0px rgba(0, 0, 0, 0.06)"
+            : rawVal === "card"
+            ? "0px 10px 25px -5px rgba(0, 0, 0, 0.1), 0px 8px 10px -6px rgba(0, 0, 0, 0.1)"
+            : rawVal;
+        decls.push(`box-shadow: ${shadowStr};`);
+      } else if (typeof rawVal === "object") {
+        decls.push(`box-shadow: ${buildBoxShadowString(rawVal)};`);
+      }
+    } else if (key === "fontSize") {
+      const fNum = parseFreeNumber(rawVal);
+      if (fNum > 0) decls.push(`font-size: ${fNum}px;`);
+    } else if (key === "fontWeight") {
+      decls.push(`font-weight: ${rawVal};`);
+    } else if (key === "lineHeight") {
+      const lh = typeof rawVal === "number" && rawVal >= 3 ? `${rawVal}px` : String(rawVal);
+      decls.push(`line-height: ${lh};`);
+    } else if (key === "letterSpacing") {
+      decls.push(`letter-spacing: ${typeof rawVal === "number" ? `${rawVal}px` : rawVal};`);
+    } else if (key === "paddingTop") {
+      decls.push(`padding-top: ${parseFreeNumber(rawVal)}px;`);
+    } else if (key === "paddingBottom") {
+      decls.push(`padding-bottom: ${parseFreeNumber(rawVal)}px;`);
+    } else if (key === "paddingLeft") {
+      decls.push(`padding-left: ${parseFreeNumber(rawVal)}px;`);
+    } else if (key === "paddingRight") {
+      decls.push(`padding-right: ${parseFreeNumber(rawVal)}px;`);
+    } else if (key === "padding") {
+      decls.push(`padding: ${typeof rawVal === "number" ? `${rawVal}px` : rawVal};`);
+    } else if (key === "marginTop") {
+      decls.push(`margin-top: ${parseFreeNumber(rawVal)}px;`);
+    } else if (key === "marginBottom") {
+      decls.push(`margin-bottom: ${parseFreeNumber(rawVal)}px;`);
+    } else if (key === "margin") {
+      decls.push(`margin: ${typeof rawVal === "number" ? `${rawVal}px` : rawVal};`);
+    } else if (key === "minHeight") {
+      const mh = parseFreeNumber(rawVal);
+      if (mh > 0) decls.push(`min-height: ${mh}px;`);
+    } else if (key === "gap") {
+      const g = parseFreeNumber(rawVal);
+      if (g > 0) decls.push(`gap: ${g}px;`);
+    } else if (key === "opacity") {
+      decls.push(`opacity: ${rawVal};`);
+    } else if (key === "transform") {
+      decls.push(`transform: ${rawVal};`);
+    } else if (key === "outline") {
+      decls.push(`outline: ${rawVal};`);
+    } else if (key === "transition") {
+      decls.push(`transition: ${rawVal};`);
+    } else if (key === "cursor") {
+      decls.push(`cursor: ${rawVal};`);
+    } else if (key === "textAlign" || key === "align" || key === "contentAlign") {
+      decls.push(`text-align: ${rawVal};`);
+    } else if (key === "textDecoration") {
+      decls.push(`text-decoration: ${rawVal};`);
+    } else if (key === "textTransform") {
+      decls.push(`text-transform: ${rawVal};`);
+    } else if (key === "customCss") {
+      decls.push(String(rawVal));
+    } else if (typeof rawVal === "string" || typeof rawVal === "number") {
+      const kebab = key.replace(/([A-Z])/g, "-$1").toLowerCase();
+      decls.push(`${kebab}: ${rawVal};`);
+    }
+  }
+
+  return decls;
+}
+
+/**
+ * Generates page-level scoped CSS for all defined classes and their pseudo-states (hover, focus, active).
+ * (Ticket CLASSES-1).
+ */
+export function generateClassesCss(classes?: StudioStyleClass[] | null): string {
+  if (!classes || !Array.isArray(classes) || classes.length === 0) return "";
+
+  const rules: string[] = [];
+
+  for (const c of classes) {
+    if (!c || !c.id) continue;
+    const cid = String(c.id).trim();
+    if (!cid) continue;
+
+    // Normal / Base class rules
+    const baseDecls = styleObjectToCssDeclarations(c.settings || {});
+    if (baseDecls.length > 0) {
+      rules.push(`[data-sf-class="${cid}"] {\n  ${baseDecls.join("\n  ")}\n}`);
+    }
+
+    // State rules: hover, focus, active
+    const states = c.states;
+    if (states && typeof states === "object") {
+      if (states.hover && typeof states.hover === "object") {
+        const hoverDecls = styleObjectToCssDeclarations(states.hover);
+        if (hoverDecls.length > 0) {
+          rules.push(`[data-sf-class="${cid}"]:hover {\n  ${hoverDecls.join("\n  ")}\n}`);
+        }
+      }
+      if (states.focus && typeof states.focus === "object") {
+        const focusDecls = styleObjectToCssDeclarations(states.focus);
+        if (focusDecls.length > 0) {
+          rules.push(`[data-sf-class="${cid}"]:focus {\n  ${focusDecls.join("\n  ")}\n}`);
+        }
+      }
+      if (states.active && typeof states.active === "object") {
+        const activeDecls = styleObjectToCssDeclarations(states.active);
+        if (activeDecls.length > 0) {
+          rules.push(`[data-sf-class="${cid}"]:active {\n  ${activeDecls.join("\n  ")}\n}`);
+        }
+      }
+    }
+  }
+
+  return rules.join("\n\n");
+}
+
+/**
+ * Merges class settings onto section settings:
+ * Class settings are applied first, and inline section settings take ultimate precedence upon conflict.
+ * (Ticket CLASSES-1).
+ */
+export function mergeClassStyle(
+  sectionSettings?: Record<string, any> | null,
+  classes?: StudioStyleClass[] | null
+): Record<string, any> {
+  if (!sectionSettings) return {};
+  if (!classes || !Array.isArray(classes) || classes.length === 0) return { ...sectionSettings };
+
+  const classId = sectionSettings.classId || sectionSettings.customClass;
+  if (!classId) return { ...sectionSettings };
+
+  const matchedClass = classes.find((c) => c && c.id === classId);
+  if (!matchedClass) return { ...sectionSettings };
+
+  // 1. Base settings: class settings first, then section settings override
+  const merged: Record<string, any> = {
+    ...(matchedClass.settings || {}),
+    ...sectionSettings,
+  };
+
+  // 2. Responsive overrides cascade: class responsive merged before section responsive
+  const classResp = matchedClass.settings?.responsive;
+  const sectionResp = sectionSettings.responsive;
+  if (classResp || sectionResp) {
+    merged.responsive = {
+      ...(classResp || {}),
+      ...(sectionResp || {}),
+      tablet: {
+        ...(classResp?.tablet || {}),
+        ...(sectionResp?.tablet || {}),
+      },
+      mobile: {
+        ...(classResp?.mobile || {}),
+        ...(sectionResp?.mobile || {}),
+      },
+    };
+  }
+
+  return merged;
+}
+
+/**
+ * Computes element style merging assigned class styles before element inline styles.
+ * (Ticket CLASSES-1).
+ */
+export function buildElementStyle(
+  settings?: Record<string, any> | null,
+  classes?: StudioStyleClass[] | null,
+  baseStyle?: React.CSSProperties,
+  textOverride?: string
+): React.CSSProperties {
+  if (!settings && !textOverride) return baseStyle || {};
+
+  const merged = classes ? mergeClassStyle(settings, classes) : (settings || {});
+  const style: React.CSSProperties = { ...(baseStyle || {}) };
+
+  // Typography
+  const typo = buildElementTypographyStyle(merged, textOverride);
+  Object.assign(style, typo);
+
+  // Background and appearance
+  const bg = merged.backgroundColor || merged.bgColor;
+  if (bg && typeof bg === "string" && bg !== "transparent") {
+    style.backgroundColor = bg;
+  }
+  if (merged.color && typeof merged.color === "string") {
+    style.color = merged.color === "accent" ? "var(--store-accent, #2563eb)" : merged.color;
+  }
+  const radius = resolveBorderRadius(merged.borderRadius);
+  if (radius !== undefined) {
+    style.borderRadius = radius;
+  }
+  const shadow = buildBoxShadowString(merged);
+  if (shadow && shadow !== "none") {
+    style.boxShadow = shadow;
+  }
+  if (merged.paddingTop !== undefined) style.paddingTop = `${parseFreeNumber(merged.paddingTop)}px`;
+  if (merged.paddingBottom !== undefined) style.paddingBottom = `${parseFreeNumber(merged.paddingBottom)}px`;
+  if (merged.paddingLeft !== undefined) style.paddingLeft = `${parseFreeNumber(merged.paddingLeft)}px`;
+  if (merged.paddingRight !== undefined) style.paddingRight = `${parseFreeNumber(merged.paddingRight)}px`;
+  if (merged.marginTop !== undefined) style.marginTop = `${parseFreeNumber(merged.marginTop)}px`;
+  if (merged.marginBottom !== undefined) style.marginBottom = `${parseFreeNumber(merged.marginBottom)}px`;
+
+  return style;
+}
+
+/**
+ * All properties considered 'style' for copy/paste style operations (Ticket CLASSES-1).
+ */
+export const STYLE_PROPERTIES_TO_COPY = new Set<string>([
+  "backgroundColor",
+  "bgColor",
+  "borderRadius",
+  "shadow",
+  "customShadow",
+  "shadowX",
+  "shadowY",
+  "shadowBlur",
+  "shadowSpread",
+  "shadowOpacity",
+  "shadowColor",
+  "paddingTop",
+  "paddingBottom",
+  "paddingRight",
+  "paddingLeft",
+  "padding",
+  "marginTop",
+  "marginBottom",
+  "margin",
+  "minHeight",
+  "gap",
+  "fontSize",
+  "fontWeight",
+  "lineHeight",
+  "letterSpacing",
+  "align",
+  "textAlign",
+  "contentAlign",
+  "color",
+  "customCss",
+  "classId",
+  "customClass",
+  "responsive",
+]);
+
+/**
+ * Copies only style properties from a section settings object without copying content or structural keys.
+ */
+export function copySectionStyle(settings?: Record<string, any> | null): Record<string, any> {
+  if (!settings || typeof settings !== "object") return {};
+  const stylePayload: Record<string, any> = {};
+
+  for (const key of Object.keys(settings)) {
+    if (STYLE_PROPERTIES_TO_COPY.has(key)) {
+      const val = settings[key];
+      if (val !== undefined && val !== null) {
+        stylePayload[key] = JSON.parse(JSON.stringify(val));
+      }
+    }
+  }
+
+  return stylePayload;
+}
+
+/**
+ * Applies copied style properties onto target section settings without altering target content or structural keys.
+ */
+export function pasteSectionStyle(
+  targetSettings?: Record<string, any> | null,
+  copiedStyle?: Record<string, any> | null
+): Record<string, any> {
+  const target = { ...(targetSettings || {}) };
+  if (!copiedStyle || typeof copiedStyle !== "object") return target;
+
+  for (const [k, v] of Object.entries(copiedStyle)) {
+    if (STYLE_PROPERTIES_TO_COPY.has(k) && v !== undefined) {
+      target[k] = JSON.parse(JSON.stringify(v));
+    }
+  }
+
+  return target;
 }

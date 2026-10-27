@@ -7,7 +7,7 @@ import {
   SparklesIcon,
   LanguageIcon,
 } from "@heroicons/react/24/outline";
-import type { StudioDeviceMode } from "../StudioTypes";
+import type { StudioDeviceMode, StudioStyleClass } from "../StudioTypes";
 import {
   StudioPaddingControl,
   StudioMarginControl,
@@ -15,9 +15,16 @@ import {
   FreeNumberInput,
 } from "./StudioDimensionControls";
 import { StudioShadowControls } from "./StudioShadowControls";
-import { normalizeArabicDigits, parseFreeNumber, isPropertyOverridden } from "../utils/studioStyleUtils";
+import {
+  normalizeArabicDigits,
+  parseFreeNumber,
+  isPropertyOverridden,
+  copySectionStyle,
+  pasteSectionStyle,
+} from "../utils/studioStyleUtils";
 import { StudioSectionVariantSelector } from "./StudioSectionVariantSelector";
 import { ResponsiveFieldBadge } from "./StudioResponsiveControls";
+import { StudioClassControls } from "./StudioClassControls";
 
 interface StudioInspectorDesignTabProps {
   sectionType: string;
@@ -28,6 +35,18 @@ interface StudioInspectorDesignTabProps {
   onBatchUpdateFields?: (updates: Record<string, any>) => void;
   onResetField?: (field: string) => void;
   onSave?: () => void;
+  // Ticket CLASSES-1 props
+  classes?: StudioStyleClass[];
+  selectedClassId?: string | null;
+  assignedClassId?: string | null;
+  onSelectClass?: (classId: string | null) => void;
+  onAssignClass?: (classId: string | null) => void;
+  onCreateClass?: (name?: string) => void;
+  onUpdateClass?: (classId: string, updates: Partial<StudioStyleClass>) => void;
+  onDeleteClass?: (classId: string) => void;
+  onCopyStyle?: () => void;
+  onPasteStyle?: () => void;
+  hasCopiedStyle?: boolean;
 }
 
 export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> = ({
@@ -39,8 +58,20 @@ export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> =
   onBatchUpdateFields,
   onResetField,
   onSave,
+  classes: propClasses,
+  selectedClassId,
+  assignedClassId: propAssignedClassId,
+  onSelectClass,
+  onAssignClass: propOnAssignClass,
+  onCreateClass: propOnCreateClass,
+  onUpdateClass: propOnUpdateClass,
+  onDeleteClass: propOnDeleteClass,
+  onCopyStyle: propOnCopyStyle,
+  onPasteStyle: propOnPasteStyle,
+  hasCopiedStyle: propHasCopiedStyle,
 }) => {
   const [openAcc, setOpenAcc] = useState<{ [key: string]: boolean }>({
+    classes: true,
     fill: true,
     corners: true,
     shadow: true,
@@ -49,6 +80,89 @@ export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> =
     typography: false,
     css: Boolean(settings.customCss),
   });
+
+  const [internalClasses, setInternalClasses] = useState<StudioStyleClass[]>(
+    Array.isArray(settings.classes) ? settings.classes : []
+  );
+  const [internalCopiedStyle, setInternalCopiedStyle] = useState<Record<string, any> | null>(null);
+
+  const effectiveClasses = propClasses !== undefined ? propClasses : internalClasses;
+  const currentAssignedClassId =
+    propAssignedClassId !== undefined
+      ? propAssignedClassId
+      : settings.classId || settings.customClass || null;
+
+  const handleAssignClass = (classId: string | null) => {
+    if (propOnAssignClass) {
+      propOnAssignClass(classId);
+    } else {
+      onUpdateField("classId", classId);
+    }
+  };
+
+  const handleCreateClass = (name?: string) => {
+    if (propOnCreateClass) {
+      propOnCreateClass(name);
+    } else {
+      const newClass: StudioStyleClass = {
+        id: `cls-${Date.now().toString(36)}`,
+        name: name || `كلاس ${effectiveClasses.length + 1}`,
+        settings: {},
+        states: { hover: {}, focus: {}, active: {} },
+      };
+      const next = [...effectiveClasses, newClass];
+      setInternalClasses(next);
+      onUpdateField("classes", next);
+    }
+  };
+
+  const handleUpdateClass = (classId: string, updates: Partial<StudioStyleClass>) => {
+    if (propOnUpdateClass) {
+      propOnUpdateClass(classId, updates);
+    } else {
+      const next = effectiveClasses.map((c) => (c.id === classId ? { ...c, ...updates } : c));
+      setInternalClasses(next);
+      onUpdateField("classes", next);
+    }
+  };
+
+  const handleDeleteClass = (classId: string) => {
+    if (propOnDeleteClass) {
+      propOnDeleteClass(classId);
+    } else {
+      const next = effectiveClasses.filter((c) => c.id !== classId);
+      setInternalClasses(next);
+      onUpdateField("classes", next);
+      if (currentAssignedClassId === classId) {
+        handleAssignClass(null);
+      }
+    }
+  };
+
+  const handleCopyStyle = () => {
+    if (propOnCopyStyle) {
+      propOnCopyStyle();
+    } else {
+      const copied = copySectionStyle(settings);
+      setInternalCopiedStyle(copied);
+    }
+  };
+
+  const handlePasteStyle = () => {
+    if (propOnPasteStyle) {
+      propOnPasteStyle();
+    } else if (internalCopiedStyle) {
+      const next = pasteSectionStyle(settings, internalCopiedStyle);
+      if (onBatchUpdateFields) {
+        onBatchUpdateFields(next);
+      } else {
+        Object.entries(next).forEach(([k, v]) => onUpdateField(k, v));
+      }
+    }
+  };
+
+  const hasCopiedStyle =
+    propHasCopiedStyle !== undefined ? propHasCopiedStyle : Boolean(internalCopiedStyle);
 
   const toggleAcc = (key: string) => {
     setOpenAcc((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -105,6 +219,44 @@ export const StudioInspectorDesignTab: React.FC<StudioInspectorDesignTabProps> =
         onBatchUpdateFields={onBatchUpdateFields}
         onSave={onSave}
       />
+
+      {/* 0b. كلاسات الستايل والحالات المشتركة (Classes & States - Ticket CLASSES-1) */}
+      <div className="overflow-hidden rounded-lg border border-[#ececee]">
+        <button
+          type="button"
+          onClick={() => toggleAcc("classes")}
+          className="flex w-full items-center justify-between bg-[#fafbfc] px-3 py-2 text-start font-medium text-[#3f434a]"
+        >
+          <div className="flex items-center gap-1.5 font-bold">
+            <SparklesIcon className="h-3.5 w-3.5 text-[#2b6cf6]" />
+            <span>كلاسات الستايل والحالات (Classes & States)</span>
+          </div>
+          <ChevronDownIcon
+            className={`h-3.5 w-3.5 text-[#9aa0a8] transition-transform ${
+              openAcc.classes ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {openAcc.classes && (
+          <div className="p-3 bg-white">
+            <StudioClassControls
+              classes={effectiveClasses}
+              selectedClassId={selectedClassId}
+              assignedClassId={currentAssignedClassId}
+              deviceMode={deviceMode}
+              onSelectClass={onSelectClass}
+              onAssignClass={handleAssignClass}
+              onCreateClass={handleCreateClass}
+              onUpdateClass={handleUpdateClass}
+              onDeleteClass={handleDeleteClass}
+              onCopyStyle={handleCopyStyle}
+              onPasteStyle={handlePasteStyle}
+              hasCopiedStyle={hasCopiedStyle}
+            />
+          </div>
+        )}
+      </div>
 
       {/* 1. Accordion: خلفية (Fill & Background) */}
       <div className="overflow-hidden rounded-lg border border-[#ececee]">
