@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PlayCircleIcon } from '@heroicons/react/24/outline';
 
 export interface VideoElementSettings {
@@ -9,6 +9,7 @@ export interface VideoElementSettings {
   controls?: boolean;
   loop?: boolean;
   muted?: boolean;
+  preload?: 'auto' | 'metadata' | 'none';
   className?: string;
 }
 
@@ -72,7 +73,10 @@ const VideoElement: React.FC<VideoElementProps> = ({ section, settings: directSe
   const autoplay = Boolean(mergedSettings?.autoplay);
   const loop = Boolean(mergedSettings?.loop);
   const muted = Boolean(mergedSettings?.muted || autoplay);
+  const preload = mergedSettings?.preload || 'metadata';
   const customClass = mergedSettings?.className || '';
+
+  const [isLoading, setIsLoading] = useState(true);
 
   const parsed = parseVideoSource(rawUrl);
 
@@ -110,26 +114,48 @@ const VideoElement: React.FC<VideoElementProps> = ({ section, settings: directSe
     <div
       data-storefront-element="video"
       data-element="video"
-      className={`storefront-video-wrapper w-full overflow-hidden bg-black/90 ${aspectClass} ${customClass}`.trim()}
+      className={`storefront-video-wrapper relative w-full overflow-hidden bg-black/90 ${aspectClass} ${customClass}`.trim()}
       style={containerStyle}
     >
+      {/* Loading UI Indicator */}
+      {isLoading && (
+        <div
+          data-testid="video-loading"
+          role="status"
+          aria-label="جارٍ تحميل الفيديو"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px] transition-opacity duration-300"
+        >
+          <div className="flex flex-col items-center gap-2 text-white/90">
+            <div className="h-7 w-7 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+            <span className="text-[11px] font-medium tracking-wide">جارٍ التحميل…</span>
+          </div>
+        </div>
+      )}
+
       {parsed.type === 'youtube' || parsed.type === 'vimeo' ? (
         <iframe
           src={parsed.src}
           title="فيديو المتجر"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
+          onLoad={() => setIsLoading(false)}
           className="h-full w-full border-0"
         />
       ) : (
         <video
           src={parsed.src}
-          poster={poster}
+          poster={poster || undefined}
           controls={controls}
           autoPlay={autoplay}
           loop={loop}
           muted={muted}
+          data-muted={muted ? 'true' : 'false'}
+          preload={preload}
           playsInline
+          onLoadedData={() => setIsLoading(false)}
+          onCanPlay={() => setIsLoading(false)}
+          onWaiting={() => setIsLoading(true)}
+          onPlaying={() => setIsLoading(false)}
           className="h-full w-full object-cover"
         />
       )}

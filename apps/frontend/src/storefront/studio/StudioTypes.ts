@@ -53,6 +53,9 @@ export type StudioElementType =
   | "image"
   | "badge"
   | "custom"
+  | "video"
+  | "marquee"
+  | "lottie"
   | "product-price"
   | "product-rating"
   | "product-stock"
@@ -313,6 +316,40 @@ export interface StudioCartElementDefinition {
   iconName?: string;
 }
 
+
+export type StudioFxElementType = "marquee" | "lottie" | "video";
+
+export interface StudioFxElementDefinition {
+  id: string;
+  label: string;
+  type: StudioFxElementType;
+  description: string;
+  iconName?: string;
+}
+
+export const STUDIO_FX_ELEMENTS: StudioFxElementDefinition[] = [
+  {
+    id: "marquee",
+    label: "شريط متحرك",
+    type: "marquee",
+    description: "شريط نصوص وشعارات متحركة انسيابية مع دعم RTL وإيقاف عند التحويم",
+    iconName: "ArrowPathIcon",
+  },
+  {
+    id: "lottie",
+    label: "أنيميشن Lottie",
+    type: "lottie",
+    description: "أنيميشن تفاعلي متجاوب خفيف يعتمد على ملفات JSON مع دعم الصور البديلة",
+    iconName: "SparklesIcon",
+  },
+  {
+    id: "video",
+    label: "فيديو",
+    type: "video",
+    description: "مشغل فيديو مدمج مع دعم YouTube/Vimeo/MP4 وغلاف Poster والتحكم التلقائي",
+    iconName: "PlayCircleIcon",
+  },
+];
 export const STUDIO_CART_ELEMENTS: StudioCartElementDefinition[] = [
   {
     id: "cart-items",

@@ -10,6 +10,42 @@ function encodeSvg(svg: string): string {
 }
 
 export const STUDIO_SECTION_THUMBNAILS: Record<string, string> = {
+  // Video Element (فيديو)
+  video: encodeSvg(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+      <rect width="240" height="80" rx="8" fill="#15171c"/>
+      <rect x="12" y="10" width="216" height="60" rx="6" fill="#20242e" stroke="#333a48" stroke-width="1"/>
+      <circle cx="120" cy="40" r="14" fill="#3b82f6" fill-opacity="0.2" stroke="#3b82f6" stroke-width="1.5"/>
+      <polygon points="116,34 128,40 116,46" fill="#60a5fa"/>
+    </svg>
+  `),
+
+  // Marquee Element (شريط متحرك)
+  marquee: encodeSvg(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+      <rect width="240" height="80" rx="8" fill="#15171c"/>
+      <rect x="12" y="22" width="216" height="36" rx="6" fill="#1e222a" stroke="#2d3340" stroke-width="1"/>
+      <rect x="22" y="34" width="45" height="12" rx="3" fill="#3b82f6" fill-opacity="0.3"/>
+      <circle cx="75" cy="40" r="2" fill="#64748b"/>
+      <rect x="85" y="34" width="55" height="12" rx="3" fill="#10b981" fill-opacity="0.3"/>
+      <circle cx="148" cy="40" r="2" fill="#64748b"/>
+      <rect x="158" y="34" width="50" height="12" rx="3" fill="#f59e0b" fill-opacity="0.3"/>
+      <!-- Motion arrows -->
+      <path d="M195 28 L205 28 M201 25 L205 28 L201 31" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  `),
+
+  // Lottie Element (أنيميشن لوتي)
+  lottie: encodeSvg(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+      <rect width="240" height="80" rx="8" fill="#15171c"/>
+      <rect x="12" y="10" width="216" height="60" rx="6" fill="#20232b" stroke="#313745" stroke-width="1"/>
+      <!-- Sparkle/Lottie shape -->
+      <path d="M120 22 C120 30 128 38 136 38 C128 38 120 46 120 54 C120 46 112 38 104 38 C112 38 120 30 120 22 Z" fill="#818cf8"/>
+      <circle cx="100" cy="26" r="3" fill="#34d399"/>
+      <circle cx="140" cy="50" r="2.5" fill="#f472b6"/>
+    </svg>
+  `),
   // 1. Richtext (عنوان ونصوص)
   richtext: encodeSvg(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">

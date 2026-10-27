@@ -22,6 +22,13 @@ export type { SpacerElementProps, SpacerElementSettings } from './SpacerElement'
 export { default as VideoElement } from './VideoElement';
 export type { VideoElementProps, VideoElementSettings } from './VideoElement';
 
+// FX Elements (Ticket FX-1)
+export { default as MarqueeElement } from './MarqueeElement';
+export type { MarqueeElementProps, MarqueeElementSettings, MarqueeItem, MarqueeLogo } from './MarqueeElement';
+
+export { default as LottieElement } from './LottieElement';
+export type { LottieElementProps, LottieElementSettings } from './LottieElement';
+
 // Egypt Integrations Elements (Ticket EG-1)
 export { default as WhatsAppCtaElement, cleanWhatsAppPhone, buildWhatsAppUrl } from './WhatsAppCtaElement';
 export type { WhatsAppCtaElementProps, WhatsAppCtaElementSettings } from './WhatsAppCtaElement';

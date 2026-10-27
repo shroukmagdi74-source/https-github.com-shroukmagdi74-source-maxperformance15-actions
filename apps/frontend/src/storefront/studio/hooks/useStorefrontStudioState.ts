@@ -127,6 +127,27 @@ const STUDIO_STARTER_SETTINGS: Record<string, Record<string, any>> = {
       },
     ],
   },
+  video: {
+    url: "",
+    poster: "",
+    ratio: "16:9",
+    autoplay: false,
+    controls: true,
+    loop: false,
+    muted: false,
+  },
+  marquee: {
+    text: "توصيل سريع لجميع المحافظات • دفع عند الاستلام • استرجاع مجاني خلال 14 يوم • دعم فني متواصل 24/7",
+    speed: 30,
+    direction: "left",
+    pauseOnHover: true,
+  },
+  lottie: {
+    url: "",
+    autoplay: true,
+    loop: true,
+    ratio: "1:1",
+  },
 };
 
 interface UseStorefrontStudioStateProps {

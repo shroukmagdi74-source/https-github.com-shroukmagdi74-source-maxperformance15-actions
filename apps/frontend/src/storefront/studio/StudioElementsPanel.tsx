@@ -98,6 +98,8 @@ export const StudioElementsPanel: React.FC<StudioElementsPanelProps> = ({
     { id: "divider", label: "فاصل", type: "divider", icon: MinusIcon },
     { id: "spacer", label: "مسافة", type: "spacer", icon: ArrowsUpDownIcon },
     { id: "video", label: "فيديو", type: "video", icon: PlayCircleIcon },
+    { id: "marquee", label: "شريط متحرك", type: "marquee", icon: ArrowPathIcon },
+    { id: "lottie", label: "أنيميشن Lottie", type: "lottie", icon: SparklesIcon },
   ];
 
   const presets = [

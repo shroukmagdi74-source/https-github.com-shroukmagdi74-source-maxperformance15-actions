@@ -386,6 +386,53 @@ export const STOREFRONT_SECTION_MANIFEST = {
           { value: "9:16", label: "9:16 (رأسي)" },
         ],
       },
+      { key: "autoplay", label: "تشغيل تلقائي", type: "checkbox" },
+      { key: "muted", label: "كتم الصوت", type: "checkbox" },
+      { key: "loop", label: "تكرار مستمر", type: "checkbox" },
+      { key: "controls", label: "أزرار التحكم", type: "checkbox" },
+    ],
+  },
+  marquee: {
+    label: "شريط متحرك",
+    component: "marquee",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "text", label: "النص المتحرك", type: "textarea", placeholder: "نص العرض أو المزايا..." },
+      { key: "speed", label: "السرعة (بالثواني)", type: "number", placeholder: "30" },
+      {
+        key: "direction",
+        label: "اتجاه الحركة",
+        type: "select",
+        options: [
+          { value: "left", label: "يسار (افتراضي)" },
+          { value: "right", label: "يمين" },
+        ],
+      },
+      { key: "pauseOnHover", label: "إيقاف مؤقت عند التحويم", type: "checkbox" },
+      { key: "gap", label: "المسافة بين العناصر (px)", type: "number", placeholder: "32" },
+    ],
+  },
+  lottie: {
+    label: "أنيميشن Lottie",
+    component: "lottie",
+    pages: [],
+    variants: [],
+    fields: [
+      { key: "url", label: "رابط ملف JSON (Lottie)", type: "url", placeholder: "https://assets.lottiefiles.com/.../data.json" },
+      { key: "fallbackImage", label: "صورة بديلة (Fallback)", type: "url", placeholder: "https://..." },
+      { key: "autoplay", label: "تشغيل تلقائي", type: "checkbox" },
+      { key: "loop", label: "تكرار مستمر", type: "checkbox" },
+      {
+        key: "ratio",
+        label: "نسبة الأبعاد",
+        type: "select",
+        options: [
+          { value: "1:1", label: "1:1 (مربع)" },
+          { value: "16:9", label: "16:9" },
+          { value: "4:3", label: "4:3" },
+        ],
+      },
     ],
   },
   "whatsapp-cta": {

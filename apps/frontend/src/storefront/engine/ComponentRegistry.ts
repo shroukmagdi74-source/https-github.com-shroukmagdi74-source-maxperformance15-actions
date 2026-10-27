@@ -79,6 +79,8 @@ const IconElement = React.lazy(() => import('../sections/elements/IconElement'))
 const DividerElement = React.lazy(() => import('../sections/elements/DividerElement'));
 const SpacerElement = React.lazy(() => import('../sections/elements/SpacerElement'));
 const VideoElement = React.lazy(() => import('../sections/elements/VideoElement'));
+const MarqueeElement = React.lazy(() => import('../sections/elements/MarqueeElement'));
+const LottieElement = React.lazy(() => import('../sections/elements/LottieElement'));
 
 // Egypt Integrations Elements (Ticket EG-1)
 const WhatsAppCtaElement = React.lazy(() => import('../sections/elements/WhatsAppCtaElement'));
@@ -204,6 +206,8 @@ const baseComponentRegistry: Record<
   divider: DividerElement,
   spacer: SpacerElement,
   video: VideoElement,
+  marquee: MarqueeElement,
+  lottie: LottieElement,
 
   // Egypt Integrations Elements (Ticket EG-1)
   'whatsapp-cta': WhatsAppCtaElement,
