@@ -70,6 +70,10 @@ const wholesaleController = {
   },
   async updateWholesaleCustomer(req, res) {
     try {
+      if (req.params.id === 'new') {
+        const data = await wholesaleService.createWholesaleCustomer({ ...req.body, companyId: req.user.companyId });
+        return res.status(201).json({ success: true, data });
+      }
       await wholesaleService.updateWholesaleCustomer(req.params.id, req.user.companyId, req.body);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }

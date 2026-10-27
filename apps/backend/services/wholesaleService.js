@@ -114,13 +114,65 @@ const wholesaleService = {
 
   async createWholesaleCustomer(data) {
     const prisma = getSharedPrismaClient();
-    const existing = await prisma.wholesaleCustomer.findFirst({ where: { customerId: data.customerId, companyId: data.companyId } });
-    if (existing) throw new Error('Customer is already a wholesale customer');
+    let targetCustomerId = data.customerId;
 
-    const { customerId, companyId, creditLimit, currentBalance, isActive, notes, priceListId } = data;
+    // If customerId is not provided or empty, resolve or auto-create the underlying customer
+    if (!targetCustomerId || (typeof targetCustomerId === 'string' && targetCustomerId.trim() === '')) {
+      const phone = (data.customerPhone || '').trim();
+      const rawName = (data.customerName || '').trim();
+      const email = (data.customerEmail || '').trim() || null;
+
+      let existingCustomer = null;
+      if (phone) {
+        existingCustomer = await prisma.customer.findFirst({
+          where: { companyId: data.companyId, phone },
+        });
+      }
+
+      if (existingCustomer) {
+        targetCustomerId = existingCustomer.id;
+      } else {
+        const parts = rawName.split(/\s+/).filter(Boolean);
+        const firstName = parts[0] || 'تاجر';
+        const lastName = parts.slice(1).join(' ') || 'جملة';
+
+        const newCustomer = await prisma.customer.create({
+          data: {
+            companyId: data.companyId,
+            firstName,
+            lastName,
+            phone: phone || null,
+            email,
+            status: 'ACTIVE',
+            tags: 'موزع جملة',
+          },
+        });
+        targetCustomerId = newCustomer.id;
+      }
+    }
+
+    const existing = await prisma.wholesaleCustomer.findFirst({
+      where: { customerId: targetCustomerId, companyId: data.companyId },
+    });
+    if (existing) {
+      await prisma.wholesaleCustomer.update({
+        where: { id: existing.id },
+        data: {
+          creditLimit: data.creditLimit !== undefined ? Number(data.creditLimit) : existing.creditLimit,
+          isActive: data.isActive !== undefined ? Boolean(data.isActive) : existing.isActive,
+          notes: data.notes !== undefined ? data.notes : existing.notes,
+        },
+      });
+      if (data.priceListId) {
+        await wholesaleService.assignPriceListToCustomer(targetCustomerId, data.priceListId, data.companyId);
+      }
+      return existing;
+    }
+
+    const { companyId, creditLimit, currentBalance, isActive, notes, priceListId } = data;
     const wc = await prisma.wholesaleCustomer.create({
       data: {
-        customerId,
+        customerId: targetCustomerId,
         companyId,
         creditLimit: creditLimit !== undefined ? Number(creditLimit) : 0,
         currentBalance: currentBalance !== undefined ? Number(currentBalance) : 0,
@@ -133,14 +185,17 @@ const wholesaleService = {
     });
 
     if (priceListId) {
-      await wholesaleService.assignPriceListToCustomer(customerId, priceListId, companyId);
+      await wholesaleService.assignPriceListToCustomer(targetCustomerId, priceListId, companyId);
     }
     return wc;
   },
 
   async updateWholesaleCustomer(id, companyId, data) {
     const prisma = getSharedPrismaClient();
-    const wc = await prisma.wholesaleCustomer.findFirst({ where: { id, companyId } });
+    const wc = await prisma.wholesaleCustomer.findFirst({
+      where: { id, companyId },
+      include: { customer: true },
+    });
     if (!wc) throw new Error('Wholesale customer not found');
 
     const updateData = {};
@@ -150,6 +205,23 @@ const wholesaleService = {
     if (data.notes !== undefined) updateData.notes = data.notes;
 
     const result = await prisma.wholesaleCustomer.updateMany({ where: { id, companyId }, data: updateData });
+
+    // Also update underlying customer name/phone/email if provided
+    if (data.customerName || data.customerPhone || data.customerEmail) {
+      const custUpdate = {};
+      if (data.customerName) {
+        const parts = data.customerName.trim().split(/\s+/).filter(Boolean);
+        custUpdate.firstName = parts[0] || 'تاجر';
+        custUpdate.lastName = parts.slice(1).join(' ') || 'جملة';
+      }
+      if (data.customerPhone !== undefined) custUpdate.phone = data.customerPhone.trim() || null;
+      if (data.customerEmail !== undefined) custUpdate.email = data.customerEmail.trim() || null;
+
+      await prisma.customer.update({
+        where: { id: wc.customerId },
+        data: custUpdate,
+      }).catch(() => {});
+    }
 
     if (data.priceListId !== undefined) {
       if (data.priceListId) {

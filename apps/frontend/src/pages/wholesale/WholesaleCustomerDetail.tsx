@@ -119,15 +119,18 @@ export default function WholesaleCustomerDetail() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isNew && !form.customerId) {
-      setError("يرجى اختيار عميل مسجل للربط بحساب الجملة أولاً");
+    if (!form.customerName || !form.customerName.trim()) {
+      setError("يرجى إدخال اسم التاجر / الاسم التجاري");
       return;
     }
     try {
       setSaving(true);
       setError(null);
       const payload = {
-        customerId: form.customerId,
+        customerId: form.customerId || undefined,
+        customerName: form.customerName.trim(),
+        customerPhone: form.customerPhone?.trim() || undefined,
+        customerEmail: form.customerEmail?.trim() || undefined,
         creditLimit: Number(form.creditLimit) || 0,
         paymentTermsDays: Number(form.paymentTermsDays) || 30,
         priceListId: form.priceListId || undefined,
@@ -229,7 +232,7 @@ export default function WholesaleCustomerDetail() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
             {isNew && (
               <div className="md:col-span-2 space-y-1 relative">
-                <label className="text-[11px] font-mono font-medium text-foreground">ربط بحساب عميل مسجل *</label>
+                <label className="text-[11px] font-mono font-medium text-foreground">ربط بحساب عميل مسجل مسبقاً (اختياري)</label>
                 <div className="relative">
                   <Search className="size-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                   <Input
