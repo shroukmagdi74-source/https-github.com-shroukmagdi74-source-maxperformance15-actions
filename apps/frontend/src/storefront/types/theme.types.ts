@@ -1,4 +1,5 @@
 import type { StorefrontSectionId } from "../sections/manifest";
+import type { StudioGlobalComponent } from "../studio/StudioTypes";
 
 export interface StorefrontThemeTypography {
   headingFont: string;
@@ -114,6 +115,7 @@ export interface StorefrontThemeTokens {
   productCard?: StorefrontThemeProductCardTokens;
   layout?: StorefrontThemeLayoutTokens;
   seo?: StorefrontSEOConfig;
+  globalComponents?: StudioGlobalComponent[];
 }
 
 export interface StorefrontHeaderConfig {
@@ -234,6 +236,7 @@ export interface StorefrontTheme {
   footer?: StorefrontFooterConfig;
   pages: StorefrontThemePages;
   seo?: StorefrontSEOConfig;
+  globalComponents?: StudioGlobalComponent[];
   preview?: {
     imageUrl?: string;
     colors?: string[];

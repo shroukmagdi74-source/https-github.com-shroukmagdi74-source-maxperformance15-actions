@@ -8,7 +8,18 @@ import { resolveStorefrontTheme } from "../../engine/themeResolver";
 import { useCartStore } from "../../store/useCartStore";
 import { getMarketplacePreviewCartItems } from "../../preview/marketplacePreviewCart";
 import { isStorefrontSectionKnown } from "../../sections/manifest";
-import type { StudioDeviceMode, PageStyleScope, PageStylesMap, SavedStudioSection } from "../StudioTypes";
+import type {
+  StudioDeviceMode,
+  PageStyleScope,
+  PageStylesMap,
+  SavedStudioSection,
+  StudioGlobalComponent,
+} from "../StudioTypes";
+import {
+  createGlobalComponent,
+  detachComponentInstance,
+  validateComponentHierarchy,
+} from "../utils/resolveComponentInstance";
 import { PAGE_STYLE_PRESETS, STUDIO_PAGES } from "../StudioTypes";
 import type {
   StorefrontGlobalTokens,
@@ -1287,6 +1298,261 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     [handleDesignTokensChange, onSave]
   );
 
+  // ─────────────────────────────────────────────────────────────
+  // Ticket GLOBAL-1: Global Components (مكوّنات عالمية متزامنة)
+  // ─────────────────────────────────────────────────────────────
+  const globalComponents = useMemo<StudioGlobalComponent[]>(() => {
+    return Array.isArray(currentDesignTokens?.globalComponents)
+      ? (currentDesignTokens.globalComponents as StudioGlobalComponent[])
+      : [];
+  }, [currentDesignTokens]);
+
+  const handleCreateGlobalComponent = useCallback(
+    (customName?: string, sectionToConvert?: any) => {
+      const currentSections = activeSectionsRef.current;
+      const targetConfig =
+        sectionToConvert ||
+        currentSections.find(
+          (s: any, idx: number) => getSectionKey(s, idx) === selectedSectionKey
+        ) ||
+        selectedSectionConfig;
+
+      if (!targetConfig) {
+        toast.error("يرجى تحديد قسم في الكانفس أولاً لتحويله لمكوّن عام");
+        return null;
+      }
+
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentComps: StudioGlobalComponent[] = Array.isArray(currentTokens.globalComponents)
+        ? (currentTokens.globalComponents as StudioGlobalComponent[])
+        : [];
+
+      let newComp: StudioGlobalComponent;
+      try {
+        newComp = createGlobalComponent(customName || "", targetConfig, {
+          existingComponents: currentComps,
+        });
+      } catch (err: any) {
+        toast.error(err?.message || "فشل إنشاء المكوّن العام");
+        throw err;
+      }
+
+      const nextComps = [newComp, ...currentComps];
+
+      const pageKey = activePageKeyRef.current;
+      const pageConfig = activePageConfigRef.current;
+      const targetIdx = currentSections.findIndex(
+        (s: any, idx: number) => getSectionKey(s, idx) === selectedSectionKey
+      );
+
+      let nextSections = currentSections;
+      if (targetIdx !== -1) {
+        const existingKey = currentSections[targetIdx]?.key || `componentInstance-${Date.now()}`;
+        const instanceSection = {
+          type: "componentInstance",
+          key: existingKey,
+          componentId: newComp.id,
+          label: newComp.name,
+          settings: {
+            componentId: newComp.id,
+          },
+        };
+        nextSections = [...currentSections];
+        nextSections[targetIdx] = instanceSection;
+      }
+
+      const nextPages = {
+        ...((currentTokens.pages as Record<string, unknown>) || {}),
+        ...((currentTokens.pageOverrides as Record<string, unknown>) || {}),
+        [pageKey]: {
+          ...pageConfig,
+          sections: nextSections,
+        },
+      };
+
+      const nextTokens = {
+        ...currentTokens,
+        globalComponents: nextComps,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      };
+
+      handleDesignTokensChange(nextTokens);
+      onSave();
+      toast.success(`تم إنشاء المكوّن العام «${newComp.name}» وتحويل القسم لنسخة متزامنة`);
+      return newComp;
+    },
+    [selectedSectionKey, selectedSectionConfig, handleDesignTokensChange, onSave]
+  );
+
+  const handleInsertComponentInstance = useCallback(
+    (componentId: string, insertAtIndex?: number) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentComps: StudioGlobalComponent[] = Array.isArray(currentTokens.globalComponents)
+        ? (currentTokens.globalComponents as StudioGlobalComponent[])
+        : [];
+
+      const targetComp = currentComps.find((c) => c.id === componentId);
+      if (!targetComp) {
+        toast.error("المكوّن العام المطلوب غير موجود");
+        return;
+      }
+
+      const newKey = `componentInstance-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const instanceSection = {
+        type: "componentInstance",
+        key: newKey,
+        componentId: targetComp.id,
+        label: targetComp.name,
+        settings: {
+          componentId: targetComp.id,
+        },
+      };
+
+      const baseSections = activeSectionsRef.current;
+      let nextSections: any[];
+      if (
+        typeof insertAtIndex === "number" &&
+        insertAtIndex >= 0 &&
+        insertAtIndex <= baseSections.length
+      ) {
+        nextSections = [...baseSections];
+        nextSections.splice(insertAtIndex, 0, instanceSection);
+      } else {
+        nextSections = [...baseSections, instanceSection];
+      }
+
+      const pageKey = activePageKeyRef.current;
+      const pageConfig = activePageConfigRef.current;
+
+      const nextPages = {
+        ...((currentTokens.pages as Record<string, unknown>) || {}),
+        ...((currentTokens.pageOverrides as Record<string, unknown>) || {}),
+        [pageKey]: {
+          ...pageConfig,
+          sections: nextSections,
+        },
+      };
+
+      setSelectedSectionKey(newKey);
+
+      const nextTokens = {
+        ...currentTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      };
+
+      handleDesignTokensChange(nextTokens);
+      onSave();
+      toast.success(`تم إدراج نسخة متزامنة من «${targetComp.name}»`);
+      return newKey;
+    },
+    [handleDesignTokensChange, onSave]
+  );
+
+  const handleUpdateGlobalComponent = useCallback(
+    (componentId: string, updates: Partial<StudioGlobalComponent>) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentComps: StudioGlobalComponent[] = Array.isArray(currentTokens.globalComponents)
+        ? (currentTokens.globalComponents as StudioGlobalComponent[])
+        : [];
+
+      const targetIdx = currentComps.findIndex((c) => c.id === componentId);
+      if (targetIdx === -1) return;
+
+      if (updates.section) {
+        validateComponentHierarchy(componentId, updates.section, currentComps);
+      }
+
+      const nextComps = [...currentComps];
+      nextComps[targetIdx] = {
+        ...nextComps[targetIdx],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const nextTokens = {
+        ...currentTokens,
+        globalComponents: nextComps,
+      };
+
+      handleDesignTokensChange(nextTokens);
+      onSave();
+      toast.success("تم تحديث المكوّن العام وتزامنت كافة نسخه");
+    },
+    [handleDesignTokensChange, onSave]
+  );
+
+  const handleDeleteGlobalComponent = useCallback(
+    (componentId: string, _force = false) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentComps: StudioGlobalComponent[] = Array.isArray(currentTokens.globalComponents)
+        ? (currentTokens.globalComponents as StudioGlobalComponent[])
+        : [];
+
+      const nextComps = currentComps.filter((c) => c.id !== componentId);
+
+      const nextTokens = {
+        ...currentTokens,
+        globalComponents: nextComps,
+      };
+
+      handleDesignTokensChange(nextTokens);
+      onSave();
+      toast.info("تم حذف المكوّن العام");
+      return true;
+    },
+    [handleDesignTokensChange, onSave]
+  );
+
+  const handleDetachComponentInstance = useCallback(
+    (sectionKeyToDetach?: string) => {
+      const currentSections = activeSectionsRef.current;
+      const targetKey = sectionKeyToDetach || selectedSectionKey;
+      const targetIdx = currentSections.findIndex(
+        (s: any, idx: number) => getSectionKey(s, idx) === targetKey
+      );
+
+      if (targetIdx === -1) return;
+
+      const targetSection = currentSections[targetIdx];
+      if (targetSection?.type !== "componentInstance") return;
+
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentComps: StudioGlobalComponent[] = Array.isArray(currentTokens.globalComponents)
+        ? (currentTokens.globalComponents as StudioGlobalComponent[])
+        : [];
+
+      const detached = detachComponentInstance(targetSection, currentComps);
+
+      const nextSections = [...currentSections];
+      nextSections[targetIdx] = detached;
+
+      const pageKey = activePageKeyRef.current;
+      const pageConfig = activePageConfigRef.current;
+
+      const nextPages = {
+        ...((currentTokens.pages as Record<string, unknown>) || {}),
+        ...((currentTokens.pageOverrides as Record<string, unknown>) || {}),
+        [pageKey]: {
+          ...pageConfig,
+          sections: nextSections,
+        },
+      };
+
+      const nextTokens = {
+        ...currentTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      };
+
+      handleDesignTokensChange(nextTokens);
+      onSave();
+      toast.success("تم فصل النسخة لتصبح قسماً مستقلاً");
+    },
+    [selectedSectionKey, handleDesignTokensChange, onSave]
+  );
+
   // Sync to global bridge for component decoupling
   useEffect(() => {
     globalBridgeState = {
@@ -1295,12 +1561,18 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
       selectedSectionKey,
       selectedSectionConfig,
       savedSections,
+      globalComponents,
       handleDeletePage,
       handleDuplicatePage,
       handleRenamePage,
       handleSaveSection,
       handleDeleteSavedSection,
       handleAddSavedSection,
+      handleCreateGlobalComponent,
+      handleInsertComponentInstance,
+      handleUpdateGlobalComponent,
+      handleDeleteGlobalComponent,
+      handleDetachComponentInstance,
     };
     bridgeListeners.forEach((fn) => fn());
   }, [
@@ -1309,12 +1581,18 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     selectedSectionKey,
     selectedSectionConfig,
     savedSections,
+    globalComponents,
     handleDeletePage,
     handleDuplicatePage,
     handleRenamePage,
     handleSaveSection,
     handleDeleteSavedSection,
     handleAddSavedSection,
+    handleCreateGlobalComponent,
+    handleInsertComponentInstance,
+    handleUpdateGlobalComponent,
+    handleDeleteGlobalComponent,
+    handleDetachComponentInstance,
   ]);
 
   return {
@@ -1363,6 +1641,13 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     handleUpdateGlobalHeader,
     handleUpdateGlobalFooter,
     handleUpdateGlobalTokens,
+    // Ticket GLOBAL-1 exports
+    globalComponents,
+    handleCreateGlobalComponent,
+    handleInsertComponentInstance,
+    handleUpdateGlobalComponent,
+    handleDeleteGlobalComponent,
+    handleDetachComponentInstance,
   };
 }
 
@@ -1381,6 +1666,12 @@ export interface StudioBridgeState {
   handleSaveSection: (customLabel?: string) => SavedStudioSection | null;
   handleDeleteSavedSection: (id: string) => void;
   handleAddSavedSection: (saved: SavedStudioSection, insertAtIndex?: number) => string | void;
+  globalComponents: StudioGlobalComponent[];
+  handleCreateGlobalComponent: (name?: string, sectionToConvert?: any) => StudioGlobalComponent | null;
+  handleInsertComponentInstance: (componentId: string, insertAtIndex?: number) => string | void;
+  handleUpdateGlobalComponent: (componentId: string, updates: Partial<StudioGlobalComponent>) => void;
+  handleDeleteGlobalComponent: (componentId: string, force?: boolean) => boolean | void;
+  handleDetachComponentInstance: (sectionKey?: string) => void;
 }
 
 let globalBridgeState: StudioBridgeState = {
@@ -1395,6 +1686,12 @@ let globalBridgeState: StudioBridgeState = {
   handleSaveSection: () => null,
   handleDeleteSavedSection: () => {},
   handleAddSavedSection: () => undefined,
+  globalComponents: [],
+  handleCreateGlobalComponent: () => null,
+  handleInsertComponentInstance: () => undefined,
+  handleUpdateGlobalComponent: () => {},
+  handleDeleteGlobalComponent: () => false,
+  handleDetachComponentInstance: () => {},
 };
 
 const bridgeListeners = new Set<() => void>();

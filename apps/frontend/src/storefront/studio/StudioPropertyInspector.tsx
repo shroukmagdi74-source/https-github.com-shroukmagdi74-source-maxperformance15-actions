@@ -53,6 +53,9 @@ interface StudioPropertyInspectorProps {
   onCopyStyle?: () => void;
   onPasteStyle?: () => void;
   hasCopiedStyle?: boolean;
+  isComponentInstance?: boolean;
+  onDetachInstance?: (sectionKey?: string) => void;
+  onConvertToGlobalComponent?: () => void;
 }
 
 export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = ({
@@ -83,6 +86,9 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
   onCopyStyle,
   onPasteStyle,
   hasCopiedStyle,
+  isComponentInstance,
+  onDetachInstance,
+  onConvertToGlobalComponent,
 }) => {
   const [activeTab, setActiveTab] = useState<StudioInspectorTab>(initialTab);
 
@@ -184,6 +190,40 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
           <XMarkIcon className="h-4 w-4" />
         </button>
       </div>
+
+      {/* 1.2. Component Instance Banner */}
+      {isComponentInstance && (
+        <div
+          data-testid="component-instance-banner"
+          className="mx-3.5 mt-2.5 rounded-lg border border-purple-200 bg-purple-50/90 p-2.5 text-start text-[11px] select-none shadow-xs"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 font-bold text-purple-900">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-[9px] text-white">❖</span>
+              <span>مكوّن عام متزامن</span>
+            </div>
+            <span className="rounded bg-purple-600 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-xs">
+              متزامن
+            </span>
+          </div>
+          <p className="mt-1 text-[10px] leading-tight text-purple-700">
+            هذا القسم هو نسخة متزامنة من مكوّن عام. أي تعديل على الأصل ينعكس تلقائياً هنا وفي كل الصفحات.
+          </p>
+          {onDetachInstance && (
+            <div className="mt-2 flex items-center justify-between border-t border-purple-200/60 pt-1.5">
+              <span className="text-[9.5px] text-purple-800">تحويل لقسم مستقل:</span>
+              <button
+                type="button"
+                data-testid="detach-instance-btn"
+                onClick={() => onDetachInstance(selectedSectionKey)}
+                className="text-[9.5px] font-bold text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+              >
+                فصل النسخة (Detach)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 1.5. Device Awareness Banner (Ticket 2G) */}
       {deviceMode !== "desktop" && (

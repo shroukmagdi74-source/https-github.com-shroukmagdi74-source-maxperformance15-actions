@@ -11,6 +11,7 @@ import {
   WindowIcon,
   Square3Stack3DIcon,
   SwatchIcon,
+  CubeTransparentIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioLeftRailTab } from "./StudioTypes";
 
@@ -18,7 +19,8 @@ export type StudioLeftRailActiveTab =
   | StudioLeftRailTab
   | "header-footer"
   | "templates"
-  | "themes";
+  | "themes"
+  | "components";
 
 interface StudioLeftRailProps {
   activeTab: StudioLeftRailActiveTab;
@@ -42,6 +44,7 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
     isAi?: boolean;
   }> = [
     { id: "elements", label: "إضافة", icon: PlusIcon },
+    { id: "components" as StudioLeftRailActiveTab, label: "مكوّنات", icon: CubeTransparentIcon },
     { id: "templates", label: "قوالب", icon: Square3Stack3DIcon },
     { id: "themes", label: "الثيمات", icon: SwatchIcon },
     { id: "layers", label: "الهيكل", icon: Squares2X2Icon },

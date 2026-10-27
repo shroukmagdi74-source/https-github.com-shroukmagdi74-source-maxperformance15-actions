@@ -86,6 +86,15 @@ const PaymentMethodsElement = React.lazy(() => import('../sections/elements/Paym
 const ShippingPartnersElement = React.lazy(() => import('../sections/elements/ShippingPartnersElement'));
 const CodBadgeElement = React.lazy(() => import('../sections/elements/CodBadgeElement'));
 
+const PlaceholderSection: React.FC<{ section?: any; settings?: any }> = ({ section, settings }) => (
+  <div data-testid="deleted-component-placeholder" className="p-4 border-2 border-dashed border-amber-400 bg-amber-50/80 rounded-lg text-center m-2 text-amber-900">
+    <div className="font-bold text-sm">{section?.label || settings?.title || "مكوّن محذوف"}</div>
+    <div className="text-xs text-amber-700 mt-1">
+      {settings?.content || "تم حذف المكوّن الأصلي المرتبط بهذه النسخة"}
+    </div>
+  </div>
+);
+
 const baseComponentRegistry: Record<
   string,
   React.ComponentType<any>
@@ -172,6 +181,10 @@ const baseComponentRegistry: Record<
   'payment-methods': PaymentMethodsElement,
   'shipping-partners': ShippingPartnersElement,
   'cod-badge': CodBadgeElement,
+
+  // Global Component Fallback & Placeholder (Ticket GLOBAL-1)
+  placeholder: PlaceholderSection,
+  componentInstance: PlaceholderSection,
 };
 
 /**

@@ -120,6 +120,33 @@ export interface SavedStudioSection {
   [key: string]: unknown;
 }
 
+export type StudioSectionShape = SectionNode | Record<string, any>;
+
+export interface StudioGlobalComponent {
+  id: string;
+  name: string;
+  section: StudioSectionShape;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudioComponentInstance {
+  type: "componentInstance";
+  key: string;
+  componentId: string;
+  label?: string;
+  settings?: {
+    componentId?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface StudioGlobalComponentSettings {
+  globalComponents?: StudioGlobalComponent[];
+  [key: string]: unknown;
+}
+
 
 export interface StudioQuickElement {
   id: string;

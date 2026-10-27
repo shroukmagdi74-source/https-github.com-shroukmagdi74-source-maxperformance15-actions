@@ -2,6 +2,8 @@ import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { ComponentRegistry } from './ComponentRegistry';
 import { TreeRenderer } from './tree/TreeRenderer';
+import { resolveComponentInstance } from '../studio/utils/resolveComponentInstance';
+import type { StudioGlobalComponent } from '../studio/StudioTypes';
 import {
   StorefrontPageConfig,
   StorefrontPageLayout,
@@ -36,6 +38,7 @@ interface PageComposerProps {
     replaceThemeBrandText: (value?: string | null) => string;
   };
   locale?: StorefrontLocale;
+  globalComponents?: StudioGlobalComponent[];
 }
 
 export interface RenderSectionFrameArgs {
@@ -438,7 +441,12 @@ export const PageComposer: React.FC<PageComposerProps> = ({
   renderSectionFrame,
   runtimeText,
   locale: propLocale,
+  globalComponents: propGlobalComponents,
 }) => {
+  const effectiveGlobalComponents =
+    propGlobalComponents ||
+    (rawPageConfig as any)?.globalComponents ||
+    (rawPageConfig as any)?.settings?.globalComponents;
   const cartItems = useCartStore((state) => state.items);
   const inRouter = useInRouterContext();
   const location = inRouter ? useLocation() : null;
@@ -563,9 +571,10 @@ export const PageComposer: React.FC<PageComposerProps> = ({
     hasSection(['order-summary', 'payment']);
 
   const renderSection = (
-    sectionEntry: string | StorefrontSectionConfig,
+    rawSectionEntry: string | StorefrontSectionConfig,
     index: number,
   ) => {
+    const sectionEntry = resolveComponentInstance(rawSectionEntry, effectiveGlobalComponents);
     const sectionId = getSectionId(sectionEntry, index);
     const componentKey = getSectionComponentKey(sectionEntry, index);
     if (sectionId === 'container') {

@@ -21,6 +21,7 @@ import { StudioPagesPanel } from "./StudioPagesPanel";
 import { StudioHeaderFooterPanel } from "./StudioHeaderFooterPanel";
 import { StudioTemplateGalleryPanel } from "./StudioTemplateGalleryPanel";
 import { StudioThemeGalleryPanel } from "./StudioThemeGalleryPanel";
+import { StudioGlobalComponentsPanel } from "./inspector/StudioGlobalComponentsPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
 import { useStudioTouchDrag } from "./hooks/useStudioTouchDrag";
@@ -460,6 +461,12 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     handleApplyPageStylePreset,
     handleUpdatePageStyle,
     handleResetPageStyle,
+    globalComponents,
+    handleCreateGlobalComponent,
+    handleInsertComponentInstance,
+    handleUpdateGlobalComponent,
+    handleDeleteGlobalComponent,
+    handleDetachComponentInstance,
   } = useStorefrontStudioState({
     themeId,
     externalDesignTokens,
@@ -1268,6 +1275,22 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                   />
                 )}
 
+                {leftRailTab === "components" && (
+                  <StudioGlobalComponentsPanel
+                    globalComponents={globalComponents}
+                    selectedSectionKey={selectedSectionKey}
+                    selectedSectionConfig={selectedSectionConfig}
+                    activePageKey={activePageKey}
+                    allPages={((currentDesignTokens as any)?.pages || {}) as any}
+                    onCreateComponent={(name, sec) => handleCreateGlobalComponent(name, sec)}
+                    onInsertInstance={(id, idx) => handleInsertComponentInstance(id, idx)}
+                    onUpdateMaster={handleUpdateGlobalComponent}
+                    onDetachInstance={(key) => handleDetachComponentInstance(key)}
+                    onDeleteComponent={(id, force) => handleDeleteGlobalComponent(id, force)}
+                    onClose={() => setIsLeftDrawerOpen(false)}
+                  />
+                )}
+
                 {leftRailTab === "templates" && (
                   <StudioTemplateGalleryPanel
                     activePageKey={activePageKey}
@@ -1362,6 +1385,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                 <SortableContext items={sectionKeys} strategy={verticalListSortingStrategy}>
                   <PageComposer
                     pageConfig={activePageConfig}
+                    globalComponents={globalComponents}
                     layout={activePageConfig.layoutHint || "stack"}
                     renderSectionFrame={({ element, index, sectionEntry, sectionId, componentKey }) => {
                       const stableKey = getSectionKey(sectionEntry, index);

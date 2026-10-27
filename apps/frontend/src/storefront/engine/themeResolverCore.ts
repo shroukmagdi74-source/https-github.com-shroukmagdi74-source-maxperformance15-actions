@@ -933,5 +933,13 @@ export const resolveStorefrontThemeFromPreset = (
   (normalizedTheme as any).activePageKey = activePageKey;
   (normalizedTheme as any).pageStyleVars = resolvePageStyleVars(normalizedTheme, activePageKey);
 
+  const globalComps =
+    (input as any)?.globalComponents ||
+    (input as any)?.tokens?.globalComponents ||
+    (input as any)?.designTokens?.globalComponents;
+  if (Array.isArray(globalComps)) {
+    (normalizedTheme as any).globalComponents = globalComps;
+  }
+
   return normalizedTheme;
 };
