@@ -6187,10 +6187,7 @@ router.post('/simple/:orderNumber/notes', verifyToken.authenticateToken, async (
     });
 
     if (regularOrder) {
-      // 🔒 قفل تعديل بيانات الأوردر (لكل حالة): إضافة ملاحظة تعدّل بيانات الطلب.
-      const { assertOrderStatusEditable } = require('../utils/orderStatusLock');
-      await assertOrderStatusEditable(getSharedPrismaClient(), companyId, regularOrder.customStatusCode || regularOrder.status);
-
+      // 📝 الملاحظات توثيق وليست تعديل بيانات أوردر — لا تخضع لقفل الحالة
       const note = await getSharedPrismaClient().orderNote.create({
         data: {
           id: uuidv4(),
@@ -6221,10 +6218,7 @@ router.post('/simple/:orderNumber/notes', verifyToken.authenticateToken, async (
     });
 
     if (guestOrder) {
-      // 🔒 قفل تعديل بيانات الأوردر (لكل حالة) — طلبات الضيوف.
-      const { assertOrderStatusEditable } = require('../utils/orderStatusLock');
-      await assertOrderStatusEditable(getSharedPrismaClient(), companyId, guestOrder.customStatusCode || guestOrder.status);
-
+      // 📝 الملاحظات توثيق وليست تعديل بيانات أوردر — لا تخضع لقفل الحالة (طلبات الضيوف).
       const note = await getSharedPrismaClient().orderNote.create({
         data: {
           id: uuidv4(),
