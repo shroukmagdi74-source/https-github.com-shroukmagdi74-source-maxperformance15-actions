@@ -232,4 +232,62 @@ describe("AgentProfilesPage — Active / Archived tabs navigation", () => {
     expect(main).toBeInTheDocument();
     expect(main?.className).toContain("flex-1");
   });
+
+  test("switches tabs between Settings, Skills, Tools, and Guardrails", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/admin/agent-profiles?agent=agent_active_1"]}>
+        <Routes>
+          <Route path="/admin/agent-profiles" element={<AgentProfilesPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-settings-tab")).toBeInTheDocument();
+    });
+
+    // Click Skills Tab
+    const skillsTab = screen.getByRole("button", { name: /المهارات/ });
+    await user.click(skillsTab);
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-skills-tab")).toBeInTheDocument();
+    });
+
+    // Click Tools Tab
+    const toolsTab = screen.getByRole("button", { name: /الأدوات/ });
+    await user.click(toolsTab);
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-tools-tab")).toBeInTheDocument();
+    });
+
+    // Click Guardrails Tab
+    const guardrailsTab = screen.getByRole("button", { name: /القواعد والتعلم/ });
+    await user.click(guardrailsTab);
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-guardrails-tab")).toBeInTheDocument();
+    });
+  });
+
+  test("filters agents in sidebar by search query", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/admin/agent-profiles?agent=agent_active_1"]}>
+        <Routes>
+          <Route path="/admin/agent-profiles" element={<AgentProfilesPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("بحث...")).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText("بحث...");
+    await user.type(searchInput, "غير موجود");
+
+    await waitFor(() => {
+      expect(screen.getByText("لا توجد نتائج")).toBeInTheDocument();
+    });
+  });
 });
