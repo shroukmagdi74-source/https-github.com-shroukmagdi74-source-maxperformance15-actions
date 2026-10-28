@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PlayCircleIcon } from '@heroicons/react/24/outline';
+import { buildMediaObjectStyle } from './mediaObjectFit';
 
 export interface VideoElementSettings {
   url?: string;
@@ -10,6 +11,10 @@ export interface VideoElementSettings {
   loop?: boolean;
   muted?: boolean;
   preload?: 'auto' | 'metadata' | 'none';
+  /** Ticket FIT-1: media fitting mode (cover / contain / fill / none / scale-down). */
+  objectFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down' | string;
+  /** Ticket FIT-1: focal point, e.g. "50% 20%" or a preset key ("center"). */
+  objectPosition?: string;
   className?: string;
 }
 
@@ -80,6 +85,11 @@ const VideoElement: React.FC<VideoElementProps> = ({ section, settings: directSe
 
   const parsed = parseVideoSource(rawUrl);
 
+  // Ticket FIT-1: explicit object-fit / object-position for video media.
+  // Empty unless configured, so the default `object-cover` class still rules.
+  const mediaObjectStyle = buildMediaObjectStyle(mergedSettings);
+  const videoFitClass = mediaObjectStyle.objectFit ? '' : 'object-cover';
+
   // Aspect ratio classes
   let aspectClass = 'aspect-[16/9]';
   if (rawRatio === '4:3') {
@@ -139,7 +149,10 @@ const VideoElement: React.FC<VideoElementProps> = ({ section, settings: directSe
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           onLoad={() => setIsLoading(false)}
+          data-object-fit={mediaObjectStyle.objectFit || undefined}
+          data-object-position={mediaObjectStyle.objectPosition || undefined}
           className="h-full w-full border-0"
+          style={mediaObjectStyle}
         />
       ) : (
         <video
@@ -156,7 +169,10 @@ const VideoElement: React.FC<VideoElementProps> = ({ section, settings: directSe
           onCanPlay={() => setIsLoading(false)}
           onWaiting={() => setIsLoading(true)}
           onPlaying={() => setIsLoading(false)}
-          className="h-full w-full object-cover"
+          data-object-fit={mediaObjectStyle.objectFit || undefined}
+          data-object-position={mediaObjectStyle.objectPosition || undefined}
+          className={`h-full w-full ${videoFitClass}`.replace(/\s+/g, ' ').trim()}
+          style={mediaObjectStyle}
         />
       )}
     </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { buildStorefrontPath } from '../utils/paths';
 import { buildOptimizedStorefrontImageUrl, buildResponsiveStorefrontImage } from '../utils/productImages';
+import { buildBackgroundMediaStyle, buildMediaObjectStyle } from './elements/mediaObjectFit';
 
 interface StoryParallaxProps {
   section?: {
@@ -17,6 +18,10 @@ interface StoryParallaxProps {
     overlayOpacity?: number;
     ctaText?: string;
     ctaLink?: string;
+    /** Ticket FIT-1: object-fit for the background image (mapped to background-size). */
+    objectFit?: string;
+    /** Ticket FIT-1: focal point for the background image (mapped to background-position). */
+    objectPosition?: string;
   };
 }
 
@@ -63,6 +68,11 @@ const StoryParallax: React.FC<StoryParallaxProps> = ({ section, settings }) => {
   });
   const optimizedBgUrl = buildOptimizedStorefrontImageUrl(image, { width: 1920 });
 
+  // Ticket FIT-1: the background-image path has no replaced element, so
+  // object-fit / object-position map onto background-size / background-position.
+  const backgroundMediaStyle = buildBackgroundMediaStyle(settings);
+  const imageMediaStyle = buildMediaObjectStyle(settings);
+
   const renderCta = (className: string) => {
     if (!ctaLink || !ctaText.trim()) {
       return null;
@@ -107,6 +117,7 @@ const StoryParallax: React.FC<StoryParallaxProps> = ({ section, settings }) => {
                 alt={imageAlt}
                 loading="lazy"
                 className="h-[22rem] w-full object-cover md:h-[31rem]"
+                style={imageMediaStyle}
               />
             </div>
           </div>
@@ -119,8 +130,10 @@ const StoryParallax: React.FC<StoryParallaxProps> = ({ section, settings }) => {
     <section className="relative my-12 flex min-h-[500px] w-full items-center justify-center overflow-hidden md:my-20">
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat bg-fixed"
-        style={{ backgroundImage: `url(${optimizedBgUrl})` }}
+        style={{ backgroundImage: `url(${optimizedBgUrl})`, ...backgroundMediaStyle }}
         data-storefront-story-background
+        data-object-fit={settings?.objectFit || undefined}
+        data-object-position={settings?.objectPosition || undefined}
       />
       <div className="absolute inset-0 bg-black" style={{ opacity: overlayOpacity }} />
 

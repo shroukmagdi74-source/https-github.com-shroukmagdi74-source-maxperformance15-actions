@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ChevronDownIcon,
   Squares2X2Icon,
   ArrowsPointingOutIcon,
   DevicePhoneMobileIcon,
+  PhotoIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioDeviceMode } from "../StudioTypes";
 import {
@@ -13,15 +14,45 @@ import {
 } from "./StudioDimensionControls";
 import { isPropertyOverridden } from "../utils/studioStyleUtils";
 import {
+  hasMediaSource,
+  MEDIA_SECTION_TYPES,
+  normalizeObjectFit,
+  normalizeObjectPosition,
+  OBJECT_POSITION_PRESET_KEYS,
+  OBJECT_POSITION_PRESETS,
+} from "../../sections/elements/mediaObjectFit";
+import {
   ResponsiveFieldBadge,
   StudioDeviceVisibilityControl,
   StudioBreakpointsControl,
 } from "./StudioResponsiveControls";
 
+const OBJECT_FIT_OPTIONS = [
+  { id: "cover", label: "تغطية" },
+  { id: "contain", label: "احتواء" },
+  { id: "fill", label: "تمديد" },
+  { id: "none", label: "أصلي" },
+  { id: "scale-down", label: "تصغير" },
+] as const;
+
+/**
+ * Splits an object-position value into the two numeric axes shown in the
+ * custom inputs (defaults to 50/50 = center).
+ */
+const parseObjectPositionAxes = (position?: string): { x: string; y: string } => {
+  const normalized = normalizeObjectPosition(position);
+  if (!normalized) return { x: "50", y: "50" };
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return { x: "50", y: "50" };
+  const stripPercent = (token: string) => (token.endsWith("%") ? token.slice(0, -1) : token);
+  return { x: stripPercent(tokens[0] || "50"), y: stripPercent(tokens[1] || "50") };
+};
+
 interface StudioInspectorLayoutTabProps {
   settings: Record<string, any>;
   deviceMode?: StudioDeviceMode;
   rawSettings?: Record<string, any>;
+  sectionType?: string;
   onUpdateField: (field: string, value: any) => void;
   onBatchUpdateFields?: (updates: Record<string, any>) => void;
   onResetField?: (field: string) => void;
@@ -31,6 +62,7 @@ export const StudioInspectorLayoutTab: React.FC<StudioInspectorLayoutTabProps> =
   settings,
   deviceMode = "desktop",
   rawSettings,
+  sectionType,
   onUpdateField,
   onBatchUpdateFields,
   onResetField,
@@ -51,6 +83,53 @@ export const StudioInspectorLayoutTab: React.FC<StudioInspectorLayoutTabProps> =
   const spacingPreset = settings.spacing || "normal";
   const currentOverflow = settings.overflow || "visible";
   const currentAspectRatio = settings.aspectRatio || "auto";
+
+  // ── Ticket FIT-1: media object-fit / object-position ──────────────
+  const showMediaControls =
+    sectionType === undefined ||
+    MEDIA_SECTION_TYPES.has(sectionType) ||
+    hasMediaSource(settings);
+
+  const currentObjectFit = normalizeObjectFit(settings["objectFit"]) || "";
+  const currentObjectPosition = normalizeObjectPosition(settings["objectPosition"]) || "";
+  const activePositionPreset = currentObjectPosition
+    ? OBJECT_POSITION_PRESET_KEYS.find(
+        (key) => OBJECT_POSITION_PRESETS[key] === currentObjectPosition
+      )
+    : undefined;
+
+  const initialAxes = parseObjectPositionAxes(currentObjectPosition);
+  const [customPositionX, setCustomPositionX] = useState<string>(initialAxes.x);
+  const [customPositionY, setCustomPositionY] = useState<string>(initialAxes.y);
+
+  useEffect(() => {
+    const axes = parseObjectPositionAxes(currentObjectPosition);
+    setCustomPositionX(axes.x);
+    setCustomPositionY(axes.y);
+  }, [currentObjectPosition]);
+
+  const formatPositionAxis = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    return /^-?\d+(\.\d+)?$/.test(trimmed) ? `${trimmed}%` : trimmed;
+  };
+
+  const commitCustomPosition = (nextX: string, nextY: string) => {
+    setCustomPositionX(nextX);
+    setCustomPositionY(nextY);
+    const x = formatPositionAxis(nextX);
+    const y = formatPositionAxis(nextY);
+    if (!x || !y) return;
+    onUpdateField("objectPosition", `${x} ${y}`);
+  };
+
+  const isObjectFitCustomized =
+    isPropertyOverridden(targetSource, "objectFit", deviceMode as "mobile" | "tablet") &&
+    deviceMode !== "desktop";
+
+  const isObjectPositionCustomized =
+    isPropertyOverridden(targetSource, "objectPosition", deviceMode as "mobile" | "tablet") &&
+    deviceMode !== "desktop";
 
   const isOverflowCustomized =
     isPropertyOverridden(targetSource, "overflow", deviceMode as "mobile" | "tablet") &&
@@ -378,6 +457,130 @@ export const StudioInspectorLayoutTab: React.FC<StudioInspectorLayoutTabProps> =
                 </div>
               )}
             </div>
+
+            {/* Media fitting — Object Fit & Object Position (Ticket FIT-1) */}
+            {showMediaControls && (
+              <div
+                data-testid="studio-object-fit-controls"
+                className="border-t border-[#f0f1f3] pt-2.5 space-y-1.5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[10px] font-bold text-[#8a8f96]">
+                    <PhotoIcon className="h-3 w-3" />
+                    <span>ملاءمة الوسائط (Object Fit)</span>
+                  </span>
+                  {isObjectFitCustomized && (
+                    <ResponsiveFieldBadge
+                      deviceMode={deviceMode}
+                      isCustomized={true}
+                      propName="objectFit"
+                      onReset={() =>
+                        onResetField ? onResetField("objectFit") : onUpdateField("objectFit", null)
+                      }
+                    />
+                  )}
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {OBJECT_FIT_OPTIONS.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      data-testid={`btn-object-fit-${item.id}`}
+                      data-active={currentObjectFit === item.id ? "true" : "false"}
+                      onClick={() => onUpdateField("objectFit", item.id)}
+                      className={`rounded-md py-1 text-center text-[10px] font-bold transition-all ${
+                        currentObjectFit === item.id
+                          ? "border border-[#2b6cf6] bg-[#2b6cf6]/10 text-[#2b6cf6]"
+                          : "border border-[#ececee] bg-[#f6f7f8] text-[#6f747b] hover:text-[#17181c]"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="block text-[10px] font-bold text-[#8a8f96]">
+                    موضع القص (Object Position)
+                  </span>
+                  {isObjectPositionCustomized && (
+                    <ResponsiveFieldBadge
+                      deviceMode={deviceMode}
+                      isCustomized={true}
+                      propName="objectPosition"
+                      onReset={() =>
+                        onResetField
+                          ? onResetField("objectPosition")
+                          : onUpdateField("objectPosition", null)
+                      }
+                    />
+                  )}
+                </div>
+                <div
+                  data-testid="object-position-grid"
+                  className="grid w-fit grid-cols-3 gap-1 rounded-lg border border-[#ececee] bg-[#f6f7f8] p-1"
+                >
+                  {OBJECT_POSITION_PRESET_KEYS.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      title={key}
+                      aria-label={`موضع ${key}`}
+                      data-testid={`btn-object-position-${key}`}
+                      data-active={activePositionPreset === key ? "true" : "false"}
+                      onClick={() => onUpdateField("objectPosition", key)}
+                      className={`flex h-6 w-8 items-center justify-center rounded transition-all ${
+                        activePositionPreset === key
+                          ? "bg-white text-[#2b6cf6] shadow-xs"
+                          : "text-[#b6bac0] hover:text-[#6f747b]"
+                      }`}
+                    >
+                      <span
+                        className={`block h-1.5 w-1.5 rounded-full ${
+                          activePositionPreset === key ? "bg-[#2b6cf6]" : "bg-current"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-[#8a8f96]">مخصص:</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    dir="ltr"
+                    aria-label="الموضع الأفقي"
+                    data-testid="input-object-position-x"
+                    value={customPositionX}
+                    placeholder="50"
+                    onChange={(e) => commitCustomPosition(e.target.value, customPositionY)}
+                    className="w-14 rounded border border-[#ececee] bg-[#f6f7f8] px-2 py-0.5 text-center font-mono text-[10.5px] text-[#17181c] focus:border-[#2b6cf6] focus:bg-white outline-none"
+                  />
+                  <span className="text-[10px] text-[#8a8f96]">%</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    dir="ltr"
+                    aria-label="الموضع الرأسي"
+                    data-testid="input-object-position-y"
+                    value={customPositionY}
+                    placeholder="50"
+                    onChange={(e) => commitCustomPosition(customPositionX, e.target.value)}
+                    className="w-14 rounded border border-[#ececee] bg-[#f6f7f8] px-2 py-0.5 text-center font-mono text-[10.5px] text-[#17181c] focus:border-[#2b6cf6] focus:bg-white outline-none"
+                  />
+                  <span className="text-[10px] text-[#8a8f96]">%</span>
+                  <button
+                    type="button"
+                    data-testid="btn-object-position-reset"
+                    onClick={() => onUpdateField("objectPosition", null)}
+                    className="ms-auto rounded border border-[#ececee] bg-white px-2 py-0.5 text-[10px] font-medium text-[#6f747b] transition-colors hover:text-[#17181c]"
+                  >
+                    إرجاع
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

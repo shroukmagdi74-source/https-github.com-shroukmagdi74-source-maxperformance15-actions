@@ -7,6 +7,25 @@
 import type React from "react";
 import type { StudioStyleClass } from "../StudioTypes";
 import { buildElementTypographyStyle } from "../../sections/elements/elementTypography";
+import {
+  buildMediaObjectStyle,
+  normalizeObjectFit,
+  normalizeObjectPosition,
+} from "../../sections/elements/mediaObjectFit";
+
+// Ticket FIT-1: object-fit helpers live with the media elements (sections/),
+// re-exported here so the inspector + CSS emitters import from one place.
+export {
+  buildBackgroundMediaStyle,
+  buildMediaObjectStyle,
+  hasMediaSource,
+  MEDIA_SECTION_TYPES,
+  normalizeObjectFit,
+  normalizeObjectPosition,
+  OBJECT_FIT_VALUES,
+  OBJECT_POSITION_PRESET_KEYS,
+  OBJECT_POSITION_PRESETS,
+} from "../../sections/elements/mediaObjectFit";
 
 export type StorefrontBreakpoint = "desktop" | "tablet" | "mobile";
 
@@ -249,6 +268,8 @@ export const RESPONSIVE_STYLE_FIELDS = new Set<string>([
   "overflowX",
   "overflowY",
   "aspectRatio",
+  "objectFit",
+  "objectPosition",
   "hiddenOn",
   "breakpoints",
 ]);
@@ -928,6 +949,16 @@ export function buildSectionStyle(
     style.overflowY = effective.overflowY as React.CSSProperties["overflowY"];
   }
 
+  // 15b. Media object-fit / object-position (Ticket FIT-1).
+  // Only applied when explicitly configured so default media rendering is untouched.
+  const mediaObjectStyle = buildMediaObjectStyle(effective);
+  if (mediaObjectStyle.objectFit) {
+    style.objectFit = mediaObjectStyle.objectFit as React.CSSProperties["objectFit"];
+  }
+  if (mediaObjectStyle.objectPosition) {
+    style.objectPosition = mediaObjectStyle.objectPosition;
+  }
+
   // 16. Opacity
   if (effective.opacity !== undefined && effective.opacity !== null && effective.opacity !== "") {
     style.opacity = Math.max(0, Math.min(1, parseFreeNumber(effective.opacity, 1)));
@@ -953,6 +984,13 @@ export interface GenerateResponsiveCssOptions {
   mobileMax?: number;
   desktopMin?: number;
   breakpoints?: Partial<StudioBreakpoints>;
+  /**
+   * Ticket FIT-1: selector used for `object-fit` / `object-position`
+   * declarations. Those properties only affect replaced content, so they are
+   * emitted against descendant media (`<img>` / `<video>`) instead of the
+   * section wrapper. Defaults to `${selector} img, ${selector} video`.
+   */
+  mediaSelector?: string;
 }
 
 /**
@@ -1005,7 +1043,36 @@ export function generateResponsiveCss(
   const hasMobile = hasMobileOverrides || isHiddenMobile;
   const hasDesktop = isHiddenDesktop;
 
-  if (!hasTablet && !hasMobile && !hasDesktop) return null;
+  // Ticket FIT-1: object-fit / object-position only affect replaced content, so
+  // they are emitted against descendant media rather than the section wrapper.
+  const mediaSelector = options.mediaSelector || `${selector} img, ${selector} video`;
+
+  const buildObjectDeclarations = (
+    source: Record<string, any> | null | undefined,
+    important: boolean
+  ): string[] => {
+    if (!source || typeof source !== "object") return [];
+    const decls: string[] = [];
+    const fit = normalizeObjectFit(source["objectFit"]);
+    if (fit) {
+      decls.push(`object-fit: ${fit}${important ? " !important" : ""};`);
+    }
+    const position = normalizeObjectPosition(source["objectPosition"]);
+    if (position) {
+      decls.push(`object-position: ${position}${important ? " !important" : ""};`);
+    }
+    return decls;
+  };
+
+  // Base (desktop) media rule — emitted even when no responsive overrides exist
+  // so a merchant-set object-fit reaches the live storefront.
+  const baseObjectDecls = buildObjectDeclarations(settings, false);
+  const baseObjectRule =
+    baseObjectDecls.length > 0
+      ? `${mediaSelector} {\n  ${baseObjectDecls.join("\n  ")}\n}`
+      : null;
+
+  if (!hasTablet && !hasMobile && !hasDesktop) return baseObjectRule;
 
   let mobileMax: number = options.mobileMax ?? (hiddenOn ? 767 : 767.98);
   let tabletMin: number = options.tabletMin ?? 768;
@@ -1028,7 +1095,9 @@ export function generateResponsiveCss(
     }
   }
 
-  const buildDeclarations = (device: "tablet" | "mobile"): string[] => {
+  const buildDeclarations = (
+    device: "tablet" | "mobile"
+  ): { decls: string[]; objectDecls: string[] } => {
     const effective = resolveEffectiveSectionSettings(settings, device);
     const decls: string[] = [];
 
@@ -1166,7 +1235,10 @@ export function generateResponsiveCss(
       decls.push(`opacity: ${Math.max(0, Math.min(1, parseFreeNumber(effective.opacity, 1)))} !important;`);
     }
 
-    return decls;
+    // Media object-fit / object-position (Ticket FIT-1)
+    const objectDecls = buildObjectDeclarations(effective, true);
+
+    return { decls, objectDecls };
   };
 
   const rules: string[] = [];
@@ -1177,29 +1249,37 @@ export function generateResponsiveCss(
     );
   }
 
-  if (hasTablet) {
-    const tabletDecls = buildDeclarations("tablet");
-    if (tabletDecls.length > 0) {
-      rules.push(
-        `@media (min-width: ${tabletMin}px) and (max-width: ${tabletMax}px) {\n  ${selector} {\n    ${tabletDecls.join(
-          "\n    "
-        )}\n  }\n}`
-      );
+  const buildDeviceRule = (
+    query: string,
+    device: "tablet" | "mobile"
+  ): string | null => {
+    const { decls, objectDecls } = buildDeclarations(device);
+    const blocks: string[] = [];
+    if (decls.length > 0) {
+      blocks.push(`${selector} {\n    ${decls.join("\n    ")}\n  }`);
     }
+    if (objectDecls.length > 0) {
+      blocks.push(`${mediaSelector} {\n    ${objectDecls.join("\n    ")}\n  }`);
+    }
+    if (blocks.length === 0) return null;
+    return `@media ${query} {\n  ${blocks.join("\n  ")}\n}`;
+  };
+
+  if (hasTablet) {
+    const tabletRule = buildDeviceRule(
+      `(min-width: ${tabletMin}px) and (max-width: ${tabletMax}px)`,
+      "tablet"
+    );
+    if (tabletRule) rules.push(tabletRule);
   }
 
   if (hasMobile) {
-    const mobileDecls = buildDeclarations("mobile");
-    if (mobileDecls.length > 0) {
-      rules.push(
-        `@media (max-width: ${mobileMax}px) {\n  ${selector} {\n    ${mobileDecls.join(
-          "\n    "
-        )}\n  }\n}`
-      );
-    }
+    const mobileRule = buildDeviceRule(`(max-width: ${mobileMax}px)`, "mobile");
+    if (mobileRule) rules.push(mobileRule);
   }
 
-  return rules.length > 0 ? rules.join("\n") : null;
+  const chunks = [baseObjectRule, ...rules].filter(Boolean) as string[];
+  return chunks.length > 0 ? chunks.join("\n") : null;
 }
 
 /**
@@ -1241,6 +1321,13 @@ export function styleObjectToCssDeclarations(styleObj?: Record<string, any> | nu
       decls.push(`overflow-x: ${rawVal};`);
     } else if (key === "overflowY" || key === "overflow-y") {
       decls.push(`overflow-y: ${rawVal};`);
+    } else if (key === "objectFit" || key === "object-fit") {
+      // Ticket FIT-1: only emit when a valid value is configured.
+      const fit = normalizeObjectFit(rawVal);
+      if (fit) decls.push(`object-fit: ${fit};`);
+    } else if (key === "objectPosition" || key === "object-position") {
+      const position = normalizeObjectPosition(rawVal);
+      if (position) decls.push(`object-position: ${position};`);
     } else if (key === "overlay") {
       const ov = buildOverlayString(styleObj);
       if (ov) decls.push(`--sf-overlay: ${ov};`);
@@ -1564,6 +1651,8 @@ export const STYLE_PROPERTIES_TO_COPY = new Set<string>([
   "overflowX",
   "overflowY",
   "aspectRatio",
+  "objectFit",
+  "objectPosition",
   "hiddenOn",
   "breakpoints",
 ]);

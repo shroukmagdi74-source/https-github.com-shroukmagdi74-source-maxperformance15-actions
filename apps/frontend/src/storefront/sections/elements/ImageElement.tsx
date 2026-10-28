@@ -1,5 +1,6 @@
 import React from 'react';
 import { PhotoIcon } from '@heroicons/react/24/outline';
+import { buildMediaObjectStyle } from './mediaObjectFit';
 
 export interface ImageElementWebpVariants {
   480?: string;
@@ -16,6 +17,10 @@ export interface ImageElementSettings {
   radius?: 'none' | 'sm' | 'md' | 'lg' | 'full' | 'store' | string | number;
   aspectRatio?: 'auto' | '16:9' | '4:3' | '1:1' | '3:4' | string;
   fit?: 'cover' | 'contain' | 'auto' | 'fill' | string;
+  /** Ticket FIT-1: media fitting mode (cover / contain / fill / none / scale-down). */
+  objectFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down' | string;
+  /** Ticket FIT-1: focal point, e.g. "50% 20%" or a preset key ("top-left"). */
+  objectPosition?: string;
   className?: string;
   webp?: ImageElementWebpVariants;
   srcSet?: string;
@@ -122,12 +127,25 @@ const ImageElement: React.FC<ImageElementProps> = ({ section, settings: directSe
     aspectClass = 'aspect-[3/4]';
   }
 
-  // Object fit classes
+  // Object fit classes (legacy `fit` setting keeps working via Tailwind classes)
   let fitClass = 'object-cover';
   if (rawFit === 'contain') {
     fitClass = 'object-contain';
   } else if (rawFit === 'fill') {
     fitClass = 'object-fill';
+  }
+
+  // Ticket FIT-1: explicit object-fit / object-position from the layout tab.
+  // Legacy `fit` is honoured as a fallback but "auto" means "leave as-is", and
+  // when nothing is configured the returned style is empty (default rendering).
+  const mediaObjectStyle = buildMediaObjectStyle({
+    objectFit: mergedSettings?.objectFit ?? (rawFit === 'auto' ? undefined : mergedSettings?.fit),
+    objectPosition: mergedSettings?.objectPosition,
+  });
+  const hasObjectFitStyle = Boolean(mediaObjectStyle.objectFit);
+  if (hasObjectFitStyle) {
+    // Inline object-fit wins over the class; drop the default class to avoid noise.
+    fitClass = '';
   }
 
   const renderContent = () => {
@@ -154,8 +172,10 @@ const ImageElement: React.FC<ImageElementProps> = ({ section, settings: directSe
         decoding={decoding}
         width={width}
         height={height}
-        className={`w-full h-auto max-w-full ${fitClass} ${aspectClass} transition-opacity duration-200`}
-        style={{ borderRadius }}
+        data-object-fit={mediaObjectStyle.objectFit || undefined}
+        data-object-position={mediaObjectStyle.objectPosition || undefined}
+        className={`w-full h-auto max-w-full ${fitClass} ${aspectClass} transition-opacity duration-200`.replace(/\s+/g, ' ').trim()}
+        style={{ borderRadius, ...mediaObjectStyle }}
       />
     );
   };
