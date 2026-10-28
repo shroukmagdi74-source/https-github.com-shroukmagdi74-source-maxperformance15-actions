@@ -40,6 +40,7 @@ import {
   TrendingUp,
   ShoppingBag,
   ShieldAlert,
+  Smartphone,
 } from "lucide-react";
 
 export interface SuperAdminMenuItem {
@@ -348,6 +349,11 @@ export const getSuperAdminMenuGroups = (
         text: t("superAdmin.sidebar.supportSettings") || "إعدادات الدعم الفني",
         icon: ic(Headphones, "h-4 w-4"),
         path: "/super-admin/support-settings", // path="/super-admin/support-settings"
+      },
+      {
+        text: t("superAdmin.sidebar.appVersion") || "إصدار تطبيق الأندرويد",
+        icon: ic(Smartphone, "h-4 w-4"),
+        path: "/super-admin/app-version", // path="/super-admin/app-version"
       },
       {
         text: t("superAdmin.sidebar.allTickets") || "جميع تذاكر الدعم",

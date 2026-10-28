@@ -98,10 +98,31 @@ export function isAndroidAppEnvironment(): boolean {
   return /android/i.test(userAgent);
 }
 
+export interface CurrentAppInfo {
+  version: string;
+  build: number;
+  known: boolean;
+}
+
+const ENV_BASE = (import.meta as any).env?.VITE_APP_UPDATE_BASE_URL?.replace(/\/$/, '') || '';
+
+export function updateUrls(): string[] {
+  const paths = [
+    '/api/v1/app/version/android',
+    '/download/latest-android.json',
+    '/latest-android.json',
+  ];
+  return [
+    ...(ENV_BASE ? paths.map((p) => `${ENV_BASE}${p}`) : []),
+    ...paths,                                     // Same origin (Capacitor = maxp.online)
+    ...paths.map((p) => `https://maxp.online${p}`), // Production fallback
+  ];
+}
+
 /**
  * Retrieves the current installed app info via Capacitor App plugin or default fallback.
  */
-export async function getCurrentAppVersion(): Promise<{ version: string; build: number }> {
+export async function getCurrentAppVersion(): Promise<CurrentAppInfo> {
   const win = window as any;
 
   if (typeof win !== 'undefined' && win.Capacitor?.Plugins?.App?.getInfo) {
@@ -109,15 +130,38 @@ export async function getCurrentAppVersion(): Promise<{ version: string; build: 
       const info = await win.Capacitor.Plugins.App.getInfo();
       const version = (info.version || DEFAULT_CURRENT_VERSION).trim();
       const build = parseInt(info.build, 10) || DEFAULT_CURRENT_BUILD;
-      return { version, build };
+      return { version, build, known: true };
     } catch (e) {
       console.warn('⚠️ [APP-UPDATE] Failed to read version from Capacitor.Plugins.App.getInfo:', e);
+      return {
+        version: DEFAULT_CURRENT_VERSION,
+        build: DEFAULT_CURRENT_BUILD,
+        known: false,
+      };
     }
   }
+
+  // Debug testing override: ?test_android_update=1 or localStorage
+  try {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (
+        urlParams.get('test_android_update') === '1' ||
+        window.localStorage?.getItem('test_android_update') === 'true'
+      ) {
+        return {
+          version: DEFAULT_CURRENT_VERSION,
+          build: DEFAULT_CURRENT_BUILD,
+          known: true,
+        };
+      }
+    }
+  } catch {}
 
   return {
     version: DEFAULT_CURRENT_VERSION,
     build: DEFAULT_CURRENT_BUILD,
+    known: false,
   };
 }
 
@@ -125,13 +169,7 @@ export async function getCurrentAppVersion(): Promise<{ version: string; build: 
  * Fetches the latest published Android version metadata from backend or static fallback.
  */
 export async function fetchLatestAndroidVersion(): Promise<AppVersionInfo> {
-  const urls = [
-    'https://maxp.online/api/v1/app/version/android',
-    '/api/v1/app/version/android',
-    'https://maxp.online/download/latest-android.json',
-    '/download/latest-android.json',
-    '/latest-android.json',
-  ];
+  const urls = updateUrls();
 
   let lastError: any = null;
 
@@ -174,6 +212,18 @@ export async function checkAppUpdate(options?: {
   forceCheck?: boolean;
 }): Promise<UpdateCheckResult> {
   const current = await getCurrentAppVersion();
+
+  if (!current.known) {
+    console.warn('⚠️ [APP-UPDATE] App version unknown or Capacitor plugin unavailable.');
+    return {
+      hasUpdate: false,
+      isMandatory: false,
+      currentVersion: current.version,
+      currentVersionCode: current.build,
+      versionInfo: null,
+      error: 'APP_VERSION_UNKNOWN',
+    };
+  }
 
   try {
     const versionInfo = await fetchLatestAndroidVersion();

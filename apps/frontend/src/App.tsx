@@ -1034,6 +1034,9 @@ const SuperAdminSystemManagement = React.lazy(
 const SuperAdminStaffCompanyAccess = React.lazy(
   () => import("./pages/super-admin/StaffCompanyAccess"),
 );
+const SuperAdminAppVersionSettings = React.lazy(
+  () => import("./pages/super-admin/SuperAdminAppVersionSettings"),
+);
 const SuperAdminServerUsage = React.lazy(
   () => import("./pages/super-admin/SuperAdminServerUsage"),
 );
@@ -2529,6 +2532,14 @@ const AppContent = () => {
               element={
                 <Layout>
                   <SuperAdminDashboard />
+                </Layout>
+              }
+            />
+            <Route
+              path="/super-admin/app-version"
+              element={
+                <Layout>
+                  <SuperAdminAppVersionSettings />
                 </Layout>
               }
             />

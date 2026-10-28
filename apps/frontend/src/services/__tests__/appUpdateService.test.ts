@@ -5,6 +5,9 @@ jest.mock('../../config/environment', () => ({
 import {
   compareSemver,
   shouldShowUpdateModal,
+  updateUrls,
+  getCurrentAppVersion,
+  checkAppUpdate,
   UpdateCheckResult,
   AppVersionInfo,
 } from '../appUpdateService';
@@ -82,6 +85,32 @@ describe('appUpdateService', () => {
         versionInfo: mockVersionInfo,
       };
       expect(shouldShowUpdateModal(result)).toBe(true);
+    });
+  });
+
+  describe('updateUrls', () => {
+    it('returns an array of update URLs including relative and fallback endpoints', () => {
+      const urls = updateUrls();
+      expect(Array.isArray(urls)).toBe(true);
+      expect(urls.length).toBeGreaterThan(0);
+      expect(urls.some((u) => u.includes('/api/v1/app/version/android'))).toBe(true);
+      expect(urls.some((u) => u.includes('https://maxp.online/api/v1/app/version/android'))).toBe(true);
+    });
+  });
+
+  describe('getCurrentAppVersion & checkAppUpdate edge cases', () => {
+    it('returns known: false when Capacitor App plugin is not available in web without debug flag', async () => {
+      const current = await getCurrentAppVersion();
+      expect(current.known).toBe(false);
+      expect(current.version).toBe('1.2.0');
+      expect(current.build).toBe(12);
+    });
+
+    it('returns fail-open APP_VERSION_UNKNOWN when current version is unknown', async () => {
+      const result = await checkAppUpdate();
+      expect(result.hasUpdate).toBe(false);
+      expect(result.isMandatory).toBe(false);
+      expect(result.error).toBe('APP_VERSION_UNKNOWN');
     });
   });
 });
