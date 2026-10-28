@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Settings as SettingsIcon } from 'lucide-react';
 
 import CustomDomainPage from './CustomDomainPage';
-import SidebarSettings from './SidebarSettings';
+import SidebarPreferences from './SidebarPreferences';
 import AuthorizedDevicesTab from './AuthorizedDevicesTab';
 import OvertimeManagementTab from './OvertimeManagementTab';
 import DeveloperHubPage from './developer/DeveloperHubPage';
@@ -30,7 +30,7 @@ const Settings: React.FC = () => {
     { id: 'security', name: t('settings.tabSecurity', 'الأمان'), component: SecuritySettings },
     { id: 'devices', name: 'الأجهزة المعتمدة', component: AuthorizedDevicesTab },
     { id: 'overtime', name: 'الورديات الإضافية', component: OvertimeManagementTab },
-    { id: 'sidebar', name: t('settings.tabSidebar', 'القائمة الجانبية'), component: SidebarSettings },
+    { id: 'sidebar', name: t('settings.tabSidebar', 'القائمة الجانبية'), component: SidebarPreferences },
     { id: 'developer', name: i18n.language === 'en' ? 'Developer' : 'المطورون', component: DeveloperHubPage },
   ];
 

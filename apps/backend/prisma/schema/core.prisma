@@ -33,6 +33,7 @@ model Company {
   bostaEnabled                    Boolean                          @default(false)
   bostaWebhookToken               String?
   sidebarLayout                   String                           @default("three-tier")
+  sidebarPreferences              Json?
   customDomain                    String?                          @unique
   timezone                        String                           @default("Asia/Riyadh")
   geofenceEnabled                 Boolean                          @default(false)
