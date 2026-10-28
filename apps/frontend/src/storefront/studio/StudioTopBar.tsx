@@ -63,6 +63,10 @@ interface StudioTopBarProps {
   onPublish?: () => void;
   onOpenExportImport?: () => void;
   onOpenThemeBuilder?: () => void;
+  canEdit?: boolean;
+  canPublish?: boolean;
+  readOnly?: boolean;
+  activeEditors?: Array<{ sessionId: string; userName: string; pageKey: string }>;
 }
 
 export const StudioTopBar: React.FC<StudioTopBarProps> = ({
@@ -105,6 +109,10 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
   onPublish,
   onOpenExportImport,
   onOpenThemeBuilder,
+  canEdit = true,
+  canPublish = true,
+  readOnly = false,
+  activeEditors = [],
 }) => {
   const [isZoomMenuOpen, setIsZoomMenuOpen] = useState(false);
 
@@ -188,6 +196,24 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
           >
             <span>+ عناصر</span>
           </button>
+        )}
+
+        {/* Active Editors Heartbeat Indicator (PERM-1) */}
+        {activeEditors && activeEditors.length > 0 && (
+          <div
+            data-testid="studio-active-editors-indicator"
+            className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-2 sm:px-2.5 py-0.5 text-[10.5px] text-emerald-300"
+            title={`محررون نشطون على هذه الصفحة: ${activeEditors.map((e) => e.userName).join(", ")}`}
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="text-[10px] text-emerald-400/80">بيعدّل الآن:</span>
+            <span className="font-bold truncate max-w-[120px] sm:max-w-[200px]">
+              {activeEditors.map((e) => e.userName).join("، ")}
+            </span>
+          </div>
         )}
 
         {/* Autosave badge (Responsive - compact on mobile, full on desktop) */}
@@ -406,8 +432,8 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
         <button
           type="button"
           onClick={onUndo}
-          disabled={!canUndo}
-          className="hidden sm:flex h-7 sm:h-8 w-7 sm:w-8 items-center justify-center rounded-lg text-[#c3c7cd] hover:bg-[#202226] disabled:opacity-30"
+          disabled={!canUndo || canEdit === false || readOnly === true}
+          className="hidden sm:flex h-7 sm:h-8 w-7 sm:w-8 items-center justify-center rounded-lg text-[#c3c7cd] hover:bg-[#202226] disabled:opacity-30 disabled:cursor-not-allowed"
           title="تراجع (Ctrl+Z)"
         >
           <ArrowUturnLeftIcon className="h-3.5 w-3.5" />
@@ -415,8 +441,8 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
         <button
           type="button"
           onClick={onRedo}
-          disabled={!canRedo}
-          className="hidden sm:flex h-7 sm:h-8 w-7 sm:w-8 items-center justify-center rounded-lg text-[#c3c7cd] hover:bg-[#202226] disabled:opacity-30"
+          disabled={!canRedo || canEdit === false || readOnly === true}
+          className="hidden sm:flex h-7 sm:h-8 w-7 sm:w-8 items-center justify-center rounded-lg text-[#c3c7cd] hover:bg-[#202226] disabled:opacity-30 disabled:cursor-not-allowed"
           title="إعادة (Ctrl+Y)"
         >
           <ArrowUturnRightIcon className="h-3.5 w-3.5" />
@@ -496,13 +522,34 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
           <span className="hidden sm:inline">معاينة</span>
         </button>
 
+        {/* Save Draft Button (PERM-1) */}
+        {onSave && (
+          <button
+            type="button"
+            data-testid="studio-save-button"
+            onClick={onSave}
+            disabled={saving || canEdit === false || readOnly === true || !hasPendingChanges}
+            className="hidden sm:flex h-7 sm:h-8 items-center gap-1 rounded-lg border border-[#32353b] bg-[#202226] px-2 sm:px-3 text-xs font-semibold text-[#e8eaee] hover:bg-[#282b30] hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title={canEdit === false || readOnly === true ? "وضع المشاهدة فقط" : "حفظ التعديلات"}
+          >
+            <span>حفظ</span>
+          </button>
+        )}
+
         {/* Publish / Save Button */}
         <button
           type="button"
           data-testid="studio-publish-button"
           onClick={onPublish || onSave}
-          disabled={saving}
-          className="flex h-7 sm:h-8 items-center gap-1 rounded-lg bg-[#2b6cf6] px-2.5 sm:px-4 text-xs font-bold text-white shadow-md hover:bg-[#1d5ce6] active:scale-95 transition-all disabled:opacity-50"
+          disabled={saving || canPublish === false || canEdit === false || readOnly === true}
+          className="flex h-7 sm:h-8 items-center gap-1 rounded-lg bg-[#2b6cf6] px-2.5 sm:px-4 text-xs font-bold text-white shadow-md hover:bg-[#1d5ce6] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          title={
+            canPublish === false
+              ? "ليس لديك صلاحية النشر"
+              : canEdit === false || readOnly === true
+              ? "وضع المشاهدة فقط"
+              : "نشر"
+          }
         >
           {saving ? (
             <>

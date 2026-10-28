@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay,
@@ -48,6 +48,17 @@ import { useAuth } from "../../hooks/useAuthSimple";
 import type { StudioPageDefinition } from "./StudioTypes";
 import StorefrontImagePickerModal from "../../components/store/StorefrontImagePickerModal";
 import { StudioMediaLibraryPanel } from "./StudioMediaLibraryPanel";
+import {
+  resolveStudioAccess,
+  recordStudioHeartbeat,
+  getActiveStudioEditors,
+  clearStudioHeartbeat,
+  type StudioActiveEditor,
+  type StudioUser,
+  type StudioCompany,
+} from "./utils/studioPermissions";
+import { StudioViewerBanner } from "./StudioViewerBanner";
+import { StudioConflictPanel } from "./StudioConflictPanel";
 import { toast } from "sonner";
 import {
   ChevronUpIcon,
@@ -320,13 +331,19 @@ interface StorefrontStudioShellProps {
   hasPendingChanges: boolean;
   saving: boolean;
   previewUrl?: string;
-  onSave: () => void;
+  onSave: (options?: { baseRevision?: number }) => Promise<unknown> | void;
   onDiscard?: () => void;
   onBack: () => void;
   onOpenPreview: () => void;
   onChange: (nextTokens: Record<string, unknown>) => void;
   companyId?: string;
   onReload?: () => Promise<void> | void;
+  user?: StudioUser | null;
+  company?: StudioCompany | null;
+  canEdit?: boolean;
+  canPublish?: boolean;
+  readOnly?: boolean;
+  baseRevision?: number;
 }
 
 export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
@@ -334,11 +351,49 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   hasPendingChanges, saving, previewUrl, onSave, onDiscard, onBack, onOpenPreview, onChange,
   companyId: propCompanyId,
   onReload,
+  user: propUser,
+  company: propCompany,
+  canEdit: propCanEdit,
+  canPublish: propCanPublish,
+  readOnly: propReadOnly,
+  baseRevision: propBaseRevision,
 }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isExportImportModalOpen, setIsExportImportModalOpen] = useState<boolean>(false);
-  const { user } = useAuth();
-  const companyId = propCompanyId || user?.companyId || "";
+  const auth = useAuth?.() || {};
+  const authUser = (auth as { user?: StudioUser })?.user;
+  const effectiveUser = propUser !== undefined ? propUser : authUser;
+  const user = effectiveUser;
+  const effectiveCompany = propCompany !== undefined ? propCompany : (effectiveUser as any)?.company;
+
+  const access = useMemo(() => {
+    const resolved = resolveStudioAccess(effectiveUser, effectiveCompany);
+    const effectiveCanEdit =
+      propCanEdit !== undefined
+        ? propCanEdit
+        : propReadOnly === true
+        ? false
+        : resolved.canEdit;
+    const effectiveCanPublish =
+      propCanPublish !== undefined
+        ? propCanPublish
+        : propReadOnly === true
+        ? false
+        : resolved.canPublish;
+    return {
+      canEdit: effectiveCanEdit,
+      canPublish: effectiveCanPublish,
+      reason: resolved.reason,
+    };
+  }, [effectiveUser, effectiveCompany, propCanEdit, propCanPublish, propReadOnly]);
+
+  const canEdit = access.canEdit;
+  const canPublish = access.canPublish;
+
+  const sessionIdRef = useRef<string>(`sess_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`);
+  const [activeEditors, setActiveEditors] = useState<StudioActiveEditor[]>([]);
+
+  const companyId = propCompanyId || (effectiveUser as any)?.companyId || "";
   const [deviceMode, setDeviceMode] = useState<StudioDeviceMode>("desktop");
   const [zoomLevel, setZoomLevel] = useState<StudioZoomLevel>(1);
   const [showSpacingOverlay, setShowSpacingOverlay] = useState<boolean>(true);
@@ -390,6 +445,94 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
       trackStudioOpen(activePageKey || "home", { companyId });
     }
   }, [companyId]);
+
+  // Optimistic Concurrency Lock (PERM-1)
+  const [currentBaseRevision, setCurrentBaseRevision] = useState<number>(propBaseRevision || 1);
+  const [conflictState, setConflictState] = useState<{
+    isOpen: boolean;
+    baseRevision: number;
+    serverRevision: number;
+    serverTokens?: Record<string, unknown> | null;
+  }>({
+    isOpen: false,
+    baseRevision: 1,
+    serverRevision: 1,
+    serverTokens: null,
+  });
+
+  useEffect(() => {
+    if (propBaseRevision !== undefined) {
+      setCurrentBaseRevision(propBaseRevision);
+    }
+  }, [propBaseRevision]);
+
+  const handleSafeSave = useCallback(async () => {
+    if (!canEdit) {
+      toast.error("أنت في وضع المشاهدة: ليس لديك صلاحية حفظ التعديلات");
+      return;
+    }
+
+    try {
+      const savePromise = onSave({ baseRevision: currentBaseRevision });
+      const result = await Promise.resolve(savePromise);
+
+      if (result && typeof result === "object") {
+        const resObj = result as {
+          status?: number;
+          conflict?: boolean;
+          serverRevision?: number;
+          serverTokens?: Record<string, unknown>;
+        };
+        if (resObj.status === 409 || resObj.conflict) {
+          setConflictState({
+            isOpen: true,
+            baseRevision: currentBaseRevision,
+            serverRevision: resObj.serverRevision || currentBaseRevision + 1,
+            serverTokens: resObj.serverTokens || null,
+          });
+          return; // Zero write to state!
+        }
+      }
+    } catch (err: unknown) {
+      const errorObj = err as {
+        status?: number;
+        code?: number | string;
+        message?: string;
+        serverRevision?: number;
+        serverTokens?: Record<string, unknown>;
+        response?: {
+          status?: number;
+          data?: {
+            serverRevision?: number;
+            designTokens?: Record<string, unknown>;
+          };
+        };
+      };
+
+      if (
+        errorObj?.status === 409 ||
+        errorObj?.response?.status === 409 ||
+        errorObj?.code === 409 ||
+        errorObj?.code === "CONFLICT" ||
+        String(errorObj?.message || "").includes("409")
+      ) {
+        setConflictState({
+          isOpen: true,
+          baseRevision: currentBaseRevision,
+          serverRevision:
+            errorObj?.serverRevision ||
+            errorObj?.response?.data?.serverRevision ||
+            currentBaseRevision + 1,
+          serverTokens:
+            errorObj?.serverTokens ||
+            errorObj?.response?.data?.designTokens ||
+            null,
+        });
+        return; // Zero write to state!
+      }
+      throw err;
+    }
+  }, [canEdit, currentBaseRevision, onSave]);
 
   // Library Drag-and-Drop state
   const [draggingLibraryItem, setDraggingLibraryItem] = useState<{ type: string; label: string } | null>(null);
@@ -513,6 +656,31 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     onChange,
     onSave,
   });
+
+  // Heartbeat: update active editors on activePageKey change (PERM-1)
+  useEffect(() => {
+    const updateHeartbeat = () => {
+      try {
+        recordStudioHeartbeat(activePageKey || "home", effectiveUser, sessionIdRef.current);
+        const editors = getActiveStudioEditors(activePageKey || "home");
+        setActiveEditors(editors);
+      } catch {
+        // Safe fallback
+      }
+    };
+
+    updateHeartbeat();
+    const interval = setInterval(updateHeartbeat, 15000);
+
+    return () => {
+      clearInterval(interval);
+      try {
+        clearStudioHeartbeat(sessionIdRef.current);
+      } catch {
+        // Safe fallback
+      }
+    };
+  }, [activePageKey, effectiveUser]);
 
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSearchReplacePanel, setShowSearchReplacePanel] = useState(false);
@@ -1046,14 +1214,43 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   );
 
   const handlePublishWithTracking = useCallback(async () => {
+    if (!canPublish || !canEdit) {
+      toast.error("ليس لديك صلاحية النشر");
+      return;
+    }
     if (companyId) {
       trackStudioPublish(activePageKey || "home", {
         companyId,
         sectionCount: activeSections?.length,
       });
     }
-    await handlePublish();
-  }, [companyId, activePageKey, activeSections?.length, handlePublish]);
+    try {
+      await handlePublish();
+    } catch (err: unknown) {
+      const errorObj = err as {
+        status?: number;
+        code?: number | string;
+        message?: string;
+        serverRevision?: number;
+        response?: { status?: number };
+      };
+      if (
+        errorObj?.status === 409 ||
+        errorObj?.response?.status === 409 ||
+        errorObj?.code === 409 ||
+        String(errorObj?.message || "").includes("409")
+      ) {
+        setConflictState({
+          isOpen: true,
+          baseRevision: currentBaseRevision,
+          serverRevision: errorObj?.serverRevision || currentBaseRevision + 1,
+          serverTokens: null,
+        });
+        return;
+      }
+      throw err;
+    }
+  }, [canPublish, canEdit, companyId, activePageKey, activeSections?.length, handlePublish, currentBaseRevision]);
 
 
   const pageSectionCounts = useMemo(() => {
@@ -1242,8 +1439,12 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         onUndo={undo}
         onRedo={redo}
         onDiscard={onDiscard}
-        onSave={onSave}
+        onSave={handleSafeSave}
         onPublish={handlePublishWithTracking}
+        canEdit={canEdit}
+        canPublish={canPublish}
+        readOnly={!canEdit}
+        activeEditors={activeEditors}
         onOpenExportImport={() => setIsExportImportModalOpen(true)}
         onOpenPreview={onOpenPreview}
         isHistoryOpen={isHistoryOpen}
@@ -1251,6 +1452,34 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         pageStatus={(activePageConfig?.status as StorefrontPageStatus) || "published"}
         onOpenPageSettings={() => setIsPageSettingsOpen(true)}
       />
+
+      {/* 1.1 Viewer Mode Banner (PERM-1) */}
+      {!canEdit && (
+        <StudioViewerBanner
+          reason={access.reason === "viewer_no_permission" ? "صلاحية storefront.edit غير مفعّلة" : undefined}
+          onRequestPermission={() => {
+            toast.info("يرجى التواصل مع مالك أو مدير المتجر لمنحك صلاحية التعديل (storefront.edit)");
+          }}
+        />
+      )}
+
+      {/* 1.2 Concurrency Conflict Dialog (PERM-1) */}
+      {conflictState.isOpen && (
+        <StudioConflictPanel
+          isOpen={conflictState.isOpen}
+          baseRevision={conflictState.baseRevision}
+          serverRevision={conflictState.serverRevision}
+          localTokens={currentDesignTokens}
+          serverTokens={conflictState.serverTokens}
+          onClose={() => setConflictState((prev) => ({ ...prev, isOpen: false }))}
+          onReload={async () => {
+            setConflictState((prev) => ({ ...prev, isOpen: false }));
+            if (onReload) {
+              await onReload();
+            }
+          }}
+        />
+      )}
 
       {/* 2. Main Studio Workspace Chassis with unified DnD */}
       <DndContext
