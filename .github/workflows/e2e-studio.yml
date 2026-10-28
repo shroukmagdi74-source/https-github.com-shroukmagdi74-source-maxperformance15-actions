@@ -1,0 +1,54 @@
+name: E2E Studio Tests
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - staging
+    paths:
+      - 'apps/frontend/src/storefront/studio/**'
+      - 'apps/frontend/src/storefront/__tests__/studioEditorSmokeE2E.test.tsx'
+      - 'apps/frontend/e2e/**'
+
+concurrency:
+  group: e2e-studio-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-studio:
+    name: Storefront Studio Editor E2E & Smoke Suite
+    runs-on: ubuntu-latest
+    # Hard isolation: continue-on-error ensures this workflow NEVER blocks production deploy
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        working-directory: ./apps/frontend
+        run: npm ci
+
+      - name: Run Studio Editor Vitest Smoke Suite (5 Core Scenarios + Negative Guard)
+        working-directory: ./apps/frontend
+        run: npx vitest run src/storefront/__tests__/studioEditorSmokeE2E.test.tsx
+
+      - name: Install Playwright Chromium
+        working-directory: ./apps/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E Suite (Isolated, Continue on Error)
+        working-directory: ./apps/frontend
+        continue-on-error: true
+        run: npx playwright test --config playwright.config.ts
