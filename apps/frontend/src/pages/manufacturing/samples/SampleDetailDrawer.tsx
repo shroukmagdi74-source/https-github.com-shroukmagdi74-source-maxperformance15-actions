@@ -11,11 +11,13 @@ import {
   Upload,
   ExternalLink,
   FileText,
+  Share2,
 } from 'lucide-react';
 import { manufacturingApi, SampleOrder, SampleOrderStage } from '../manufacturingApi';
 import { SampleStatusBadge, MaterialSourceBadge } from './SampleStatusBadge';
 import { ConvertToOrderModal } from './ConvertToOrderModal';
 import { SampleApproveModal, SampleRejectModal } from './SampleApproveRejectModals';
+import { ShareSampleModal } from './ShareSampleModal';
 
 interface SampleDetailDrawerProps {
   sample: SampleOrder | null;
@@ -39,6 +41,7 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // Add stage form state
   const [newStageName, setNewStageName] = useState('');
@@ -143,12 +146,22 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
             <SampleStatusBadge status={sample.status} />
             <MaterialSourceBadge source={sample.materialSource} />
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              title="مشاركة العينة"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>مشاركة</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Global Action Error Alert */}
@@ -509,6 +522,14 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
         loading={loading}
         onClose={() => setIsRejectModalOpen(false)}
         onConfirm={handleReject}
+      />
+
+      {/* Share Sample Modal */}
+      <ShareSampleModal
+        sample={sample}
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        onRefresh={onRefresh}
       />
     </>
   );

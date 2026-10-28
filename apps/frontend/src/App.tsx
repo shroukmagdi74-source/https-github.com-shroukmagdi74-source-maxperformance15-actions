@@ -618,6 +618,9 @@ const FactoryPortalPage = React.lazy(
 const CustomerPortalPage = React.lazy(
   () => import("./pages/customer-portal/CustomerPortalPage"),
 );
+const SampleSharePage = React.lazy(
+  () => import("./pages/share/SampleSharePage"),
+);
 
 const ProductLandingPages = React.lazy(
   () => import("./pages/advertising/ProductLandingPages"),
@@ -2077,6 +2080,7 @@ const AppContent = () => {
     currentPath.startsWith("/portal") ||
     currentPath.startsWith("/factory-portal") ||
     currentPath.startsWith("/customer-portal") ||
+    currentPath.startsWith("/share/sample") ||
     currentPath.startsWith("/academy/portal") ||
     currentPath.startsWith("/academy/course") ||
     currentPath.startsWith("/academy/my-courses") ||
@@ -2285,6 +2289,14 @@ const AppContent = () => {
               element={
                 <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
                   <FactoryPortalPage />
+                </React.Suspense>
+              }
+            />
+            <Route
+              path="/share/sample/:token"
+              element={
+                <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>}>
+                  <SampleSharePage />
                 </React.Suspense>
               }
             />
