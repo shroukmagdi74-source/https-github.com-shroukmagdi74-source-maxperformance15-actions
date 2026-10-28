@@ -21,6 +21,45 @@ const ManufacturingService = require('./manufacturingService');
 
 const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
 
+const httpErr = (code, msg) => {
+  const e = new Error(msg);
+  e.statusCode = code;
+  return e;
+};
+
+const isCompanyAdminOrOwner = (user) => {
+  if (!user) return false;
+  const role = String(user.role || '').toUpperCase();
+  return (
+    role === 'SUPER_ADMIN' ||
+    role === 'COMPANY_ADMIN' ||
+    role === 'OWNER' ||
+    user.isOwner === true
+  );
+};
+
+const businessToday = (tz = 'Africa/Cairo') =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+
+const remainingOf = (s) => {
+  const total = s.totalAmount !== null && s.totalAmount !== undefined ? Number(s.totalAmount) : Number(s.fee || 0);
+  return round2(total - Number(s.paidAmount || 0));
+};
+
+const overdueDaysOf = (s, received) => {
+  if (!s.expectedDeliveryAt) return 0;
+  if (['CONVERTED', 'REJECTED'].includes(s.status)) return 0;
+  if (received) return 0;
+  const d = new Date(s.expectedDeliveryAt);
+  if (isNaN(d.getTime())) return 0;
+  const due = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(d);
+  if (businessToday() <= due) return 0;
+  return Math.round((new Date(businessToday()) - new Date(due)) / 86400000);
+};
+
+const isOverdueOf = (s, received) => overdueDaysOf(s, received) > 0;
+
 class ManufacturingSampleService {
   /**
    * Idempotent runtime DDL guard for PostgreSQL
@@ -111,6 +150,31 @@ class ManufacturingSampleService {
 
         ALTER TABLE "production_orders" ADD COLUMN IF NOT EXISTS "sourceSampleOrderId" TEXT;
         CREATE INDEX IF NOT EXISTS "production_orders_companyId_sourceSampleOrderId_idx" ON "production_orders"("companyId", "sourceSampleOrderId");
+
+        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "partnerFactoryId" TEXT;
+        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "expectedDeliveryAt" TIMESTAMP(3);
+        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "totalAmount" DECIMAL(12,2);
+        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "depositAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;
+        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "paidAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;
+        CREATE INDEX IF NOT EXISTS "sample_orders_companyId_partnerFactoryId_idx" ON "sample_orders"("companyId","partnerFactoryId");
+        CREATE INDEX IF NOT EXISTS "sample_orders_companyId_expectedDeliveryAt_idx" ON "sample_orders"("companyId","expectedDeliveryAt");
+
+        CREATE TABLE IF NOT EXISTS "sample_payments" (
+          "id" TEXT PRIMARY KEY,
+          "companyId" TEXT NOT NULL,
+          "sampleOrderId" TEXT NOT NULL,
+          "kind" "CustomerOrderPaymentKind" NOT NULL DEFAULT 'DEPOSIT',
+          "amount" DECIMAL(12,2) NOT NULL,
+          "method" "PaymentMethod",
+          "paidAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "reference" TEXT,
+          "notes" TEXT,
+          "createdById" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS "sample_payments_sampleOrderId_paidAt_idx" ON "sample_payments"("sampleOrderId","paidAt");
+        CREATE INDEX IF NOT EXISTS "sample_payments_companyId_paidAt_idx" ON "sample_payments"("companyId","paidAt");
       `);
     } catch (err) {
       // In SQLite/test mock environments, silently ignore
@@ -169,6 +233,15 @@ class ManufacturingSampleService {
     }
     if (query.customerLinked === 'true') where.customerId = { not: null };
     if (query.customerLinked === 'false') where.customerId = null;
+    if (query.partnerFactoryId) {
+      where.partnerFactoryId = query.partnerFactoryId;
+    }
+    if (String(query.overdue) === 'true') {
+      const todayCairoStr = businessToday('Africa/Cairo');
+      const cairoStartOfDay = new Date(`${todayCairoStr}T00:00:00+03:00`);
+      where.expectedDeliveryAt = { lt: cairoStartOfDay };
+      where.status = { notIn: ['CONVERTED', 'REJECTED'] };
+    }
     if (search && String(search).trim()) {
       const s = String(search).trim();
       where.OR = [
@@ -187,6 +260,7 @@ class ManufacturingSampleService {
           include: {
             stages: { orderBy: { sequence: 'asc' } },
             attachments: { orderBy: { uploadedAt: 'desc' } },
+            partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
             customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
             bom: { select: { id: true, code: true, name: true } },
           },
@@ -248,11 +322,18 @@ class ManufacturingSampleService {
       });
     }
 
-    const enrichedItems = items.map((s) => ({
-      ...s,
-      bom: s.bom || (s.bomId ? bomMap[s.bomId] || null : null),
-      convertedOrder: s.convertedOrderId ? orderMap[s.convertedOrderId] || null : null,
-    }));
+    const enrichedItems = items.map((s) => {
+      const received = s.sampleReceived === true;
+      const overdueDays = overdueDaysOf(s, received);
+      return {
+        ...s,
+        bom: s.bom || (s.bomId ? bomMap[s.bomId] || null : null),
+        convertedOrder: s.convertedOrderId ? orderMap[s.convertedOrderId] || null : null,
+        remaining: remainingOf(s),
+        isOverdue: overdueDays > 0,
+        overdueDays,
+      };
+    });
 
     return {
       items: enrichedItems,
@@ -279,6 +360,8 @@ class ManufacturingSampleService {
         include: {
           stages: { orderBy: { sequence: 'asc' } },
           attachments: { orderBy: { uploadedAt: 'desc' } },
+          partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+          payments: { orderBy: { paidAt: 'desc' } },
           customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
           bom: { select: { id: true, code: true, name: true } },
         },
@@ -290,6 +373,8 @@ class ManufacturingSampleService {
           include: {
             stages: { orderBy: { sequence: 'asc' } },
             attachments: { orderBy: { uploadedAt: 'desc' } },
+            partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+            payments: { orderBy: { paidAt: 'desc' } },
             customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
           },
         });
@@ -321,9 +406,14 @@ class ManufacturingSampleService {
       });
     }
 
+    const received = sample.sampleReceived === true;
+    const overdueDays = overdueDaysOf(sample, received);
     return {
       ...sample,
       convertedOrder,
+      remaining: remainingOf(sample),
+      isOverdue: overdueDays > 0,
+      overdueDays,
     };
   }
 
@@ -344,6 +434,23 @@ class ManufacturingSampleService {
     const plannedQuantity = Math.max(1, parseInt(data.plannedQuantity, 10) || 1);
     const materialSource = data.materialSource === 'CUSTOMER' ? 'CUSTOMER' : 'COMPANY';
     const fee = data.fee !== undefined && data.fee !== null && data.fee !== '' ? round2(data.fee) : null;
+
+    const totalAmount = data.totalAmount !== undefined && data.totalAmount !== null && data.totalAmount !== ''
+      ? round2(data.totalAmount)
+      : (fee !== null ? fee : null);
+    const depositAmount = data.depositAmount !== undefined && data.depositAmount !== null && data.depositAmount !== ''
+      ? round2(data.depositAmount) : 0;
+    if (depositAmount < 0) throw httpErr(400, 'العربون لا يمكن أن يكون بالسالب');
+    if (totalAmount !== null && depositAmount > totalAmount) throw httpErr(400, 'العربون أكبر من إجمالي العينة');
+    if (data.partnerFactoryId) {
+      const factory = await prisma.partnerFactory.findFirst({
+        where: { id: String(data.partnerFactoryId), companyId },
+        select: { id: true },
+      });
+      if (!factory) throw httpErr(400, 'المصنع الشريك غير موجود في هذه الشركة');
+    }
+    const expectedDeliveryAt = data.expectedDeliveryAt ? new Date(data.expectedDeliveryAt) : null;
+    if (expectedDeliveryAt && isNaN(expectedDeliveryAt.getTime())) throw httpErr(400, 'موعد استلام العينة غير صحيح');
 
     let customerId = data.customerId ? String(data.customerId) : null;
     let customerName = data.customerName ? String(data.customerName).trim() : null;
@@ -386,6 +493,11 @@ class ManufacturingSampleService {
               fee,
               status: 'DRAFT',
               dueDate: data.dueDate ? new Date(data.dueDate) : null,
+              partnerFactoryId: data.partnerFactoryId ? String(data.partnerFactoryId).trim() : null,
+              expectedDeliveryAt,
+              totalAmount,
+              depositAmount,
+              paidAmount: 0,
               designNotes: data.designNotes ? String(data.designNotes).trim() : null,
               createdById: user?.id ? String(user.id) : null,
             },
@@ -410,6 +522,23 @@ class ManufacturingSampleService {
             }
           }
 
+          let paid = 0;
+          if (depositAmount > 0) {
+            await tx.samplePayment.create({
+              data: {
+                companyId,
+                sampleOrderId: sample.id,
+                kind: 'DEPOSIT',
+                amount: depositAmount,
+                paidAt: new Date(),
+                notes: 'عربون العينة',
+                createdById: user?.id ? String(user.id) : null,
+              },
+            });
+            paid = depositAmount;
+            await tx.sampleOrder.update({ where: { id: sample.id }, data: { paidAmount: paid } });
+          }
+
           let createdRecord;
           try {
             createdRecord = await tx.sampleOrder.findFirst({
@@ -417,6 +546,8 @@ class ManufacturingSampleService {
               include: {
                 stages: { orderBy: { sequence: 'asc' } },
                 attachments: true,
+                partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+                payments: { orderBy: { paidAt: 'desc' } },
                 customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
                 bom: { select: { id: true, code: true, name: true } },
               },
@@ -428,6 +559,8 @@ class ManufacturingSampleService {
                 include: {
                   stages: { orderBy: { sequence: 'asc' } },
                   attachments: true,
+                  partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+                  payments: { orderBy: { paidAt: 'desc' } },
                   customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
                 },
               });
@@ -443,7 +576,14 @@ class ManufacturingSampleService {
               });
             } catch (_) {}
           }
-          return createdRecord;
+          const received = createdRecord.sampleReceived === true;
+          const overdueDays = overdueDaysOf(createdRecord, received);
+          return {
+            ...createdRecord,
+            remaining: remainingOf(createdRecord),
+            isOverdue: overdueDays > 0,
+            overdueDays,
+          };
         });
       } catch (err) {
         if (err.code === 'P2002' && attempts < 5) {
@@ -511,6 +651,34 @@ class ManufacturingSampleService {
     if (data.materialSource !== undefined) updateData.materialSource = data.materialSource === 'CUSTOMER' ? 'CUSTOMER' : 'COMPANY';
     if (data.fee !== undefined) updateData.fee = data.fee !== null && data.fee !== '' ? round2(data.fee) : null;
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
+    if (data.partnerFactoryId !== undefined) {
+      if (data.partnerFactoryId) {
+        const fId = String(data.partnerFactoryId).trim();
+        const factory = await prisma.partnerFactory.findFirst({
+          where: { id: fId, companyId },
+          select: { id: true },
+        });
+        if (!factory) throw httpErr(400, 'المصنع الشريك غير موجود في هذه الشركة');
+        updateData.partnerFactoryId = fId;
+      } else {
+        updateData.partnerFactoryId = null;
+      }
+    }
+    if (data.expectedDeliveryAt !== undefined) {
+      updateData.expectedDeliveryAt = data.expectedDeliveryAt ? new Date(data.expectedDeliveryAt) : null;
+    }
+    if (data.totalAmount !== undefined) {
+      updateData.totalAmount = data.totalAmount !== null && data.totalAmount !== '' ? round2(data.totalAmount) : null;
+    }
+    if (data.depositAmount !== undefined) {
+      const dep = data.depositAmount !== null && data.depositAmount !== '' ? round2(data.depositAmount) : 0;
+      if (dep < 0) throw httpErr(400, 'العربون لا يمكن أن يكون بالسالب');
+      const pCount = await prisma.samplePayment.count({ where: { sampleOrderId: id } });
+      if (pCount > 0) {
+        throw httpErr(400, 'العربون تحول إلى دفعة مسجلة، يرجى تعديل الدفعات بدلاً من تعديل العربون');
+      }
+      updateData.depositAmount = dep;
+    }
     if (data.designNotes !== undefined) updateData.designNotes = data.designNotes ? String(data.designNotes).trim() : null;
 
     let updatedRecord;
@@ -521,6 +689,8 @@ class ManufacturingSampleService {
         include: {
           stages: { orderBy: { sequence: 'asc' } },
           attachments: true,
+          partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+          payments: { orderBy: { paidAt: 'desc' } },
           customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
           bom: { select: { id: true, code: true, name: true } },
         },
@@ -533,6 +703,8 @@ class ManufacturingSampleService {
           include: {
             stages: { orderBy: { sequence: 'asc' } },
             attachments: true,
+            partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+            payments: { orderBy: { paidAt: 'desc' } },
             customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
           },
         });
@@ -550,7 +722,14 @@ class ManufacturingSampleService {
       } catch (_) {}
     }
 
-    return updatedRecord;
+    const received = updatedRecord.sampleReceived === true;
+    const overdueDays = overdueDaysOf(updatedRecord, received);
+    return {
+      ...updatedRecord,
+      remaining: remainingOf(updatedRecord),
+      isOverdue: overdueDays > 0,
+      overdueDays,
+    };
   }
 
   /**
@@ -913,6 +1092,246 @@ class ManufacturingSampleService {
         convertedOrder: createdOrder,
       },
     };
+  }
+
+  /**
+   * Update sample order commercial data (factory, expected delivery, total amount, deposit)
+   * Available in any status except CONVERTED
+   */
+  static async updateSampleCommercial(companyId, user, id, data = {}) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+
+    const sample = await prisma.sampleOrder.findFirst({
+      where: { id, companyId },
+    });
+    if (!sample) throw httpErr(404, 'أمر العينة غير موجود');
+    if (sample.status === 'CONVERTED') {
+      throw httpErr(400, 'لا يمكن تعديل البيانات التجارية لعينة تم تحويلها بالفعل');
+    }
+
+    const isModifyingAmounts = data.totalAmount !== undefined || data.depositAmount !== undefined;
+    if (isModifyingAmounts && !isCompanyAdminOrOwner(user)) {
+      throw httpErr(403, 'تعديل المبالغ المالية للعينة يتطلب صلاحيات مسؤول الشركة أو المالك');
+    }
+
+    const updateData = {};
+    if (data.partnerFactoryId !== undefined) {
+      if (data.partnerFactoryId) {
+        const fId = String(data.partnerFactoryId).trim();
+        const factory = await prisma.partnerFactory.findFirst({
+          where: { id: fId, companyId },
+          select: { id: true },
+        });
+        if (!factory) throw httpErr(400, 'المصنع الشريك غير موجود في هذه الشركة');
+        updateData.partnerFactoryId = fId;
+      } else {
+        updateData.partnerFactoryId = null;
+      }
+    }
+    if (data.expectedDeliveryAt !== undefined) {
+      updateData.expectedDeliveryAt = data.expectedDeliveryAt ? new Date(data.expectedDeliveryAt) : null;
+    }
+    if (data.totalAmount !== undefined) {
+      const tot = data.totalAmount !== null && data.totalAmount !== '' ? round2(data.totalAmount) : null;
+      if (tot !== null && tot < 0) throw httpErr(400, 'إجمالي العينة لا يمكن أن يكون بالسالب');
+      if (tot !== null && Number(sample.paidAmount || 0) > tot) {
+        throw httpErr(400, `إجمالي العينة لا يمكن أن يكون أقل من المدفوع الحالي (${sample.paidAmount})`);
+      }
+      updateData.totalAmount = tot;
+    }
+    if (data.depositAmount !== undefined) {
+      const dep = data.depositAmount !== null && data.depositAmount !== '' ? round2(data.depositAmount) : 0;
+      if (dep < 0) throw httpErr(400, 'العربون لا يمكن أن يكون بالسالب');
+      const pCount = await prisma.samplePayment.count({ where: { sampleOrderId: id } });
+      if (pCount > 0) {
+        throw httpErr(400, 'العربون تحول إلى دفعة مسجلة، يرجى تعديل الدفعات بدلاً من تعديل العربون');
+      }
+      const currentTotal = updateData.totalAmount !== undefined
+        ? updateData.totalAmount
+        : (sample.totalAmount !== null && sample.totalAmount !== undefined ? Number(sample.totalAmount) : Number(sample.fee || 0));
+      if (currentTotal !== null && dep > currentTotal) {
+        throw httpErr(400, 'العربون أكبر من إجمالي العينة');
+      }
+      updateData.depositAmount = dep;
+    }
+
+    const updated = await prisma.sampleOrder.update({
+      where: { id },
+      data: updateData,
+      include: {
+        stages: { orderBy: { sequence: 'asc' } },
+        attachments: true,
+        partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+        payments: { orderBy: { paidAt: 'desc' } },
+        customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      },
+    });
+
+    const received = updated.sampleReceived === true;
+    const overdueDays = overdueDaysOf(updated, received);
+    return {
+      ...updated,
+      remaining: remainingOf(updated),
+      isOverdue: overdueDays > 0,
+      overdueDays,
+    };
+  }
+
+  /**
+   * Add payment to sample order
+   */
+  static async addSamplePayment(companyId, user, id, data = {}) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+    const amount = round2(data.amount);
+    if (!amount || amount <= 0) throw httpErr(400, 'مبلغ الدفعة يجب أن يكون رقماً موجباً');
+
+    const validMethods = [
+      'CASH',
+      'CREDIT_CARD',
+      'BANK_TRANSFER',
+      'PAYPAL',
+      'STRIPE',
+      'WALLET',
+      'INSTAPAY',
+      'VISA',
+      'MASTERCARD',
+      'VODAFONE_CASH',
+    ];
+    let method = data.method ? String(data.method).trim().toUpperCase() : null;
+    if (method && !validMethods.includes(method)) {
+      throw httpErr(400, `طريقة الدفع غير صحيحة: ${method}`);
+    }
+
+    const paidAt = data.paidAt ? new Date(data.paidAt) : new Date();
+    if (isNaN(paidAt.getTime())) throw httpErr(400, 'تاريخ الدفعة غير صحيح');
+
+    return await prisma.$transaction(async (tx) => {
+      const sample = await tx.sampleOrder.findFirst({
+        where: { id, companyId },
+        include: { payments: true },
+      });
+      if (!sample) throw httpErr(404, 'أمر العينة غير موجود');
+
+      const remaining = remainingOf(sample);
+      if (amount > remaining) throw httpErr(400, `المبلغ أكبر من المتبقي (${remaining})`);
+
+      const validKinds = ['DEPOSIT', 'INSTALLMENT', 'FINAL', 'CUSTOM'];
+      let kind = data.kind ? String(data.kind).trim().toUpperCase() : (Number(sample.paidAmount || 0) === 0 ? 'DEPOSIT' : 'INSTALLMENT');
+      if (!validKinds.includes(kind)) kind = 'INSTALLMENT';
+
+      await tx.samplePayment.create({
+        data: {
+          companyId,
+          sampleOrderId: id,
+          kind,
+          amount,
+          method,
+          paidAt,
+          reference: data.reference ? String(data.reference).trim() : null,
+          notes: data.notes ? String(data.notes).trim() : null,
+          createdById: user?.id ? String(user.id) : null,
+        },
+      });
+
+      const agg = await tx.samplePayment.aggregate({
+        where: { sampleOrderId: id },
+        _sum: { amount: true },
+      });
+      const paid = round2(agg._sum.amount || 0);
+
+      const updated = await tx.sampleOrder.update({
+        where: { id },
+        data: { paidAmount: paid },
+        include: {
+          stages: { orderBy: { sequence: 'asc' } },
+          attachments: true,
+          partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+          payments: { orderBy: { paidAt: 'desc' } },
+          customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        },
+      });
+
+      const received = updated.sampleReceived === true;
+      const overdueDays = overdueDaysOf(updated, received);
+      return {
+        ...updated,
+        remaining: remainingOf(updated),
+        isOverdue: overdueDays > 0,
+        overdueDays,
+      };
+    });
+  }
+
+  /**
+   * Delete payment from sample order (Company Admin / Owner only)
+   */
+  static async deleteSamplePayment(companyId, user, id, paymentId) {
+    await this.ensureSchema();
+    if (!isCompanyAdminOrOwner(user)) {
+      throw httpErr(403, 'حذف الدفعة يتطلب صلاحيات مسؤول الشركة أو المالك');
+    }
+
+    const prisma = getSharedPrismaClient();
+    return await prisma.$transaction(async (tx) => {
+      const sample = await tx.sampleOrder.findFirst({
+        where: { id, companyId },
+      });
+      if (!sample) throw httpErr(404, 'أمر العينة غير موجود');
+
+      const payment = await tx.samplePayment.findFirst({
+        where: { id: paymentId, sampleOrderId: id, companyId },
+      });
+      if (!payment) throw httpErr(404, 'الدفعة غير موجودة');
+
+      await tx.samplePayment.delete({ where: { id: paymentId } });
+
+      const agg = await tx.samplePayment.aggregate({
+        where: { sampleOrderId: id },
+        _sum: { amount: true },
+      });
+      const paid = round2(agg._sum.amount || 0);
+
+      const updated = await tx.sampleOrder.update({
+        where: { id },
+        data: { paidAmount: paid },
+        include: {
+          stages: { orderBy: { sequence: 'asc' } },
+          attachments: true,
+          partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+          payments: { orderBy: { paidAt: 'desc' } },
+          customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        },
+      });
+
+      const received = updated.sampleReceived === true;
+      const overdueDays = overdueDaysOf(updated, received);
+      return {
+        ...updated,
+        remaining: remainingOf(updated),
+        isOverdue: overdueDays > 0,
+        overdueDays,
+      };
+    });
+  }
+
+  /**
+   * List payments for a sample order
+   */
+  static async listSamplePayments(companyId, id) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+    const sample = await prisma.sampleOrder.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
+    if (!sample) throw httpErr(404, 'أمر العينة غير موجود');
+
+    return await prisma.samplePayment.findMany({
+      where: { sampleOrderId: id, companyId },
+      orderBy: { paidAt: 'desc' },
+    });
   }
 }
 

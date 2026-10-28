@@ -1065,6 +1065,61 @@ class ManufacturingController {
     }
   }
 
+  static async updateSampleCommercial(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.updateSampleCommercial(
+        companyId,
+        req.user,
+        req.params.id,
+        req.body
+      );
+      res.json({ success: true, data, message: 'تم تحديث البيانات التجارية للعينة بنجاح' });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async listSamplePayments(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.listSamplePayments(companyId, req.params.id);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async createSamplePayment(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.addSamplePayment(
+        companyId,
+        req.user,
+        req.params.id,
+        req.body
+      );
+      res.status(201).json({ success: true, data, message: 'تم تسجيل الدفعة بنجاح' });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async deleteSamplePayment(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.deleteSamplePayment(
+        companyId,
+        req.user,
+        req.params.id,
+        req.params.paymentId
+      );
+      res.json({ success: true, data, message: 'تم حذف الدفعة بنجاح' });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
 
   // ==========================================================================
   // Wave 6: Standard Production Stage Templates & Sets Library

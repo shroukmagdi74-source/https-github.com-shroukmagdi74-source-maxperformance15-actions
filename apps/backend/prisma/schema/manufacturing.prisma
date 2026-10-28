@@ -523,6 +523,7 @@ model PartnerFactory {
   attachments        ManufacturingAttachment[]
   stageTemplates     ProductionStageTemplate[]
   agreements         FactoryAgreement[]
+  sampleOrders       SampleOrder[]
 
   @@unique([companyId, name])
   @@index([companyId, isActive])
@@ -753,6 +754,11 @@ model SampleOrder {
   fee              Decimal?             @db.Decimal(10, 2)
   status           SampleOrderStatus    @default(DRAFT)
   dueDate          DateTime?
+  partnerFactoryId   String?
+  expectedDeliveryAt DateTime?
+  totalAmount        Decimal?            @db.Decimal(12, 2)
+  depositAmount      Decimal             @default(0) @db.Decimal(12, 2)
+  paidAmount         Decimal             @default(0) @db.Decimal(12, 2)
   designNotes      String?
   resultNotes      String?
   convertedOrderId String?
@@ -763,6 +769,8 @@ model SampleOrder {
   stages           SampleOrderStage[]
   attachments      SampleOrderAttachment[]
   shareLinks       SampleShareLink[]
+  partnerFactory   PartnerFactory?      @relation(fields: [partnerFactoryId], references: [id], onDelete: SetNull)
+  payments         SamplePayment[]
   customer         Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   bom              BillOfMaterials?     @relation(fields: [bomId], references: [id], onDelete: SetNull)
 
@@ -771,6 +779,8 @@ model SampleOrder {
   @@index([companyId, customerId])
   @@index([companyId, productId])
   @@index([companyId, convertedOrderId])
+  @@index([companyId, partnerFactoryId])
+  @@index([companyId, expectedDeliveryAt])
   @@map("sample_orders")
 }
 
@@ -835,6 +845,28 @@ model SampleShareLink {
   @@unique([sampleOrderId, kind])
   @@index([companyId, kind])
   @@map("sample_share_links")
+}
+
+/// Sample order payment (دفعة على أمر العينة)
+model SamplePayment {
+  id            String                   @id @default(cuid())
+  companyId     String
+  sampleOrderId String
+  kind          CustomerOrderPaymentKind @default(DEPOSIT)
+  amount        Decimal                  @db.Decimal(12, 2)
+  method        PaymentMethod?
+  paidAt        DateTime                 @default(now())
+  reference     String?
+  notes         String?
+  createdById   String?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  sampleOrder   SampleOrder              @relation(fields: [sampleOrderId], references: [id], onDelete: Cascade)
+
+  @@index([sampleOrderId, paidAt])
+  @@index([companyId, paidAt])
+  @@map("sample_payments")
 }
 
 
