@@ -273,6 +273,7 @@ export function initMockElectronBridge() {
     },
 
     uploadTaskAttachment: async () => ({ success: true }),
+    deleteTaskAttachment: async () => ({ success: true }),
     fetchAttachment: async () => ({ success: false }),
     captureDesktopSnippet: async () => ({ success: false }),
 

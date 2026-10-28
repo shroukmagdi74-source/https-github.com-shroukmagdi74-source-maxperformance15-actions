@@ -724,7 +724,12 @@ export const TasksTab: React.FC = () => {
             nextTags = nextTags.filter((tag: string) => tag !== 'needs_revision');
           }
         }
-        return { ...t, status: targetStatus, tags: nextTags };
+        return {
+          ...t,
+          status: targetStatus,
+          tags: nextTags,
+          ...(options?.evidence ? { evidence: options.evidence, hasEvidence: true } : {}),
+        };
       })
     );
 
@@ -733,7 +738,24 @@ export const TasksTab: React.FC = () => {
     }
 
     try {
-      const res = await window.electronAPI.updateTaskStatus(taskId, targetStatus, revisionReason, options, returnReasonType, returnSeverity);
+      let effectiveOptions = options;
+      let effectiveReturnReasonType = returnReasonType;
+      let effectiveReturnSeverity = returnSeverity;
+
+      if (returnReasonType && typeof returnReasonType === 'object' && !options) {
+        effectiveOptions = returnReasonType;
+        effectiveReturnReasonType = undefined;
+        effectiveReturnSeverity = undefined;
+      }
+
+      const res = await window.electronAPI.updateTaskStatus(
+        taskId,
+        targetStatus,
+        revisionReason,
+        effectiveOptions,
+        effectiveReturnReasonType,
+        effectiveReturnSeverity
+      );
       if (res && res.success === false) {
         throw new Error(res.error || 'فشل في تحديث حالة المهمة على السيرفر');
       }
@@ -742,6 +764,9 @@ export const TasksTab: React.FC = () => {
         setTasks((prev) =>
           prev.map((t) => (t.id === taskId ? { ...t, ...res.task, status: finalStatus } : t))
         );
+        if (selectedTask?.id === taskId) {
+          setSelectedTask((prev: any) => (prev ? { ...prev, ...res.task, status: finalStatus } : null));
+        }
         if (prevStatus && String(prevStatus).toUpperCase() !== String(targetStatus).toUpperCase()) {
           setUndoToast({ taskId, from: String(prevStatus).toUpperCase(), to: targetStatus });
         }
@@ -753,6 +778,7 @@ export const TasksTab: React.FC = () => {
         prev.map((t) => (t.id === taskId ? { ...t, status: prevStatus, tags: prevTags } : t))
       );
       setErrorToast(err?.message || 'فشل في تحديث حالة المهمة على السيرفر');
+      throw err;
     }
   };
 
@@ -760,13 +786,19 @@ export const TasksTab: React.FC = () => {
     ownerOverride?: boolean;
     ownerOverrideReason?: string;
     criteriaChecked?: boolean;
+    evidence?: any;
+    targetStatus?: string;
+    [key: string]: any;
   }) => {
     if (!approvalGateTask) return;
+    const isAlreadyInReview = String(approvalGateTask.status || '').toUpperCase() === 'IN_REVIEW';
+    const targetStatus = options?.targetStatus || (isAlreadyInReview ? 'COMPLETED' : 'IN_REVIEW');
     try {
-      await handleUpdateStatus(approvalGateTask.id, 'COMPLETED', undefined, undefined, undefined, options);
+      await handleUpdateStatus(approvalGateTask.id, targetStatus, undefined, undefined, undefined, options);
       setApprovalGateTask(null);
     } catch (err: any) {
       setErrorToast(err?.message || 'فشل في اعتماد المهمة');
+      throw err;
     }
   };
 
@@ -804,10 +836,18 @@ export const TasksTab: React.FC = () => {
     const canDirectComplete = isAdminOrManager || isCreator;
 
     if (canDirectComplete) {
-      handleUpdateStatus(taskId, 'COMPLETED');
+      if (taskObj && (String(taskObj.priority).toUpperCase() === 'HIGH' || String(taskObj.priority).toUpperCase() === 'URGENT')) {
+        setApprovalGateTask(taskObj);
+      } else {
+        handleUpdateStatus(taskId, 'COMPLETED');
+      }
     } else {
       // Non-admin assignee submits task for review and approval
-      handleUpdateStatus(taskId, 'IN_REVIEW');
+      if (taskObj && (String(taskObj.priority).toUpperCase() === 'HIGH' || String(taskObj.priority).toUpperCase() === 'URGENT')) {
+        setApprovalGateTask(taskObj);
+      } else {
+        handleUpdateStatus(taskId, 'IN_REVIEW');
+      }
     }
   };
 
@@ -1179,8 +1219,10 @@ export const TasksTab: React.FC = () => {
             onClose={() => setApprovalGateTask(null)}
             task={approvalGateTask}
             isAdminOrManager={isAdminOrManager}
+            serverUrl={serverUrl}
             onApprove={handleApproveGate}
             onReturn={handleReturnGate}
+            isSubmitting={busy}
           />
         )}
       </div>
@@ -1761,8 +1803,10 @@ export const TasksTab: React.FC = () => {
           onClose={() => setApprovalGateTask(null)}
           task={approvalGateTask}
           isAdminOrManager={isAdminOrManager}
+          serverUrl={serverUrl}
           onApprove={handleApproveGate}
           onReturn={handleReturnGate}
+          isSubmitting={busy}
         />
       )}
 

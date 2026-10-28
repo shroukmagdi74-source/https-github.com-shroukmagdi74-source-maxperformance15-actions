@@ -624,6 +624,18 @@ class MonitorApiClient {
     return linkRes.data?.data ?? linkRes.data;
   }
 
+  async deleteTaskAttachment(attachmentId: string): Promise<any> {
+    const base = this.serverUrl;
+    const res = await axios.delete(
+      `${base}/api/v1/tasks/attachments/${attachmentId}`,
+      {
+        headers: this.getAuthHeaders(),
+        timeout: 10_000,
+      }
+    );
+    return res.data?.data ?? res.data;
+  }
+
   async startTaskTimer(taskId: string): Promise<any> {
     const base = this.serverUrl;
     const res = await axios.post(

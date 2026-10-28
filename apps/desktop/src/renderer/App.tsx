@@ -45,6 +45,7 @@ declare global {
         originalName: string;
         mimeType?: string;
       }) => Promise<{ success: boolean; attachment?: any; error?: string }>;
+      deleteTaskAttachment: (attachmentId: string) => Promise<{ success: boolean; result?: any; error?: string }>;
       fetchAttachment: (url: string) => Promise<{
         success: boolean;
         dataUrl?: string;

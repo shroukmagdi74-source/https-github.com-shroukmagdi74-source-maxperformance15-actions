@@ -28,6 +28,7 @@ import {
   UploadCloud,
   Camera,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { TaskDescriptionRenderer } from './TaskDescriptionRenderer';
 import { AcceptanceCriteriaChecklist } from './AcceptanceCriteriaChecklist';
@@ -304,8 +305,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       for (let i = 0; i < fileArray.length; i++) {
         const file = fileArray[i];
 
-        if (file.size && file.size > 20 * 1024 * 1024) {
-          throw new Error(`حجم الملف "${file.name}" يتجاوز الحد الأقصى المسموح (20 ميجابايت)`);
+        if (file.size && file.size > 8 * 1024 * 1024) {
+          const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+          throw new Error(`حجم الملف "${file.name}" (${sizeMB} ميجابايت) يتجاوز الحد الأقصى المسموح (8 ميجابايت)`);
         }
 
         const base64Data = await new Promise<string>((resolve, reject) => {
@@ -325,13 +327,13 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           mimeType,
         });
 
-        if (res?.success && res.attachment) {
+        if (res?.success && (res.attachment || res.data)) {
           successCount++;
-          const newAtt = res.attachment;
-          setLocalAttachments((prev) => [newAtt, ...prev]);
+          const newAtt = res.attachment || res.data;
+          setLocalAttachments((prev) => [newAtt, ...prev.filter((a) => a.id !== newAtt.id)]);
 
-          if (!task.taskAttachments) task.taskAttachments = [];
-          task.taskAttachments.unshift(newAtt);
+          const currentAtts = Array.isArray(task.taskAttachments) ? task.taskAttachments : [];
+          task.taskAttachments = [newAtt, ...currentAtts.filter((a: any) => a.id !== newAtt.id)];
           task.hasEvidence = true;
           task.missingEvidence = false;
         } else {
@@ -351,6 +353,24 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (bottomFileInputRef.current) bottomFileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (e: React.MouseEvent, attId: string) => {
+    e.stopPropagation();
+    if (!attId) return;
+    if (!confirm('هل أنت متأكد من حذف هذا المرفق؟')) return;
+    try {
+      if (window.electronAPI?.deleteTaskAttachment) {
+        await window.electronAPI.deleteTaskAttachment(attId);
+      }
+      setLocalAttachments((prev) => prev.filter((a) => a.id !== attId));
+      if (task && Array.isArray(task.taskAttachments)) {
+        task.taskAttachments = task.taskAttachments.filter((a: any) => a.id !== attId);
+      }
+    } catch (err: any) {
+      console.warn('[TaskDetailDrawer] Failed to delete attachment:', err);
+      alert(err?.message || 'فشل في حذف المرفق');
     }
   };
 
@@ -704,10 +724,14 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       type="button"
                       onClick={() => {
                         audioAlerts.playTaskComplete();
-                        onUpdateStatus ? onUpdateStatus(task.id, 'COMPLETED') : onToggleStatus?.(task.id, 'COMPLETED');
+                        if (onOpenApprovalGate) {
+                          onOpenApprovalGate(task);
+                        } else {
+                          onUpdateStatus ? onUpdateStatus(task.id, 'COMPLETED') : onToggleStatus?.(task.id, 'COMPLETED');
+                        }
                       }}
                       style={drawerStyles.approveActionBtn}
-                      title="اعتماد وإنجاز المهمة مباشرة"
+                      title="اعتماد وإنجاز المهمة (بوابة الاعتماد)"
                     >
                       <CheckCircle2 size={13} />
                       <span>اعتماد المهمة وإنجازها</span>
@@ -740,7 +764,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     type="button"
                     onClick={() => {
                       audioAlerts.playTaskComplete();
-                      onUpdateStatus ? onUpdateStatus(task.id, 'IN_REVIEW') : onToggleStatus?.(task.id, 'IN_REVIEW');
+                      if (onOpenApprovalGate) {
+                        onOpenApprovalGate(task);
+                      } else {
+                        onUpdateStatus ? onUpdateStatus(task.id, 'IN_REVIEW') : onToggleStatus?.(task.id, 'IN_REVIEW');
+                      }
                     }}
                     style={drawerStyles.submitActionBtn}
                   >
@@ -1178,11 +1206,32 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         )}
                         <div style={drawerStyles.attInfo}>
                           <span style={drawerStyles.thumbName}>{label}</span>
-                          {att.fileSize && (
-                            <span style={drawerStyles.thumbSize}>
-                              {Math.round(att.fileSize / 1024)} KB
-                            </span>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 2 }}>
+                            {att.fileSize ? (
+                              <span style={drawerStyles.thumbSize}>
+                                {Math.round(att.fileSize / 1024)} KB
+                              </span>
+                            ) : <span />}
+                            {att.id && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteAttachment(e, att.id)}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#f43f5e',
+                                  cursor: 'pointer',
+                                  padding: '1px 3px',
+                                  borderRadius: 3,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                }}
+                                title="حذف هذا المرفق"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1368,7 +1417,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.pdf,.zip,.log,.txt"
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
@@ -1378,7 +1427,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       <input
         ref={bottomFileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.pdf,.zip,.log,.txt"
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {

@@ -1585,6 +1585,18 @@ function registerIpcHandlers(): void {
     }
   );
 
+  ipcMain.handle(
+    'tasks:delete-attachment',
+    async (_, { attachmentId }: { attachmentId: string }) => {
+      try {
+        const result = await apiClient.deleteTaskAttachment(attachmentId);
+        return { success: true, result };
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
+    }
+  );
+
   ipcMain.handle('tasks:fetch-attachment', async (_, { url }: { url: string }) => {
     try {
       if (!url || typeof url !== 'string') {

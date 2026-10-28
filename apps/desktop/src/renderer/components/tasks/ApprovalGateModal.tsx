@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   X,
   CheckCircle2,
@@ -10,28 +10,59 @@ import {
   Cpu,
   AlertTriangle,
   ExternalLink,
+  UploadCloud,
+  Trash2,
+  Image as ImageIcon,
+  FileText,
+  Loader2,
+  Eye,
+  Send,
 } from 'lucide-react';
 import { parseCriteriaItems } from './AcceptanceCriteriaChecklist';
+
+export interface EvidenceSlot {
+  id?: string;
+  url?: string;
+  name?: string;
+  fileSize?: number;
+  uploading: boolean;
+  progress: number;
+  error?: string | null;
+}
 
 interface ApprovalGateModalProps {
   isOpen: boolean;
   onClose: () => void;
   task: any;
   isAdminOrManager?: boolean;
+  serverUrl?: string;
   onApprove: (options: {
     ownerOverride?: boolean;
     ownerOverrideReason?: string;
     criteriaChecked?: boolean;
+    evidence?: any;
+    targetStatus?: string;
+    [key: string]: any;
   }) => Promise<void>;
   onReturn: (reason: string, returnReasonType?: string, returnSeverity?: number) => Promise<void>;
   isSubmitting?: boolean;
 }
+
+const CHANGE_TYPES = [
+  { value: 'BUG_FIX', label: 'إصلاح خطأ (Bug Fix)' },
+  { value: 'FEATURE', label: 'ميزة جديدة (Feature)' },
+  { value: 'REFACTOR', label: 'إعادة هيكلة (Refactor)' },
+  { value: 'PERFORMANCE', label: 'تحسين أداء (Performance)' },
+  { value: 'UI_UX', label: 'واجهة وتجربة (UI/UX)' },
+  { value: 'CONFIG', label: 'إعدادات وضبط (Config)' },
+];
 
 export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
   isOpen,
   onClose,
   task,
   isAdminOrManager = false,
+  serverUrl = 'https://maxp.online',
   onApprove,
   onReturn,
   isSubmitting = false,
@@ -86,27 +117,25 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
       : [];
   }, [task.taskAttachments, task.attachments]);
 
-  const hasValidEvidence = Boolean(
-    (task.hasEvidence && !task.missingEvidence) ||
-    evidenceObj ||
-    taskAttachments.length > 0
-  );
-
-  const [previewImgUrl, setPreviewImgUrl] = useState<string | null>(null);
-
   const resolveAttachmentUrl = (rawPath: string) => {
     if (!rawPath) return '';
     if (rawPath.startsWith('data:') || rawPath.startsWith('blob:')) return rawPath;
     const cleanRaw = rawPath.trim();
     if (cleanRaw.startsWith('http://') || cleanRaw.startsWith('https://')) return cleanRaw;
-    let base = 'https://maxp.online';
+    let base = (serverUrl || 'https://maxp.online').trim().replace(/\/$/, '');
+    if (!base.startsWith('http://') && !base.startsWith('https://')) base = `https://${base}`;
     let normalized = cleanRaw.replace(/\\/g, '/');
-    if (!normalized.startsWith('/')) normalized = '/' + normalized;
+    if (!normalized.startsWith('/')) normalized = `/${normalized}`;
     if (!normalized.startsWith('/uploads/')) {
-      if (normalized.startsWith('/tasks/')) normalized = '/uploads' + normalized;
-      else normalized = '/uploads/tasks' + normalized;
+      if (normalized.startsWith('/tasks/')) normalized = `/uploads${normalized}`;
+      else normalized = `/uploads/tasks${normalized}`;
     }
-    return base + normalized;
+    try {
+      normalized = encodeURI(decodeURI(normalized));
+    } catch {
+      normalized = encodeURI(normalized);
+    }
+    return `${base}${normalized}`;
   };
 
   const isImgAttachment = (att: any) => {
@@ -115,12 +144,106 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
     return /\.(png|jpe?g|webp|gif|svg)$/i.test(name);
   };
 
+  const normalizedPriority = useMemo(() => {
+    const p = String(task.priority || 'MEDIUM').trim().toUpperCase();
+    if (['URGENT', 'HIGH'].includes(p)) return 'HIGH';
+    if (['LOW'].includes(p)) return 'LOW';
+    return 'MEDIUM';
+  }, [task.priority]);
+
+  // Evidence Inputs State
+  const [changeType, setChangeType] = useState<string>(() => evidenceObj?.changeType || 'BUG_FIX');
+  const [commitOrPath, setCommitOrPath] = useState<string>(() => evidenceObj?.commitOrPath || '');
+  const [numbersBeforeAfter, setNumbersBeforeAfter] = useState<string>(() => evidenceObj?.numbersBeforeAfter || '');
+  const [notTestedScope, setNotTestedScope] = useState<string>(() => evidenceObj?.notTestedScope || '');
+
+  // 3 Slots State: Before, After, Proof
+  const [beforeSlot, setBeforeSlot] = useState<EvidenceSlot>(() => {
+    const existingId = evidenceObj?.beforeAttachmentId;
+    const existingAtt = existingId ? taskAttachments.find((a: any) => a.id === existingId) : null;
+    return {
+      id: existingId || '',
+      url: existingAtt ? resolveAttachmentUrl(existingAtt.filePath) : evidenceObj?.beforeAttachmentUrl || '',
+      name: existingAtt?.originalName || existingAtt?.fileName || (existingId ? 'صورة قبل المرفوعة' : ''),
+      uploading: false,
+      progress: existingId ? 100 : 0,
+      error: null,
+    };
+  });
+
+  const [afterSlot, setAfterSlot] = useState<EvidenceSlot>(() => {
+    const existingId = evidenceObj?.afterAttachmentId;
+    const existingAtt = existingId ? taskAttachments.find((a: any) => a.id === existingId) : null;
+    return {
+      id: existingId || '',
+      url: existingAtt ? resolveAttachmentUrl(existingAtt.filePath) : evidenceObj?.afterAttachmentUrl || '',
+      name: existingAtt?.originalName || existingAtt?.fileName || (existingId ? 'صورة بعد المرفوعة' : ''),
+      uploading: false,
+      progress: existingId ? 100 : 0,
+      error: null,
+    };
+  });
+
+  const [proofSlot, setProofSlot] = useState<EvidenceSlot>(() => {
+    const existingId = evidenceObj?.proofAttachmentId;
+    const existingAtt = existingId ? taskAttachments.find((a: any) => a.id === existingId) : null;
+    return {
+      id: existingId || '',
+      url: existingAtt ? resolveAttachmentUrl(existingAtt.filePath) : evidenceObj?.proofAttachmentUrl || '',
+      name: existingAtt?.originalName || existingAtt?.fileName || (existingId ? 'مرفق إثبات التشغيل' : ''),
+      uploading: false,
+      progress: existingId ? 100 : 0,
+      error: null,
+    };
+  });
+
+  const [previewImgUrl, setPreviewImgUrl] = useState<string | null>(null);
+  const [draggingSlot, setDraggingSlot] = useState<'before' | 'after' | 'proof' | 'multi' | null>(null);
+
+  const beforeInputRef = useRef<HTMLInputElement>(null);
+  const afterInputRef = useRef<HTMLInputElement>(null);
+  const proofInputRef = useRef<HTMLInputElement>(null);
+  const multiInputRef = useRef<HTMLInputElement>(null);
+
+  // Missing fields strictly aligned with taskEvidenceService.js
+  const missingFields = useMemo(() => {
+    const missing: string[] = [];
+    if (normalizedPriority === 'HIGH') {
+      if (!changeType.trim()) missing.push('نوع التغيير');
+      if (!commitOrPath.trim() && !task.pageUrl) missing.push('لينك الصفحة أو الكوميت/مسار الملفات');
+      if (!numbersBeforeAfter.trim()) missing.push('الأرقام قبل / بعد');
+      if (!notTestedScope.trim()) missing.push('نطاق ما لم يتم اختباره');
+      if (!beforeSlot.id && !beforeSlot.url) missing.push('صورة قبل');
+      if (!afterSlot.id && !afterSlot.url) missing.push('صورة بعد');
+      if (!proofSlot.id && !proofSlot.url && !beforeSlot.id && !afterSlot.id) missing.push('مرفق إثبات التشغيل');
+    } else if (normalizedPriority === 'MEDIUM') {
+      if (!changeType.trim()) missing.push('نوع التغيير');
+      if (!commitOrPath.trim() && !task.pageUrl) missing.push('لينك الصفحة أو الكوميت/مسار الملفات');
+    }
+    return missing;
+  }, [
+    normalizedPriority,
+    changeType,
+    commitOrPath,
+    numbersBeforeAfter,
+    notTestedScope,
+    beforeSlot.id,
+    beforeSlot.url,
+    afterSlot.id,
+    afterSlot.url,
+    proofSlot.id,
+    proofSlot.url,
+    task.pageUrl,
+  ]);
+
+  const hasValidEvidence = missingFields.length === 0;
+  const isAnySlotUploading = beforeSlot.uploading || afterSlot.uploading || proofSlot.uploading;
+
   const [checklist, setChecklist] = useState(initialChecklist);
   const [returnMode, setReturnMode] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [returnReasonType, setReturnReasonType] = useState('WRONG_EXECUTION');
   const [returnSeverity, setReturnSeverity] = useState<number>(1);
-  // Auto-enable override if task has missing evidence and user is admin/manager
   const [useOwnerOverride, setUseOwnerOverride] = useState(!hasValidEvidence && isAdminOrManager);
   const [ownerOverrideReason, setOwnerOverrideReason] = useState(
     !hasValidEvidence ? 'اعتماد إداري مباشر للمهام السابقة' : ''
@@ -130,7 +253,7 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
     checklist.length > 0 && checklist.every((item) => item.checked);
 
   const canApprove =
-    (allCriteriaChecked && hasValidEvidence) ||
+    (!isAnySlotUploading && allCriteriaChecked && hasValidEvidence) ||
     (isAdminOrManager &&
       useOwnerOverride &&
       ownerOverrideReason.trim().length >= 3);
@@ -146,14 +269,191 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
     setChecklist((prev) => prev.map((c) => ({ ...c, checked: nextVal })));
   };
 
+  // Upload handler for single slot
+  const uploadToSlot = async (
+    file: File,
+    slotName: 'before' | 'after' | 'proof'
+  ) => {
+    if (!file || !task?.id) return;
+
+    const setSlot =
+      slotName === 'before'
+        ? setBeforeSlot
+        : slotName === 'after'
+        ? setAfterSlot
+        : setProofSlot;
+
+    // Check size limit: 8MB
+    const MAX_SIZE_BYTES = 8 * 1024 * 1024;
+    if (file.size > MAX_SIZE_BYTES) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      setSlot((prev) => ({
+        ...prev,
+        uploading: false,
+        progress: 0,
+        error: `حجم الملف "${file.name}" (${sizeMB} ميجابايت) يتجاوز الحد الأقصى المسموح (8 ميجابايت)`,
+      }));
+      return;
+    }
+
+    if (!window.electronAPI?.uploadTaskAttachment) {
+      setSlot((prev) => ({
+        ...prev,
+        uploading: false,
+        error: 'خدمة رفع المرفقات غير متاحة في بيئة التشغيل الحالية',
+      }));
+      return;
+    }
+
+    const localPreviewUrl = URL.createObjectURL(file);
+    setSlot({
+      url: localPreviewUrl,
+      name: file.name,
+      fileSize: file.size,
+      uploading: true,
+      progress: 15,
+      error: null,
+    });
+
+    const progressTimer = setInterval(() => {
+      setSlot((prev) => {
+        if (!prev.uploading) return prev;
+        const next = Math.min(prev.progress + 15, 85);
+        return { ...prev, progress: next };
+      });
+    }, 150);
+
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const mimeType = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/png');
+      const res = await window.electronAPI.uploadTaskAttachment({
+        taskId: task.id,
+        base64Data,
+        originalName: file.name,
+        mimeType,
+      });
+
+      clearInterval(progressTimer);
+
+      const uploadedAtt = res?.attachment || res?.data;
+      if (res?.success && uploadedAtt?.id) {
+        setSlot({
+          id: uploadedAtt.id,
+          url: uploadedAtt.filePath ? resolveAttachmentUrl(uploadedAtt.filePath) : localPreviewUrl,
+          name: uploadedAtt.originalName || file.name,
+          fileSize: file.size,
+          uploading: false,
+          progress: 100,
+          error: null,
+        });
+
+        // Keep local task attachments updated
+        if (task) {
+          const currentAtts = Array.isArray(task.taskAttachments) ? task.taskAttachments : [];
+          task.taskAttachments = [uploadedAtt, ...currentAtts.filter((a: any) => a.id !== uploadedAtt.id)];
+        }
+      } else {
+        throw new Error(res?.error || 'فشل في رفع المرفق');
+      }
+    } catch (err: any) {
+      clearInterval(progressTimer);
+      setSlot((prev) => ({
+        ...prev,
+        uploading: false,
+        progress: 0,
+        error: err?.message || 'فشل في رفع الملف',
+      }));
+    }
+  };
+
+  // Delete slot handler
+  const handleDeleteSlot = async (slotName: 'before' | 'after' | 'proof') => {
+    const slot = slotName === 'before' ? beforeSlot : slotName === 'after' ? afterSlot : proofSlot;
+    const setSlot = slotName === 'before' ? setBeforeSlot : slotName === 'after' ? setAfterSlot : setProofSlot;
+
+    if (slot.id && window.electronAPI?.deleteTaskAttachment) {
+      try {
+        await window.electronAPI.deleteTaskAttachment(slot.id);
+        if (task && Array.isArray(task.taskAttachments)) {
+          task.taskAttachments = task.taskAttachments.filter((a: any) => a.id !== slot.id);
+        }
+      } catch (err) {
+        console.warn('[ApprovalGateModal] Failed to delete attachment from server:', err);
+      }
+    }
+
+    if (slot.url && slot.url.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(slot.url);
+      } catch {}
+    }
+
+    setSlot({
+      id: '',
+      url: '',
+      name: '',
+      fileSize: undefined,
+      uploading: false,
+      progress: 0,
+      error: null,
+    });
+  };
+
+  // Multi-files drop distribution
+  const handleMultiFilesDrop = (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    if (fileArray.length === 1) {
+      if (!beforeSlot.id && !beforeSlot.url) {
+        uploadToSlot(fileArray[0], 'before');
+      } else if (!afterSlot.id && !afterSlot.url) {
+        uploadToSlot(fileArray[0], 'after');
+      } else {
+        uploadToSlot(fileArray[0], 'proof');
+      }
+      return;
+    }
+
+    const slotsToFill: Array<'before' | 'after' | 'proof'> = ['before', 'after', 'proof'];
+    fileArray.slice(0, 3).forEach((file, idx) => {
+      uploadToSlot(file, slotsToFill[idx]);
+    });
+  };
+
   const handleApproveSubmit = async () => {
     if (!canApprove || isSubmitting) return;
+
+    const evidencePayload = {
+      changeType: changeType.trim() || (normalizedPriority === 'LOW' ? 'عام' : 'BUG_FIX'),
+      commitOrPath: commitOrPath.trim() || undefined,
+      numbersBeforeAfter: numbersBeforeAfter.trim() || undefined,
+      notTestedScope: notTestedScope.trim() || undefined,
+      beforeAttachmentId: beforeSlot.id || undefined,
+      beforeAttachmentUrl: beforeSlot.url || undefined,
+      afterAttachmentId: afterSlot.id || undefined,
+      afterAttachmentUrl: afterSlot.url || undefined,
+      proofAttachmentId: proofSlot.id || afterSlot.id || beforeSlot.id || undefined,
+      proofAttachmentUrl: proofSlot.url || afterSlot.url || beforeSlot.url || undefined,
+    };
+
+    const targetStatus = task.status === 'IN_REVIEW' ? 'COMPLETED' : 'IN_REVIEW';
+
     await onApprove({
       criteriaChecked: allCriteriaChecked,
       ownerOverride: useOwnerOverride,
       ownerOverrideReason: useOwnerOverride
         ? ownerOverrideReason.trim() || 'اعتماد إداري مباشر'
         : undefined,
+      evidence: evidencePayload,
+      targetStatus,
+      ...evidencePayload,
     });
   };
 
@@ -161,6 +461,181 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
     if (!returnReason.trim() || isSubmitting) return;
     await onReturn(returnReason.trim(), returnReasonType, returnSeverity);
   };
+
+  const renderSlotBox = (
+    title: string,
+    slotName: 'before' | 'after' | 'proof',
+    slot: EvidenceSlot,
+    inputRef: React.RefObject<HTMLInputElement>,
+    isRequired: boolean,
+    accept = 'image/*'
+  ) => {
+    const isSlotDragging = draggingSlot === slotName;
+    const hasUploaded = Boolean(slot.id || slot.url);
+
+    return (
+      <div
+        style={{
+          ...styles.slotCard,
+          borderColor: isSlotDragging
+            ? 'var(--accent-blue, #3b82f6)'
+            : slot.error
+            ? '#f43f5e'
+            : hasUploaded
+            ? 'rgba(16, 185, 129, 0.4)'
+            : 'rgba(255, 255, 255, 0.1)',
+          backgroundColor: isSlotDragging
+            ? 'rgba(59, 130, 246, 0.08)'
+            : hasUploaded
+            ? 'rgba(16, 185, 129, 0.04)'
+            : 'rgba(255, 255, 255, 0.02)',
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDraggingSlot(slotName);
+        }}
+        onDragLeave={() => setDraggingSlot(null)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDraggingSlot(null);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            uploadToSlot(e.dataTransfer.files[0], slotName);
+          }
+        }}
+      >
+        <div style={styles.slotHeader}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {slotName === 'proof' ? (
+              <FileText size={13} color="var(--accent-blue, #3b82f6)" />
+            ) : (
+              <ImageIcon size={13} color="var(--accent-blue, #3b82f6)" />
+            )}
+            <span style={styles.slotTitle}>{title}</span>
+          </div>
+          <div>
+            {isRequired ? (
+              hasUploaded ? (
+                <span style={styles.slotBadgeSuccess}>تم الرفع ✓</span>
+              ) : (
+                <span style={styles.slotBadgeRequired}>مطلوب إلزامي *</span>
+              )
+            ) : hasUploaded ? (
+              <span style={styles.slotBadgeSuccess}>تم الرفع ✓</span>
+            ) : (
+              <span style={styles.slotBadgeOptional}>اختياري</span>
+            )}
+          </div>
+        </div>
+
+        {slot.error && (
+          <div style={styles.slotErrorBanner}>
+            <AlertTriangle size={12} color="#f43f5e" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 10.5, color: '#fca5a5', lineHeight: 1.3 }}>{slot.error}</span>
+          </div>
+        )}
+
+        {slot.uploading ? (
+          <div style={styles.slotProgressWrap}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 10.5, color: 'var(--text-secondary, #cbd5e1)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Loader2 size={11} className="animate-spin" />
+                جاري الرفع...
+              </span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--accent-blue, #3b82f6)' }}>
+                {slot.progress}%
+              </span>
+            </div>
+            <div style={styles.progressBarTrack}>
+              <div style={{ ...styles.progressBarFill, width: `${slot.progress}%` }} />
+            </div>
+          </div>
+        ) : hasUploaded ? (
+          <div style={styles.slotPreviewWrap}>
+            <div
+              style={styles.slotThumbBox}
+              onClick={() => slot.url && setPreviewImgUrl(slot.url)}
+              title="اضغط للتكبير والمشاهدة"
+            >
+              {slot.url && (slot.url.startsWith('data:image') || slot.url.endsWith('.png') || slot.url.endsWith('.jpg') || slot.url.endsWith('.jpeg') || slot.url.startsWith('blob:') || !slot.url.endsWith('.pdf')) ? (
+                <img
+                  src={slot.url}
+                  alt={slot.name || title}
+                  style={styles.slotThumbImg}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.opacity = '0.3';
+                  }}
+                />
+              ) : (
+                <div style={styles.slotDocThumb}>
+                  <FileText size={20} color="var(--accent-blue, #3b82f6)" />
+                </div>
+              )}
+            </div>
+
+            <div style={styles.slotMetaWrap}>
+              <span style={styles.slotFileName} title={slot.name}>
+                {slot.name || 'ملف المرفق'}
+              </span>
+              {slot.fileSize && (
+                <span style={styles.slotFileSize}>
+                  {(slot.fileSize / 1024).toFixed(0)} KB
+                </span>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                {slot.url && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImgUrl(slot.url!)}
+                    style={styles.slotViewBtn}
+                    title="معاينة"
+                  >
+                    <Eye size={11} />
+                    <span>معاينة</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteSlot(slotName)}
+                  style={styles.slotDeleteBtn}
+                  title="حذف هذا المرفق"
+                >
+                  <Trash2 size={11} />
+                  <span>حذف</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            style={styles.slotEmptyDropzone}
+            onClick={() => inputRef.current?.click()}
+          >
+            <UploadCloud size={20} color="var(--text-muted, #94a3b8)" />
+            <span style={{ fontSize: 11, color: 'var(--text-secondary, #cbd5e1)', fontWeight: 600 }}>
+              اسحب الملف هنا أو اضغط للاختيار
+            </span>
+            <span style={{ fontSize: 9.5, color: 'var(--text-muted, #94a3b8)' }}>
+              الحد الأقصى: 8 ميجابايت
+            </span>
+          </div>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              uploadToSlot(e.target.files[0], slotName);
+            }
+          }}
+        />
+      </div>
+    );
+  };
+
+  const isSubmitForReview = task.status !== 'IN_REVIEW';
 
   return (
     <div style={styles.overlay} onClick={onClose} dir="rtl">
@@ -170,7 +645,9 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
           <div style={styles.headerTitleWrap}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <Shield size={18} color="#10b981" />
-              <h2 style={styles.title}>بوابة الاعتماد والتحقق (Approval Gate)</h2>
+              <h2 style={styles.title}>
+                {isSubmitForReview ? 'بوابة تسليم المهمة والمرفقات (Delivery Gate)' : 'بوابة الاعتماد والتحقق (Approval Gate)'}
+              </h2>
             </div>
             <p style={styles.subtitle}>{task.title}</p>
           </div>
@@ -316,145 +793,197 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
             )}
           </div>
 
-          {/* Column 2: Evidence Dossier */}
+          {/* Column 2: Evidence Dossier & 3 Slots Upload */}
           <div style={styles.colSecondary}>
             <div style={styles.sectionHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Paperclip size={14} color="var(--text-muted, #94a3b8)" />
                 <span style={styles.sectionTitle}>ملف دليل التسليم (Delivery Evidence)</span>
               </div>
-              {hasValidEvidence ? (
-                <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <CheckCircle2 size={12} />
-                  معتمد
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    fontWeight: 700,
+                    backgroundColor:
+                      normalizedPriority === 'HIGH'
+                        ? 'rgba(244, 63, 94, 0.15)'
+                        : normalizedPriority === 'MEDIUM'
+                        ? 'rgba(59, 130, 246, 0.15)'
+                        : 'rgba(148, 163, 184, 0.15)',
+                    color:
+                      normalizedPriority === 'HIGH'
+                        ? '#fb7185'
+                        : normalizedPriority === 'MEDIUM'
+                        ? '#60a5fa'
+                        : '#94a3b8',
+                  }}
+                >
+                  {normalizedPriority === 'HIGH'
+                    ? 'عالية (إلزام كامل: ٣ صور)'
+                    : normalizedPriority === 'MEDIUM'
+                    ? 'متوسطة (إلزام أساسي)'
+                    : 'منخفضة (مرنة)'}
                 </span>
-              ) : (
-                <span style={{ fontSize: 11, color: '#f43f5e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <AlertTriangle size={12} />
-                  بدون دليل
-                </span>
+
+                {hasValidEvidence ? (
+                  <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <CheckCircle2 size={12} />
+                    مكتمل
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <AlertTriangle size={12} />
+                    نواقص ({missingFields.length})
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Multi-Drop Area */}
+            <div
+              style={{
+                ...styles.multiDropArea,
+                borderColor: draggingSlot === 'multi' ? 'var(--accent-blue, #3b82f6)' : 'rgba(255, 255, 255, 0.12)',
+                backgroundColor: draggingSlot === 'multi' ? 'rgba(59, 130, 246, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDraggingSlot('multi');
+              }}
+              onDragLeave={() => setDraggingSlot(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDraggingSlot(null);
+                if (e.dataTransfer.files) handleMultiFilesDrop(e.dataTransfer.files);
+              }}
+              onClick={() => multiInputRef.current?.click()}
+            >
+              <UploadCloud size={14} color="var(--accent-blue, #3b82f6)" />
+              <span style={{ fontSize: 10.5, color: 'var(--text-secondary, #cbd5e1)' }}>
+                اسحب حتى ٣ صور معاً لتوزيعها تلقائياً على الخانات (قبل / بعد / إثبات)
+              </span>
+              <input
+                ref={multiInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  if (e.target.files) handleMultiFilesDrop(e.target.files);
+                }}
+              />
+            </div>
+
+            {/* 3 Upload Slots Grid */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {renderSlotBox(
+                '١. صورة قبل التعديل (Before Image)',
+                'before',
+                beforeSlot,
+                beforeInputRef,
+                normalizedPriority === 'HIGH',
+                'image/*'
+              )}
+
+              {renderSlotBox(
+                '٢. صورة بعد التعديل (After Image)',
+                'after',
+                afterSlot,
+                afterInputRef,
+                normalizedPriority === 'HIGH',
+                'image/*'
+              )}
+
+              {renderSlotBox(
+                '٣. مرفق إثبات التشغيل (Proof of Work)',
+                'proof',
+                proofSlot,
+                proofInputRef,
+                normalizedPriority === 'HIGH',
+                'image/*,.pdf,.zip,.log,.txt'
               )}
             </div>
 
-            {evidenceObj ? (
-              <div style={styles.evidenceDataWrap}>
-                {evidenceObj.changeType && (
-                  <div style={styles.evidenceField}>
-                    <span style={styles.fieldLabel}>نوع التغيير:</span>
-                    <span style={styles.fieldChip}>{evidenceObj.changeType}</span>
-                  </div>
-                )}
-
-                {evidenceObj.commitOrPath && (
-                  <div style={styles.evidenceField}>
-                    <span style={styles.fieldLabel}>الكوميت / مسار الملفات:</span>
-                    <code style={styles.fieldCode}>{evidenceObj.commitOrPath}</code>
-                  </div>
-                )}
-
-                {evidenceObj.numbersBeforeAfter && (
-                  <div style={styles.evidenceField}>
-                    <span style={styles.fieldLabel}>الأرقام قبل / بعد:</span>
-                    <span style={styles.fieldVal}>{evidenceObj.numbersBeforeAfter}</span>
-                  </div>
-                )}
-
-                {evidenceObj.notTestedScope && (
-                  <div style={styles.evidenceField}>
-                    <span style={styles.fieldLabel}>ما لم يتم اختباره:</span>
-                    <span style={{ ...styles.fieldVal, color: '#f59e0b' }}>{evidenceObj.notTestedScope}</span>
-                  </div>
-                )}
-
-                {evidenceObj.agentInfo?.isAgent && (
-                  <div style={styles.agentBox}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#818cf8', fontWeight: 600 }}>
-                      <Cpu size={13} />
-                      <span>وكيل الذكاء: {evidenceObj.agentInfo.agentName}</span>
-                    </div>
-                    <pre style={styles.agentPre}>{evidenceObj.agentInfo.testOutput}</pre>
-                  </div>
-                )}
-              </div>
-            ) : taskAttachments.length > 0 ? (
-              <div style={styles.evidenceDataWrap}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#10b981', fontWeight: 600, fontSize: 12, marginBottom: 8 }}>
-                  <CheckCircle2 size={14} />
-                  <span>تم إرفاق دليل إنجاز معتمد ({taskAttachments.length} صور / ملفات)</span>
+            {/* Evidence Text Fields */}
+            <div style={styles.formSection}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <label style={styles.inputLabel}>
+                    نوع التغيير {normalizedPriority !== 'LOW' && <span style={{ color: '#f43f5e' }}>*</span>}
+                  </label>
+                  <select
+                    value={changeType}
+                    onChange={(e) => setChangeType(e.target.value)}
+                    style={styles.selectInput}
+                  >
+                    {CHANGE_TYPES.map((ct) => (
+                      <option key={ct.value} value={ct.value}>
+                        {ct.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
-                  {taskAttachments.map((att: any, idx: number) => {
-                    const fullUrl = resolveAttachmentUrl(att.filePath || '');
-                    const isImg = isImgAttachment(att);
-                    const label = att.originalName || att.fileName || `إثبات ${idx + 1}`;
-                    return (
-                      <div
-                        key={att.id || idx}
-                        onClick={() => isImg && setPreviewImgUrl(fullUrl)}
-                        style={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          borderRadius: 6,
-                          overflow: 'hidden',
-                          cursor: isImg ? 'pointer' : 'default',
-                        }}
-                        title={label}
-                      >
-                        {isImg ? (
-                          <div style={{ height: 65, position: 'relative', backgroundColor: '#000' }}>
-                            <img src={fullUrl} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            <div style={{ position: 'absolute', bottom: 3, left: 3, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 3 }}>
-                              <ImageIcon size={10} color="#fff" />
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Paperclip size={14} color="#94a3b8" />
-                          </div>
-                        )}
-                        <div style={{ padding: '4px 6px', fontSize: 10, color: 'var(--text-secondary, #cbd5e1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {label}
-                        </div>
-                      </div>
-                    );
-                  })}
+
+                <div>
+                  <label style={styles.inputLabel}>
+                    الكوميت أو مسار الملفات {normalizedPriority !== 'LOW' && <span style={{ color: '#f43f5e' }}>*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={commitOrPath}
+                    onChange={(e) => setCommitOrPath(e.target.value)}
+                    placeholder="e.g. feat(tasks): add gate / path/to/file"
+                    style={styles.textInput}
+                  />
                 </div>
               </div>
-            ) : (
-              <div style={styles.noEvidenceBox}>
-                <AlertTriangle size={24} color="#f59e0b" style={{ margin: '0 auto 6px' }} />
-                <span style={{ fontWeight: 600, color: '#f59e0b', fontSize: 12 }}>
-                  لا يوجد ملف دليل تسليم مسجل على هذه المهمة
-                </span>
-                <p style={{ margin: '6px 0 0', color: 'var(--text-muted, #94a3b8)', lineHeight: 1.5, fontSize: 11 }}>
-                  تم تحويل هذه المهمة للمراجعة بدون دليل تشغيل رقمي (أو مهمة سابقة).
-                  {isAdminOrManager
-                    ? ' بصفتك مديراً يمكنك تفعيل «الاعتماد الاستثنائي للإدارة» على اليمين لاعتمادها، أو إرجاعها للمنفذ.'
-                    : ' يرجى إرجاع المهمة للمنفذ لتقديم دليل التسليم.'}
-                </p>
-              </div>
-            )}
 
-            {/* Proof Attachments */}
-            {task.attachments && task.attachments.length > 0 && (
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', display: 'block', marginBottom: 5 }}>
-                  المرفقات التشغيلية:
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {task.attachments.map((att: any) => (
-                    <a
-                      key={att.id}
-                      href={att.filePath || '#'}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={styles.attachmentLink}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {att.originalName || att.fileName}
-                      </span>
-                      <ExternalLink size={12} style={{ flexShrink: 0 }} />
-                    </a>
+              {normalizedPriority === 'HIGH' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
+                  <div>
+                    <label style={styles.inputLabel}>
+                      الأرقام قبل / بعد <span style={{ color: '#f43f5e' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={numbersBeforeAfter}
+                      onChange={(e) => setNumbersBeforeAfter(e.target.value)}
+                      placeholder="e.g. 0/3 → 3/3 مرفقات معتمدة"
+                      style={styles.textInput}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={styles.inputLabel}>
+                      نطاق ما لم يتم اختباره <span style={{ color: '#f43f5e' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={notTestedScope}
+                      onChange={(e) => setNotTestedScope(e.target.value)}
+                      placeholder="e.g. لا يوجد - تم اختبار كل السيناريوهات"
+                      style={styles.textInput}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Missing Fields Alert Checklist */}
+            {!hasValidEvidence && (
+              <div style={styles.missingAlertBox}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#f59e0b', fontWeight: 600, fontSize: 11, marginBottom: 4 }}>
+                  <AlertTriangle size={12} />
+                  <span>متبقي لإتمام التسليم الرقمي ({missingFields.length} حقول):</span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {missingFields.map((f, i) => (
+                    <span key={i} style={styles.missingChip}>
+                      {f}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -543,7 +1072,7 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {!returnMode && (
+            {!returnMode && !isSubmitForReview && (
               <button
                 type="button"
                 onClick={() => setReturnMode(true)}
@@ -558,33 +1087,53 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
             <button
               type="button"
               onClick={handleApproveSubmit}
-              disabled={!canApprove || isSubmitting}
+              disabled={!canApprove || isSubmitting || isAnySlotUploading}
               title={
-                !hasValidEvidence && !useOwnerOverride
-                  ? 'ممنوع الاعتماد بدون دليل تسليم أو تجاوز استثنائي'
+                isAnySlotUploading
+                  ? 'جاري رفع الملفات...'
+                  : !hasValidEvidence && !useOwnerOverride
+                  ? `ممنوع التسليم بدون استيفاء الأدلة: ${missingFields.join('، ')}`
                   : !allCriteriaChecked && !useOwnerOverride
                   ? 'يجب التأشير على جميع معايير القبول أولاً'
+                  : isSubmitForReview
+                  ? 'تسليم المهمة للمراجعة والاعتماد'
                   : 'اعتماد وإنجاز المهمة'
               }
               style={{
                 ...styles.approveBtn,
-                opacity: !canApprove || isSubmitting ? 0.5 : 1,
-                cursor: canApprove && !isSubmitting ? 'pointer' : 'not-allowed',
+                opacity: !canApprove || isSubmitting || isAnySlotUploading ? 0.5 : 1,
+                cursor: canApprove && !isSubmitting && !isAnySlotUploading ? 'pointer' : 'not-allowed',
               }}
             >
-              <CheckCircle2 size={14} />
+              {isSubmitting || isAnySlotUploading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : isSubmitForReview ? (
+                <Send size={14} />
+              ) : (
+                <CheckCircle2 size={14} />
+              )}
               <span>
-                {useOwnerOverride ? 'اعتماد بتجاوز الإدارة (Override)' : 'اعتماد وإنجاز المهمة'}
+                {isAnySlotUploading
+                  ? 'جاري رفع المرفقات...'
+                  : isSubmitting
+                  ? 'جاري المعالجة...'
+                  : useOwnerOverride
+                  ? 'اعتماد بتجاوز الإدارة (Override)'
+                  : isSubmitForReview
+                  ? 'تسليم للمراجعة والاعتماد'
+                  : 'اعتماد وإنجاز المهمة'}
               </span>
             </button>
           </div>
         </div>
+
+        {/* Lightbox Modal */}
         {previewImgUrl && (
           <div
             style={{
               position: 'fixed',
               inset: 0,
-              zIndex: 3000,
+              zIndex: 10000,
               backgroundColor: 'rgba(0, 0, 0, 0.88)',
               backdropFilter: 'blur(4px)',
               display: 'flex',
@@ -646,8 +1195,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   modal: {
     width: '100%',
-    maxWidth: 720,
-    maxHeight: '90vh',
+    maxWidth: 820,
+    maxHeight: '92vh',
     backgroundColor: 'var(--bg-secondary, #121214)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
@@ -683,7 +1232,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    maxWidth: 580,
+    maxWidth: 680,
   },
   closeBtn: {
     background: 'none',
@@ -700,7 +1249,7 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     overflowY: 'auto',
     display: 'grid',
-    gridTemplateColumns: '1.2fr 1fr',
+    gridTemplateColumns: '1.1fr 1.3fr',
     gap: 16,
     padding: 16,
   },
@@ -806,80 +1355,216 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 10,
     color: 'var(--text-muted, #94a3b8)',
   },
-  evidenceDataWrap: {
+  multiDropArea: {
     display: 'flex',
-    flexDirection: 'column',
+    alignItems: 'center',
     gap: 8,
-    fontSize: 11,
+    padding: '8px 10px',
+    borderRadius: 6,
+    border: '1px dashed',
+    cursor: 'pointer',
+    transition: 'all 150ms ease',
   },
-  evidenceField: {
+  slotCard: {
+    borderRadius: 6,
+    border: '1px solid',
+    padding: 8,
     display: 'flex',
     flexDirection: 'column',
-    gap: 3,
+    gap: 6,
+    transition: 'all 150ms ease',
   },
-  fieldLabel: {
-    fontSize: 10.5,
-    color: 'var(--text-muted, #94a3b8)',
-    fontWeight: 600,
-  },
-  fieldChip: {
-    alignSelf: 'flex-start',
-    padding: '2px 8px',
-    borderRadius: 4,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    color: '#60a5fa',
-    fontSize: 10.5,
-    fontWeight: 600,
-  },
-  fieldCode: {
-    padding: '4px 8px',
-    borderRadius: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    border: '1px solid rgba(255, 255, 255, 0.06)',
-    fontSize: 10,
-    fontFamily: 'monospace',
-    wordBreak: 'break-all',
-    color: '#e2e8f0',
-  },
-  fieldVal: {
-    color: '#e2e8f0',
-    lineHeight: 1.4,
-  },
-  agentBox: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(99, 102, 241, 0.08)',
-    border: '1px solid rgba(99, 102, 241, 0.25)',
-  },
-  agentPre: {
-    margin: '4px 0 0',
-    padding: 6,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    fontSize: 10,
-    fontFamily: 'monospace',
-    maxHeight: 80,
-    overflowY: 'auto',
-    color: '#cbd5e1',
-  },
-  noEvidenceBox: {
-    padding: '16px 10px',
-    textAlign: 'center',
-    borderRadius: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.04)',
-    border: '1px solid rgba(245, 158, 11, 0.15)',
-  },
-  attachmentLink: {
+  slotHeader: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '5px 8px',
+  },
+  slotTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#ffffff',
+  },
+  slotBadgeRequired: {
+    fontSize: 9.5,
+    fontWeight: 700,
+    color: '#f43f5e',
+    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+    padding: '1px 5px',
+    borderRadius: 3,
+  },
+  slotBadgeOptional: {
+    fontSize: 9.5,
+    color: 'var(--text-muted, #94a3b8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    padding: '1px 5px',
+    borderRadius: 3,
+  },
+  slotBadgeSuccess: {
+    fontSize: 9.5,
+    fontWeight: 700,
+    color: '#10b981',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    padding: '1px 5px',
+    borderRadius: 3,
+  },
+  slotEmptyDropzone: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    padding: '10px 8px',
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1px solid rgba(255, 255, 255, 0.06)',
-    color: 'var(--accent-blue, #60a5fa)',
+    border: '1px dashed rgba(255, 255, 255, 0.12)',
+    cursor: 'pointer',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+  },
+  slotProgressWrap: {
+    padding: '6px 4px',
+  },
+  progressBarTrack: {
+    width: '100%',
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: 'var(--accent-blue, #3b82f6)',
+    borderRadius: 2,
+    transition: 'width 150ms ease',
+  },
+  slotPreviewWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    padding: 6,
+    borderRadius: 5,
+  },
+  slotThumbBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: '#000000',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    flexShrink: 0,
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+  },
+  slotThumbImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  slotDocThumb: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slotMetaWrap: {
+    flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+  },
+  slotFileName: {
     fontSize: 10.5,
-    textDecoration: 'none',
+    fontWeight: 600,
+    color: '#ffffff',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  slotFileSize: {
+    fontSize: 9.5,
+    color: 'var(--text-muted, #94a3b8)',
+  },
+  slotViewBtn: {
+    background: 'none',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    borderRadius: 3,
+    padding: '2px 6px',
+    color: 'var(--text-secondary, #cbd5e1)',
+    fontSize: 10,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+  },
+  slotDeleteBtn: {
+    background: 'rgba(244, 63, 94, 0.1)',
+    border: '1px solid rgba(244, 63, 94, 0.25)',
+    borderRadius: 3,
+    padding: '2px 6px',
+    color: '#f43f5e',
+    fontSize: 10,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+  },
+  slotErrorBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '4px 6px',
+    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+    border: '1px solid rgba(244, 63, 94, 0.25)',
+    borderRadius: 4,
+  },
+  formSection: {
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    padding: 8,
+    borderRadius: 6,
+    border: '1px solid rgba(255, 255, 255, 0.05)',
+  },
+  inputLabel: {
+    display: 'block',
+    fontSize: 10.5,
+    fontWeight: 600,
+    color: 'var(--text-secondary, #cbd5e1)',
+    marginBottom: 3,
+  },
+  selectInput: {
+    width: '100%',
+    height: 28,
+    padding: '0 6px',
+    borderRadius: 4,
+    fontSize: 10.5,
+    backgroundColor: '#18181b',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    color: '#ffffff',
+    outline: 'none',
+  },
+  textInput: {
+    width: '100%',
+    height: 28,
+    padding: '0 6px',
+    borderRadius: 4,
+    fontSize: 10.5,
+    backgroundColor: '#18181b',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    color: '#ffffff',
+    outline: 'none',
+  },
+  missingAlertBox: {
+    padding: '6px 8px',
+    borderRadius: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.06)',
+    border: '1px solid rgba(245, 158, 11, 0.2)',
+  },
+  missingChip: {
+    fontSize: 10,
+    color: '#f59e0b',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    padding: '1px 6px',
+    borderRadius: 3,
   },
   returnDrawer: {
     padding: '10px 18px',
