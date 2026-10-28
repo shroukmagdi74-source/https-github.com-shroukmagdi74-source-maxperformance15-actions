@@ -166,6 +166,9 @@ router.post('/sample-orders/:id/files', upload.single('file'), controller.upload
 router.post('/sample-orders/:id/approve', controller.approveSampleOrder);
 router.post('/sample-orders/:id/reject', controller.rejectSampleOrder);
 router.post('/sample-orders/:id/convert-to-order', controller.convertSampleToOrder);
+router.post('/sample-orders/:id/share-links', controller.generateSampleShareLink);
+router.get('/sample-orders/:id/share-links', controller.listSampleShareLinks);
+router.post('/sample-orders/:id/share-links/:kind/revoke', controller.revokeSampleShareLink);
 
 
 // ============================================================================

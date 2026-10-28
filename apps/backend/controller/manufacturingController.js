@@ -11,6 +11,7 @@ const ManufacturingFabricService = require('../services/manufacturingFabricServi
 const FactoryPortalService = require('../services/factoryPortalService');
 const ManufacturingTechPackService = require('../services/manufacturingTechPackService');
 const ManufacturingSampleService = require('../services/manufacturingSampleService');
+const ManufacturingSampleShareService = require('../services/manufacturingSampleShareService');
 const ManufacturingStageTemplateService = require('../services/manufacturingStageTemplateService');
 const ManufacturingFactoryAgreementService = require('../services/manufacturingFactoryAgreementService');
 const CustomerPortalService = require('../services/customerPortalService');
@@ -1031,6 +1032,36 @@ class ManufacturingController {
       res.status(201).json(result);
     } catch (error) {
       res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async generateSampleShareLink(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleShareService.generateLink(companyId, req.user, req.params.id, req.body);
+      res.json({ success: true, data, message: 'تم توليد رابط المشاركة بنجاح' });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async listSampleShareLinks(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleShareService.listLinks(companyId, req.params.id);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async revokeSampleShareLink(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleShareService.revokeLink(companyId, req.params.id, req.params.kind);
+      res.json({ success: true, data, message: 'تم إلغاء رابط المشاركة بنجاح' });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
     }
   }
 

@@ -729,6 +729,11 @@ enum SampleFileKind {
   OTHER
 }
 
+enum SampleShareKind {
+  CUSTOMER
+  FACTORY
+}
+
 /// Standalone Sample Manufacturing Order (أمر تصنيع عينة مستقل)
 model SampleOrder {
   id               String               @id @default(cuid())
@@ -757,6 +762,7 @@ model SampleOrder {
 
   stages           SampleOrderStage[]
   attachments      SampleOrderAttachment[]
+  shareLinks       SampleShareLink[]
   customer         Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   bom              BillOfMaterials?     @relation(fields: [bomId], references: [id], onDelete: SetNull)
 
@@ -805,6 +811,30 @@ model SampleOrderAttachment {
 
   @@index([sampleOrderId])
   @@map("sample_order_attachments")
+}
+
+/// Public share link for a sample order (لينك مشاركة عام للعينة)
+model SampleShareLink {
+  id            String           @id @default(cuid())
+  companyId     String
+  sampleOrderId String
+  kind          SampleShareKind
+  token         String           @unique
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  views         Int              @default(0)
+  lastViewedAt  DateTime?
+  factoryAckAt  DateTime?
+  factoryAckBy  String?
+  createdById   String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  sampleOrder   SampleOrder      @relation(fields: [sampleOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([sampleOrderId, kind])
+  @@index([companyId, kind])
+  @@map("sample_share_links")
 }
 
 
