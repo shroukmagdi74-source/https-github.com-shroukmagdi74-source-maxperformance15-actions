@@ -11,14 +11,14 @@ import {
 import { StudioSectionCatalogModal } from "../studio/StudioSectionCatalogModal";
 import { isStorefrontSectionKnown, getStorefrontSectionManifest } from "../sections/manifest";
 
-describe("APPS-1: App Section Presets Registry & Catalog Modal", () => {
+describe("APPS-2: App Section Presets Registry & Catalog Modal (60 apps)", () => {
   afterEach(() => {
     cleanup();
   });
 
-  // 1. App count = exactly 20
-  it("registers exactly 20 industrial business applications", () => {
-    expect(APP_SECTION_PRESETS).toHaveLength(20);
+  // 1. App count = exactly 60 (20 from APPS-1 + 40 from catalog for APPS-2)
+  it("registers exactly 60 industrial business applications", () => {
+    expect(APP_SECTION_PRESETS).toHaveLength(60);
 
     const expectedAppIds = [
       "app-booking",
@@ -41,10 +41,52 @@ describe("APPS-1: App Section Presets Registry & Catalog Modal", () => {
       "app-travel",
       "app-charity",
       "app-home-services",
+      // APPS-2: 40 apps taken from apps/backend/catalog/marketplace/apps.json
+      "app-orders-analytics",
+      "app-profit-analytics",
+      "app-whatsapp-business",
+      "app-instagram-business",
+      "app-telegram-business",
+      "app-tiktok-integrations",
+      "app-bot-automation",
+      "app-facebook-ads-pro",
+      "app-ugc-reviews-pro",
+      "app-affiliate-pro",
+      "app-blog-pro",
+      "app-campaign-attribution",
+      "app-ai-chat-basic",
+      "app-store",
+      "app-conversion-suite",
+      "app-quantity-offers-pro",
+      "app-pos-pro",
+      "app-crm-lite",
+      "app-procurement-pro",
+      "app-order-confirmation-distribution",
+      "app-cafe-restaurant-pro",
+      "app-order-automation",
+      "app-returns-settings",
+      "app-unified-inbox",
+      "app-notification-automation",
+      "app-academy-app",
+      "app-medical-system",
+      "app-lab-app",
+      "app-radiology-app",
+      "app-inventory-pro",
+      "app-multi-warehouse-pro",
+      "app-order-shipping-turbo",
+      "app-internal-courier-fleet",
+      "app-order-invoicing",
+      "app-accounting",
+      "app-wholesale-pro",
+      "app-treasury-expenses-pro",
+      "app-hr-core",
+      "app-hr-attendance-pro",
+      "app-executable-mindmap",
     ];
 
     const actualAppIds = APP_SECTION_PRESETS.map((app) => app.appId);
     expect(actualAppIds).toEqual(expectedAppIds);
+    expect(new Set(actualAppIds).size).toBe(60);
 
     // Each app has essential metadata
     APP_SECTION_PRESETS.forEach((app) => {
@@ -58,6 +100,7 @@ describe("APPS-1: App Section Presets Registry & Catalog Modal", () => {
   // 2. Each app has >= 3 sections
   it("ensures every application has at least 3 sections built from valid presets", () => {
     let totalSections = 0;
+    const sectionIds = new Set<string>();
 
     APP_SECTION_PRESETS.forEach((app) => {
       expect(app.sections.length).toBeGreaterThanOrEqual(3);
@@ -68,13 +111,18 @@ describe("APPS-1: App Section Presets Registry & Catalog Modal", () => {
         expect(section.type).toBeTruthy();
         expect(section.label).toBeTruthy();
         expect(section.description).toBeTruthy();
-        expect(section.badge).toContain("متاح مع تطبيق");
+        expect(section.badge).toBe(`متاح مع تطبيق ${app.appName}`);
         expect(section.settings).toBeDefined();
         expect(typeof section.settings).toBe("object");
+
+        // Section ids must be unique across the whole registry
+        expect(sectionIds.has(section.id)).toBe(false);
+        sectionIds.add(section.id);
       });
     });
 
-    expect(totalSections).toBeGreaterThanOrEqual(60);
+    expect(totalSections).toBe(180);
+    expect(sectionIds.size).toBe(180);
   });
 
   // 3. Zero new components — all section types exist in STOREFRONT_SECTION_MANIFEST
@@ -115,7 +163,7 @@ describe("APPS-1: App Section Presets Registry & Catalog Modal", () => {
   });
 
   // 5. StudioSectionCatalogModal: Tab "التطبيقات" and badge "متاح مع تطبيق X"
-  it("renders Tab 'التطبيقات' in StudioSectionCatalogModal with app badges and 20 apps filter", () => {
+  it("renders Tab 'التطبيقات' in StudioSectionCatalogModal with app badges and 60 apps filter", () => {
     const handleAddSection = vi.fn();
     const handleClose = vi.fn();
 
@@ -131,7 +179,7 @@ describe("APPS-1: App Section Presets Registry & Catalog Modal", () => {
     const appsTabBtn = screen.getByTestId("tab-app-presets");
     expect(appsTabBtn).toBeTruthy();
     expect(appsTabBtn.textContent).toContain("التطبيقات");
-    expect(appsTabBtn.textContent).toContain("20 تطبيق");
+    expect(appsTabBtn.textContent).toContain("60 تطبيق");
 
     // Click Tab "التطبيقات"
     fireEvent.click(appsTabBtn);
@@ -217,5 +265,20 @@ describe("APPS-1: App Section Presets Registry & Catalog Modal", () => {
     const searchResults = searchAppSectionPresets("عقارات");
     expect(searchResults.length).toBeGreaterThanOrEqual(3);
     expect(searchResults.every((r) => r.appId === "app-real-estate" || r.appName.includes("عقارات"))).toBe(true);
+  });
+
+  // 9. APPS-2: three newly added apps are findable by Arabic search
+  it("finds APPS-2 applications by Arabic search queries", () => {
+    const attendance = searchAppSectionPresets("الحضور والانصراف");
+    expect(attendance.length).toBeGreaterThanOrEqual(3);
+    expect(attendance.every((r) => r.appId === "app-hr-attendance-pro")).toBe(true);
+
+    const treasury = searchAppSectionPresets("الخزينة والنفقات");
+    expect(treasury.length).toBeGreaterThanOrEqual(3);
+    expect(treasury.every((r) => r.appId === "app-treasury-expenses-pro")).toBe(true);
+
+    const mindmap = searchAppSectionPresets("الخرائط الذهنية");
+    expect(mindmap.length).toBeGreaterThanOrEqual(3);
+    expect(mindmap.every((r) => r.appId === "app-executable-mindmap")).toBe(true);
   });
 });

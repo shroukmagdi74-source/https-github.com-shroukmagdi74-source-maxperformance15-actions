@@ -1170,6 +1170,2364 @@ export const APP_SECTION_PRESETS: readonly AppSectionPresetDefinition[] = [
       },
     ],
   },
+
+  // 21. تحليلات الطلبات
+  {
+    appId: "app-orders-analytics",
+    appName: "تحليلات الطلبات",
+    category: "تحليلات",
+    description: "لوحة تحليلات لمتابعة الطلبات وتوزيع حالاتها والمقارنات الزمنية برسوم بيانية تفاعلية",
+    icon: "📊",
+    keywords: ["تحليلات الطلبات", "تحليلات", "تقارير الطلبات", "توزيع الحالات", "مقارنات زمنية"],
+    sections: [
+      {
+        id: "orders-analytics-hero-banner",
+        type: "hero-banner",
+        label: "واجهة تحليلات الطلبات",
+        description: "بانر افتتاحي يوجّه صاحب المتجر إلى لوحة تحليل حركة الطلبات",
+        badge: "متاح مع تطبيق تحليلات الطلبات",
+        settings: {
+          eyebrow: "قراءة رقمية لحركة طلباتك",
+          title: "لوحة تحليلات توضح مسار طلباتك لحظة بلحظة",
+          subtitle: "متابعة إجمالي الطلبات والمكتملة والملغاة وتوزيع الحالات على رسم بياني تفاعلي.",
+          ctaText: "فتح لوحة التحليلات",
+          ctaLink: "/analytics/orders",
+          secondaryCtaText: "تقارير الفترات",
+          secondaryCtaLink: "/analytics/reports",
+        },
+      },
+      {
+        id: "orders-analytics-services-grid",
+        type: "services-grid",
+        label: "مؤشرات لوحة تحليلات الطلبات",
+        description: "شبكة تشرح المؤشرات المعروضة داخل لوحة التحليلات",
+        badge: "متاح مع تطبيق تحليلات الطلبات",
+        settings: {
+          title: "مؤشرات لوحة تحليلات الطلبات",
+          subtitle: "قراءات منظمة تساعدك على فهم أداء الطلبات في الفترة المختارة",
+          items: [
+            { title: "نظرة عامة على الطلبات", description: "إجمالي الطلبات والطلبات النقدية والمدفوعة مسبقاً والملغاة", icon: "document" },
+            { title: "توزيع حالات الطلبات", description: "عدد الطلبات في كل حالة ونسبة توزيعها بيانياً", icon: "chart" },
+            { title: "المقارنات الزمنية", description: "مقارنة أداء الفترة الحالية بالفترات السابقة", icon: "calendar" },
+          ],
+        },
+      },
+      {
+        id: "orders-analytics-features-bar",
+        type: "features-bar",
+        label: "دقة البيانات وتحديثها",
+        description: "شريط يوضح مصدر الأرقام المعروضة وتحديثها",
+        badge: "متاح مع تطبيق تحليلات الطلبات",
+        settings: {
+          title: "دقة البيانات وتحكمك في العرض",
+          features: [
+            { title: "تحديث مع كل طلب", text: "المؤشرات تتحدث تلقائياً مع تسجيل الطلبات الجديدة" },
+            { title: "تصفية حسب الفترة", text: "اختيار المدة الزمنية المطلوبة لعرض النتائج" },
+            { title: "تصدير التقارير", text: "تنزيل نتائج التحليل للرجوع إليها خارج اللوحة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 22. تحليلات الأرباح
+  {
+    appId: "app-profit-analytics",
+    appName: "تحليلات الأرباح",
+    category: "تحليلات",
+    description: "متابعة صافي الربح الحقيقي بعد تكلفة المنتج والشحن والإعلان مع هوامش الربحية",
+    icon: "💹",
+    keywords: ["تحليلات الأرباح", "صافي الربح", "هامش الربح", "ربحية", "تكلفة الشحن", "تكلفة الإعلان"],
+    sections: [
+      {
+        id: "profit-analytics-hero-banner",
+        type: "hero-banner",
+        label: "واجهة تحليلات الأرباح والهوامش",
+        description: "بانر افتتاحي يعرض فكرة احتساب الربح الحقيقي لكل منتج",
+        badge: "متاح مع تطبيق تحليلات الأرباح",
+        settings: {
+          eyebrow: "ربحية واضحة لكل منتج",
+          title: "اعرف صافي ربحك الحقيقي بعد كل التكاليف",
+          subtitle: "احتساب الإيراد بعد خصم تكلفة المنتج والشحن والتسويق مع بيان هامش الربح لكل منتج.",
+          ctaText: "استعراض تحليلات الربح",
+          ctaLink: "/analytics/profit",
+          secondaryCtaText: "تكاليف المنتجات",
+          secondaryCtaLink: "/catalog/costs",
+        },
+      },
+      {
+        id: "profit-analytics-services-grid",
+        type: "services-grid",
+        label: "مؤشرات الربحية المعروضة",
+        description: "شبكة توضح مؤشرات لوحة الأرباح",
+        badge: "متاح مع تطبيق تحليلات الأرباح",
+        settings: {
+          title: "مؤشرات الربحية المعروضة",
+          subtitle: "قراءة أوضح للربح على مستوى الطلب والمنتج",
+          items: [
+            { title: "صافي الربح", description: "الإيراد بعد خصم تكلفة المنتج والشحن والإعلان", icon: "chart" },
+            { title: "هامش ربح المنتج", description: "نسبة الربح لكل منتج مقارنة بسعر بيعه", icon: "tag" },
+            { title: "تحليل التكاليف", description: "تفصيل بنود التكلفة المؤثرة في الربح", icon: "document" },
+          ],
+        },
+      },
+      {
+        id: "profit-analytics-tech-grid",
+        type: "tech-grid",
+        label: "طبقات احتساب الربح",
+        description: "شرح طريقة بناء رقم الربح خطوة بخطوة",
+        badge: "متاح مع تطبيق تحليلات الأرباح",
+        settings: {
+          title: "من الإيراد إلى صافي الربح",
+          subtitle: "تسلسل واضح لكل بند يخصم من الإيراد",
+          features: [
+            { title: "الإيراد المسجل", description: "قيمة الطلبات المكتملة بعد المرتجعات المعتمدة" },
+            { title: "تكلفة المنتج والشحن", description: "احتساب تكلفة التوريد وبنود الشحن لكل طلب" },
+            { title: "تكلفة التسويق", description: "توزيع مصروف الإعلان على الطلبات المنسوبة للحملة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 23. WhatsApp Business API
+  {
+    appId: "app-whatsapp-business",
+    appName: "WhatsApp Business API",
+    category: "تواصل",
+    description: "ربط حساب واتساب للأعمال لإرسال تأكيدات الطلبات والردود التلقائية ومتابعة المحادثات",
+    icon: "💬",
+    keywords: ["واتساب", "whatsapp", "رسائل واتساب", "ردود تلقائية", "تأكيد الطلب", "محادثات"],
+    sections: [
+      {
+        id: "whatsapp-business-hero-banner",
+        type: "hero-banner",
+        label: "واجهة المحادثات عبر واتساب للأعمال",
+        description: "بانر رئيسي يربط صفحة المتجر بقناة واتساب للأعمال",
+        badge: "متاح مع تطبيق WhatsApp Business API",
+        settings: {
+          eyebrow: "محادثات واتساب داخل متجرك",
+          title: "استقبل رسائل عملائك وردّ عليها من لوحة واحدة",
+          subtitle: "ربط حساب واتساب للأعمال لإرسال تأكيدات الطلب والردود التلقائية ومتابعة المحادثات دون مغادرة لوحة التحكم.",
+          ctaText: "بدء محادثة واتساب",
+          ctaLink: "/whatsapp",
+          secondaryCtaText: "قوالب الرسائل",
+          secondaryCtaLink: "/whatsapp/templates",
+        },
+      },
+      {
+        id: "whatsapp-business-services-grid",
+        type: "services-grid",
+        label: "استخدامات واتساب في التشغيل اليومي",
+        description: "شبكة تعرض حالات استخدام القناة داخل المتجر",
+        badge: "متاح مع تطبيق WhatsApp Business API",
+        settings: {
+          title: "استخدامات واتساب في التشغيل اليومي",
+          subtitle: "قناة واحدة تجمع التواصل والتأكيد والمتابعة",
+          items: [
+            { title: "تأكيدات الطلبات", description: "إرسال تفاصيل الطلب وحالته للعميل عبر قالب معتمد", icon: "check" },
+            { title: "ردود تلقائية", description: "الرد على الاستفسارات المتكررة دون انتظار", icon: "chat" },
+            { title: "متابعة الشحن", description: "إشعار العميل عند تحديث حالة الشحنة", icon: "truck" },
+          ],
+        },
+      },
+      {
+        id: "whatsapp-business-features-bar",
+        type: "features-bar",
+        label: "ضوابط الإرسال والالتزام",
+        description: "شريط يوضح قواعد استخدام القناة",
+        badge: "متاح مع تطبيق WhatsApp Business API",
+        settings: {
+          title: "ضوابط الإرسال والالتزام",
+          features: [
+            { title: "قوالب معتمدة", text: "الرسائل تخرج من قوالب مراجعة قبل الإرسال" },
+            { title: "سجل المحادثات", text: "أرشيف كامل للمحادثات داخل لوحة المتجر" },
+            { title: "إلغاء الاشتراك", text: "احترام طلب العميل إيقاف الرسائل في أي وقت" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 24. انستجرام بزنس
+  {
+    appId: "app-instagram-business",
+    appName: "انستجرام بزنس",
+    category: "تواصل",
+    description: "إدارة رسائل وتعليقات انستجرام والرد الآلي وتحليلات التفاعل من لوحة المتجر",
+    icon: "📸",
+    keywords: ["انستجرام", "instagram", "رسائل مباشرة", "تعليقات", "تفاعل", "رد آلي"],
+    sections: [
+      {
+        id: "instagram-business-hero-banner",
+        type: "hero-banner",
+        label: "واجهة تفاعل انستجرام",
+        description: "بانر رئيسي لربط حساب انستجرام للأعمال بالمتجر",
+        badge: "متاح مع تطبيق انستجرام بزنس",
+        settings: {
+          eyebrow: "تفاعل عملائك في مكان واحد",
+          title: "دير رسائل وتعليقات انستجرام من لوحة التحكم",
+          subtitle: "ربط حساب انستجرام مع صفحات فيسبوك واستقبال الرسائل المباشرة والتعليقات والرد عليها من مكان واحد.",
+          ctaText: "ربط حساب انستجرام",
+          ctaLink: "/channels/instagram",
+          secondaryCtaText: "لوحة التفاعل",
+          secondaryCtaLink: "/channels/instagram/inbox",
+        },
+      },
+      {
+        id: "instagram-business-services-grid",
+        type: "services-grid",
+        label: "قنوات التفاعل المدعومة",
+        description: "شبكة توضح أنواع التفاعل التي تُدار من اللوحة",
+        badge: "متاح مع تطبيق انستجرام بزنس",
+        settings: {
+          title: "قنوات التفاعل المدعومة",
+          subtitle: "تغطية كاملة لتفاعل الجمهور على الحساب",
+          items: [
+            { title: "الرسائل المباشرة", description: "استقبال رسائل العملاء والرد عليها من صندوق موحد", icon: "chat" },
+            { title: "التعليقات", description: "متابعة تعليقات المنشورات والرد عليها", icon: "chat" },
+            { title: "الرد الآلي", description: "رد فوري على الأسئلة المتكررة خارج أوقات العمل", icon: "sparkles" },
+          ],
+        },
+      },
+      {
+        id: "instagram-business-features-bar",
+        type: "features-bar",
+        label: "إدارة الحساب والقياس",
+        description: "شريط يوضح إعدادات الحساب ومؤشرات التفاعل",
+        badge: "متاح مع تطبيق انستجرام بزنس",
+        settings: {
+          title: "إدارة الحساب وقياس التفاعل",
+          features: [
+            { title: "ربط الحساب", text: "ربط حساب انستجرام للأعمال بصفحة فيسبوك" },
+            { title: "تحليلات التفاعل", text: "مؤشرات على حجم المحادثات والردود" },
+            { title: "توزيع على الفريق", text: "إسناد المحادثات لأعضاء فريق الدعم" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 25. تكامل Telegram
+  {
+    appId: "app-telegram-business",
+    appName: "تكامل Telegram",
+    category: "تواصل",
+    description: "إدارة مجموعات وقنوات تليجرام والرد الآلي والجدولة والحملات من لوحة المتجر",
+    icon: "✈️",
+    keywords: ["تليجرام", "telegram", "قنوات", "مجموعات", "رد آلي", "جدولة المنشورات"],
+    sections: [
+      {
+        id: "telegram-business-hero-banner",
+        type: "hero-banner",
+        label: "واجهة قنوات تليجرام",
+        description: "بانر رئيسي يربط قنوات ومجموعات تليجرام بالمتجر",
+        badge: "متاح مع تطبيق تكامل Telegram",
+        settings: {
+          eyebrow: "قنواتك على تليجرام مربوطة بمتجرك",
+          title: "أدر قنوات ومجموعات تليجرام من لوحة المتجر",
+          subtitle: "ربط القنوات والمجموعات لإرسال التحديثات والرد الآلي وجدولة المنشورات وإدارة المشرفين.",
+          ctaText: "ربط قناة تليجرام",
+          ctaLink: "/channels/telegram",
+          secondaryCtaText: "إعدادات البوت",
+          secondaryCtaLink: "/channels/telegram/bot",
+        },
+      },
+      {
+        id: "telegram-business-services-grid",
+        type: "services-grid",
+        label: "استخدامات قنوات تليجرام",
+        description: "شبكة تعرض مهام القناة داخل تشغيل المتجر",
+        badge: "متاح مع تطبيق تكامل Telegram",
+        settings: {
+          title: "استخدامات قنوات تليجرام",
+          subtitle: "قناة مباشرة للوصول إلى جمهورك",
+          items: [
+            { title: "نشر التحديثات", description: "إرسال إعلانات المتجر والعروض إلى القناة", icon: "megaphone" },
+            { title: "الرد الآلي", description: "الرد على استفسارات الأعضاء بشكل تلقائي", icon: "chat" },
+            { title: "جدولة المنشورات", description: "تحديد وقت نشر الرسائل مسبقاً", icon: "calendar" },
+          ],
+        },
+      },
+      {
+        id: "telegram-business-features-bar",
+        type: "features-bar",
+        label: "أدوات إدارة القناة",
+        description: "شريط يوضح أدوات الإدارة المتاحة",
+        badge: "متاح مع تطبيق تكامل Telegram",
+        settings: {
+          title: "أدوات إدارة القناة",
+          features: [
+            { title: "بوتات متقدمة", text: "أوامر وأزرار تفاعلية داخل المحادثة" },
+            { title: "إدارة المشرفين", text: "تحديد صلاحيات النشر والإشراف" },
+            { title: "أرشيف الرسائل", text: "الرجوع إلى الرسائل السابقة داخل اللوحة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 26. تكامل TikTok
+  {
+    appId: "app-tiktok-integrations",
+    appName: "تكامل TikTok",
+    category: "تواصل",
+    description: "نشر المحتوى على TikTok وربط TikTok Shop وعرض الفيديوهات وتتبع أحداث الإعلانات",
+    icon: "🎵",
+    keywords: ["تيك توك", "tiktok", "فيديوهات", "متجر تيك توك", "نشر المحتوى", "تتبع الأحداث"],
+    sections: [
+      {
+        id: "tiktok-integrations-hero-banner",
+        type: "hero-banner",
+        label: "واجهة تكامل تيك توك",
+        description: "بانر رئيسي يربط محتوى تيك توك بصفحة المتجر",
+        badge: "متاح مع تطبيق تكامل TikTok",
+        settings: {
+          eyebrow: "فيديوهاتك ومتجرك في تجربة واحدة",
+          title: "اربط محتوى TikTok بمتجرك واستفد من زياراته",
+          subtitle: "نشر المحتوى على TikTok وربط متجر TikTok Shop وتسجيل دخول العملاء وعرض الفيديوهات داخل المتجر.",
+          ctaText: "ربط حساب تيك توك",
+          ctaLink: "/channels/tiktok",
+          secondaryCtaText: "فيديوهات المتجر",
+          secondaryCtaLink: "/channels/tiktok/feed",
+        },
+      },
+      {
+        id: "tiktok-integrations-services-grid",
+        type: "services-grid",
+        label: "تكاملات تيك توك المتاحة",
+        description: "شبكة توضح التكاملات الرسمية مع المنصة",
+        badge: "متاح مع تطبيق تكامل TikTok",
+        settings: {
+          title: "تكاملات تيك توك المتاحة",
+          subtitle: "ربط مباشر بين المحتوى والمتجر",
+          items: [
+            { title: "نشر المحتوى", description: "إرسال الفيديوهات إلى الحساب من لوحة المتجر", icon: "video" },
+            { title: "TikTok Shop", description: "ربط المنتجات واستقبال الطلبات من المتجر", icon: "cart" },
+            { title: "دخول بالحساب", description: "تسجيل دخول العملاء بحساب تيك توك", icon: "user" },
+          ],
+        },
+      },
+      {
+        id: "tiktok-integrations-features-bar",
+        type: "features-bar",
+        label: "عرض المحتوى وقياس الأثر",
+        description: "شريط يوضح عرض الفيديوهات وربط الأحداث",
+        badge: "متاح مع تطبيق تكامل TikTok",
+        settings: {
+          title: "عرض المحتوى وقياس الأثر",
+          features: [
+            { title: "فيديوهات في المتجر", text: "عرض مقاطع المنتجات داخل الصفحات" },
+            { title: "تتبع الأحداث", text: "ربط أحداث الإعلانات بزيارات المتجر" },
+            { title: "قناة محتوى", text: "تجميع الفيديوهات في قسم مستقل" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 27. أتمتة المحادثات
+  {
+    appId: "app-bot-automation",
+    appName: "أتمتة المحادثات",
+    category: "تواصل",
+    description: "بوت محادثات بالكلمات المفتاحية والرسائل الترحيبية والفلوهات المتفرعة على واتساب وفيسبوك",
+    icon: "🤖",
+    keywords: ["أتمتة المحادثات", "بوت", "ردود بالكلمات المفتاحية", "رسالة ترحيب", "فلوهات", "دجت محادثة"],
+    sections: [
+      {
+        id: "bot-automation-hero-banner",
+        type: "hero-banner",
+        label: "واجهة أتمتة المحادثات",
+        description: "بانر رئيسي يعرض الرد الآلي على قنوات التواصل",
+        badge: "متاح مع تطبيق أتمتة المحادثات",
+        settings: {
+          eyebrow: "ردود آلية تجيب عملاءك في أي وقت",
+          title: "بوت محادثات يرد على عملائك نيابة عنك",
+          subtitle: "بناء ردود بالكلمات المفتاحية ورسالة ترحيب وفلوهات تفاعلية تتفرع على اختيار العميل عبر واتساب وفيسبوك.",
+          ctaText: "إعداد البوت",
+          ctaLink: "/automation/bot",
+          secondaryCtaText: "قائمة الردود",
+          secondaryCtaLink: "/automation/replies",
+        },
+      },
+      {
+        id: "bot-automation-services-grid",
+        type: "services-grid",
+        label: "مكوّنات بوت المحادثات",
+        description: "شبكة تعرض عناصر البوت التي تُبنى من اللوحة",
+        badge: "متاح مع تطبيق أتمتة المحادثات",
+        settings: {
+          title: "مكوّنات بوت المحادثات",
+          subtitle: "أدوات بناء محادثة منظمة دون كتابة كود",
+          items: [
+            { title: "ردود الكلمات المفتاحية", description: "رد محدد عند ورود كلمة أو عبارة معينة", icon: "chat" },
+            { title: "رسالة الترحيب", description: "رسالة أولى تعرّف العميل بخيارات التواصل", icon: "sparkles" },
+            { title: "فلوهات متفرعة", description: "مسارات محادثة تتفرع حسب رد العميل", icon: "branch" },
+          ],
+        },
+      },
+      {
+        id: "bot-automation-features-bar",
+        type: "features-bar",
+        label: "ضوابط التجربة",
+        description: "شريط يوضح خيارات التحكم في تجربة المحادثة",
+        badge: "متاح مع تطبيق أتمتة المحادثات",
+        settings: {
+          title: "ضوابط تجربة المحادثة",
+          features: [
+            { title: "أزرار سريعة", text: "خيارات جاهزة يختار منها العميل" },
+            { title: "روابط بدء المحادثة", text: "روابط مباشرة تفتح المحادثة من المتجر" },
+            { title: "إلغاء الاشتراك", text: "إيقاف الرسائل بناءً على طلب العميل" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 28. إعلانات فيسبوك وانستجرام
+  {
+    appId: "app-facebook-ads-pro",
+    appName: "إعلانات فيسبوك وانستجرام",
+    category: "تسويق",
+    description: "إدارة حملات فيسبوك وانستجرام مع تحسين الاستهداف وتقارير الأداء",
+    icon: "📣",
+    keywords: ["إعلانات فيسبوك", "فيسبوك", "انستجرام", "حملات إعلانية", "استهداف", "تقارير الأداء"],
+    sections: [
+      {
+        id: "facebook-ads-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة إدارة الإعلانات",
+        description: "بانر رئيسي يربط الحملات الإعلانية ببيانات المتجر",
+        badge: "متاح مع تطبيق إعلانات فيسبوك وانستجرام",
+        settings: {
+          eyebrow: "حملات مرتبطة ببيانات متجرك",
+          title: "أدر حملاتك الإعلانية من لوحة واحدة",
+          subtitle: "ربط الحساب الإعلاني ومتابعة الحملات ومقارنة نتائجها إلى جانب بيانات الطلبات في المتجر.",
+          ctaText: "إدارة الحملات",
+          ctaLink: "/ads/campaigns",
+          secondaryCtaText: "تقارير الإعلانات",
+          secondaryCtaLink: "/ads/reports",
+        },
+      },
+      {
+        id: "facebook-ads-pro-services-grid",
+        type: "services-grid",
+        label: "مهام إدارة الحملات",
+        description: "شبكة توضح مراحل إدارة الحملة",
+        badge: "متاح مع تطبيق إعلانات فيسبوك وانستجرام",
+        settings: {
+          title: "مهام إدارة الحملات",
+          subtitle: "من إنشاء الحملة حتى قراءة نتائجها",
+          items: [
+            { title: "إنشاء الحملات", description: "تجهيز الحملة والإعلانات والميزانية المخصصة لها", icon: "megaphone" },
+            { title: "تحسين الاستهداف", description: "ضبط الجمهور والاهتمامات المناسبة للمنتجات", icon: "target" },
+            { title: "تقارير الأداء", description: "قراءة نتائج الحملة مقابل الطلبات المسجلة", icon: "chart" },
+          ],
+        },
+      },
+      {
+        id: "facebook-ads-pro-tech-grid",
+        type: "tech-grid",
+        label: "قدرات الإدارة المتقدمة",
+        description: "شرح الأدوات التي تدعم إدارة الحملات",
+        badge: "متاح مع تطبيق إعلانات فيسبوك وانستجرام",
+        settings: {
+          title: "أدوات إدارة الحملة",
+          subtitle: "إمكانات تسهل المتابعة اليومية",
+          features: [
+            { title: "ربط الحساب الإعلاني", description: "توحيد الحساب والصفحات مع لوحة المتجر" },
+            { title: "تتبع التحويلات", description: "ربط أحداث التحويل بحملاتك النشطة" },
+            { title: "مقارنة الحملات", description: "مقارنة نتائج الحملات في فترة واحدة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 29. تقييمات العملاء
+  {
+    appId: "app-ugc-reviews-pro",
+    appName: "تقييمات العملاء",
+    category: "تسويق",
+    description: "بلوكات تقييمات بالصور والفيديو لصفحات المنتجات وبناء الثقة",
+    icon: "⭐",
+    keywords: ["تقييمات العملاء", "تقييمات", "مراجعات", "صور العملاء", "فيديو تقييم", "ثقة"],
+    sections: [
+      {
+        id: "ugc-reviews-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة تقييمات العملاء المصورة",
+        description: "بانر رئيسي يعرض تقييمات بالصور والفيديو",
+        badge: "متاح مع تطبيق تقييمات العملاء",
+        settings: {
+          eyebrow: "تقييمات حقيقية بالصورة والفيديو",
+          title: "اعرض تجارب عملائك داخل صفحات المنتجات",
+          subtitle: "بلوكات تقييمات مصورة تظهر على صفحة المنتج لتوضح تجربة الاستخدام وتقوي ثقة الزائر.",
+          ctaText: "تصفح التقييمات",
+          ctaLink: "/reviews",
+          secondaryCtaText: "أضف تقييمك",
+          secondaryCtaLink: "/reviews/new",
+        },
+      },
+      {
+        id: "ugc-reviews-pro-services-grid",
+        type: "services-grid",
+        label: "قوالب عرض التقييمات",
+        description: "شبكة توضح أشكال عرض التقييمات",
+        badge: "متاح مع تطبيق تقييمات العملاء",
+        settings: {
+          title: "قوالب عرض التقييمات",
+          subtitle: "أشكال متعددة تناسب صفحات المنتجات",
+          items: [
+            { title: "تقييمات مصورة", description: "صور من العملاء مع نص التقييم", icon: "image" },
+            { title: "تقييمات بالفيديو", description: "مقاطع قصيرة توضح تجربة المنتج", icon: "video" },
+            { title: "بلوكات الثقة", description: "ملخص التقييمات بجانب زر الشراء", icon: "shield" },
+          ],
+        },
+      },
+      {
+        id: "ugc-reviews-pro-features-bar",
+        type: "features-bar",
+        label: "إدارة محتوى التقييمات",
+        description: "شريط يوضح دورة مراجعة التقييم ونشره",
+        badge: "متاح مع تطبيق تقييمات العملاء",
+        settings: {
+          title: "إدارة محتوى التقييمات",
+          features: [
+            { title: "جمع التقييمات", text: "نموذج بسيط لإضافة التقييم والصور" },
+            { title: "مراجعة قبل النشر", text: "اعتماد التقييمات قبل ظهورها للزوار" },
+            { title: "ربط بصفحة المنتج", text: "عرض التقييمات في مكانها المناسب" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 30. Affiliate Pro
+  {
+    appId: "app-affiliate-pro",
+    appName: "Affiliate Pro",
+    category: "تسويق",
+    description: "إدارة برنامج عمولة للمسوقين ومشاركة المنتجات ومتابعة العمولات",
+    icon: "🔗",
+    keywords: ["عمولة", "مسوقين", "affiliate", "برنامج شراكة", "روابط تتبع", "مشاركة المنتجات"],
+    sections: [
+      {
+        id: "affiliate-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة برنامج العمولة والشركاء",
+        description: "بانر رئيسي يعرض برنامج العمولة للمسوقين",
+        badge: "متاح مع تطبيق Affiliate Pro",
+        settings: {
+          eyebrow: "وسّع انتشار منتجاتك عبر شركاء",
+          title: "برنامج عمولة منظم للمسوقين والشركاء",
+          subtitle: "تسجيل المسوقين ومنحهم روابط تتبع للمنتجات ومتابعة العمولات المستحقة لكل شريك.",
+          ctaText: "التسجيل كمسوق",
+          ctaLink: "/affiliate/join",
+          secondaryCtaText: "لوحة الشريك",
+          secondaryCtaLink: "/affiliate/dashboard",
+        },
+      },
+      {
+        id: "affiliate-pro-services-grid",
+        type: "services-grid",
+        label: "مسار الشراكة داخل البرنامج",
+        description: "شبكة توضح مراحل عمل المسوق",
+        badge: "متاح مع تطبيق Affiliate Pro",
+        settings: {
+          title: "مسار الشراكة داخل البرنامج",
+          subtitle: "خطوات واضحة من التسجيل حتى صرف العمولة",
+          items: [
+            { title: "تسجيل المسوقين", description: "استقبال طلبات الانضمام ومراجعتها", icon: "user" },
+            { title: "مشاركة المنتجات", description: "روابط مخصصة لكل مسوق لكل منتج", icon: "link" },
+            { title: "متابعة العمولات", description: "احتساب العمولة المستحقة على الطلبات", icon: "chart" },
+          ],
+        },
+      },
+      {
+        id: "affiliate-pro-features-bar",
+        type: "features-bar",
+        label: "أدوات إدارة البرنامج",
+        description: "شريط يوضح أدوات المتابعة والتحكم",
+        badge: "متاح مع تطبيق Affiliate Pro",
+        settings: {
+          title: "أدوات إدارة البرنامج",
+          features: [
+            { title: "روابط تتبع", text: "ربط كل طلب بالرابط الذي جاء منه" },
+            { title: "لوحة الشركاء", text: "بيانات كل شريك وحالة حسابه" },
+            { title: "صرف المستحقات", text: "تسجيل الدفعات وتوثيقها" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 31. نظام المدونة والـ SEO
+  {
+    appId: "app-blog-pro",
+    appName: "نظام المدونة والـ SEO",
+    category: "محتوى",
+    description: "مدونة احترافية لإدارة المقالات والأسئلة الشائعة والفهرس وبيانات SEO المنظمة",
+    icon: "✍️",
+    keywords: ["مدونة", "مقالات", "محتوى", "seo", "أسئلة شائعة", "فهرس المقال"],
+    sections: [
+      {
+        id: "blog-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة المدونة والمحتوى",
+        description: "بانر رئيسي يعرض المدونة كقناة محتوى للمتجر",
+        badge: "متاح مع تطبيق نظام المدونة والـ SEO",
+        settings: {
+          eyebrow: "محتوى منظم يخدم زوار متجرك",
+          title: "مدونة بتجربة قراءة مرتبة ومحتوى موثق",
+          subtitle: "إدارة المقالات وتنظيمها بفهرس وأسئلة شائعة وبيانات منظمة تساعد محركات البحث على فهم صفحاتك.",
+          ctaText: "تصفح المقالات",
+          ctaLink: "/blog",
+          secondaryCtaText: "دليل الكتابة",
+          secondaryCtaLink: "/blog/guide",
+        },
+      },
+      {
+        id: "blog-pro-article-grid",
+        type: "article-grid",
+        label: "أحدث المقالات المنشورة",
+        description: "شبكة مقالات المدونة مع مقتطف لكل مقال",
+        badge: "متاح مع تطبيق نظام المدونة والـ SEO",
+        settings: {
+          title: "أحدث المقالات المنشورة",
+          subtitle: "محتوى يجاوب على أسئلة الزوار قبل الشراء",
+          articles: [
+            { title: "دليل اختيار المنتج المناسب", excerpt: "معايير المقارنة بين الخيارات المتاحة قبل الشراء" },
+            { title: "أسئلة يتكرر طرحها عن الشحن", excerpt: "شرح إجراءات الشحن والاستلام والمرتجعات" },
+          ],
+        },
+      },
+      {
+        id: "blog-pro-features-bar",
+        type: "features-bar",
+        label: "أدوات التحرير والنشر",
+        description: "شريط يوضح أدوات إدارة المحتوى",
+        badge: "متاح مع تطبيق نظام المدونة والـ SEO",
+        settings: {
+          title: "أدوات التحرير والنشر",
+          features: [
+            { title: "إدارة المقالات", text: "تحرير المقال وحفظه كمسودة قبل النشر" },
+            { title: "الفهرس والأسئلة", text: "بناء فهرس تلقائي وقسم أسئلة شائعة" },
+            { title: "بيانات SEO", text: "ضبط العنوان والوصف وبيانات المقال المنظمة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 32. Campaign Attribution
+  {
+    appId: "app-campaign-attribution",
+    appName: "Campaign Attribution",
+    category: "تسويق",
+    description: "ربط الطلبات بالحملات الإعلانية والمنصات ومعرّفات UTM والنقرات",
+    icon: "🧭",
+    keywords: ["إسناد الحملات", "attribution", "utm", "مصادر الطلبات", "منصة الإعلان", "معرفات النقر"],
+    sections: [
+      {
+        id: "campaign-attribution-hero-banner",
+        type: "hero-banner",
+        label: "واجهة إسناد الحملات",
+        description: "بانر رئيسي يوضح ربط الطلب بمصدره الإعلاني",
+        badge: "متاح مع تطبيق Campaign Attribution",
+        settings: {
+          eyebrow: "اعرف من أين جاء كل طلب",
+          title: "إسناد دقيق بين الطلبات والحملات الإعلانية",
+          subtitle: "تسجيل بيانات الحملة والمنصة ومعرّفات UTM ومعرّفات النقر مع كل طلب لقراءة المصدر بوضوح.",
+          ctaText: "استعراض الإسناد",
+          ctaLink: "/attribution",
+          secondaryCtaText: "تقارير المصادر",
+          secondaryCtaLink: "/attribution/sources",
+        },
+      },
+      {
+        id: "campaign-attribution-services-grid",
+        type: "services-grid",
+        label: "بيانات الإسناد المسجلة",
+        description: "شبكة تعرض الحقول التي تُربط بكل طلب",
+        badge: "متاح مع تطبيق Campaign Attribution",
+        settings: {
+          title: "بيانات الإسناد المسجلة",
+          subtitle: "تفصيل مصدر الطلب على مستوى الحملة والإعلان",
+          items: [
+            { title: "مصدر الحملة", description: "اسم المنصة والحملة والإعلان المرتبط بالطلب", icon: "megaphone" },
+            { title: "معرّفات UTM", description: "قراءة وسوم الحملة الممررة مع رابط الزيارة", icon: "link" },
+            { title: "معرّفات النقر", description: "ربط النقرة الإعلانية بالطلب المسجل", icon: "target" },
+          ],
+        },
+      },
+      {
+        id: "campaign-attribution-tech-grid",
+        type: "tech-grid",
+        label: "قدرات التحليل",
+        description: "شرح الاستفادة من بيانات الإسناد",
+        badge: "متاح مع تطبيق Campaign Attribution",
+        settings: {
+          title: "قراءة أدق لمصادر الطلبات",
+          subtitle: "معلومات تساعد على توجيه الميزانية",
+          features: [
+            { title: "ربط الطلب بالحملة", description: "توثيق الحملة على كل طلب عند تسجيله" },
+            { title: "مقارنة المنصات", description: "مقارنة مصادر الطلبات بين المنصات المختلفة" },
+            { title: "تصدير البيانات", description: "تنزيل بيانات الإسناد للتحليل الخارجي" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 33. AI Chat Basic
+  {
+    appId: "app-ai-chat-basic",
+    appName: "AI Chat Basic",
+    category: "ذكاء اصطناعي",
+    description: "مساعد ذكي للدعم والمبيعات يجيب على استفسارات الزوار من محتوى المتجر",
+    icon: "✨",
+    keywords: ["ذكاء اصطناعي", "مساعد ذكي", "ai chat", "دعم العملاء", "محادثة آلية", "استفسارات"],
+    sections: [
+      {
+        id: "ai-chat-basic-hero-banner",
+        type: "hero-banner",
+        label: "واجهة المساعد الذكي",
+        description: "بانر رئيسي يعرض مساعد المحادثة الذكي",
+        badge: "متاح مع تطبيق AI Chat Basic",
+        settings: {
+          eyebrow: "مساعد ذكي يرد على زوارك",
+          title: "دعم أسرع للزوار بمساعد يفهم أسئلتهم",
+          subtitle: "مساعد محادثة يجيب على الاستفسارات الشائعة عن المنتجات والشحن ويعرف متى يحوّل المحادثة لفريق الدعم.",
+          ctaText: "تجربة المساعد",
+          ctaLink: "/ai-chat",
+          secondaryCtaText: "إعدادات المساعد",
+          secondaryCtaLink: "/ai-chat/settings",
+        },
+      },
+      {
+        id: "ai-chat-basic-services-grid",
+        type: "services-grid",
+        label: "مهام المساعد الذكي",
+        description: "شبكة توضح نطاق عمل المساعد",
+        badge: "متاح مع تطبيق AI Chat Basic",
+        settings: {
+          title: "مهام المساعد الذكي",
+          subtitle: "مساندة فريق الدعم في المهام المتكررة",
+          items: [
+            { title: "دعم المبيعات", description: "الإجابة عن أسئلة المنتج ومقارنة الخيارات", icon: "chat" },
+            { title: "الأسئلة المتكررة", description: "ردود مبنية على محتوى المتجر المعتمد", icon: "document" },
+            { title: "التحويل للفريق", description: "تمرير المحادثة لموظف عند الحاجة", icon: "user" },
+          ],
+        },
+      },
+      {
+        id: "ai-chat-basic-features-bar",
+        type: "features-bar",
+        label: "الإعداد والرقابة",
+        description: "شريط يوضح ضوابط تشغيل المساعد",
+        badge: "متاح مع تطبيق AI Chat Basic",
+        settings: {
+          title: "الإعداد والرقابة",
+          features: [
+            { title: "مصادر المعرفة", text: "تحديد الصفحات التي يعتمد عليها المساعد" },
+            { title: "حدود الاستخدام", text: "ضبط عدد المحادثات المسموح بها" },
+            { title: "سجل المحادثات", text: "مراجعة الحوارات لتحسين الردود" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 34. المتجر
+  {
+    appId: "app-store",
+    appName: "المتجر",
+    category: "تجارة إلكترونية",
+    description: "إدارة الطلبات والمنتجات والمتجر الإلكتروني في تطبيق واحد",
+    icon: "🛍️",
+    keywords: ["المتجر", "متجر إلكتروني", "منتجات", "طلبات", "تجارة إلكترونية", "كتالوج"],
+    sections: [
+      {
+        id: "store-hero-banner",
+        type: "hero-banner",
+        label: "واجهة المتجر الإلكتروني",
+        description: "بانر رئيسي لصفحة المتجر والمنتجات",
+        badge: "متاح مع تطبيق المتجر",
+        settings: {
+          eyebrow: "متجرك في واجهة واحدة",
+          title: "منتجاتك وطلباتك في لوحة واحدة",
+          subtitle: "إدارة كتالوج المنتجات واستقبال الطلبات ومتابعة المتجر الإلكتروني من لوحة تحكم موحدة.",
+          ctaText: "تصفح المتجر",
+          ctaLink: "/shop",
+          secondaryCtaText: "إدارة الطلبات",
+          secondaryCtaLink: "/orders",
+        },
+      },
+      {
+        id: "store-featured-products",
+        type: "featured-products",
+        label: "أحدث المنتجات المضافة",
+        description: "شبكة تعرض الجديد في كتالوج المتجر",
+        badge: "متاح مع تطبيق المتجر",
+        settings: {
+          title: "أحدث المنتجات المضافة",
+          subtitle: "اختيارات حديثة من كتالوج متجرك",
+          limit: 4,
+        },
+      },
+      {
+        id: "store-featured-collections",
+        type: "featured-collections",
+        label: "أقسام ومجموعات المتجر",
+        description: "مجموعات المنتجات المنظمة حسب القسم",
+        badge: "متاح مع تطبيق المتجر",
+        settings: {
+          title: "تسوق حسب القسم",
+          subtitle: "تصفح المجموعات المنظمة داخل المتجر",
+        },
+      },
+    ],
+  },
+
+  // 35. أدوات رفع التحويل
+  {
+    appId: "app-conversion-suite",
+    appName: "أدوات رفع التحويل",
+    category: "تجارة إلكترونية",
+    description: "أشرطة الاستعجال وبلوكات صفحة المنتج والنوافذ المنبثقة لعناصر تحفيز الشراء",
+    icon: "🚀",
+    keywords: ["أدوات رفع التحويل", "تحويل", "أشرطة استعجال", "نوافذ منبثقة", "صفحة المنتج", "عناصر تحفيز"],
+    sections: [
+      {
+        id: "conversion-suite-hero-banner",
+        type: "hero-banner",
+        label: "واجهة أدوات التحويل",
+        description: "بانر رئيسي يعرض مجموعة عناصر تحفيز الشراء",
+        badge: "متاح مع تطبيق أدوات رفع التحويل",
+        settings: {
+          eyebrow: "عناصر تحفيز داخل صفحات متجرك",
+          title: "أدوات تحفيز مرتبة على صفحة المنتج",
+          subtitle: "مجموعة بلوكات جاهزة لأشرطة الاستعجال والنوافذ المنبثقة وعناصر صفحة المنتج تعمل مع قوالب المتجر.",
+          ctaText: "استعراض الأدوات",
+          ctaLink: "/conversion",
+          secondaryCtaText: "تفعيل الأدوات",
+          secondaryCtaLink: "/conversion/settings",
+        },
+      },
+      {
+        id: "conversion-suite-services-grid",
+        type: "services-grid",
+        label: "عناصر التحفيز المتاحة",
+        description: "شبكة توضح أنواع العناصر",
+        badge: "متاح مع تطبيق أدوات رفع التحويل",
+        settings: {
+          title: "عناصر التحفيز المتاحة",
+          subtitle: "عناصر تظهر في المكان المناسب من الرحلة",
+          items: [
+            { title: "أشرطة الاستعجال", description: "شريط أعلى الصفحة يوضح حالة العرض", icon: "bolt" },
+            { title: "نوافذ منبثقة", description: "نافذة تعرض عرضاً أو رسالة ترحيب", icon: "sparkles" },
+            { title: "بلوكات صفحة المنتج", description: "عناصر ثقة قريبة من زر الشراء", icon: "shield" },
+          ],
+        },
+      },
+      {
+        id: "conversion-suite-features-bar",
+        type: "features-bar",
+        label: "التحكم في الظهور",
+        description: "شريط يوضح إعدادات التفعيل",
+        badge: "متاح مع تطبيق أدوات رفع التحويل",
+        settings: {
+          title: "التحكم في الظهور",
+          features: [
+            { title: "توافق مع القوالب", text: "الأدوات تعمل داخل قوالب المتجر الحالية" },
+            { title: "تفعيل من اللوحة", text: "تشغيل أو إيقاف أي عنصر بضغطة" },
+            { title: "قياس الأثر", text: "مقارنة سلوك الزوار قبل التفعيل وبعده" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 36. عروض الكميات
+  {
+    appId: "app-quantity-offers-pro",
+    appName: "عروض الكميات",
+    category: "تجارة إلكترونية",
+    description: "عروض كميات متعددة القطع مع اختيار مقاس أو لون مختلف لكل قطعة من صفحة المنتج",
+    icon: "🎁",
+    keywords: ["عروض الكميات", "عرض كميات", "متعدد القطع", "مقاسات", "ألوان", "صفحة المنتج"],
+    sections: [
+      {
+        id: "quantity-offers-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة عروض الكميات",
+        description: "بانر رئيسي يعرض فكرة شراء عدة قطع معاً",
+        badge: "متاح مع تطبيق عروض الكميات",
+        settings: {
+          eyebrow: "اشترِ أكثر واختر كل قطعة",
+          title: "عروض كميات مرنة على صفحة المنتج",
+          subtitle: "بناء شرائح شراء متعددة القطع مع اختيار المقاس أو اللون لكل قطعة مباشرة قبل الإضافة للسلة.",
+          ctaText: "استعراض العروض",
+          ctaLink: "/quantity-offers",
+          secondaryCtaText: "إعداد الشرائح",
+          secondaryCtaLink: "/quantity-offers/settings",
+        },
+      },
+      {
+        id: "quantity-offers-pro-services-grid",
+        type: "services-grid",
+        label: "مكوّنات عرض الكميات",
+        description: "شبكة توضح مكونات العرض",
+        badge: "متاح مع تطبيق عروض الكميات",
+        settings: {
+          title: "مكوّنات عرض الكميات",
+          subtitle: "تجربة شراء واضحة لأكثر من قطعة",
+          items: [
+            { title: "شرائح متعددة القطع", description: "خيارات شراء بكميات مختلفة بقيمة مناسبة", icon: "tag" },
+            { title: "اختيار لكل قطعة", description: "تحديد المقاس أو اللون لكل قطعة على حدة", icon: "swatch" },
+            { title: "ملخص العرض", description: "بيان القطع المختارة قبل الإضافة للسلة", icon: "cart" },
+          ],
+        },
+      },
+      {
+        id: "quantity-offers-pro-features-bar",
+        type: "features-bar",
+        label: "ضبط العرض",
+        description: "شريط يوضح إعدادات العرض",
+        badge: "متاح مع تطبيق عروض الكميات",
+        settings: {
+          title: "ضبط العرض",
+          features: [
+            { title: "ترتيب الشرائح", text: "تحديد ترتيب الخيارات على الصفحة" },
+            { title: "احتساب القيمة", text: "حساب إجمالي العرض حسب القطع المختارة" },
+            { title: "العرض على المنتج", text: "ربط العرض بالمنتجات المستهدفة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 37. نظام POS
+  {
+    appId: "app-pos-pro",
+    appName: "نظام POS",
+    category: "تجارة إلكترونية",
+    description: "نقطة بيع للكاشير وفواتير البيع المباشر وسلة بيع سريعة وطباعة فورية",
+    icon: "🧾",
+    keywords: ["نقطة بيع", "pos", "كاشير", "فاتورة بيع", "طباعة", "بيع مباشر"],
+    sections: [
+      {
+        id: "pos-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة نقطة البيع",
+        description: "بانر رئيسي لشاشة الكاشير",
+        badge: "متاح مع تطبيق نظام POS",
+        settings: {
+          eyebrow: "بيع مباشر من الفرع",
+          title: "نقطة بيع سريعة للكاشير والفرع",
+          subtitle: "شاشة كاشير بسلة بيع سريعة وإصدار فاتورة بيع مباشر وطباعة فورية مرتبطة بالمخزون.",
+          ctaText: "فتح الكاشير",
+          ctaLink: "/pos",
+          secondaryCtaText: "فواتير البيع",
+          secondaryCtaLink: "/pos/invoices",
+        },
+      },
+      {
+        id: "pos-pro-services-grid",
+        type: "services-grid",
+        label: "مهام نقطة البيع",
+        description: "شبكة توضح أعمال الكاشير",
+        badge: "متاح مع تطبيق نظام POS",
+        settings: {
+          title: "مهام نقطة البيع",
+          subtitle: "تشغيل كامل لعمليات البيع في الفرع",
+          items: [
+            { title: "كاشير سريع", description: "إضافة المنتجات للسلة بسرعة عبر البحث أو الباركود", icon: "cart" },
+            { title: "فاتورة بيع مباشر", description: "إصدار فاتورة فورية مع طريقة الدفع", icon: "document" },
+            { title: "طباعة الفاتورة", description: "طباعة الإيصال على طابعة الفرع", icon: "printer" },
+          ],
+        },
+      },
+      {
+        id: "pos-pro-features-bar",
+        type: "features-bar",
+        label: "التكامل والتقارير",
+        description: "شريط يوضح ارتباط نقطة البيع بالمتجر",
+        badge: "متاح مع تطبيق نظام POS",
+        settings: {
+          title: "التكامل والتقارير",
+          features: [
+            { title: "ربط بالمخزون", text: "خصم الكميات المباعة من رصيد المخزون" },
+            { title: "طرق الدفع", text: "تسجيل الدفع النقدي والبطاقات في الفاتورة" },
+            { title: "تقارير الوردية", text: "ملخص مبيعات كل وردية كاشير" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 38. CRM Lite
+  {
+    appId: "app-crm-lite",
+    appName: "CRM Lite",
+    category: "إدارة عملاء",
+    description: "مسار عملاء وتقسيم أساسي يناسب الفرق الصغيرة",
+    icon: "👥",
+    keywords: ["crm", "عملاء", "مسار العملاء", "تقسيم العملاء", "مبيعات", "متابعة"],
+    sections: [
+      {
+        id: "crm-lite-hero-banner",
+        type: "hero-banner",
+        label: "واجهة إدارة العملاء",
+        description: "بانر رئيسي يعرض مسار العملاء",
+        badge: "متاح مع تطبيق CRM Lite",
+        settings: {
+          eyebrow: "علاقتك بعملائك في صورة واحدة",
+          title: "مسار عملاء بسيط يناسب فريقك",
+          subtitle: "تسجيل بيانات العملاء ومراحل الصفقة والتقسيم الأساسي مع سجل تواصل وتذكيرات للمتابعة.",
+          ctaText: "فتح قائمة العملاء",
+          ctaLink: "/crm/customers",
+          secondaryCtaText: "مسار الصفقات",
+          secondaryCtaLink: "/crm/pipeline",
+        },
+      },
+      {
+        id: "crm-lite-services-grid",
+        type: "services-grid",
+        label: "مكوّنات إدارة العملاء",
+        description: "شبكة توضح عناصر المسار",
+        badge: "متاح مع تطبيق CRM Lite",
+        settings: {
+          title: "مكوّنات إدارة العملاء",
+          subtitle: "أساسيات تنظيم العلاقة مع العميل",
+          items: [
+            { title: "بطاقة العميل", description: "بيانات التواصل وسجل الطلبات والمحادثات", icon: "user" },
+            { title: "مراحل الصفقة", description: "متابعة انتقال العميل بين المراحل", icon: "branch" },
+            { title: "تقسيم العملاء", description: "تصنيف العملاء حسب الاهتمام والنشاط", icon: "tag" },
+          ],
+        },
+      },
+      {
+        id: "crm-lite-features-bar",
+        type: "features-bar",
+        label: "تنظيم العمل اليومي",
+        description: "شريط يوضح أدوات المتابعة",
+        badge: "متاح مع تطبيق CRM Lite",
+        settings: {
+          title: "تنظيم العمل اليومي",
+          features: [
+            { title: "توزيع المهام", text: "إسناد العميل لموظف مسؤول" },
+            { title: "سجل التواصل", text: "تسجيل كل مكالمة أو رسالة مع العميل" },
+            { title: "تذكيرات المتابعة", text: "تنبيه بموعد المتابعة القادمة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 39. المشتريات وإدارة الموردين
+  {
+    appId: "app-procurement-pro",
+    appName: "المشتريات وإدارة الموردين",
+    category: "مشتريات",
+    description: "ملفات الموردين وأوامر الشراء وفواتير المشتريات ومدفوعاتها مع ربط بالمخزون",
+    icon: "📑",
+    keywords: ["مشتريات", "موردين", "أوامر شراء", "فواتير المشتريات", "مدفوعات", "مخزون"],
+    sections: [
+      {
+        id: "procurement-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة المشتريات والموردين",
+        description: "بانر رئيسي لدورة الشراء من الأمر حتى السداد",
+        badge: "متاح مع تطبيق المشتريات وإدارة الموردين",
+        settings: {
+          eyebrow: "دورة شراء موثقة من البداية",
+          title: "أدر مورديك وأوامر الشراء من مكان واحد",
+          subtitle: "ملفات الموردين وأوامر الشراء وفواتير المشتريات ومدفوعاتها مع تحديث المخزون عند الاستلام.",
+          ctaText: "أوامر الشراء",
+          ctaLink: "/procurement/orders",
+          secondaryCtaText: "ملفات الموردين",
+          secondaryCtaLink: "/procurement/suppliers",
+        },
+      },
+      {
+        id: "procurement-pro-services-grid",
+        type: "services-grid",
+        label: "مراحل دورة المشتريات",
+        description: "شبكة توضح خطوات الدورة",
+        badge: "متاح مع تطبيق المشتريات وإدارة الموردين",
+        settings: {
+          title: "مراحل دورة المشتريات",
+          subtitle: "تسلسل منظم لكل عملية توريد",
+          items: [
+            { title: "ملفات الموردين", description: "بيانات المورد وشروط التعامل وحسابه", icon: "building" },
+            { title: "أوامر الشراء", description: "إصدار أمر شراء بالبنود والكميات", icon: "document" },
+            { title: "الفواتير والمدفوعات", description: "تسجيل فاتورة المورد وسدادها", icon: "cash" },
+          ],
+        },
+      },
+      {
+        id: "procurement-pro-tech-grid",
+        type: "tech-grid",
+        label: "الربط والرقابة",
+        description: "شرح الارتباط ببقية التطبيقات",
+        badge: "متاح مع تطبيق المشتريات وإدارة الموردين",
+        settings: {
+          title: "ربط المشتريات بالمخزون",
+          subtitle: "متابعة أثر التوريد على الأرصدة",
+          features: [
+            { title: "تحديث المخزون", description: "إضافة الكميات المستلمة إلى رصيد المستودع" },
+            { title: "حساب المورد", description: "رصيد كل مورد ومدفوعاته المسجلة" },
+            { title: "متابعة الاستلام", description: "حالة أمر الشراء حتى الاستلام الكامل" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 40. Order Confirmation & Distribution
+  {
+    appId: "app-order-confirmation-distribution",
+    appName: "Order Confirmation & Distribution",
+    category: "تشغيل طلبات",
+    description: "تأكيد الطلبات وتوزيعها على فريق التشغيل مع متابعة الحالة",
+    icon: "☎️",
+    keywords: ["تأكيد الطلبات", "توزيع الطلبات", "فريق التشغيل", "تأكيد هاتفي", "إسناد", "متابعة"],
+    sections: [
+      {
+        id: "order-confirmation-distribution-hero-banner",
+        type: "hero-banner",
+        label: "واجهة تأكيد وتوزيع الطلبات",
+        description: "بانر رئيسي لفريق تأكيد الطلبات",
+        badge: "متاح مع تطبيق Order Confirmation & Distribution",
+        settings: {
+          eyebrow: "فريق واحد لتأكيد الطلبات وتوزيعها",
+          title: "أكّد الطلبات ووزّعها على الفريق",
+          subtitle: "استقبال الطلبات الجديدة وتأكيدها هاتفياً وتوزيعها على موظفي التشغيل مع تتبع حالة كل طلب.",
+          ctaText: "قائمة الطلبات الجديدة",
+          ctaLink: "/operations/confirmation",
+          secondaryCtaText: "توزيع المهام",
+          secondaryCtaLink: "/operations/distribution",
+        },
+      },
+      {
+        id: "order-confirmation-distribution-services-grid",
+        type: "services-grid",
+        label: "خطوات تأكيد وتوزيع الطلب",
+        description: "شبكة توضح الخطوات داخل الفريق",
+        badge: "متاح مع تطبيق Order Confirmation & Distribution",
+        settings: {
+          title: "خطوات تأكيد وتوزيع الطلب",
+          subtitle: "إجراءات متسلسلة لكل طلب جديد",
+          items: [
+            { title: "تأكيد الطلب", description: "التواصل مع العميل والتحقق من التفاصيل", icon: "check" },
+            { title: "التوزيع الداخلي", description: "إسناد الطلب لموظف التشغيل المسؤول", icon: "user" },
+            { title: "متابعة الحالة", description: "تحديث حالة الطلب بعد كل إجراء", icon: "branch" },
+          ],
+        },
+      },
+      {
+        id: "order-confirmation-distribution-features-bar",
+        type: "features-bar",
+        label: "تنظيم عمل الفريق",
+        description: "شريط يوضح أدوات إدارة الحمل اليومي",
+        badge: "متاح مع تطبيق Order Confirmation & Distribution",
+        settings: {
+          title: "تنظيم عمل الفريق",
+          features: [
+            { title: "قوائم موزعة", text: "تقسيم الطلبات على أعضاء الفريق" },
+            { title: "ملاحظات التشغيل", text: "تسجيل ملاحظة على كل طلب" },
+            { title: "سجل الإجراءات", text: "توثيق من نفّذ كل خطوة ووقتها" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 41. نظام الكافيهات والمطاعم
+  {
+    appId: "app-cafe-restaurant-pro",
+    appName: "نظام الكافيهات والمطاعم",
+    category: "تشغيل طلبات",
+    description: "إدارة الطاولات والشيكات ومعايير تحضير المشروبات وخاماتها وجلسات الجرد",
+    icon: "☕",
+    keywords: ["كافيه", "مطعم", "طاولات", "شيكات", "رسيبي", "خامات", "جرد"],
+    sections: [
+      {
+        id: "cafe-restaurant-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة تشغيل الكافيه والمطعم",
+        description: "بانر رئيسي لتشغيل الصالة والطاولات",
+        badge: "متاح مع تطبيق نظام الكافيهات والمطاعم",
+        settings: {
+          eyebrow: "من الطاولة حتى الشيك",
+          title: "تشغيل متكامل للكافيه والمطعم",
+          subtitle: "إدارة الطاولات والشيكات ومعايير تحضير المشروبات وخصم الخامات لحظياً وجلسات الجرد والمطابقة.",
+          ctaText: "إدارة الطاولات",
+          ctaLink: "/restaurant/tables",
+          secondaryCtaText: "الشيكات المفتوحة",
+          secondaryCtaLink: "/restaurant/checks",
+        },
+      },
+      {
+        id: "cafe-restaurant-pro-services-grid",
+        type: "services-grid",
+        label: "مهام التشغيل اليومي",
+        description: "شبكة توضح أعمال الصالة والمطبخ",
+        badge: "متاح مع تطبيق نظام الكافيهات والمطاعم",
+        settings: {
+          title: "مهام التشغيل اليومي",
+          subtitle: "أدوات تغطي حركة الصالة والمخزون",
+          items: [
+            { title: "إدارة الطاولات", description: "توزيع الطاولات ومتابعة حالتها", icon: "grid" },
+            { title: "الشيكات", description: "فتح الشيك وإضافة الطلبات وإغلاقه", icon: "document" },
+            { title: "معايير التحضير", description: "وصفات موحدة للمشروبات والأصناف", icon: "coffee" },
+          ],
+        },
+      },
+      {
+        id: "cafe-restaurant-pro-features-bar",
+        type: "features-bar",
+        label: "الخامات والجرد",
+        description: "شريط يوضح رقابة الخامات",
+        badge: "متاح مع تطبيق نظام الكافيهات والمطاعم",
+        settings: {
+          title: "الخامات والجرد",
+          features: [
+            { title: "خصم الخامات", text: "استهلاك المواد يُسجل مع كل صنف مباع" },
+            { title: "جلسات الجرد", text: "مطابقة الكميات الفعلية مع السجلات" },
+            { title: "خيارات الصنف", text: "نوع الحليب والنكهات والإضافات" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 42. أتمتة الحالات
+  {
+    appId: "app-order-automation",
+    appName: "أتمتة الحالات",
+    category: "تشغيل طلبات",
+    description: "تغيير حالة الطلبات تلقائياً حسب الزمن أو حدث معين بدون تدخل يدوي",
+    icon: "⚙️",
+    keywords: ["أتمتة الحالات", "حالة الطلب", "قواعد", "تغيير تلقائي", "تنبيهات", "تشغيل"],
+    sections: [
+      {
+        id: "order-automation-hero-banner",
+        type: "hero-banner",
+        label: "واجهة أتمتة حالات الطلبات",
+        description: "بانر رئيسي لقواعد تغيير الحالة",
+        badge: "متاح مع تطبيق أتمتة الحالات",
+        settings: {
+          eyebrow: "قواعد تشغيل تعمل بدلاً عنك",
+          title: "أتمتة تغيير حالة الطلبات حسب القواعد",
+          subtitle: "تعريف قواعد تغيّر حالة الطلب بعد مدة محددة أو عند حدث معين مع تنبيه الفريق وسجل تنفيذ واضح.",
+          ctaText: "قواعد الأتمتة",
+          ctaLink: "/automation/order-status",
+          secondaryCtaText: "سجل التنفيذ",
+          secondaryCtaLink: "/automation/order-status/logs",
+        },
+      },
+      {
+        id: "order-automation-services-grid",
+        type: "services-grid",
+        label: "أنواع قواعد الأتمتة",
+        description: "شبكة توضح مصادر تشغيل القاعدة",
+        badge: "متاح مع تطبيق أتمتة الحالات",
+        settings: {
+          title: "أنواع قواعد الأتمتة",
+          subtitle: "قواعد مرتبطة بالوقت أو بالحدث",
+          items: [
+            { title: "قواعد زمنية", description: "تغيير الحالة بعد مرور مدة على الطلب", icon: "clock" },
+            { title: "قواعد مرتبطة بحدث", description: "تغيير الحالة عند تسجيل حدث معين", icon: "bolt" },
+            { title: "تنبيهات الحالة", description: "إشعار الفريق عند تنفيذ القاعدة", icon: "bell" },
+          ],
+        },
+      },
+      {
+        id: "order-automation-features-bar",
+        type: "features-bar",
+        label: "إدارة القواعد",
+        description: "شريط يوضح التحكم في تشغيل القواعد",
+        badge: "متاح مع تطبيق أتمتة الحالات",
+        settings: {
+          title: "إدارة القواعد",
+          features: [
+            { title: "ترتيب القواعد", text: "تحديد أولوية كل قاعدة عند التداخل" },
+            { title: "سجل التنفيذ", text: "توثيق كل تغيير حالة نفذته القاعدة" },
+            { title: "إيقاف مؤقت", text: "تعطيل القاعدة دون حذفها" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 43. إعدادات المرتجعات
+  {
+    appId: "app-returns-settings",
+    appName: "إعدادات المرتجعات",
+    category: "تشغيل طلبات",
+    description: "أسباب الإرجاع والشروط والسياسات الخاصة بمراجعة المرتجعات",
+    icon: "↩️",
+    keywords: ["مرتجعات", "إرجاع", "أسباب الإرجاع", "سياسة الاسترجاع", "شروط", "مراجعة"],
+    sections: [
+      {
+        id: "returns-settings-hero-banner",
+        type: "hero-banner",
+        label: "واجهة سياسة المرتجعات",
+        description: "بانر رئيسي يعرض إعدادات الإرجاع",
+        badge: "متاح مع تطبيق إعدادات المرتجعات",
+        settings: {
+          eyebrow: "سياسة إرجاع واضحة للعميل والفريق",
+          title: "أدر أسباب المرتجعات وشروطها من لوحة واحدة",
+          subtitle: "تحديد أسباب الإرجاع وشروط القبول وسياسة المراجعة بحيث تظهر للعميل وتُطبق على فريق التشغيل.",
+          ctaText: "إعدادات الإرجاع",
+          ctaLink: "/returns/settings",
+          secondaryCtaText: "طلبات الإرجاع",
+          secondaryCtaLink: "/returns/requests",
+        },
+      },
+      {
+        id: "returns-settings-services-grid",
+        type: "services-grid",
+        label: "عناصر نظام المرتجعات",
+        description: "شبكة توضح مكونات النظام",
+        badge: "متاح مع تطبيق إعدادات المرتجعات",
+        settings: {
+          title: "عناصر نظام المرتجعات",
+          subtitle: "أدوات لضبط العملية من الطلب حتى القرار",
+          items: [
+            { title: "أسباب الإرجاع", description: "قائمة أسباب يختار منها العميل", icon: "list" },
+            { title: "شروط القبول", description: "ضوابط قبول الطلب المرتجع", icon: "shield" },
+            { title: "مراجعة الطلبات", description: "اعتماد أو رفض الطلب مع تسجيل السبب", icon: "check" },
+          ],
+        },
+      },
+      {
+        id: "returns-settings-features-bar",
+        type: "features-bar",
+        label: "الشفافية والتقارير",
+        description: "شريط يوضح ما يظهر للعميل وما يُقاس",
+        badge: "متاح مع تطبيق إعدادات المرتجعات",
+        settings: {
+          title: "الشفافية والتقارير",
+          features: [
+            { title: "سياسة منشورة", text: "صفحة توضح خطوات الإرجاع للعميل" },
+            { title: "أدلة مرفقة", text: "إمكانية إرفاق صورة أو وصف للحالة" },
+            { title: "تقارير الأسباب", text: "ملخص أسباب الإرجاع الأكثر تكراراً" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 44. Unified Inbox
+  {
+    appId: "app-unified-inbox",
+    appName: "Unified Inbox",
+    category: "إنتاجية",
+    description: "صندوق وارد موحد يجمع محادثات كل المنصات مع الرد المباشر",
+    icon: "📥",
+    keywords: ["صندوق موحد", "unified inbox", "محادثات", "رد مباشر", "قنوات التواصل", "فريق الدعم"],
+    sections: [
+      {
+        id: "unified-inbox-hero-banner",
+        type: "hero-banner",
+        label: "واجهة الصندوق الموحد",
+        description: "بانر رئيسي لصندوق المحادثات",
+        badge: "متاح مع تطبيق Unified Inbox",
+        settings: {
+          eyebrow: "كل محادثاتك في صندوق واحد",
+          title: "اجمع محادثات المنصات في مكان واحد",
+          subtitle: "توحيد المحادثات من القنوات المختلفة في صندوق وارد واحد مع الرد المباشر وإسناد المحادثة لعضو الفريق.",
+          ctaText: "فتح الصندوق",
+          ctaLink: "/inbox",
+          secondaryCtaText: "إعدادات القنوات",
+          secondaryCtaLink: "/inbox/channels",
+        },
+      },
+      {
+        id: "unified-inbox-services-grid",
+        type: "services-grid",
+        label: "مهام الصندوق الموحد",
+        description: "شبكة توضح أعمال فريق الدعم",
+        badge: "متاح مع تطبيق Unified Inbox",
+        settings: {
+          title: "مهام الصندوق الموحد",
+          subtitle: "تنظيم المحادثات وتوزيعها",
+          items: [
+            { title: "توحيد القنوات", description: "استقبال محادثات القنوات في قائمة واحدة", icon: "inbox" },
+            { title: "الرد المباشر", description: "الرد على العميل من داخل الصندوق", icon: "chat" },
+            { title: "إسناد المحادثات", description: "تعيين محادثة لكل موظف مسؤول", icon: "user" },
+          ],
+        },
+      },
+      {
+        id: "unified-inbox-features-bar",
+        type: "features-bar",
+        label: "تنظيم المحادثات",
+        description: "شريط يوضح أدوات الفرز والمتابعة",
+        badge: "متاح مع تطبيق Unified Inbox",
+        settings: {
+          title: "تنظيم المحادثات",
+          features: [
+            { title: "تصنيف المحادثات", text: "تجميع المحادثات حسب النوع" },
+            { title: "حالة القراءة", text: "تمييز المحادثات المقروءة وغير المقروءة" },
+            { title: "وسوم الفريق", text: "وسوم توضح حالة المعالجة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 45. Notification Automation
+  {
+    appId: "app-notification-automation",
+    appName: "Notification Automation",
+    category: "إنتاجية",
+    description: "مركز تنبيهات وتذكيرات وقواعد إشعار تشغيلية",
+    icon: "🔔",
+    keywords: ["تنبيهات", "إشعارات", "تذكيرات", "قواعد التنبيه", "مركز التنبيهات", "تشغيل"],
+    sections: [
+      {
+        id: "notification-automation-hero-banner",
+        type: "hero-banner",
+        label: "واجهة التنبيهات التشغيلية",
+        description: "بانر رئيسي لمركز التنبيهات",
+        badge: "متاح مع تطبيق Notification Automation",
+        settings: {
+          eyebrow: "تنبيهات تصل لمن يحتاجها",
+          title: "مركز تنبيهات يتابع أحداث متجرك",
+          subtitle: "تعريف قواعد التنبيه والتذكيرات واختيار القنوات التي تصل عبرها الرسائل إلى الفريق المسؤول.",
+          ctaText: "مركز التنبيهات",
+          ctaLink: "/notifications",
+          secondaryCtaText: "قواعد التنبيه",
+          secondaryCtaLink: "/notifications/rules",
+        },
+      },
+      {
+        id: "notification-automation-services-grid",
+        type: "services-grid",
+        label: "مكوّنات نظام التنبيه",
+        description: "شبكة توضح عناصر النظام",
+        badge: "متاح مع تطبيق Notification Automation",
+        settings: {
+          title: "مكوّنات نظام التنبيه",
+          subtitle: "أساسيات إدارة الإشعارات",
+          items: [
+            { title: "مركز التنبيهات", description: "قائمة موحدة لكل التنبيهات الواردة", icon: "bell" },
+            { title: "التذكيرات", description: "تذكير بمواعيد المتابعة والمهام", icon: "clock" },
+            { title: "قواعد التنبيه", description: "شرط يحدد متى يُرسل التنبيه", icon: "list" },
+          ],
+        },
+      },
+      {
+        id: "notification-automation-features-bar",
+        type: "features-bar",
+        label: "التحكم في الإرسال",
+        description: "شريط يوضح ضوابط الإشعار",
+        badge: "متاح مع تطبيق Notification Automation",
+        settings: {
+          title: "التحكم في الإرسال",
+          features: [
+            { title: "قنوات الإرسال", text: "اختيار القناة التي يصل عبرها التنبيه" },
+            { title: "أولوية التنبيه", text: "تمييز التنبيهات العاجلة عن العادية" },
+            { title: "جدولة التذكير", text: "تحديد وقت التذكير المطلوب" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 46. أكاديمية ماكس بي
+  {
+    appId: "app-academy-app",
+    appName: "أكاديمية ماكس بي",
+    category: "إنتاجية",
+    description: "نظام بيع ومتابعة الكورسات بوحدات ودروس ومشغل ترتيبي واختبارات وشهادات إتمام",
+    icon: "📖",
+    keywords: ["أكاديمية", "كورسات", "وحدات", "دروس", "اختبارات", "شهادة إتمام", "تعلم"],
+    sections: [
+      {
+        id: "academy-app-hero-banner",
+        type: "hero-banner",
+        label: "واجهة الأكاديمية والكورسات",
+        description: "بانر رئيسي لعرض برامج الأكاديمية",
+        badge: "متاح مع تطبيق أكاديمية ماكس بي",
+        settings: {
+          eyebrow: "تعلّم بخطوات مرتبة",
+          title: "أكاديمية بكورسات منظمة ومسارات واضحة",
+          subtitle: "بيع الكورسات ومتابعة المتعلمين بوحدات ودروس ومشغل فيديو ترتيبي واختبارات وشهادات إتمام.",
+          ctaText: "استعراض الكورسات",
+          ctaLink: "/academy",
+          secondaryCtaText: "لوحة المتعلم",
+          secondaryCtaLink: "/academy/my-learning",
+        },
+      },
+      {
+        id: "academy-app-services-grid",
+        type: "services-grid",
+        label: "مكوّنات تجربة التعلم",
+        description: "شبكة توضح عناصر الكورس",
+        badge: "متاح مع تطبيق أكاديمية ماكس بي",
+        settings: {
+          title: "مكوّنات تجربة التعلم",
+          subtitle: "تنظيم المحتوى ومتابعة التقدم",
+          items: [
+            { title: "الوحدات والدروس", description: "تقسيم الكورس إلى وحدات ودروس مرتبة", icon: "list" },
+            { title: "الاختبارات", description: "أسئلة تقيس فهم محتوى الدرس", icon: "check" },
+            { title: "شهادات الإتمام", description: "إصدار شهادة بعد استكمال المسار", icon: "award" },
+          ],
+        },
+      },
+      {
+        id: "academy-app-features-bar",
+        type: "features-bar",
+        label: "أدوات المتابعة",
+        description: "شريط يوضح أدوات دعم المتعلم",
+        badge: "متاح مع تطبيق أكاديمية ماكس بي",
+        settings: {
+          title: "أدوات المتابعة",
+          features: [
+            { title: "مشغل ترتيبي", text: "تشغيل الدروس بالتسلسل المحدد" },
+            { title: "الكوتش المساعد", text: "إجابات مبنية على محتوى الكورس فقط" },
+            { title: "متابعة التقدم", text: "بيان الدروس المكتملة والمتبقية" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 47. النظام الطبي
+  {
+    appId: "app-medical-system",
+    appName: "النظام الطبي",
+    category: "طبي",
+    description: "إدارة المنشآت الطبية والعيادات من الفروع والأطباء والخدمات والمواعيد والتقويم",
+    icon: "🩺",
+    keywords: ["نظام طبي", "عيادات", "فروع", "أطباء", "خدمات طبية", "مواعيد", "تقويم"],
+    sections: [
+      {
+        id: "medical-system-hero-banner",
+        type: "hero-banner",
+        label: "واجهة النظام الطبي",
+        description: "بانر رئيسي لإدارة المنشأة الطبية",
+        badge: "متاح مع تطبيق النظام الطبي",
+        settings: {
+          eyebrow: "إدارة طبية منظمة",
+          title: "من الموعد حتى ملف المريض في نظام واحد",
+          subtitle: "إدارة الفروع والأطباء والخدمات والمواعيد والتقويم مع ملف طبي موثق لكل زيارة.",
+          ctaText: "حجز موعد",
+          ctaLink: "/medical/appointments",
+          secondaryCtaText: "دليل الأطباء",
+          secondaryCtaLink: "/medical/doctors",
+        },
+      },
+      {
+        id: "medical-system-services-grid",
+        type: "services-grid",
+        label: "وحدات النظام الطبي",
+        description: "شبكة توضح وحدات المنشأة",
+        badge: "متاح مع تطبيق النظام الطبي",
+        settings: {
+          title: "وحدات النظام الطبي",
+          subtitle: "تغطية كاملة لمراحل الزيارة",
+          items: [
+            { title: "الفروع والأطباء", description: "بيانات الفروع والتخصصات لكل طبيب", icon: "building" },
+            { title: "الخدمات الطبية", description: "قائمة الخدمات ومدة كل خدمة", icon: "stethoscope" },
+            { title: "المواعيد والتقويم", description: "جدولة الزيارات وعرض تقويم الأطباء", icon: "calendar" },
+          ],
+        },
+      },
+      {
+        id: "medical-system-features-bar",
+        type: "features-bar",
+        label: "الملف الطبي والتقارير",
+        description: "شريط يوضح التوثيق والمتابعة",
+        badge: "متاح مع تطبيق النظام الطبي",
+        settings: {
+          title: "الملف الطبي والتقارير",
+          features: [
+            { title: "ملف المريض", description: "توثيق الزيارات والتشخيص والملاحظات" },
+            { title: "تقويم الطبيب", description: "أوقات العمل والفترات المتاحة" },
+            { title: "تقارير الزيارات", description: "ملخص الزيارات لكل فرع أو تخصص" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 48. نظام المعمل
+  {
+    appId: "app-lab-app",
+    appName: "نظام المعمل",
+    category: "طبي",
+    description: "إدارة المعامل من كتالوج الاختبارات والاستقبال والنتائج والتقارير",
+    icon: "🧪",
+    keywords: ["معمل", "تحاليل", "اختبارات", "نتائج", "تقارير", "استقبال"],
+    sections: [
+      {
+        id: "lab-app-hero-banner",
+        type: "hero-banner",
+        label: "واجهة نظام المعمل",
+        description: "بانر رئيسي لدورة التحاليل",
+        badge: "متاح مع تطبيق نظام المعمل",
+        settings: {
+          eyebrow: "من الاستقبال حتى تسليم النتيجة",
+          title: "إدارة التحاليل والنتائج في نظام واحد",
+          subtitle: "كتالوج الاختبارات والاستقبال وتسجيل النتائج وإصدار التقارير ومتابعة العينات حتى التسليم.",
+          ctaText: "كتالوج الاختبارات",
+          ctaLink: "/lab/tests",
+          secondaryCtaText: "استقبال العينات",
+          secondaryCtaLink: "/lab/reception",
+        },
+      },
+      {
+        id: "lab-app-services-grid",
+        type: "services-grid",
+        label: "مراحل دورة التحليل",
+        description: "شبكة توضح خطوات العمل في المعمل",
+        badge: "متاح مع تطبيق نظام المعمل",
+        settings: {
+          title: "مراحل دورة التحليل",
+          subtitle: "تسلسل واضح لكل طلب تحليل",
+          items: [
+            { title: "كتالوج الاختبارات", description: "قائمة التحاليل وأنواع العينات المطلوبة", icon: "list" },
+            { title: "الاستقبال", description: "تسجيل الطلب وبيانات المريض", icon: "user" },
+            { title: "النتائج والتقارير", description: "إدخال النتائج وإصدار التقرير", icon: "document" },
+          ],
+        },
+      },
+      {
+        id: "lab-app-features-bar",
+        type: "features-bar",
+        label: "توثيق النتائج",
+        description: "شريط يوضح ربط النتائج بالطلب",
+        badge: "متاح مع تطبيق نظام المعمل",
+        settings: {
+          title: "توثيق النتائج",
+          features: [
+            { title: "ربط النتيجة بالطلب", text: "كل نتيجة مرتبطة بطلبها وبياناته" },
+            { title: "طباعة التقارير", text: "إخراج التقرير بصيغة مناسبة للتسليم" },
+            { title: "متابعة العينات", text: "حالة العينة من الاستلام للتحليل" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 49. نظام الأشعة
+  {
+    appId: "app-radiology-app",
+    appName: "نظام الأشعة",
+    category: "طبي",
+    description: "إدارة مراكز الأشعة من الدراسات وقارئ صور DICOM والتقارير والفوترة",
+    icon: "🩻",
+    keywords: ["أشعة", "دراسات", "dicom", "تقارير الأشعة", "صور طبية", "فوترة"],
+    sections: [
+      {
+        id: "radiology-app-hero-banner",
+        type: "hero-banner",
+        label: "واجهة نظام الأشعة",
+        description: "بانر رئيسي لمركز الأشعة",
+        badge: "متاح مع تطبيق نظام الأشعة",
+        settings: {
+          eyebrow: "دراسات أشعة وتقارير مركزة",
+          title: "إدارة دراسات الأشعة وتقاريرها",
+          subtitle: "حجز الدراسات وعرض الصور الطبية عبر قارئ DICOM وإصدار التقارير وربط الفوترة بالدراسة.",
+          ctaText: "حجز دراسة",
+          ctaLink: "/radiology/studies",
+          secondaryCtaText: "قارئ الصور",
+          secondaryCtaLink: "/radiology/viewer",
+        },
+      },
+      {
+        id: "radiology-app-services-grid",
+        type: "services-grid",
+        label: "وحدات مركز الأشعة",
+        description: "شبكة توضح أعمال المركز",
+        badge: "متاح مع تطبيق نظام الأشعة",
+        settings: {
+          title: "وحدات مركز الأشعة",
+          subtitle: "أدوات لكل مرحلة من مراحل الدراسة",
+          items: [
+            { title: "حجز الدراسات", description: "تسجيل الدراسة ونوعها وموعدها", icon: "calendar" },
+            { title: "قارئ صور DICOM", description: "عرض الصور الطبية وتحليلها على الشاشة", icon: "image" },
+            { title: "التقارير والفوترة", description: "إصدار تقرير الدراسة وربطه بالفاتورة", icon: "document" },
+          ],
+        },
+      },
+      {
+        id: "radiology-app-tech-grid",
+        type: "tech-grid",
+        label: "قدرات العرض والتوثيق",
+        description: "شرح أدوات القارئ والتقارير",
+        badge: "متاح مع تطبيق نظام الأشعة",
+        settings: {
+          title: "أدوات عرض الدراسة",
+          subtitle: "دقة أعلى في قراءة الصور وتوثيق النتائج",
+          features: [
+            { title: "عرض متعدد الصور", description: "مقارنة الدراسات السابقة بالحالية" },
+            { title: "ربط الدراسة بالطلب", description: "توثيق العلاقة بين الحجز والتقرير" },
+            { title: "أرشفة التقارير", description: "حفظ التقارير للرجوع إليها لاحقاً" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 50. المخزون والمستودعات الشامل
+  {
+    appId: "app-inventory-pro",
+    appName: "المخزون والمستودعات الشامل",
+    category: "مخازن",
+    description: "تتبع الكميات والتحويلات بين المستودعات والجرد الدوري ونقاط إعادة الطلب",
+    icon: "🏬",
+    keywords: ["مخزون", "مستودعات", "جرد", "تحويلات", "إعادة الطلب", "تنبيهات النقص"],
+    sections: [
+      {
+        id: "inventory-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة إدارة المخزون",
+        description: "بانر رئيسي لرقابة الأرصدة",
+        badge: "متاح مع تطبيق المخزون والمستودعات الشامل",
+        settings: {
+          eyebrow: "رقابة على كل كمية في كل مستودع",
+          title: "أدر مخزونك وحركة مستودعاتك بدقة",
+          subtitle: "تتبع الكميات والتحويلات بين المخازن والجرد الدوري ونقاط إعادة الطلب مع تنبيه عند اقتراب النقص.",
+          ctaText: "لوحة المخزون",
+          ctaLink: "/inventory",
+          secondaryCtaText: "حركات المخزون",
+          secondaryCtaLink: "/inventory/movements",
+        },
+      },
+      {
+        id: "inventory-pro-services-grid",
+        type: "services-grid",
+        label: "مهام إدارة المخزون",
+        description: "شبكة توضح عمليات المخزون",
+        badge: "متاح مع تطبيق المخزون والمستودعات الشامل",
+        settings: {
+          title: "مهام إدارة المخزون",
+          subtitle: "أدوات الرقابة على الأرصدة",
+          items: [
+            { title: "تتبع الكميات", description: "رصيد كل منتج في كل مستودع", icon: "cube" },
+            { title: "التحويلات", description: "نقل الكميات بين المستودعات بتوثيق", icon: "truck" },
+            { title: "الجرد الدوري", description: "مطابقة الأرصدة الفعلية مع السجلات", icon: "list" },
+          ],
+        },
+      },
+      {
+        id: "inventory-pro-features-bar",
+        type: "features-bar",
+        label: "التنبيهات والرقابة",
+        description: "شريط يوضح أدوات ضبط الأرصدة",
+        badge: "متاح مع تطبيق المخزون والمستودعات الشامل",
+        settings: {
+          title: "التنبيهات والرقابة",
+          features: [
+            { title: "نقاط إعادة الطلب", text: "تحديد حد أدنى لكل منتج" },
+            { title: "تنبيهات النقص", text: "إشعار عند بلوغ حد إعادة الطلب" },
+            { title: "سجل الحركات", text: "توثيق كل دخول وصرف للمخزون" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 51. المخزون المتعدد
+  {
+    appId: "app-multi-warehouse-pro",
+    appName: "المخزون المتعدد",
+    category: "مخازن",
+    description: "إدارة المستودعات المتعددة والتحويلات والرصيد لكل مستودع",
+    icon: "🗄️",
+    keywords: ["مخزون متعدد", "مستودعات", "تحويلات", "أرصدة", "رصيد المستودع", "صلاحيات"],
+    sections: [
+      {
+        id: "multi-warehouse-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة المستودعات المتعددة",
+        description: "بانر رئيسي لتوزيع الأرصدة",
+        badge: "متاح مع تطبيق المخزون المتعدد",
+        settings: {
+          eyebrow: "أكثر من مستودع برؤية واحدة",
+          title: "أدر مستودعاتك المتعددة وتحويلاتها",
+          subtitle: "تعريف المستودعات ومتابعة الرصيد في كل واحد وتوثيق التحويلات مع صلاحيات مناسبة لكل مستودع.",
+          ctaText: "قائمة المستودعات",
+          ctaLink: "/warehouses",
+          secondaryCtaText: "التحويلات",
+          secondaryCtaLink: "/warehouses/transfers",
+        },
+      },
+      {
+        id: "multi-warehouse-pro-services-grid",
+        type: "services-grid",
+        label: "مهام إدارة المستودعات",
+        description: "شبكة توضح عمليات التعدد",
+        badge: "متاح مع تطبيق المخزون المتعدد",
+        settings: {
+          title: "مهام إدارة المستودعات",
+          subtitle: "تنظيم الأرصدة بين المواقع",
+          items: [
+            { title: "تعريف المستودعات", description: "إضافة مستودع بموقعه ومسؤوله", icon: "building" },
+            { title: "التحويلات", description: "طلب تحويل بين مستودعين مع تتبع الحالة", icon: "truck" },
+            { title: "الرصيد لكل مستودع", description: "عرض الكمية المتاحة في كل موقع", icon: "cube" },
+          ],
+        },
+      },
+      {
+        id: "multi-warehouse-pro-features-bar",
+        type: "features-bar",
+        label: "الرؤية والصلاحيات",
+        description: "شريط يوضح ضبط الوصول والتقارير",
+        badge: "متاح مع تطبيق المخزون المتعدد",
+        settings: {
+          title: "الرؤية والصلاحيات",
+          features: [
+            { title: "توحيد الرؤية", text: "إجمالي المخزون عبر كل المستودعات" },
+            { title: "صلاحيات المستودع", text: "تحديد من يعرض أو يعدل كل مستودع" },
+            { title: "تقارير الأرصدة", text: "ملخص الأرصدة والحركات لكل موقع" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 52. بوابة وشركات الشحن الذكي
+  {
+    appId: "app-order-shipping-turbo",
+    appName: "بوابة وشركات الشحن الذكي",
+    category: "شحن",
+    description: "الربط مع شركات الشحن وإصدار بوالص الشحن والتتبع اللحظي والتسويات المالية",
+    icon: "🚚",
+    keywords: ["شحن", "شركات الشحن", "بوليصة", "تتبع الشحنة", "تسويات مالية", "مناديب"],
+    sections: [
+      {
+        id: "order-shipping-turbo-hero-banner",
+        type: "hero-banner",
+        label: "واجهة الشحن متعدد الشركات",
+        description: "بانر رئيسي لربط شركات الشحن",
+        badge: "متاح مع تطبيق بوابة وشركات الشحن الذكي",
+        settings: {
+          eyebrow: "شركات شحن متعددة بضغطة",
+          title: "أصدر بوالص الشحن وتابعها من لوحة واحدة",
+          subtitle: "ربط شركات الشحن وإصدار بوالص الشحنة وتتبع حالتها لحظياً وإدارة التسويات المالية مع كل شركة.",
+          ctaText: "إصدار بوليصة شحن",
+          ctaLink: "/shipping/create",
+          secondaryCtaText: "متابعة الشحنات",
+          secondaryCtaLink: "/shipping/tracking",
+        },
+      },
+      {
+        id: "order-shipping-turbo-services-grid",
+        type: "services-grid",
+        label: "مهام بوابة الشحن",
+        description: "شبكة توضح أعمال الشحن",
+        badge: "متاح مع تطبيق بوابة وشركات الشحن الذكي",
+        settings: {
+          title: "مهام بوابة الشحن",
+          subtitle: "أدوات لكل خطوة من الشحن",
+          items: [
+            { title: "ربط الشركات", description: "تسجيل بيانات كل شركة شحن معتمدة", icon: "link" },
+            { title: "إصدار البوليصة", description: "إنشاء بوليصة الشحن من بيانات الطلب", icon: "document" },
+            { title: "التتبع اللحظي", description: "متابعة حالة الشحنة وتحديثها", icon: "truck" },
+          ],
+        },
+      },
+      {
+        id: "order-shipping-turbo-features-bar",
+        type: "features-bar",
+        label: "المالية والتشغيل",
+        description: "شريط يوضح التسويات وإدارة المناديب",
+        badge: "متاح مع تطبيق بوابة وشركات الشحن الذكي",
+        settings: {
+          title: "المالية والتشغيل",
+          features: [
+            { title: "مقارنة الشركات", text: "مقارنة تكلفة الشحن بين الشركات" },
+            { title: "التسويات المالية", text: "تسجيل مستحقات كل شركة شحن" },
+            { title: "إدارة المناديب", text: "ربط الشحنة بالمندوب المسؤول" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 53. أسطول المناديب والتوصيل الداخلي
+  {
+    appId: "app-internal-courier-fleet",
+    appName: "أسطول المناديب والتوصيل الداخلي",
+    category: "شحن",
+    description: "تنظيم رحلات التوزيع ومانيفست التسليم ومتابعة الحالات ميدانياً وتسوية التحصيلات",
+    icon: "🛵",
+    keywords: ["مناديب", "أسطول", "توصيل داخلي", "رحلات التوزيع", "مانيفست", "تحصيل"],
+    sections: [
+      {
+        id: "internal-courier-fleet-hero-banner",
+        type: "hero-banner",
+        label: "واجهة أسطول التوصيل الداخلي",
+        description: "بانر رئيسي لرحلات المناديب",
+        badge: "متاح مع تطبيق أسطول المناديب والتوصيل الداخلي",
+        settings: {
+          eyebrow: "رحلات توزيع منظمة",
+          title: "أسطول مناديبك في خطة يومية واضحة",
+          subtitle: "تنظيم رحلات التوزيع وإصدار مانيفست التسليم ومتابعة الحالات ميدانياً وتسوية التحصيلات مع الخزينة.",
+          ctaText: "رحلات اليوم",
+          ctaLink: "/fleet/routes",
+          secondaryCtaText: "مانيفست التسليم",
+          secondaryCtaLink: "/fleet/manifests",
+        },
+      },
+      {
+        id: "internal-courier-fleet-services-grid",
+        type: "services-grid",
+        label: "مهام إدارة الأسطول",
+        description: "شبكة توضح عمل المناديب",
+        badge: "متاح مع تطبيق أسطول المناديب والتوصيل الداخلي",
+        settings: {
+          title: "مهام إدارة الأسطول",
+          subtitle: "أدوات لتنظيم التوزيع والتسليم",
+          items: [
+            { title: "رحلات التوزيع", description: "تجميع الشحنات في رحلة لكل مندوب", icon: "truck" },
+            { title: "مانيفست التسليم", description: "قائمة رسمية بالشحنات المسلمة للمندوب", icon: "document" },
+            { title: "تطبيق المندوب", description: "تحديث الحالة ميدانياً من الهاتف", icon: "phone" },
+          ],
+        },
+      },
+      {
+        id: "internal-courier-fleet-features-bar",
+        type: "features-bar",
+        label: "المتابعة والتسوية",
+        description: "شريط يوضح تحديث الحالة والتحصيل",
+        badge: "متاح مع تطبيق أسطول المناديب والتوصيل الداخلي",
+        settings: {
+          title: "المتابعة والتسوية",
+          features: [
+            { title: "تحديث الحالة", text: "تسليم أو تعذر التسليم بملاحظة واضحة" },
+            { title: "تسوية التحصيلات", text: "مطابقة النقد المحصل مع الشحنات" },
+            { title: "توريد الخزينة", text: "توثيق توريد المبالغ للخزينة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 54. الفواتير
+  {
+    appId: "app-order-invoicing",
+    appName: "الفواتير",
+    category: "محاسبة",
+    description: "إصدار فواتير الطلبات وتقارير الضرائب وإحصائيات المبيعات",
+    icon: "🧮",
+    keywords: ["فواتير", "فاتورة", "ضرائب", "إحصائيات المبيعات", "ترقيم الفواتير", "طلب"],
+    sections: [
+      {
+        id: "order-invoicing-hero-banner",
+        type: "hero-banner",
+        label: "واجهة إصدار الفواتير",
+        description: "بانر رئيسي لفواتير الطلبات",
+        badge: "متاح مع تطبيق الفواتير",
+        settings: {
+          eyebrow: "فواتير مرتبة لكل طلب",
+          title: "أصدر فواتير احترافية من بيانات الطلب",
+          subtitle: "تصميم قوالب الفواتير وإصدارها من الطلبات مع تقارير الضرائب وإحصائيات المبيعات المالية.",
+          ctaText: "إصدار فاتورة",
+          ctaLink: "/invoices/new",
+          secondaryCtaText: "سجل الفواتير",
+          secondaryCtaLink: "/invoices",
+        },
+      },
+      {
+        id: "order-invoicing-services-grid",
+        type: "services-grid",
+        label: "مهام نظام الفواتير",
+        description: "شبكة توضح أعمال الفوترة",
+        badge: "متاح مع تطبيق الفواتير",
+        settings: {
+          title: "مهام نظام الفواتير",
+          subtitle: "أدوات الإصدار والتوثيق",
+          items: [
+            { title: "قوالب الفواتير", description: "قالب يعرض بيانات المتجر والطلب", icon: "document" },
+            { title: "إصدار الفاتورة", description: "إنشاء الفاتورة من بيانات الطلب مباشرة", icon: "cash" },
+            { title: "تقارير الضرائب", description: "ملخص الضريبة المحتسبة في الفترة", icon: "chart" },
+          ],
+        },
+      },
+      {
+        id: "order-invoicing-features-bar",
+        type: "features-bar",
+        label: "التنظيم والتقارير",
+        description: "شريط يوضح ضبط الترقيم والربط",
+        badge: "متاح مع تطبيق الفواتير",
+        settings: {
+          title: "التنظيم والتقارير",
+          features: [
+            { title: "ترقيم الفواتير", text: "تسلسل ثابت يسهل الرجوع إليه" },
+            { title: "ربط بالطلب", text: "كل فاتورة مرتبطة بطلبها" },
+            { title: "إحصائيات المبيعات", text: "ملخص القيم المفوترة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 55. المحاسبة
+  {
+    appId: "app-accounting",
+    appName: "المحاسبة",
+    category: "محاسبة",
+    description: "نظام محاسبي بالقيد المزدوج يشمل دليل الحسابات والقيود والأستاذ والميزان والقوائم",
+    icon: "📚",
+    keywords: ["محاسبة", "قيد مزدوج", "دليل الحسابات", "قيود يومية", "ميزان مراجعة", "قوائم مالية"],
+    sections: [
+      {
+        id: "accounting-hero-banner",
+        type: "hero-banner",
+        label: "واجهة النظام المحاسبي",
+        description: "بانر رئيسي لدورة القيد المحاسبي",
+        badge: "متاح مع تطبيق المحاسبة",
+        settings: {
+          eyebrow: "محاسبة منظمة بالقيد المزدوج",
+          title: "دورة محاسبية كاملة من القيد للقوائم",
+          subtitle: "دليل حسابات شجري وقيود يومية وأستاذ عام وميزان مراجعة وقوائم مالية ختامية وإقرارات ضريبية.",
+          ctaText: "دليل الحسابات",
+          ctaLink: "/accounting/chart",
+          secondaryCtaText: "قيود اليومية",
+          secondaryCtaLink: "/accounting/entries",
+        },
+      },
+      {
+        id: "accounting-services-grid",
+        type: "services-grid",
+        label: "وحدات النظام المحاسبي",
+        description: "شبكة توضح وحدات الدورة",
+        badge: "متاح مع تطبيق المحاسبة",
+        settings: {
+          title: "وحدات النظام المحاسبي",
+          subtitle: "تسلسل محاسبي معتمد",
+          items: [
+            { title: "دليل الحسابات", description: "شجرة حسابات بأكواد هرمية", icon: "list" },
+            { title: "قيود اليومية", description: "تسجيل القيد المزدوج بالمدين والدائن", icon: "document" },
+            { title: "ميزان المراجعة", description: "تجميع الأرصدة والتحقق من التوازن", icon: "check" },
+          ],
+        },
+      },
+      {
+        id: "accounting-tech-grid",
+        type: "tech-grid",
+        label: "التقارير الختامية",
+        description: "شرح مخرجات النظام",
+        badge: "متاح مع تطبيق المحاسبة",
+        settings: {
+          title: "من الأستاذ إلى القوائم",
+          subtitle: "تقارير جاهزة للمراجعة والإقرار",
+          features: [
+            { title: "الأستاذ العام", description: "حركة كل حساب خلال الفترة" },
+            { title: "القوائم المالية", description: "قوائم ختامية مبنية على الأرصدة" },
+            { title: "الإقرارات الضريبية", description: "ملخص الضريبة المستحقة للمراجعة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 56. البيع بالجملة
+  {
+    appId: "app-wholesale-pro",
+    appName: "البيع بالجملة",
+    category: "جملة",
+    description: "قوائم أسعار وشرائح عملاء وكشوف حساب وتتبع المديونية وإدارة الموزعين",
+    icon: "📦",
+    keywords: ["جملة", "بيع بالجملة", "قوائم أسعار", "شرائح عملاء", "كشف حساب", "مديونية", "موزعين"],
+    sections: [
+      {
+        id: "wholesale-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة البيع بالجملة",
+        description: "بانر رئيسي لتجارة الجملة",
+        badge: "متاح مع تطبيق البيع بالجملة",
+        settings: {
+          eyebrow: "أسعار وشرائح للبيع بالجملة",
+          title: "أدر تجارة الجملة بأسعار وشرائح واضحة",
+          subtitle: "قوائم أسعار متعددة وشرائح عملاء وكشوف حساب وتتبع المديونية وإدارة الموزعين من لوحة واحدة.",
+          ctaText: "قوائم الأسعار",
+          ctaLink: "/wholesale/prices",
+          secondaryCtaText: "كشوف الحساب",
+          secondaryCtaLink: "/wholesale/statements",
+        },
+      },
+      {
+        id: "wholesale-pro-services-grid",
+        type: "services-grid",
+        label: "مهام البيع بالجملة",
+        description: "شبكة توضح أعمال الجملة",
+        badge: "متاح مع تطبيق البيع بالجملة",
+        settings: {
+          title: "مهام البيع بالجملة",
+          subtitle: "أدوات تناسب التعامل مع الموزعين",
+          items: [
+            { title: "قوائم الأسعار", description: "سعر مختلف لكل شريحة عميل", icon: "tag" },
+            { title: "شرائح العملاء", description: "تصنيف العملاء حسب حجم التعامل", icon: "user-group" },
+            { title: "كشوف الحساب", description: "بيان الحركات والرصيد لكل عميل", icon: "document" },
+          ],
+        },
+      },
+      {
+        id: "wholesale-pro-features-bar",
+        type: "features-bar",
+        label: "المديونية والموزعين",
+        description: "شريط يوضح أدوات المتابعة المالية",
+        badge: "متاح مع تطبيق البيع بالجملة",
+        settings: {
+          title: "المديونية والموزعين",
+          features: [
+            { title: "تتبع المديونية", text: "رصيد مستحق لكل عميل جملة" },
+            { title: "إدارة الموزعين", text: "بيانات الموزع ومنطقة التوزيع" },
+            { title: "حدود الائتمان", text: "ضبط الحد المسموح لكل عميل" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 57. الخزينة والنفقات ورأس المال
+  {
+    appId: "app-treasury-expenses-pro",
+    appName: "الخزينة والنفقات ورأس المال",
+    category: "خزينة ومالية",
+    description: "إدارة النفقات والخزائن النقدية والحسابات البنكية وضخ رأس المال والربط المحاسبي",
+    icon: "🏦",
+    keywords: ["الخزينة والنفقات", "خزينة", "نفقات", "مصروفات", "رأس المال", "حسابات بنكية"],
+    sections: [
+      {
+        id: "treasury-expenses-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة الخزينة والنفقات",
+        description: "بانر رئيسي لحركة النقد",
+        badge: "متاح مع تطبيق الخزينة والنفقات ورأس المال",
+        settings: {
+          eyebrow: "رقابة على النقد والنفقات",
+          title: "خزائنك ونفقاتك في سجل واحد",
+          subtitle: "تسجيل النفقات والمصروفات ومتابعة الخزائن النقدية والحسابات البنكية وضخ رأس المال مع ربط محاسبي مباشر.",
+          ctaText: "حركة الخزينة",
+          ctaLink: "/treasury",
+          secondaryCtaText: "تسجيل نفقة",
+          secondaryCtaLink: "/treasury/expenses/new",
+        },
+      },
+      {
+        id: "treasury-expenses-pro-services-grid",
+        type: "services-grid",
+        label: "مهام إدارة الخزينة",
+        description: "شبكة توضح أعمال الخزينة",
+        badge: "متاح مع تطبيق الخزينة والنفقات ورأس المال",
+        settings: {
+          title: "مهام إدارة الخزينة",
+          subtitle: "أدوات ضبط الحركة النقدية",
+          items: [
+            { title: "تسجيل النفقات", description: "توثيق المصروف ببنده ومرفقاته", icon: "cash" },
+            { title: "الخزائن والحسابات", description: "رصيد كل خزينة وحساب بنكي", icon: "building" },
+            { title: "ضخ رأس المال", description: "تسجيل الإيداعات الرأسمالية", icon: "chart" },
+          ],
+        },
+      },
+      {
+        id: "treasury-expenses-pro-tech-grid",
+        type: "tech-grid",
+        label: "الرقابة والربط",
+        description: "شرح الضوابط المحاسبية",
+        badge: "متاح مع تطبيق الخزينة والنفقات ورأس المال",
+        settings: {
+          title: "ضوابط حركة النقد",
+          subtitle: "قيود تمنع تجاوز الرصيد المتاح",
+          features: [
+            { title: "الربط المحاسبي", description: "ترحيل الحركة إلى القيود مباشرة" },
+            { title: "منع السحب على المكشوف", description: "رفض الصرف الذي يتجاوز الرصيد" },
+            { title: "تقارير الحركة", description: "ملخص الإيراد والصرف لكل خزينة" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 58. نظام HR الأساسي
+  {
+    appId: "app-hr-core",
+    appName: "نظام HR الأساسي",
+    category: "موارد بشرية",
+    description: "بيانات الموظفين والأقسام والهيكل التنظيمي وملفات العمل وسياسات الشركة",
+    icon: "🧑‍💼",
+    keywords: ["موارد بشرية", "hr", "موظفين", "هيكل تنظيمي", "أقسام", "ملفات الموظفين"],
+    sections: [
+      {
+        id: "hr-core-hero-banner",
+        type: "hero-banner",
+        label: "واجهة إدارة الموظفين",
+        description: "بانر رئيسي لبيانات الفريق",
+        badge: "متاح مع تطبيق نظام HR الأساسي",
+        settings: {
+          eyebrow: "بيانات فريقك في مكان واحد",
+          title: "أساس متكامل لإدارة فريق العمل",
+          subtitle: "إدارة بيانات الموظفين والأقسام والهيكل التنظيمي وملفات ومستندات العمل وسياسات الشركة.",
+          ctaText: "دليل الموظفين",
+          ctaLink: "/hr/employees",
+          secondaryCtaText: "الهيكل التنظيمي",
+          secondaryCtaLink: "/hr/organization",
+        },
+      },
+      {
+        id: "hr-core-services-grid",
+        type: "services-grid",
+        label: "وحدات إدارة الموظفين",
+        description: "شبكة توضح عناصر النظام",
+        badge: "متاح مع تطبيق نظام HR الأساسي",
+        settings: {
+          title: "وحدات إدارة الموظفين",
+          subtitle: "بيانات منظمة لكل موظف",
+          items: [
+            { title: "بيانات الموظفين", description: "الملف الأساسي وبيانات التواصل", icon: "user" },
+            { title: "الهيكل التنظيمي", description: "الأقسام والتبعية الإدارية", icon: "branch" },
+            { title: "الملفات والمستندات", description: "عقود ومستندات العمل لكل موظف", icon: "document" },
+          ],
+        },
+      },
+      {
+        id: "hr-core-features-bar",
+        type: "features-bar",
+        label: "السياسات والصلاحيات",
+        description: "شريط يوضح ضبط الوصول",
+        badge: "متاح مع تطبيق نظام HR الأساسي",
+        settings: {
+          title: "السياسات والصلاحيات",
+          features: [
+            { title: "سياسات الشركة", text: "نشر السياسات والاطلاع عليها" },
+            { title: "صلاحيات الوصول", text: "تحديد من يعدل بيانات الموظفين" },
+            { title: "تحديث الملفات", text: "تنبيه عند الحاجة لتحديث مستند" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 59. الحضور والانصراف والورديات
+  {
+    appId: "app-hr-attendance-pro",
+    appName: "الحضور والانصراف والورديات",
+    category: "موارد بشرية",
+    description: "تتبع الحضور بالموقع ورمز الاستجابة وجدول الورديات والإجازات واحتساب التأخير",
+    icon: "⏱️",
+    keywords: ["الحضور والانصراف", "حضور", "ورديات", "إجازات", "تأخير", "بصمة", "موقع"],
+    sections: [
+      {
+        id: "hr-attendance-pro-hero-banner",
+        type: "hero-banner",
+        label: "واجهة الحضور والورديات",
+        description: "بانر رئيسي لتسجيل الحضور",
+        badge: "متاح مع تطبيق الحضور والانصراف والورديات",
+        settings: {
+          eyebrow: "حضور دقيق وورديات مرتبة",
+          title: "تابع حضور فريقك ووردياتهم",
+          subtitle: "تسجيل الحضور بالموقع أو رمز الاستجابة وجدولة الورديات وإدارة الإجازات والأذونات واحتساب التأخير وساعات العمل.",
+          ctaText: "تسجيل الحضور",
+          ctaLink: "/hr/attendance",
+          secondaryCtaText: "جدول الورديات",
+          secondaryCtaLink: "/hr/shifts",
+        },
+      },
+      {
+        id: "hr-attendance-pro-services-grid",
+        type: "services-grid",
+        label: "مهام نظام الحضور",
+        description: "شبكة توضح أعمال المتابعة اليومية",
+        badge: "متاح مع تطبيق الحضور والانصراف والورديات",
+        settings: {
+          title: "مهام نظام الحضور",
+          subtitle: "أدوات حضور وإجازات منظمة",
+          items: [
+            { title: "تسجيل الحضور", description: "تحقق بالموقع أو رمز الاستجابة", icon: "check" },
+            { title: "جدول الورديات", description: "توزيع المناوبات على الفريق", icon: "calendar" },
+            { title: "الإجازات والأذونات", description: "طلب واعتماد الإجازة داخل النظام", icon: "user" },
+          ],
+        },
+      },
+      {
+        id: "hr-attendance-pro-features-bar",
+        type: "features-bar",
+        label: "الاحتساب والرقابة",
+        description: "شريط يوضح قواعد الاحتساب",
+        badge: "متاح مع تطبيق الحضور والانصراف والورديات",
+        settings: {
+          title: "الاحتساب والرقابة",
+          features: [
+            { title: "نطاق الموقع", text: "تحديد نطاق مسموح لتسجيل الحضور" },
+            { title: "احتساب التأخير", text: "حساب التأخير مقارنة ببداية الوردية" },
+            { title: "ساعات العمل", text: "تجميع ساعات العمل لكل موظف" },
+          ],
+        },
+      },
+    ],
+  },
+
+  // 60. الخرائط الذهنية ومسارات العمل
+  {
+    appId: "app-executable-mindmap",
+    appName: "الخرائط الذهنية ومسارات العمل",
+    category: "أتمتة",
+    description: "لوحة خرائط ذهنية للتخطيط والتدريب وأتمتة تنفيذية للمهام والرسائل",
+    icon: "🧠",
+    keywords: ["الخرائط الذهنية", "خريطة ذهنية", "مسارات العمل", "أتمتة", "عصف ذهني", "تدريب"],
+    sections: [
+      {
+        id: "executable-mindmap-hero-banner",
+        type: "hero-banner",
+        label: "واجهة الخرائط الذهنية",
+        description: "بانر رئيسي للوحة الخرائط",
+        badge: "متاح مع تطبيق الخرائط الذهنية ومسارات العمل",
+        settings: {
+          eyebrow: "من الفكرة إلى خطوة تنفيذية",
+          title: "خرائط ذهنية تتحول إلى مهام",
+          subtitle: "لوحة للتخطيط والعصف الذهني ووضع الشرح والتدريب، مع أتمتة تنفيذية للمهام والرسائل المرتبطة بكل عقدة.",
+          ctaText: "فتح الخرائط",
+          ctaLink: "/mindmaps",
+          secondaryCtaText: "قوالب جاهزة",
+          secondaryCtaLink: "/mindmaps/templates",
+        },
+      },
+      {
+        id: "executable-mindmap-services-grid",
+        type: "services-grid",
+        label: "استخدامات لوحة الخرائط",
+        description: "شبكة توضح أغراض اللوحة",
+        badge: "متاح مع تطبيق الخرائط الذهنية ومسارات العمل",
+        settings: {
+          title: "استخدامات لوحة الخرائط",
+          subtitle: "ثلاثة أوضاع عمل في لوحة واحدة",
+          items: [
+            { title: "التخطيط الاستراتيجي", description: "بناء خريطة أهداف ومهام متفرعة", icon: "branch" },
+            { title: "الشرح والتدريب", description: "عرض تفاعلي يشرح خطوات العمل", icon: "book" },
+            { title: "الأتمتة التنفيذية", description: "تحويل عقدة إلى مهمة أو رسالة تُنفذ", icon: "bolt" },
+          ],
+        },
+      },
+      {
+        id: "executable-mindmap-features-bar",
+        type: "features-bar",
+        label: "الربط والمتابعة",
+        description: "شريط يوضح تكامل الخريطة مع الأدوات",
+        badge: "متاح مع تطبيق الخرائط الذهنية ومسارات العمل",
+        settings: {
+          title: "الربط والمتابعة",
+          features: [
+            { title: "ربط بالأدوات", text: "توصيل عقد الخريطة بأدوات المنصة" },
+            { title: "تفريع المهام", text: "توزيع المهام على المسؤولين" },
+            { title: "متابعة التنفيذ", text: "حالة كل خطوة داخل الخريطة" },
+          ],
+        },
+      },
+    ],
+  },
 ];
 
 export interface FlatAppPresetSection extends AppPresetSection {
