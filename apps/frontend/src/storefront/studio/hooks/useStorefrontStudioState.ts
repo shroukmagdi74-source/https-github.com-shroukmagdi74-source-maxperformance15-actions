@@ -30,6 +30,11 @@ import {
   validateComponentHierarchy,
 } from "../utils/resolveComponentInstance";
 import { PAGE_STYLE_PRESETS, STUDIO_PAGES } from "../StudioTypes";
+import {
+  applyStudioVariablesToTokens,
+  getStudioVariablesFromTokens,
+  type StudioVariableValues,
+} from "../utils/studioVariables";
 import type {
   StorefrontGlobalTokens,
   StorefrontGlobalHeaderConfig,
@@ -326,6 +331,22 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
         global: nextGlobal,
       };
       handleDesignTokensChange(nextTokens);
+    },
+    [handleDesignTokensChange]
+  );
+
+  // ─────────────────────────────────────────────────────────────
+  // TOKENS-1: editable design variables (--sf-*), stored as design-token overrides.
+  // ─────────────────────────────────────────────────────────────
+  const variables = useMemo<StudioVariableValues>(
+    () => getStudioVariablesFromTokens(currentDesignTokens),
+    [currentDesignTokens]
+  );
+
+  const handleUpdateVariables = useCallback(
+    (nextVariables: StudioVariableValues) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      handleDesignTokensChange(applyStudioVariablesToTokens(currentTokens, nextVariables));
     },
     [handleDesignTokensChange]
   );
@@ -2181,6 +2202,9 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     handleUpdateGlobalHeader,
     handleUpdateGlobalFooter,
     handleUpdateGlobalTokens,
+    // Ticket TOKENS-1 exports
+    variables,
+    handleUpdateVariables,
     // Ticket GLOBAL-1 exports
     globalComponents,
     handleCreateGlobalComponent,

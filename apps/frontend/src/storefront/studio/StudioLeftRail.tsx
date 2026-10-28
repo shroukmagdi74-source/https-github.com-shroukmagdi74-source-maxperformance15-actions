@@ -12,6 +12,7 @@ import {
   Square3Stack3DIcon,
   SwatchIcon,
   CubeTransparentIcon,
+  AdjustmentsHorizontalIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioLeftRailTab } from "./StudioTypes";
 
@@ -52,6 +53,7 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
     { id: "header-footer", label: "الهيدر والفوتر", icon: WindowIcon },
     { id: "media", label: "وسائط", icon: PhotoIcon },
     { id: "styles", label: "أنماط", icon: PaintBrushIcon },
+    { id: "variables", label: "متغيرات", icon: AdjustmentsHorizontalIcon },
   ];
 
   const handleClick = (id: StudioLeftRailActiveTab) => {

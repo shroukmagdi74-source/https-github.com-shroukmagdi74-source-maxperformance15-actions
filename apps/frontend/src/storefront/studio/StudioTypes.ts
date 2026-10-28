@@ -6,6 +6,7 @@ export type StudioLeftRailTab =
   | "pages"
   | "media"
   | "styles"
+  | "variables"
   | "code"
   | "ai"
   | "settings";

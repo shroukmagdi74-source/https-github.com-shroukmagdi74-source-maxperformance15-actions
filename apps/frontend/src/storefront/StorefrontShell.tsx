@@ -31,6 +31,7 @@ import { useStorefrontSettings } from "./hooks/useStorefrontSettings";
 import tokenManager from "../utils/tokenManager";
 import { formatStorefrontCurrency } from "./utils/currency";
 import { sanitizeStorefrontHtml } from "./utils/html";
+import { StudioVariablesStyle } from "./studio/StudioVariablesStyle";
 import { StorefrontHead } from "./engine/StorefrontHead";
 import type {
   StorefrontPageConfig,
@@ -1657,6 +1658,33 @@ const StorefrontShell: React.FC<StorefrontShellProps> = ({
       (settings?.storefront || undefined) as StorefrontThemeInput | undefined,
     [settings],
   );
+
+  // TOKENS-1 — merchant-authored `--sf-*` variables (theme switch must never drop them).
+  const storefrontVariables = useMemo<Record<string, unknown> | undefined>(() => {
+    type VariablesCarrier = {
+      variables?: Record<string, unknown>;
+      global?: { variables?: Record<string, unknown> };
+      designTokens?: { variables?: Record<string, unknown>; global?: { variables?: Record<string, unknown> } };
+    };
+    const raw = settings as unknown as
+      | (VariablesCarrier & {
+          storefront?: VariablesCarrier;
+          storefrontSettings?: VariablesCarrier;
+        })
+      | undefined;
+    const candidate =
+      raw?.storefront?.designTokens?.variables ??
+      raw?.storefront?.designTokens?.global?.variables ??
+      raw?.storefront?.variables ??
+      raw?.storefront?.global?.variables ??
+      raw?.designTokens?.variables ??
+      raw?.designTokens?.global?.variables ??
+      raw?.storefrontSettings?.designTokens?.variables ??
+      raw?.storefrontSettings?.designTokens?.global?.variables ??
+      raw?.storefrontSettings?.variables ??
+      raw?.storefrontSettings?.global?.variables;
+    return candidate && typeof candidate === "object" ? candidate : undefined;
+  }, [settings]);
   useFacebookPixel(settings?.storefrontSettings ?? null);
   useTikTokPixel(settings?.company?.id);
   useGoogleAnalytics(settings?.storefrontSettings ?? null);
@@ -1716,6 +1744,7 @@ const StorefrontShell: React.FC<StorefrontShellProps> = ({
       blockUntilResolved
       activePageKey={activePageKey}
     >
+      <StudioVariablesStyle variables={storefrontVariables} />
       <StorefrontHead settings={settings} activePageKey={activePageKey} />
       <StorefrontLayout
         previewThemeId={previewThemeId}

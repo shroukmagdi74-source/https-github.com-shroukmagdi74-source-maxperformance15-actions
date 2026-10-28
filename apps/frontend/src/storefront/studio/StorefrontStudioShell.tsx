@@ -25,6 +25,8 @@ import { StudioPagesPanel } from "./StudioPagesPanel";
 import { StudioHeaderFooterPanel } from "./StudioHeaderFooterPanel";
 import { StudioTemplateGalleryPanel } from "./StudioTemplateGalleryPanel";
 import { StudioThemeGalleryPanel } from "./StudioThemeGalleryPanel";
+import { StudioVariablesPanel } from "./StudioVariablesPanel";
+import { StudioVariablesStyle } from "./StudioVariablesStyle";
 import { StudioGlobalComponentsPanel } from "./inspector/StudioGlobalComponentsPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
@@ -37,6 +39,7 @@ import {
   trackStudioAiOpen,
 } from "../analytics/beacon";
 import { useStudioTouchDrag } from "./hooks/useStudioTouchDrag";
+import { preserveStudioVariablesOnThemeChange } from "./utils/studioVariables";
 import type { StorefrontPageSEOConfig, StorefrontPageStatus } from "../types/theme.types";
 import { buildPresetPage, type IndustryPreset } from "../presets/industryPresets";
 import type { StudioLeftRailActiveTab } from "./StudioLeftRail";
@@ -557,7 +560,10 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     const leftPanelWidth = isLeftDrawerOpen
       ? leftRailTab === "elements"
         ? 280
-        : leftRailTab === "header-footer" || leftRailTab === "templates" || leftRailTab === "themes"
+        : leftRailTab === "header-footer" ||
+          leftRailTab === "templates" ||
+          leftRailTab === "themes" ||
+          leftRailTab === "variables"
         ? 340
         : 288
       : 0;
@@ -650,6 +656,8 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     createPrePublishSnapshot,
     handleRestorePrePublishSnapshot,
     handlePublish,
+    variables,
+    handleUpdateVariables,
   } = useStorefrontStudioState({
     themeId,
     externalDesignTokens,
@@ -1206,11 +1214,17 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
 
   const handleApplyTheme = useCallback(
     (newThemeId: string, nextTokens: Record<string, unknown>) => {
-      handleDesignTokensChange(nextTokens);
+      // TOKENS-1: theme switching must never wipe merchant-authored --sf-* variables
+      // (same lesson as MERCHANT_CONTENT_KEYS on the backend).
+      const preservedTokens = preserveStudioVariablesOnThemeChange(
+        currentDesignTokens,
+        nextTokens
+      );
+      handleDesignTokensChange(preservedTokens);
       onSave();
       toast.success(`تم تطبيق ثيم «${newThemeId}» بنجاح ✨`);
     },
-    [handleDesignTokensChange, onSave]
+    [currentDesignTokens, handleDesignTokensChange, onSave]
   );
 
   const handlePublishWithTracking = useCallback(async () => {
@@ -1388,6 +1402,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
       className="fixed inset-0 z-[100] flex h-screen w-full flex-col overflow-hidden bg-[#17181c] text-[#e8eaee]"
       dir="rtl"
     >
+      {/* 0. TOKENS-1 — page-level design variables (--sf-*) */}
+      <StudioVariablesStyle variables={variables} />
+
       {/* 1. Pro Studio Top Bar */}
       <StudioTopBar
         storeName={storeName}
@@ -1680,6 +1697,15 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                     designTokens={currentDesignTokens}
                     onApplyTheme={handleApplyTheme}
                     onClose={() => setIsLeftDrawerOpen(false)}
+                  />
+                )}
+
+                {leftRailTab === "variables" && (
+                  <StudioVariablesPanel
+                    variables={variables}
+                    onChange={handleUpdateVariables}
+                    onClose={() => setIsLeftDrawerOpen(false)}
+                    readOnly={!canEdit}
                   />
                 )}
 
