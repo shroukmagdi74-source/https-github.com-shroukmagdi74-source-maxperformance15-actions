@@ -169,6 +169,10 @@ router.post('/sample-orders/:id/convert-to-order', controller.convertSampleToOrd
 router.post('/sample-orders/:id/share-links', controller.generateSampleShareLink);
 router.get('/sample-orders/:id/share-links', controller.listSampleShareLinks);
 router.post('/sample-orders/:id/share-links/:kind/revoke', controller.revokeSampleShareLink);
+router.patch('/sample-orders/:id/commercial', controller.updateSampleCommercial);
+router.get('/sample-orders/:id/payments', controller.listSamplePayments);
+router.post('/sample-orders/:id/payments', controller.createSamplePayment);
+router.delete('/sample-orders/:id/payments/:paymentId', controller.deleteSamplePayment);
 
 
 // ============================================================================
