@@ -14,6 +14,11 @@ const PLATFORM_ENGINE_VERSION = 'removed';
 const LEGACY_TEMPLATE_CATEGORIES = new Set(['TEMPLATE', 'THEME']);
 const LEGACY_TEMPLATE_CATEGORY_VALUES = Array.from(LEGACY_TEMPLATE_CATEGORIES);
 
+// Slugs of apps that were merged into another app; GET /marketplace/apps/<old> must 301 to <new>.
+const LEGACY_APP_SLUG_REDIRECTS = {
+  'affiliate-program': 'affiliate-pro'
+};
+
 const LOG_FILE = path.join(__dirname, '../debug_marketplace.log');
 const ACTIVE_STATUSES = ['ACTIVE', 'TRIAL', 'active', 'trial'];
 
@@ -1081,6 +1086,10 @@ exports.getAllApps = async (req, res) => {
 exports.getAppDetails = async (req, res) => {
   try {
     const { slug } = req.params;
+    const redirectTo = LEGACY_APP_SLUG_REDIRECTS[String(slug || '').trim()];
+    if (redirectTo) {
+      return res.redirect(301, `/api/v1/marketplace/apps/${redirectTo}`);
+    }
     const catalogSource = getMarketplaceCatalogSource();
 
     if (catalogSource !== 'db') {

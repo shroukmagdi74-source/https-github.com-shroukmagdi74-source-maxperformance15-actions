@@ -33,8 +33,6 @@ const LEGACY_APP_SLUG_ALIASES = {
   'telegram-business': ['telegram-integration', 'telegram'],
   'telegram-integration': ['telegram-business', 'telegram'],
   'telegram': ['telegram-business', 'telegram-integration'],
-  // Affiliate aliases:
-  'affiliate-pro': ['affiliate-program'],
   // CRM & Marketing aliases:
   'crm-lite': ['crm-basic', 'crm', 'crm-loyalty'],
   'crm-basic': ['crm-lite', 'crm', 'crm-loyalty'],
@@ -84,6 +82,9 @@ const LEGACY_APP_SLUG_ALIASES = {
   // Radiology aliases:
   'radiology-app': ['radiology', 'radiology-pro'],
   'radiology': ['radiology-app', 'radiology-pro'],
+  // Affiliate aliases (affiliate-program was merged into affiliate-pro):
+  'affiliate-program': ['affiliate-pro'],
+  'affiliate-pro': ['affiliate-program'],
   // Booking / Services aliases:
   'booking-app': ['service-request-app', 'service-requests', 'medical-system', 'booking-appointments'],
   'booking-appointments': ['booking-app', 'service-request-app', 'service-requests', 'medical-system'],
