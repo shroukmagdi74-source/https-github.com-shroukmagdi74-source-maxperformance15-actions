@@ -1163,7 +1163,7 @@ class ManufacturingService {
         const itemTotal = round2(issuedQty * unitCost);
         totalCost += itemTotal;
 
-        // Deduct inventory stock if record exists
+        // Deduct inventory stock & record movement ONLY if inventory record exists for this item/warehouse
         if (inv && tx.inventory?.update) {
           await tx.inventory.update({
             where: { id: inv.id },
@@ -1172,15 +1172,14 @@ class ManufacturingService {
               available: { decrement: issuedQty },
             },
           });
-        }
 
-        // Record stock movement (safe try/catch so failure never halts MES)
-        try {
+          // Since inv exists in inventory, inv.productId and inv.warehouseId are guaranteed
+          // to satisfy foreign key constraints in stock_movements without aborting PostgreSQL transactions.
           if (tx.stockMovement?.create) {
             await tx.stockMovement.create({
               data: {
-                productId: item.rawMaterialId,
-                warehouseId,
+                productId: inv.productId || item.rawMaterialId,
+                warehouseId: inv.warehouseId || warehouseId,
                 type: 'OUT',
                 reason: 'ADJUSTMENT',
                 quantity: issuedQty,
@@ -1192,8 +1191,6 @@ class ManufacturingService {
               },
             });
           }
-        } catch (err) {
-          console.warn('[MES] Stock movement creation skipped/failed:', err.message);
         }
 
         preparedItems.push({
@@ -1241,20 +1238,6 @@ class ManufacturingService {
         data: { actualMaterialCost: newActualMaterialCost },
       });
 
-      // General Ledger Auto-Posting (WIP 110402 Debit / Raw Materials 110401 Credit)
-      if (totalCost > 0) {
-        try {
-          await ManufacturingService.postWipMaterialIssue(companyId, issue.id, {
-            orderNumber: order.orderNumber,
-            totalCost,
-            date: issue.date,
-            userId,
-          });
-        } catch (err) {
-          console.warn('[MES] WIP material issue auto-posting deferred:', err.message);
-        }
-      }
-
       const issueRecord = await tx.materialIssue.findFirst({
         where: { id: issue.id },
         include: { items: true },
@@ -1266,13 +1249,32 @@ class ManufacturingService {
       return issueRecord;
     };
 
+    let result;
     if (existingTx) {
-      return await runInTx(existingTx);
+      result = await runInTx(existingTx);
     } else {
-      return await prisma.$transaction(async (tx) => {
+      result = await prisma.$transaction(async (tx) => {
         return await runInTx(tx);
       });
     }
+
+    // General Ledger Auto-Posting (WIP 110402 Debit / Raw Materials 110401 Credit)
+    // Run after transaction has safely committed so journal entries link to a committed voucher
+    // and never cause transaction aborts or uncommitted lock contention.
+    if (result && Number(result.totalCost) > 0 && !existingTx) {
+      try {
+        await ManufacturingService.postWipMaterialIssue(companyId, result.id, {
+          orderNumber: order.orderNumber,
+          totalCost: Number(result.totalCost),
+          date: result.date,
+          userId,
+        });
+      } catch (err) {
+        console.warn('[MES] WIP material issue auto-posting deferred:', err.message);
+      }
+    }
+
+    return result;
   }
 
   // ==========================================================================
@@ -1615,7 +1617,7 @@ class ManufacturingService {
     const totalCost = round2(Number(order.actualMaterialCost) + Number(order.actualLaborCost) + actualMOH);
     const unitCost = produced > 0 ? round2(totalCost / produced) : 0;
 
-    return await prisma.$transaction(async (tx) => {
+    const finalUpdatedOrder = await prisma.$transaction(async (tx) => {
       const updatedOrder = await tx.productionOrder.update({
         where: { id: orderId },
         data: {
@@ -1627,35 +1629,6 @@ class ManufacturingService {
         },
         include: { variants: true, stages: true },
       });
-
-      // Post General Ledger entries for Labor, MOH, and Finished Goods Receipt from WIP
-      try {
-        if (Number(order.actualLaborCost) > 0) {
-          await ManufacturingService.postWipLaborCost(companyId, orderId, {
-            orderNumber: order.orderNumber,
-            amount: Number(order.actualLaborCost),
-            userId,
-          });
-        }
-
-        if (actualMOH > 0) {
-          await ManufacturingService.postWipOverheadCost(companyId, orderId, {
-            orderNumber: order.orderNumber,
-            amount: actualMOH,
-            userId,
-          });
-        }
-
-        if (totalCost > 0) {
-          await ManufacturingService.postWipFinishedGoodsReceipt(companyId, orderId, {
-            orderNumber: order.orderNumber,
-            amount: totalCost,
-            userId,
-          });
-        }
-      } catch (err) {
-        console.warn('[MES] WIP completion GL auto-posting deferred:', err.message);
-      }
 
       // Settle and synchronize FinishedGoodsReceipt (FGR) records with final absorbed cost
       // At receipt time, FGR records provisional cost (materials only).
@@ -1708,6 +1681,38 @@ class ManufacturingService {
 
       return updatedOrder;
     });
+
+    // Post General Ledger entries for Labor, MOH, and Finished Goods Receipt from WIP
+    // Runs after transaction commits cleanly to prevent cross-connection deadlock or uncommitted state issues
+    try {
+      if (Number(order.actualLaborCost) > 0) {
+        await ManufacturingService.postWipLaborCost(companyId, orderId, {
+          orderNumber: order.orderNumber,
+          amount: Number(order.actualLaborCost),
+          userId,
+        });
+      }
+
+      if (actualMOH > 0) {
+        await ManufacturingService.postWipOverheadCost(companyId, orderId, {
+          orderNumber: order.orderNumber,
+          amount: actualMOH,
+          userId,
+        });
+      }
+
+      if (totalCost > 0) {
+        await ManufacturingService.postWipFinishedGoodsReceipt(companyId, orderId, {
+          orderNumber: order.orderNumber,
+          amount: totalCost,
+          userId,
+        });
+      }
+    } catch (err) {
+      console.warn('[MES] WIP completion GL auto-posting deferred:', err.message);
+    }
+
+    return finalUpdatedOrder;
   }
 
   static async cancelOrder(companyId, orderId, options = {}) {
@@ -1728,24 +1733,34 @@ class ManufacturingService {
             for (const item of mi.items) {
               const qty = Math.round(Number(item.quantity));
               if (qty > 0 && mi.sourceWarehouseId) {
-                try {
-                  if (tx.inventory?.updateMany) {
-                    await tx.inventory.updateMany({
+                let returnInv = null;
+                if (tx.inventory?.findFirst) {
+                  try {
+                    returnInv = await tx.inventory.findFirst({
                       where: {
                         productId: item.rawMaterialId,
                         warehouseId: mi.sourceWarehouseId,
                       },
-                      data: {
-                        quantity: { increment: qty },
-                        available: { increment: qty },
-                      },
                     });
+                  } catch {
+                    returnInv = null;
                   }
+                }
+
+                if (returnInv && tx.inventory?.update) {
+                  await tx.inventory.update({
+                    where: { id: returnInv.id },
+                    data: {
+                      quantity: { increment: qty },
+                      available: { increment: qty },
+                    },
+                  });
+
                   if (tx.stockMovement?.create) {
                     await tx.stockMovement.create({
                       data: {
-                        productId: item.rawMaterialId,
-                        warehouseId: mi.sourceWarehouseId,
+                        productId: returnInv.productId,
+                        warehouseId: returnInv.warehouseId,
                         type: 'IN',
                         reason: 'RETURN',
                         quantity: qty,
@@ -1757,8 +1772,6 @@ class ManufacturingService {
                       },
                     });
                   }
-                } catch (err) {
-                  console.warn('[MES] Material return stock update skipped/failed:', err.message);
                 }
               }
             }

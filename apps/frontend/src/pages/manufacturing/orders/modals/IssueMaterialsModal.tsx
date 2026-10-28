@@ -154,6 +154,9 @@ export const IssueMaterialsModal: React.FC<IssueMaterialsModalProps> = ({
                 {warehouses.map((w) => (
                   <option key={w.id} value={w.id}>{w.name}</option>
                 ))}
+                {sourceWarehouseId && !warehouses.some((w) => w.id === sourceWarehouseId) && (
+                  <option value={sourceWarehouseId}>{sourceWarehouseId}</option>
+                )}
               </select>
             </div>
             <div>

@@ -1288,4 +1288,62 @@ describe('Manufacturing Execution System & Costing Test Suite (Wave 1)', () => {
     expect(boolActiveResults.some((b) => b.id === activeBom.id)).toBe(true);
     expect(boolActiveResults.some((b) => b.id === inactiveBom.id)).toBe(false);
   });
+
+  test('13. Non-Catalog / Unstocked Raw Material Issue: issuing materials with arbitrary rawMaterialId (not in inventory) successfully creates MaterialIssue voucher without attempting stock_movements or aborting PostgreSQL transaction', async () => {
+    // Replicates the exact bug reported in production:
+    // Order has custom BOM / manual materials (e.g. raw_fabric_custom_01) not present in inventory table.
+    // System must create MaterialIssue and MaterialIssueItem vouchers without crashing with code 25P02.
+    const bom = await ManufacturingService.createBom(companyA, {
+      code: 'BOM-UNTRACKED-RAW',
+      name: 'أمر تشغيل خامات مخصصة غير مخزنية',
+      components: [
+        {
+          rawMaterialId: 'raw_custom_linen_55',
+          rawMaterialName: 'قماش كتان بيور مستورد',
+          consumptionPerUnit: 2.0,
+          unit: 'METER',
+          scrapRate: 0.0,
+        },
+      ],
+    });
+
+    const order = await ManufacturingService.createOrder(companyA, {
+      bomId: bom.id,
+      sourceWarehouseId: 'wh_main_fabric_depot',
+      variantMatrix: [{ size: 'XL', color: 'BEIGE', plannedQuantity: 50 }],
+    });
+    await ManufacturingService.startOrder(companyA, order.id);
+
+    // Issue custom unstocked raw material with unitCost specified
+    const issue = await ManufacturingService.issueMaterials(companyA, order.id, {
+      sourceWarehouseId: 'wh_main_fabric_depot',
+      items: [
+        {
+          rawMaterialId: 'raw_custom_linen_55',
+          rawMaterialName: 'قماش كتان بيور مستورد',
+          quantity: 100,
+          unit: 'METER',
+          unitCost: 180.0,
+        },
+      ],
+    });
+
+    expect(issue).toBeDefined();
+    expect(issue.status).toBe('ISSUED');
+    expect(issue.items).toHaveLength(1);
+    expect(issue.items[0].rawMaterialId).toBe('raw_custom_linen_55');
+    expect(issue.items[0].unitCost).toBe(180.0);
+    expect(issue.totalCost).toBe(18000.0); // 100 * 180
+
+    // Verify stockMovements: since raw_custom_linen_55 is not an inventory record,
+    // NO invalid foreign-key stock movements were created for it.
+    const sm = await currentPrisma.stockMovement.findMany({
+      where: { productId: 'raw_custom_linen_55' },
+    });
+    expect(sm).toHaveLength(0);
+
+    // Verify actual material cost on production order updated correctly
+    const updatedOrder = await currentPrisma.productionOrder.findFirst({ where: { id: order.id } });
+    expect(updatedOrder.actualMaterialCost).toBe(18000.0);
+  });
 });
