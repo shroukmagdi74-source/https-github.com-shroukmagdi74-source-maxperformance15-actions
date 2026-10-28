@@ -737,6 +737,8 @@ export interface ProductionOrder {
   createdById?: string | null;
   createdAt: string;
   updatedAt: string;
+  executionFactory?: { id: string; name: string; code?: string | null; contactPerson?: string | null; phone?: string | null } | null;
+  executionFactoryCount?: number;
   bom?: BillOfMaterials;
   variants?: ProductionOrderVariantMatrix[];
   stages?: ProductionStage[];
@@ -1040,6 +1042,8 @@ export const manufacturingApi = {
     search?: string;
     bomId?: string;
     productId?: string;
+    customerId?: string;
+    partnerFactoryId?: string;
     startDate?: string;
     endDate?: string;
   }): Promise<ProductionOrder[]> => {
@@ -1323,7 +1327,10 @@ export const manufacturingApi = {
     return res.data;
   },
 
-  getCustomersList: async (search?: string): Promise<Array<{ id: string; name: string; phone?: string; email?: string }>> => {
+  getCustomersList: async (
+    search?: string,
+    opts?: { throwOnError?: boolean }
+  ): Promise<Array<{ id: string; name: string; phone?: string; email?: string }>> => {
     try {
       const res = await apiClient.get('/customers', { params: { search, limit: 30 } });
       const raw = Array.isArray(res.data?.data)
@@ -1337,9 +1344,24 @@ export const manufacturingApi = {
         phone: c.phone || '',
         email: c.email || '',
       }));
-    } catch {
+    } catch (e) {
+      if (opts?.throwOnError) throw e;
       return [];
     }
+  },
+  createCustomerQuick: async (input: { name: string; phone: string; city?: string }) => {
+    const parts = input.name.trim().split(/\s+/);
+    const res = await apiClient.post('/customers', {
+      firstName: parts[0],
+      lastName: parts.slice(1).join(' '),
+      phone: input.phone.trim(),
+      city: input.city?.trim() || undefined,
+    });
+    return res.data?.data;
+  },
+  getCustomerByPhone: async (phone: string) => {
+    const res = await apiClient.get(`/customers/by-phone/${encodeURIComponent(phone)}`);
+    return res.data?.data?.customer || null;
   },
 
   // ==========================================================================

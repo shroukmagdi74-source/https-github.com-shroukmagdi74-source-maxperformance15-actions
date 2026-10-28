@@ -22,6 +22,10 @@ import {
 } from '../manufacturingApi';
 import { NewOrderWizardModal } from './NewOrderWizardModal';
 
+const customerLabel = (o: ProductionOrder) =>
+  o.customer ? `${o.customer.firstName ?? ''} ${o.customer.lastName ?? ''}`.trim()
+             : (o.customerOrder?.brandName || o.brandName || 'إنتاج داخلي');
+
 export const ManufacturingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
 
@@ -33,6 +37,8 @@ export const ManufacturingOrdersPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [orderTypeFilter, setOrderTypeFilter] = useState<string>('ALL');
+  const [customerFilter, setCustomerFilter] = useState<string>('ALL');
+  const [factoryFilter, setFactoryFilter] = useState<string>('ALL');
   const [wizardOpen, setWizardOpen] = useState(false);
 
   const loadOrders = async () => {
@@ -53,23 +59,63 @@ export const ManufacturingOrdersPage: React.FC = () => {
     loadOrders();
   }, []);
 
+  const customerFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    orders.forEach((o) => {
+      if (o.customer?.id) {
+        const name = `${o.customer.firstName ?? ''} ${o.customer.lastName ?? ''}`.trim() || 'عميل';
+        map.set(o.customer.id, name);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [orders]);
+
+  const factoryFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    orders.forEach((o) => {
+      if (o.executionFactory?.id && o.executionFactory?.name) {
+        map.set(o.executionFactory.id, o.executionFactory.name);
+      }
+      o.stages?.forEach((st) => {
+        if (st.partnerFactory?.id && st.partnerFactory?.name) {
+          map.set(st.partnerFactory.id, st.partnerFactory.name);
+        }
+      });
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((ord) => {
       const q = search.trim().toLowerCase();
+      const cName = customerLabel(ord).toLowerCase();
       const matchSearch =
         !q ||
         ord.orderNumber.toLowerCase().includes(q) ||
         (ord.bom?.name || '').toLowerCase().includes(q) ||
         (ord.brandName || '').toLowerCase().includes(q) ||
-        (ord.customer?.name || '').toLowerCase().includes(q) ||
+        cName.includes(q) ||
+        (ord.customer?.phone || '').includes(q) ||
+        (ord.executionFactory?.name || '').toLowerCase().includes(q) ||
         (ord.customerOrder?.orderNumber || '').toLowerCase().includes(q) ||
         (ord.notes || '').toLowerCase().includes(q);
 
       const matchStatus = statusFilter === 'ALL' || ord.status === statusFilter;
       const matchType = orderTypeFilter === 'ALL' || ord.orderType === orderTypeFilter;
-      return matchSearch && matchStatus && matchType;
+
+      const matchCustomer =
+        customerFilter === 'ALL' ||
+        ord.customerId === customerFilter ||
+        ord.customer?.id === customerFilter;
+
+      const matchFactory =
+        factoryFilter === 'ALL' ||
+        ord.executionFactory?.id === factoryFilter ||
+        (ord.stages && ord.stages.some((st) => st.partnerFactoryId === factoryFilter || st.partnerFactory?.id === factoryFilter));
+
+      return matchSearch && matchStatus && matchType && matchCustomer && matchFactory;
     });
-  }, [orders, search, statusFilter, orderTypeFilter]);
+  }, [orders, search, statusFilter, orderTypeFilter, customerFilter, factoryFilter]);
 
   const getStatusBadge = (status: ProductionOrderStatus) => {
     switch (status) {
@@ -140,6 +186,34 @@ export const ManufacturingOrdersPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end overflow-x-auto no-scrollbar">
+            {/* Customer Filter */}
+            <select
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
+              className="p-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none font-medium"
+            >
+              <option value="ALL">جميع العملاء</option>
+              {customerFilterOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Factory Filter */}
+            <select
+              value={factoryFilter}
+              onChange={(e) => setFactoryFilter(e.target.value)}
+              className="p-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none font-medium"
+            >
+              <option value="ALL">جميع المصانع</option>
+              {factoryFilterOptions.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+
             {/* Order Type Filter */}
             <select
               value={orderTypeFilter}
@@ -209,7 +283,8 @@ export const ManufacturingOrdersPage: React.FC = () => {
                 <tr>
                   <th className="p-3.5 font-semibold">رقم أمر الإنتاج</th>
                   <th className="p-3.5 font-semibold">الموديل / الـ BOM</th>
-                  <th className="p-3.5 font-semibold">العميل / التعاقد</th>
+                  <th className="p-3.5 font-semibold">العميل</th>
+                  <th className="p-3.5 font-semibold">المصنع المنفذ</th>
                   <th className="p-3.5 font-semibold text-center">النمط</th>
                   <th className="p-3.5 font-semibold text-center">الحالة</th>
                   <th className="p-3.5 font-semibold text-center">المخطط / المنجز</th>
@@ -224,7 +299,7 @@ export const ManufacturingOrdersPage: React.FC = () => {
               <tbody className="divide-y divide-border/60">
                 {loading ? (
                   <tr>
-                    <td colSpan={12} className="py-12 text-center text-muted-foreground text-xs">
+                    <td colSpan={13} className="py-12 text-center text-muted-foreground text-xs">
                       <div className="flex items-center justify-center gap-2">
                         <RotateCw className="w-4 h-4 animate-spin text-primary" />
                         <span>جارٍ تحميل أوامر الإنتاج...</span>
@@ -233,7 +308,7 @@ export const ManufacturingOrdersPage: React.FC = () => {
                   </tr>
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="py-12 text-center text-muted-foreground text-xs">
+                    <td colSpan={13} className="py-12 text-center text-muted-foreground text-xs">
                       لا توجد أوامر إنتاج مسجلة مطابقة للبحث.
                     </td>
                   </tr>
@@ -263,7 +338,7 @@ export const ManufacturingOrdersPage: React.FC = () => {
                         <td className="p-3">
                           <div className="space-y-0.5">
                             <span className="font-semibold text-foreground block">
-                              {ord.brandName || ord.customer?.name || 'إنتاج داخلي'}
+                              {customerLabel(ord)}
                             </span>
                             {ord.customerOrder && (
                               <Link
@@ -272,6 +347,27 @@ export const ManufacturingOrdersPage: React.FC = () => {
                               >
                                 {ord.customerOrder.orderNumber}
                               </Link>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {ord.executionFactory ? (
+                              <>
+                                <span className="font-medium text-foreground">
+                                  {ord.executionFactory.name}
+                                </span>
+                                {(ord.executionFactoryCount || 0) > 1 && (
+                                  <span
+                                    className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20"
+                                    title={`إجمالي المصانع المنفذة: ${ord.executionFactoryCount}`}
+                                  >
+                                    +{Number(ord.executionFactoryCount) - 1}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">داخلي</span>
                             )}
                           </div>
                         </td>

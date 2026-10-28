@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Plus,
@@ -18,6 +18,15 @@ import { SampleStatusBadge, MaterialSourceBadge } from './SampleStatusBadge';
 import { CreateSampleModal } from './CreateSampleModal';
 import { SampleDetailDrawer } from './SampleDetailDrawer';
 
+const customerDisplayName = (s: SampleOrder) => {
+  if (s.customer) {
+    const fullName = [s.customer.firstName, s.customer.lastName].filter(Boolean).join(' ').trim();
+    if (fullName) return fullName;
+    if (s.customer.name) return s.customer.name;
+  }
+  return s.customerName || 'عميل غير مسجل';
+};
+
 export const SampleOrdersPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [samples, setSamples] = useState<SampleOrder[]>([]);
@@ -25,11 +34,32 @@ export const SampleOrdersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [materialFilter, setMaterialFilter] = useState<string>('ALL');
+  const [customerFilter, setCustomerFilter] = useState<string>('ALL');
 
   // Modals & Drawer
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedSample, setSelectedSample] = useState<SampleOrder | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const customerFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    samples.forEach((s) => {
+      if (s.customerId) {
+        const name = customerDisplayName(s);
+        map.set(s.customerId, name);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [samples]);
+
+  const displayedSamples = useMemo(() => {
+    return samples.filter((s) => {
+      if (customerFilter === 'ALL') return true;
+      if (customerFilter === 'LINKED') return Boolean(s.customerId);
+      if (customerFilter === 'UNLINKED') return !s.customerId;
+      return s.customerId === customerFilter;
+    });
+  }, [samples, customerFilter]);
 
   const fetchSamples = useCallback(async () => {
     try {
@@ -135,6 +165,25 @@ export const SampleOrdersPage: React.FC = () => {
                 <option value="COMPANY">خامة من المصنع</option>
               </select>
             </div>
+
+            {/* Customer Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">العميل:</span>
+              <select
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+                className="px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none text-foreground"
+              >
+                <option value="ALL">جميع العملاء</option>
+                <option value="LINKED">عملاء مسجلين (مربوط)</option>
+                <option value="UNLINKED">عملاء غير مسجلين</option>
+                {customerFilterOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Search Input */}
@@ -177,7 +226,7 @@ export const SampleOrdersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {samples.length === 0 && !loading && (
+                {displayedSamples.length === 0 && !loading && (
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-muted-foreground">
                       <FlaskConical className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
@@ -192,7 +241,7 @@ export const SampleOrdersPage: React.FC = () => {
                   </tr>
                 )}
 
-                {samples.map((s) => {
+                {displayedSamples.map((s) => {
                   const completedStages = s.stages?.filter((st) => st.status === 'COMPLETED').length || 0;
                   const totalStages = s.stages?.length || 0;
 
@@ -220,7 +269,14 @@ export const SampleOrdersPage: React.FC = () => {
 
                       {/* Customer / Brand */}
                       <td className="py-3 px-4">
-                        <div className="font-medium text-foreground">{s.customerName || 'عميل غير مسجل'}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-foreground">{customerDisplayName(s)}</span>
+                          {s.customerId && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              مربوط
+                            </span>
+                          )}
+                        </div>
                         {s.brandName && (
                           <span className="text-[11px] text-muted-foreground font-mono">{s.brandName}</span>
                         )}

@@ -137,7 +137,11 @@ export const OrderCockpitHeader: React.FC<OrderCockpitHeaderProps> = ({
             <div className="flex items-center gap-2.5 flex-wrap">
               <div className="flex items-center gap-1.5 font-bold text-foreground">
                 <FileText className="w-4 h-4 text-primary" />
-                <span>{order.brandName || order.customer?.name || 'تصنيع للغير'}</span>
+                <span>
+                  {order.customer
+                    ? `${order.customer.firstName ?? ''} ${order.customer.lastName ?? ''}`.trim() || order.brandName || 'تصنيع للغير'
+                    : order.brandName || 'تصنيع للغير'}
+                </span>
                 {order.customerCountry && (
                   <span className="text-[10px] text-muted-foreground font-normal">({order.customerCountry})</span>
                 )}
