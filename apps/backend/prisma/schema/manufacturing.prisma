@@ -130,6 +130,7 @@ model BillOfMaterials {
   standardStages      BomStandardStage[]
   orders              ProductionOrder[]
   techPacks           TechPack[]
+  sampleOrders        SampleOrder[]
 
   @@unique([companyId, code])
   @@index([companyId, productId])
@@ -756,6 +757,8 @@ model SampleOrder {
 
   stages           SampleOrderStage[]
   attachments      SampleOrderAttachment[]
+  customer         Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  bom              BillOfMaterials?     @relation(fields: [bomId], references: [id], onDelete: SetNull)
 
   @@unique([companyId, sampleNumber])
   @@index([companyId, status])
