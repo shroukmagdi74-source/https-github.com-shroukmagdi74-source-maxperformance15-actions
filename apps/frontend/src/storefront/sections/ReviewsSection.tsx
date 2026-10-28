@@ -22,6 +22,7 @@ import { sanitizeStorefrontHtml } from '../utils/html';
 import { useDeferredSectionActivation } from '../hooks/useDeferredSectionActivation';
 import { resolveSectionContentAlign } from '../utils/contentAlignment';
 import { isKhemetLuxeTheme as isKhemetLuxeThemeId } from '../utils/navigationGuards';
+import { formatNumber } from '../utils/localeFormat';
 
 const StarRating: React.FC<{ rating: number; size?: number }> = ({
   rating,
@@ -525,11 +526,11 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ section, settings }) =>
           >
             <div className="flex flex-wrap items-center gap-3 text-[#2d211e]">
               <span className="text-[2.45rem] font-black leading-none text-[#76a40f]">
-                {averageRating.toFixed(2)}
+                {formatNumber(averageRating, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
               <StarRating rating={Math.round(averageRating)} size={16} />
               <span className="text-sm text-[#6f5a54]">
-                {totalCount.toLocaleString('en-US')} {reviewsLabel}
+                {formatNumber(totalCount, { maximumFractionDigits: 0 })} {reviewsLabel}
               </span>
             </div>
             <div className="space-y-2.5">
@@ -1471,7 +1472,7 @@ const ReviewsSection: React.FC<ReviewsSectionProps> = ({ section, settings }) =>
                                   <path d="M7 10v12" />
                                   <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.94 2.5l-1.34 5A2 2 0 0 1 18.5 19H7V8.53a2 2 0 0 1 .59-1.41l4.83-4.82A2 2 0 0 1 15.88 3 2 2 0 0 1 16 4.2v1.67Z" />
                                 </svg>
-                                {review.helpfulCount.toLocaleString('en-US')}
+                                {formatNumber(review.helpfulCount, { maximumFractionDigits: 0 })}
                               </span>
                             </div>
                           ) : null}

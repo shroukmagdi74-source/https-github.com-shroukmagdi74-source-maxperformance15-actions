@@ -10,6 +10,7 @@ import {
 } from "../utils/marketplaceApps";
 import { buildStorefrontPath } from "../utils/paths";
 import { formatStorefrontCurrency } from "../utils/currency";
+import { formatMoney } from "../utils/localeFormat";
 import StorefrontProductImage from "./StorefrontProductImage";
 import { getProductImageCandidates, getPrimaryProductImage } from "../utils/productImages";
 import { trackStorefrontAppUsage } from "../utils/appUsageTracking";
@@ -214,7 +215,7 @@ const KhemetCinematicUpsellCard: React.FC<KhemetCinematicUpsellCardProps> = ({
         {discountAmount > 0 && (
           <div className="absolute top-2 left-2 pointer-events-none">
             <span className="rounded-full bg-[#e35335] px-2 py-0.5 text-[9px] font-black text-white shadow-xs">
-              {prefersArabicCopy ? `وفر ${discountAmount} ج.م` : `Save ${discountAmount}`}
+              {prefersArabicCopy ? `وفر ${formatMoney(discountAmount)}` : `Save ${formatMoney(discountAmount)}`}
             </span>
           </div>
         )}

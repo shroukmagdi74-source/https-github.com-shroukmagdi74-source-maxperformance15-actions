@@ -36,6 +36,7 @@ import {
 import { StudioGlobalComponentsPanel } from "./inspector/StudioGlobalComponentsPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
+import { StudioLocaleSettingsPanel } from "./StudioLocaleSettingsPanel";
 import { StudioExportImportModal } from "./StudioExportImportModal";
 import { StudioErrorBoundary } from "./StudioErrorBoundary";
 import { StudioCommentsLayer, type StudioCommentDraftInput, type StudioCommentSectionTarget } from "./StudioCommentsLayer";
@@ -1770,7 +1771,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                   />
                 )}
 
-                {(leftRailTab === "layers" || leftRailTab === "styles" || leftRailTab === "code" || leftRailTab === "settings") && (
+                {(leftRailTab === "layers" || leftRailTab === "styles" || leftRailTab === "code") && (
                   <div className="w-72 max-w-[85vw] h-full flex flex-col bg-[#202226] border-e border-[#0c0d0f]">
                     <StudioLayersDrawer
                       sections={activeSections}
@@ -1838,6 +1839,16 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                     onChange={handleDesignTokensChange}
                     onClose={() => setIsLeftDrawerOpen(false)}
                   />
+                )}
+
+                {leftRailTab === "settings" && (
+                  <div className="w-72 max-w-[85vw] h-full flex flex-col bg-[#202226] border-e border-[#0c0d0f]">
+                    <StudioLocaleSettingsPanel
+                      designTokens={currentDesignTokens}
+                      onUpdateThemeTokens={handleDesignTokensChange}
+                      onClose={() => setIsLeftDrawerOpen(false)}
+                    />
+                  </div>
                 )}
 
                 {leftRailTab === "compliance" && (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatMoney } from '../utils/localeFormat';
 
 export interface CafeProductCardProps {
   id?: string | number;
@@ -60,7 +61,7 @@ export const CafeProductCard: React.FC<CafeProductCardProps> = ({
           className="bg-white/90 backdrop-blur-sm text-[#7A5A54] px-6 py-2.5 rounded-full font-bold text-xs tracking-widest shadow-xl flex items-center gap-2 hover:bg-[#7A5A54] hover:text-white transition-colors"
         >
           <span>ADD TO CART</span>
-          <span>${price.toFixed(2)}</span>
+          <span>{formatMoney(price, { currency: 'USD', symbol: '$', position: 'before', minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </button>
       </div>
 

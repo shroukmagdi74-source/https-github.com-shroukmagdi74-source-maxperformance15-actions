@@ -27,6 +27,7 @@ import {
 } from "../../utils/paths";
 import { useStorefrontSettings } from "../../hooks/useStorefrontSettings";
 import { formatStorefrontCurrency } from "../../utils/currency";
+import { formatMoney } from "../../utils/localeFormat";
 import { sanitizeStorefrontHtml } from "../../utils/html";
 import { StorefrontHead } from "../../engine/StorefrontHead";
 import type { StorefrontGlobalHeaderConfig } from "../../studio/StudioHeaderFooterPanel";
@@ -292,7 +293,7 @@ const StorefrontHeader: React.FC<{
     khemetFreeShippingThreshold > 0;
   const khemetFreeShippingThresholdText =
     storefrontCurrency === "EGP"
-      ? `${khemetFreeShippingThreshold.toLocaleString("en-US")} جنيه`
+      ? formatMoney(khemetFreeShippingThreshold, { currency: "EGP", symbol: "جنيه" })
       : formatStorefrontCurrency(khemetFreeShippingThreshold, storefrontCurrency);
   const khemetUtilityShopPath = buildStorefrontPath(
     location.pathname,

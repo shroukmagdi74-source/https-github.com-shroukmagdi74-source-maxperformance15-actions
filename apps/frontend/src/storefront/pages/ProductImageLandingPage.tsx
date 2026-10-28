@@ -7,6 +7,7 @@ import { buildCheckoutOrderPayload } from "../hooks/useCheckout";
 import type { Product, ProductVariant } from "../hooks/useProducts";
 import type { CartItem } from "../store/useCartStore";
 import { formatStorefrontCurrency } from "../utils/currency";
+import { formatMoney } from "../utils/localeFormat";
 import { getPrimaryProductImage } from "../utils/productImages";
 import { buildStorefrontPath } from "../utils/paths";
 import { resolvePostPurchaseTarget } from "../utils/postPurchaseOffer";
@@ -389,7 +390,11 @@ const isValidEgyptianPhone = (value: string) =>
   isValidStorefrontPhone(value);
 
 const formatPrice = (value: number, currency: string): string =>
-  formatStorefrontCurrency(value, currency).replace("EGP", "جنيه");
+  formatMoney(value, {
+    currency,
+    symbol: currency === "EGP" ? "جنيه" : undefined,
+    position: "after",
+  });
 
 const cleanProductDescription = (value?: string | null, maxLength = 150): string => {
   const text = String(value || "")

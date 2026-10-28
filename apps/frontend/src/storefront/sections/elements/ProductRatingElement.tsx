@@ -6,6 +6,7 @@ import {
 } from './elementTypography';
 import { useStorefrontDynamicContext } from '../../studio/utils/dynamicValues';
 import { resolveProductFromContext } from './commerceElementHelpers';
+import { formatNumber } from '../../utils/localeFormat';
 
 export interface ProductRatingElementSettings extends ElementTypographySettings {
   showCount?: boolean;
@@ -123,7 +124,7 @@ const ProductRatingElement: React.FC<ProductRatingElementProps> = ({
           data-rating-number="true"
           className="text-xs font-semibold tabular-nums text-foreground"
         >
-          {ratingValue.toFixed(1)}
+          {formatNumber(ratingValue, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
         </span>
       )}
 
@@ -132,7 +133,7 @@ const ProductRatingElement: React.FC<ProductRatingElementProps> = ({
           data-rating-count="true"
           className="text-xs text-muted-foreground tabular-nums"
         >
-          ({count})
+          ({formatNumber(count, { maximumFractionDigits: 0 })})
         </span>
       )}
     </div>

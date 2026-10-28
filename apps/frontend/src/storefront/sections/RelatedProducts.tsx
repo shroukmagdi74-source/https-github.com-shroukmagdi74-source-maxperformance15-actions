@@ -26,6 +26,7 @@ import {
 } from '../utils/productImages';
 
 import { formatStorefrontCurrency } from '../utils/currency';
+import { formatNumber } from '../utils/localeFormat';
 import { resolveSectionContentAlign } from '../utils/contentAlignment';
 import { resolveSectionVariant } from '../variants';
 import { useDeferredSectionActivation } from '../hooks/useDeferredSectionActivation';
@@ -666,15 +667,15 @@ const RelatedProducts: React.FC<RelatedProductsProps> = ({ section, settings }) 
               <>
                 <InlineStars rating={relatedProduct.rating} />
                 <span className="text-xs font-bold text-[#6f5a54]">
-                  {relatedProduct.rating.toFixed(1)}
+                  {formatNumber(relatedProduct.rating, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 </span>
               </>
             ) : null}
             {relatedProduct.reviewCount ? (
               <span className="text-xs text-[#8f7b73]">
                 {prefersArabicCopy
-                  ? `${relatedProduct.reviewCount.toLocaleString('en-US')} تقييم`
-                  : `${relatedProduct.reviewCount.toLocaleString('en-US')} reviews`}
+                  ? `${formatNumber(relatedProduct.reviewCount, { maximumFractionDigits: 0 })} تقييم`
+                  : `${formatNumber(relatedProduct.reviewCount, { maximumFractionDigits: 0 })} reviews`}
               </span>
             ) : null}
           </div>

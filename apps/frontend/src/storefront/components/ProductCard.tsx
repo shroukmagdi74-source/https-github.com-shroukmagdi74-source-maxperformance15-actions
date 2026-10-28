@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import QuickViewModal from './QuickViewModal';
 import StorefrontProductImage from './StorefrontProductImage';
 import { formatStorefrontCurrency } from '../utils/currency';
+import { formatNumber } from '../utils/localeFormat';
 import { buildStorefrontPath } from '../utils/paths';
 import { useStorefrontFacebookTracking } from '../hooks/useStorefrontFacebookTracking';
 import { isPharmacyThemeId } from '../utils/pharmacyThemes';
@@ -1680,8 +1681,8 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
                 {reviewCount ? (
                   <span className="font-sans text-[11px] text-[#6b7280] sm:text-xs">
                     {isRtl
-                      ? `${reviewCount.toLocaleString('en-US')} تقييم`
-                      : `${reviewCount.toLocaleString('en-US')} reviews`}
+                      ? `${formatNumber(reviewCount, { maximumFractionDigits: 0 })} تقييم`
+                      : `${formatNumber(reviewCount, { maximumFractionDigits: 0 })} reviews`}
                   </span>
                 ) : null}
               </div>
@@ -1783,8 +1784,8 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
                 {reviewCount ? (
                   <span className="font-sans text-[11px] text-[#5f5a54]">
                     {isRtl
-                      ? `${reviewCount.toLocaleString('en-US')} تقييم`
-                      : `${reviewCount.toLocaleString('en-US')} reviews`}
+                      ? `${formatNumber(reviewCount, { maximumFractionDigits: 0 })} تقييم`
+                      : `${formatNumber(reviewCount, { maximumFractionDigits: 0 })} reviews`}
                   </span>
                 ) : null}
               </div>
@@ -1826,7 +1827,7 @@ const ProductCard: React.FC<ProductCardProps> = React.memo(({
 
   if (variant === 'fastly-offer') {
     const displayNumericPrice = Number.isFinite(numericPrice)
-      ? numericPrice.toLocaleString('en-US')
+      ? formatNumber(numericPrice, { maximumFractionDigits: 2 })
       : formattedPrice;
 
     return (

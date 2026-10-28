@@ -28,6 +28,10 @@ import {
   resolveStorefrontPreviewAdminOrigin,
 } from "./utils/paths";
 import { useStorefrontSettings } from "./hooks/useStorefrontSettings";
+import {
+  readLocaleFormatSettingsFromSettings,
+  setLocaleFormatDefaults,
+} from "./utils/localeFormat";
 import tokenManager from "../utils/tokenManager";
 import { formatStorefrontCurrency } from "./utils/currency";
 import { sanitizeStorefrontHtml } from "./utils/html";
@@ -1690,6 +1694,18 @@ const StorefrontShell: React.FC<StorefrontShellProps> = ({
   useGoogleAnalytics(settings?.storefrontSettings ?? null);
   useClarityAnalytics(settings?.storefrontSettings ?? null);
   useStorefrontVisitTracking(settings);
+
+  // LOCALE-1 — publish store locale preferences (number digits, currency position,
+  // units, calendar) so every section formats through the unified locale helpers.
+  useEffect(() => {
+    setLocaleFormatDefaults(
+      readLocaleFormatSettingsFromSettings(
+        settings?.storefrontSettings,
+        settings?.storefront,
+        settings,
+      ),
+    );
+  }, [settings]);
 
   if (isStandaloneProductLanding) {
     return <ProductImageLandingPage />;

@@ -1,10 +1,24 @@
 import { useCheckoutStore, StorefrontTierProgress } from "../store/useCheckoutStore";
+import { formatMoney, formatNumber } from "../utils/localeFormat";
 
 const METHOD_LABELS: Record<string, string> = {
   POINTS: "نقطة",
   SPENT: "ج.م",
   ITEMS: "قطعة",
   ORDER_COUNT: "أوردر",
+};
+
+const formatTierMetric = (
+  method: string,
+  value: number | string | null | undefined,
+  fallbackLabel?: string,
+): string => {
+  if (method === "SPENT") {
+    return formatMoney(value);
+  }
+  const label = METHOD_LABELS[method] || fallbackLabel;
+  const amount = formatNumber(value, { maximumFractionDigits: 0 });
+  return label ? `${amount} ${label}` : amount;
 };
 
 function benefitsSummary(tier: any): string[] {
@@ -22,8 +36,6 @@ function TierProgressCard({ progress }: { progress: StorefrontTierProgress }) {
   const next = progress.nextTier;
   const tierBenefits = benefitsSummary(tier);
   const nextBenefits = benefitsSummary(next);
-  const unit = METHOD_LABELS[progress.method] || progress.metricLabel || "وحدة";
-
   return (
     <div
       className="rounded-xl border bg-gradient-to-l from-emerald-50 to-white px-4 py-3 shadow-sm"
@@ -47,7 +59,7 @@ function TierProgressCard({ progress }: { progress: StorefrontTierProgress }) {
       {next && (
         <p className="mt-2 text-sm text-gray-700">
           <span className="font-bold text-emerald-700">
-            فاضل {next.remainingMetric} {unit}
+            فاضل {formatTierMetric(progress.method, next.remainingMetric, progress.metricLabel)}
           </span>{" "}
           وتترقى لمستوى{" "}
           <span className="font-bold">{next.nameAr || next.name}</span>
