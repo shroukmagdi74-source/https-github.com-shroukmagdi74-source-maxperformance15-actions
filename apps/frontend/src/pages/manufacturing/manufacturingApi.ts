@@ -899,6 +899,20 @@ export interface CreateSampleOrderInput extends Omit<Partial<SampleOrder>, 'stag
   }>;
 }
 
+export interface SamplePayment {
+  id: string;
+  companyId?: string;
+  sampleOrderId: string;
+  kind: 'DEPOSIT' | 'INSTALLMENT' | 'FINAL' | 'CUSTOM';
+  amount: number;
+  method?: string | null;
+  paidAt: string;
+  reference?: string | null;
+  notes?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+}
+
 export interface SampleOrder {
   id: string;
   companyId: string;
@@ -924,6 +938,23 @@ export interface SampleOrder {
   color?: string | null;
   materialSource: SampleMaterialSource;
   fee?: number | null;
+  partnerFactoryId?: string | null;
+  partnerFactory?: {
+    id: string;
+    name: string;
+    code?: string | null;
+    contactPerson?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
+  expectedDeliveryAt?: string | null;
+  totalAmount?: number | null;
+  depositAmount?: number;
+  paidAmount?: number;
+  remaining?: number;
+  isOverdue?: boolean;
+  overdueDays?: number;
+  payments?: SamplePayment[];
   status: SampleOrderStatus;
   dueDate?: string | null;
   designNotes?: string | null;
@@ -1714,6 +1745,9 @@ export const manufacturingApi = {
     status?: string;
     materialSource?: string;
     customerId?: string;
+    customerLinked?: string;
+    partnerFactoryId?: string;
+    overdue?: boolean | string;
     search?: string;
     page?: number;
     limit?: number;
@@ -1812,6 +1846,44 @@ export const manufacturingApi = {
   ): Promise<{ success: boolean; message?: string; revoked?: boolean; alreadyRevoked?: boolean }> => {
     const res = await apiClient.post(`/manufacturing/sample-orders/${id}/share-links/${kind}/revoke`);
     return res.data;
+  },
+
+  updateSampleCommercial: async (
+    id: string,
+    data: {
+      partnerFactoryId?: string | null;
+      expectedDeliveryAt?: string | null;
+      totalAmount?: number | null;
+      depositAmount?: number;
+    }
+  ): Promise<SampleOrder> => {
+    const res = await apiClient.patch(`/manufacturing/sample-orders/${id}/commercial`, data);
+    return res.data?.data;
+  },
+
+  listSamplePayments: async (id: string): Promise<SamplePayment[]> => {
+    const res = await apiClient.get(`/manufacturing/sample-orders/${id}/payments`);
+    return res.data?.data || [];
+  },
+
+  createSamplePayment: async (
+    id: string,
+    data: {
+      amount: number;
+      method?: string | null;
+      paidAt?: string;
+      reference?: string | null;
+      notes?: string | null;
+      kind?: string;
+    }
+  ): Promise<SampleOrder> => {
+    const res = await apiClient.post(`/manufacturing/sample-orders/${id}/payments`, data);
+    return res.data?.data;
+  },
+
+  deleteSamplePayment: async (id: string, paymentId: string): Promise<SampleOrder> => {
+    const res = await apiClient.delete(`/manufacturing/sample-orders/${id}/payments/${paymentId}`);
+    return res.data?.data;
   },
 
 
