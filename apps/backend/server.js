@@ -1538,6 +1538,17 @@ try {
   );
 }
 
+// Start YouTube Publish Scheduling Cron Service
+if (process.env.YOUTUBE_CRON !== "off") {
+  try {
+    const { startYouTubePublishCron } = require("./cron/youtubePublishCron");
+    startYouTubePublishCron();
+    console.log("✅ [YOUTUBE-PUBLISH-CRON] YouTube publish scheduler service started");
+  } catch (error) {
+    console.error("❌ [YOUTUBE-PUBLISH-CRON] Failed to start YouTube publish service:", error);
+  }
+}
+
 // 🧹 Activity log retention — يُقلّم نبضات النشاط (PULSE) القديمة ليمنع تضخم الجدول
 try {
   const { startActivityLogRetentionCron } = require("./cron/activityLogRetentionCron");
@@ -1876,6 +1887,10 @@ app.use("/api/v1/tiktok/auth", require("./routes/tiktokAuthRoutes"));
 app.use("/api/v1/tiktok/display", require("./routes/tiktokDisplayRoutes"));
 app.use("/api/v1/tiktok/events", require("./routes/tiktokEventsRoutes"));
 app.use("/api/v1/tiktok/messaging", require("./routes/tiktokMessagingRoutes"));
+
+// YouTube integrations (publish / auth)
+app.use("/api/v1/youtube/auth", require("./routes/youtubeAuthRoutes"));
+app.use("/api/v1/youtube/publish", require("./routes/youtubePublishRoutes"));
 
 // Amazon Affiliate (Amazon Associates product import / buy-on-Amazon)
 app.use("/api/v1/amazon-affiliate", require("./routes/amazonAffiliateRoutes"));

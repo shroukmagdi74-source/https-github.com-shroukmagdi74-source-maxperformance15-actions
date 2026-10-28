@@ -1214,6 +1214,13 @@ export const getSidebarConfig = (
                     label: isEn ? 'TikTok Publish' : t('sidebar.tiktokPublish'),
                     hidden: !isAppActive('tiktok-integrations'),
                 },
+                // 27.1 نشر YouTube
+                {
+                    to: '/youtube/publish',
+                    icon: Radio,
+                    label: isEn ? 'YouTube Publish' : (t('sidebar.youtubePublish') || 'نشر يوتيوب'),
+                    hidden: !isAppActive('youtube-publish'),
+                },
                 // 28. متجر TikTok Shop
                 {
                     to: '/tiktok/shop',

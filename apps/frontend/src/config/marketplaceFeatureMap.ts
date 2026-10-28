@@ -389,6 +389,20 @@ export const marketplaceFeatureMap: MarketplaceFeatureMapEntry[] = [
     action: "تطبيق مستقل للتكامل الرسمي مع TikTok.",
   },
   {
+    id: "youtube-publish",
+    area: "marketing",
+    label: "نشر محتوى يوتيوب وجدولة الفيديو",
+    description: "ربط القناة وجدولة نشر مقاطع الفيديو على YouTube تلقائياً ومتابعة حالة النشر.",
+    status: "covered",
+    appSlug: "youtube-publish",
+    appLabel: "نشر يوتيوب",
+    currentGate: "youtube-publish",
+    routes: [
+      { path: "/youtube/publish", label: "نشر محتوى YouTube" },
+    ],
+    action: "تطبيق متكامل لجدولة ونشر مقاطع الفيديو على YouTube.",
+  },
+  {
     id: "marketing-agency",
     area: "marketing",
     label: "إدارة وكالات التسويق",
