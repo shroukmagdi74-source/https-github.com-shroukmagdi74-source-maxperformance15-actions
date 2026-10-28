@@ -19,6 +19,13 @@ const AccountingAutoPostingService = require('./accountingAutoPostingService');
 const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
 const round4 = (val) => Math.round((Number(val) || 0) * 10000) / 10000;
 
+const resolveExecutionFactory = (stages = []) => {
+  const withFactory = stages
+    .filter((s) => s.partnerFactoryId && s.partnerFactory)
+    .sort((a, b) => a.sequence - b.sequence);
+  return withFactory[0]?.partnerFactory || null;
+};
+
 class ManufacturingService {
   /**
    * Idempotent runtime schema guard for PostgreSQL databases
@@ -865,7 +872,10 @@ class ManufacturingService {
       include: {
         bom: { include: { components: true, standardStages: true } },
         variants: true,
-        stages: { orderBy: { sequence: 'asc' } },
+        stages: {
+          orderBy: { sequence: 'asc' },
+          include: { partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true } } },
+        },
         materialIssues: { include: { items: true }, orderBy: { createdAt: 'asc' } },
         goodsReceipts: { include: { items: true }, orderBy: { createdAt: 'asc' } },
         scrapRecords: { orderBy: { createdAt: 'asc' } },
@@ -911,6 +921,8 @@ class ManufacturingService {
 
     return {
       ...order,
+      executionFactory: resolveExecutionFactory(order.stages),
+      executionFactoryCount: new Set(order.stages.map((s) => s.partnerFactoryId).filter(Boolean)).size,
       contractValue,
       parentTotals,
     };
@@ -930,12 +942,18 @@ class ManufacturingService {
     if (filters.orderType) where.orderType = filters.orderType;
     if (filters.customerId) where.customerId = filters.customerId;
     if (filters.customerOrderId) where.customerOrderId = filters.customerOrderId;
+    if (filters.partnerFactoryId) {
+      where.stages = { some: { partnerFactoryId: filters.partnerFactoryId } };
+    }
 
     if (filters.search) {
       where.OR = [
         { orderNumber: { contains: filters.search, mode: 'insensitive' } },
         { brandName: { contains: filters.search, mode: 'insensitive' } },
         { notes: { contains: filters.search, mode: 'insensitive' } },
+        { customer: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+        { customer: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+        { customer: { phone: { contains: filters.search } } },
       ];
     }
     if (filters.bomId) where.bomId = filters.bomId;
@@ -946,7 +964,10 @@ class ManufacturingService {
       include: {
         bom: { select: { id: true, code: true, name: true } },
         variants: true,
-        stages: { orderBy: { sequence: 'asc' } },
+        stages: {
+          orderBy: { sequence: 'asc' },
+          include: { partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true } } },
+        },
         customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
         customerOrder: { select: { id: true, orderNumber: true, status: true, brandName: true } },
         _count: {
@@ -962,6 +983,8 @@ class ManufacturingService {
 
     return orders.map((o) => ({
       ...o,
+      executionFactory: resolveExecutionFactory(o.stages),
+      executionFactoryCount: new Set(o.stages.map((s) => s.partnerFactoryId).filter(Boolean)).size,
       contractValue: o.salePricePerUnit !== null && o.salePricePerUnit !== undefined
         ? round2(Number(o.plannedQuantity || 0) * Number(o.salePricePerUnit || 0))
         : null,

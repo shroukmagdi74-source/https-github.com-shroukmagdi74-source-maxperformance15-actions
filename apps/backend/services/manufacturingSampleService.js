@@ -167,6 +167,8 @@ class ManufacturingSampleService {
     if (customerId) {
       where.customerId = customerId;
     }
+    if (query.customerLinked === 'true') where.customerId = { not: null };
+    if (query.customerLinked === 'false') where.customerId = null;
     if (search && String(search).trim()) {
       const s = String(search).trim();
       where.OR = [
@@ -177,19 +179,58 @@ class ManufacturingSampleService {
       ];
     }
 
-    const [items, total] = await Promise.all([
-      prisma.sampleOrder.findMany({
-        where,
-        include: {
-          stages: { orderBy: { sequence: 'asc' } },
-          attachments: { orderBy: { uploadedAt: 'desc' } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limitNum,
-      }),
-      prisma.sampleOrder.count({ where }),
-    ]);
+    let items, total;
+    try {
+      [items, total] = await Promise.all([
+        prisma.sampleOrder.findMany({
+          where,
+          include: {
+            stages: { orderBy: { sequence: 'asc' } },
+            attachments: { orderBy: { uploadedAt: 'desc' } },
+            customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+            bom: { select: { id: true, code: true, name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limitNum,
+        }),
+        prisma.sampleOrder.count({ where }),
+      ]);
+    } catch (err) {
+      if (err.message && err.message.includes("Unknown field 'bom'")) {
+        [items, total] = await Promise.all([
+          prisma.sampleOrder.findMany({
+            where,
+            include: {
+              stages: { orderBy: { sequence: 'asc' } },
+              attachments: { orderBy: { uploadedAt: 'desc' } },
+              customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limitNum,
+          }),
+          prisma.sampleOrder.count({ where }),
+        ]);
+      } else {
+        throw err;
+      }
+    }
+
+    // Enhance with bom details if not populated by include
+    const missingBomIds = items.filter((s) => s.bomId && !s.bom).map((s) => s.bomId);
+    let bomMap = {};
+    if (missingBomIds.length > 0) {
+      try {
+        const boms = await prisma.billOfMaterials.findMany({
+          where: { id: { in: Array.from(new Set(missingBomIds)) }, companyId },
+          select: { id: true, code: true, name: true },
+        });
+        boms.forEach((b) => {
+          bomMap[b.id] = b;
+        });
+      } catch (_) {}
+    }
 
     // Enhance with convertedOrder details if converted
     const convertedOrderIds = items
@@ -209,6 +250,7 @@ class ManufacturingSampleService {
 
     const enrichedItems = items.map((s) => ({
       ...s,
+      bom: s.bom || (s.bomId ? bomMap[s.bomId] || null : null),
       convertedOrder: s.convertedOrderId ? orderMap[s.convertedOrderId] || null : null,
     }));
 
@@ -230,18 +272,45 @@ class ManufacturingSampleService {
     await this.ensureSchema();
     const prisma = getSharedPrismaClient();
 
-    const sample = await prisma.sampleOrder.findFirst({
-      where: { id, companyId },
-      include: {
-        stages: { orderBy: { sequence: 'asc' } },
-        attachments: { orderBy: { uploadedAt: 'desc' } },
-      },
-    });
+    let sample;
+    try {
+      sample = await prisma.sampleOrder.findFirst({
+        where: { id, companyId },
+        include: {
+          stages: { orderBy: { sequence: 'asc' } },
+          attachments: { orderBy: { uploadedAt: 'desc' } },
+          customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          bom: { select: { id: true, code: true, name: true } },
+        },
+      });
+    } catch (err) {
+      if (err.message && err.message.includes("Unknown field 'bom'")) {
+        sample = await prisma.sampleOrder.findFirst({
+          where: { id, companyId },
+          include: {
+            stages: { orderBy: { sequence: 'asc' } },
+            attachments: { orderBy: { uploadedAt: 'desc' } },
+            customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          },
+        });
+      } else {
+        throw err;
+      }
+    }
 
     if (!sample) {
       const err = new Error('أمر تصنيع العينة غير موجود');
       err.statusCode = 404;
       throw err;
+    }
+
+    if (sample.bomId && !sample.bom) {
+      try {
+        sample.bom = await prisma.billOfMaterials.findFirst({
+          where: { id: sample.bomId, companyId },
+          select: { id: true, code: true, name: true },
+        });
+      } catch (_) {}
     }
 
     let convertedOrder = null;
@@ -276,6 +345,21 @@ class ManufacturingSampleService {
     const materialSource = data.materialSource === 'CUSTOMER' ? 'CUSTOMER' : 'COMPANY';
     const fee = data.fee !== undefined && data.fee !== null && data.fee !== '' ? round2(data.fee) : null;
 
+    let customerId = data.customerId ? String(data.customerId) : null;
+    let customerName = data.customerName ? String(data.customerName).trim() : null;
+    if (customerId) {
+      const customer = await prisma.customer.findFirst({
+        where: { id: customerId, companyId },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      if (!customer) {
+        const err = new Error('العميل غير موجود في هذه الشركة');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!customerName) customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+    }
+
     // Retry loop for atomic sequence collision protection
     let attempts = 0;
     while (attempts < 5) {
@@ -288,8 +372,8 @@ class ManufacturingSampleService {
             data: {
               companyId,
               sampleNumber,
-              customerId: data.customerId || null,
-              customerName: data.customerName ? String(data.customerName).trim() : null,
+              customerId,
+              customerName,
               brandName: data.brandName ? String(data.brandName).trim() : null,
               productName,
               productId: data.productId || null,
@@ -326,13 +410,40 @@ class ManufacturingSampleService {
             }
           }
 
-          return await tx.sampleOrder.findFirst({
-            where: { id: sample.id, companyId },
-            include: {
-              stages: { orderBy: { sequence: 'asc' } },
-              attachments: true,
-            },
-          });
+          let createdRecord;
+          try {
+            createdRecord = await tx.sampleOrder.findFirst({
+              where: { id: sample.id, companyId },
+              include: {
+                stages: { orderBy: { sequence: 'asc' } },
+                attachments: true,
+                customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+                bom: { select: { id: true, code: true, name: true } },
+              },
+            });
+          } catch (err) {
+            if (err.message && err.message.includes("Unknown field 'bom'")) {
+              createdRecord = await tx.sampleOrder.findFirst({
+                where: { id: sample.id, companyId },
+                include: {
+                  stages: { orderBy: { sequence: 'asc' } },
+                  attachments: true,
+                  customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+                },
+              });
+            } else {
+              throw err;
+            }
+          }
+          if (createdRecord?.bomId && !createdRecord.bom) {
+            try {
+              createdRecord.bom = await tx.billOfMaterials.findFirst({
+                where: { id: createdRecord.bomId, companyId },
+                select: { id: true, code: true, name: true },
+              });
+            } catch (_) {}
+          }
+          return createdRecord;
         });
       } catch (err) {
         if (err.code === 'P2002' && attempts < 5) {
@@ -368,9 +479,28 @@ class ManufacturingSampleService {
     }
 
     const updateData = {};
+    if (data.customerId !== undefined) {
+      if (data.customerId) {
+        const cId = String(data.customerId);
+        const customer = await prisma.customer.findFirst({
+          where: { id: cId, companyId },
+          select: { id: true, firstName: true, lastName: true },
+        });
+        if (!customer) {
+          const err = new Error('العميل غير موجود في هذه الشركة');
+          err.statusCode = 400;
+          throw err;
+        }
+        updateData.customerId = cId;
+        if (data.customerName === undefined && !existing.customerName) {
+          updateData.customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+        }
+      } else {
+        updateData.customerId = null;
+      }
+    }
     if (data.productName !== undefined) updateData.productName = String(data.productName).trim();
     if (data.customerName !== undefined) updateData.customerName = data.customerName ? String(data.customerName).trim() : null;
-    if (data.customerId !== undefined) updateData.customerId = data.customerId || null;
     if (data.brandName !== undefined) updateData.brandName = data.brandName ? String(data.brandName).trim() : null;
     if (data.productId !== undefined) updateData.productId = data.productId || null;
     if (data.bomId !== undefined) updateData.bomId = data.bomId || null;
@@ -383,14 +513,44 @@ class ManufacturingSampleService {
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     if (data.designNotes !== undefined) updateData.designNotes = data.designNotes ? String(data.designNotes).trim() : null;
 
-    return await prisma.sampleOrder.update({
-      where: { id },
-      data: updateData,
-      include: {
-        stages: { orderBy: { sequence: 'asc' } },
-        attachments: true,
-      },
-    });
+    let updatedRecord;
+    try {
+      updatedRecord = await prisma.sampleOrder.update({
+        where: { id },
+        data: updateData,
+        include: {
+          stages: { orderBy: { sequence: 'asc' } },
+          attachments: true,
+          customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          bom: { select: { id: true, code: true, name: true } },
+        },
+      });
+    } catch (err) {
+      if (err.message && err.message.includes("Unknown field 'bom'")) {
+        updatedRecord = await prisma.sampleOrder.update({
+          where: { id },
+          data: updateData,
+          include: {
+            stages: { orderBy: { sequence: 'asc' } },
+            attachments: true,
+            customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          },
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    if (updatedRecord?.bomId && !updatedRecord.bom) {
+      try {
+        updatedRecord.bom = await prisma.billOfMaterials.findFirst({
+          where: { id: updatedRecord.bomId, companyId },
+          select: { id: true, code: true, name: true },
+        });
+      } catch (_) {}
+    }
+
+    return updatedRecord;
   }
 
   /**
