@@ -1890,6 +1890,10 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
           setImagePickerTargetField("ogImage");
           setShowImagePickerModal(true);
         }}
+        onSelectSection={(sectionKey) => {
+          handleSelectSection(sectionKey);
+          setIsInspectorOpen(true);
+        }}
       />
 
       <StudioHistoryPanel

@@ -12,12 +12,17 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import type { StorefrontPageSEOConfig, StorefrontPageStatus } from "../types/theme.types";
+import { auditA11y } from "./utils/a11yAudit";
+import { auditSeo } from "./utils/seoAudit";
+import { auditLinks } from "./utils/linkAudit";
 
 export interface PrepublishCheckResult {
   id: string;
   label: string;
   status: "pass" | "warn" | "fail";
   message: string;
+  sectionKey?: string;
+  category?: "general" | "a11y" | "seo" | "links";
 }
 
 export function runPrepublishChecks(params: {
@@ -218,6 +223,7 @@ export function runPrepublishChecks(params: {
       label: "الروابط الداخلية",
       status: "fail",
       message: `تم رصد روابط داخلية قد تكون غير متوفرة أو معطلة: ${brokenLinks.join("، ")}`,
+      category: "links",
     });
   } else {
     results.push({
@@ -225,6 +231,103 @@ export function runPrepublishChecks(params: {
       label: "الروابط الداخلية",
       status: "pass",
       message: "جميع الروابط الداخلية تشير إلى صفحات متوفرة في المتجر",
+      category: "links",
+    });
+  }
+
+  // 6. Deep Accessibility (A11y) Audit
+  const a11yResult = auditA11y({ sections });
+  if (a11yResult.issues.length > 0) {
+    a11yResult.issues.forEach((issue) => {
+      results.push({
+        id: `a11y-${issue.id}`,
+        label: `سهولة الوصول: ${
+          issue.type === "contrast"
+            ? "تباين الألوان"
+            : issue.type === "heading-order"
+            ? "تسلسل العناوين"
+            : issue.type === "button-label"
+            ? "تسمية الأزرار"
+            : issue.type === "touch-target"
+            ? "حجم أهداف اللمس"
+            : "النصوص البديلة"
+        }`,
+        status: issue.severity,
+        message: issue.message,
+        sectionKey: issue.sectionKey,
+        category: "a11y",
+      });
+    });
+  } else if (sections.length > 0) {
+    results.push({
+      id: "a11y-passed",
+      label: "معايير سهولة الوصول (A11y)",
+      status: "pass",
+      message: "اجتازت الصفحة جميع معايير سهولة الوصول WCAG AA بنجاح (التباين، ترتيب العناوين، أزرار التحكم).",
+      category: "a11y",
+    });
+  }
+
+  // 7. Deep SEO Audit
+  const seoResult = auditSeo({ pageTitle, seo, sections });
+  seoResult.issues.forEach((issue) => {
+    if (issue.type === "duplicate-heading" || issue.type === "missing-h1" || issue.type === "missing-og") {
+      results.push({
+        id: `seo-${issue.id}`,
+        label: `تحسين محركات البحث: ${
+          issue.type === "duplicate-heading"
+            ? "عناوين مكررة"
+            : issue.type === "missing-h1"
+            ? "العنوان الرئيسي H1"
+            : "صورة المشاركة OG"
+        }`,
+        status: issue.severity,
+        message: issue.message,
+        sectionKey: issue.sectionKey,
+        category: "seo",
+      });
+    } else if (issue.type === "title" && (issue.id === "seo-title-short" || issue.id === "seo-title-long")) {
+      results.push({
+        id: `seo-${issue.id}`,
+        label: "طول عنوان الصفحة (SEO Title)",
+        status: issue.severity,
+        message: issue.message,
+        category: "seo",
+      });
+    } else if (issue.type === "description" && (issue.id === "seo-desc-short" || issue.id === "seo-desc-long")) {
+      results.push({
+        id: `seo-${issue.id}`,
+        label: "طول وصف محركات البحث (Meta Description)",
+        status: issue.severity,
+        message: issue.message,
+        category: "seo",
+      });
+    }
+  });
+
+  // 8. Deep Link Audit
+  const linkResult = auditLinks({ sections, availablePages });
+  if (linkResult.issues.length > 0) {
+    linkResult.issues.forEach((issue) => {
+      const alreadyReported = results.some((r) => r.id === `link-${issue.id}`);
+      if (!alreadyReported) {
+        results.push({
+          id: `link-${issue.id}`,
+          label: `فحص الروابط: ${
+            issue.type === "unknown-route"
+              ? "مسار غير معروف"
+              : issue.type === "placeholder-hash"
+              ? "رابط معطل (#)"
+              : issue.type === "empty-link"
+              ? "رابط فارغ"
+              : "بروتوكول غير آمن"
+          }`,
+          status: issue.severity,
+          message: issue.message,
+          sectionKey: issue.sectionKey,
+          category: "links",
+        });
+      }
     });
   }
 
@@ -244,6 +347,7 @@ export interface StudioPageSettingsPanelProps {
   onUpdateSeo: (seo: Partial<StorefrontPageSEOConfig>) => void;
   onUpdateStatus: (status: StorefrontPageStatus) => void;
   onOpenImagePicker?: () => void;
+  onSelectSection?: (sectionKey: string) => void;
 }
 
 export const StudioPageSettingsPanel: React.FC<StudioPageSettingsPanelProps> = ({
@@ -259,9 +363,11 @@ export const StudioPageSettingsPanel: React.FC<StudioPageSettingsPanelProps> = (
   onUpdateSeo,
   onUpdateStatus,
   onOpenImagePicker,
+  onSelectSection,
 }) => {
   const [activeTab, setActiveTab] = useState<"status" | "seo" | "prepublish">("status");
   const [prepublishRan, setPrepublishRan] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<"all" | "fail" | "warn" | "pass">("all");
 
   const prepublishResults = useMemo(() => {
     return runPrepublishChecks({
@@ -277,7 +383,7 @@ export const StudioPageSettingsPanel: React.FC<StudioPageSettingsPanelProps> = (
 
   const scrollToSection = (sectionId: string) => {
     const el = document.getElementById(sectionId);
-    if (el) {
+    if (el && typeof el.scrollIntoView === "function") {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
@@ -457,28 +563,98 @@ export const StudioPageSettingsPanel: React.FC<StudioPageSettingsPanelProps> = (
               </div>
             )}
 
+            {/* Results Filter & Count */}
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setAuditFilter("all")}
+                className={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                  auditFilter === "all"
+                    ? "bg-[#2b6cf6] text-white"
+                    : "bg-[#202226] text-[#9ba0a8] hover:text-white"
+                }`}
+              >
+                الكل ({prepublishResults.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditFilter("fail")}
+                className={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                  auditFilter === "fail"
+                    ? "bg-rose-500 text-white"
+                    : "bg-[#202226] text-rose-400 hover:text-white"
+                }`}
+              >
+                أخطاء ({prepublishResults.filter((r) => r.status === "fail").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditFilter("warn")}
+                className={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                  auditFilter === "warn"
+                    ? "bg-amber-500 text-white"
+                    : "bg-[#202226] text-amber-400 hover:text-white"
+                }`}
+              >
+                تحذيرات ({prepublishResults.filter((r) => r.status === "warn").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuditFilter("pass")}
+                className={`rounded-md px-2.5 py-1 font-semibold transition-colors ${
+                  auditFilter === "pass"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-[#202226] text-emerald-400 hover:text-white"
+                }`}
+              >
+                ناجحة ({prepublishResults.filter((r) => r.status === "pass").length})
+              </button>
+            </div>
+
             {/* Results List */}
             <div data-testid="prepublish-results" className="space-y-2">
-              {prepublishResults.map((result) => (
-                <div
-                  key={result.id}
-                  className="flex items-start gap-2.5 rounded-lg border border-[#2c2f35] bg-[#202226] p-3 text-xs"
-                >
-                  {result.status === "pass" && (
-                    <CheckCircleIcon className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
-                  )}
-                  {result.status === "warn" && (
-                    <ExclamationTriangleIcon className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
-                  )}
-                  {result.status === "fail" && (
-                    <XCircleIcon className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
-                  )}
-                  <div className="space-y-0.5 flex-1 min-w-0">
-                    <span className="font-bold text-white block">{result.label}</span>
-                    <p className="text-[11px] text-[#9ba0a8] leading-relaxed break-words">{result.message}</p>
+              {prepublishResults
+                .filter((r) => (auditFilter === "all" ? true : r.status === auditFilter))
+                .map((result) => (
+                  <div
+                    key={result.id}
+                    className="flex items-start gap-2.5 rounded-lg border border-[#2c2f35] bg-[#202226] p-3 text-xs"
+                  >
+                    {result.status === "pass" && (
+                      <CheckCircleIcon className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                    )}
+                    {result.status === "warn" && (
+                      <ExclamationTriangleIcon className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+                    )}
+                    {result.status === "fail" && (
+                      <XCircleIcon className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                    )}
+                    <div className="space-y-0.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white block">{result.label}</span>
+                        {result.category && (
+                          <span className="rounded bg-[#2a2d33] px-1.5 py-0.2 text-[9px] font-mono text-[#9ba0a8]">
+                            {result.category}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#9ba0a8] leading-relaxed break-words">{result.message}</p>
+                    </div>
+                    {result.sectionKey && (
+                      <button
+                        type="button"
+                        data-testid={`jump-to-problem-${result.sectionKey}`}
+                        onClick={() => {
+                          onSelectSection?.(result.sectionKey!);
+                          scrollToSection(result.sectionKey!);
+                        }}
+                        className="shrink-0 mt-0.5 inline-flex items-center gap-1 rounded bg-[#2b6cf6]/15 hover:bg-[#2b6cf6]/25 border border-[#2b6cf6]/30 px-2 py-1 text-[11px] font-semibold text-[#60a5fa] transition-colors"
+                      >
+                        <span>انتقل للمشكلة</span>
+                      </button>
+                    )}
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
 
