@@ -1654,10 +1654,7 @@ async function reactivateEmployee(req, res) {
   try {
     const { companyId } = req.user;
     const { id } = req.params;
-    console.log(
-      `📥 [HR] Reactivating employee ${id} with data:`,
-      JSON.stringify(req.body, null, 2),
-    );
+    console.log(`📥 [HR] Reactivating employee ${id}`);
     const employee = await employeeService.reactivateEmployee(
       companyId,
       id,

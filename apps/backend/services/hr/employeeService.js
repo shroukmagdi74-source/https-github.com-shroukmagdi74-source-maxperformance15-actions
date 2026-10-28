@@ -8,6 +8,7 @@ const { validateEmployeeData } = require('../../utils/hrValidation');
 const {
   NotFoundError,
   ConflictError,
+  UnauthorizedError,
   EmployeeError
 } = require('../../utils/hrErrors');
 
@@ -964,6 +965,27 @@ class EmployeeService {
 
       if (!user) {
         throw new NotFoundError('المستخدم غير موجود');
+      }
+
+      // 🔒 حماية النطاق (tenant guard): ممنوع تفعيل مستخدم لا ينتمي لهذه الشركة.
+      // مسموح فقط لو: الشركة دي هي الشركة الأساسية للمستخدم، أو عنده عضوية UserCompany
+      // بنفس الشركة، أو سجل موظف (حتى لو موقوف) بنفس الشركة.
+      const [membership, employeeRecord] = await Promise.all([
+        this.prisma.userCompany.findFirst({
+          where: { userId: employeeId, companyId },
+          select: { id: true, isActive: true }
+        }),
+        this.prisma.employee.findFirst({
+          where: { userId: employeeId, companyId },
+          select: { id: true, status: true }
+        })
+      ]);
+
+      const belongsToCompany =
+        user.companyId === companyId || Boolean(membership) || Boolean(employeeRecord);
+
+      if (!belongsToCompany) {
+        throw new UnauthorizedError('هذا المستخدم لا ينتمي لهذه الشركة');
       }
 
       // 1. توليد أو استعادة رقم الموظف إذا لم يكن موجوداً
