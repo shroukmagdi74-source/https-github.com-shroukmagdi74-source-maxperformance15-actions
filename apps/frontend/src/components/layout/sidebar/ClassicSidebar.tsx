@@ -6,7 +6,6 @@ import {
   ChevronRightIcon,
   MagnifyingGlassIcon,
   ArrowRightOnRectangleIcon,
-  DevicePhoneMobileIcon,
 } from "@heroicons/react/24/outline";
 import { SidebarSection } from "../../../types/layout";
 import { useAuth } from "../../../hooks/useAuthSimple";
@@ -14,8 +13,6 @@ import { isSidebarPathActive } from "./matchSidebarPath";
 import { CompanyLogo } from "../../ui/CompanyLogo";
 import { useRoutePrefetch } from "../../../hooks/useRoutePrefetch";
 import { useSidebarNavLink } from "./useSidebarNavLink";
-import { isCapacitorNative } from "../../../config/environment";
-import { AppInstallActions } from "../../common/AppInstallActions";
 import { apiClient } from "../../../services/apiClient";
 
 interface SidebarPreferences {
@@ -584,11 +581,6 @@ const ClassicSidebar: React.FC<ClassicSidebarProps> = ({
               </div>
             );
           })}
-      </div>
-
-      {/* تثبيت التطبيق يظهر على الشاشات الكبيرة فقط (مخفي على الموبايل) */}
-      <div className="hidden lg:block">
-        <AppInstallActions layout="sidebar" isCollapsed={isCollapsed} />
       </div>
     </div>
   );
