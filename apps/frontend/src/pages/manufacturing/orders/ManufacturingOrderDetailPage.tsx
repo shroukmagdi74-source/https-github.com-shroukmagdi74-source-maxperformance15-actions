@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { RotateCw, ArrowRight } from 'lucide-react';
+import { RotateCw, ArrowRight, User, Building2, Phone, Tag } from 'lucide-react';
 import { ManufacturingHeader } from '../ManufacturingHeader';
 import { manufacturingApi, ProductionOrder } from '../manufacturingApi';
 
@@ -183,6 +183,136 @@ export const ManufacturingOrderDetailPage: React.FC = () => {
           onOpenCancelDialog={() => setCancelDialogOpen(true)}
           costWarnings={costWarnings}
         />
+
+        {/* Customer & Factory Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Customer Card */}
+          <div className="p-4 rounded-xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-primary" />
+                  <span>بيانات العميل</span>
+                </span>
+                {order.customer ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    عميل مسجل
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
+                    غير مربوط
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-sm font-bold text-foreground">
+                  {order.customer
+                    ? `${order.customer.firstName ?? ''} ${order.customer.lastName ?? ''}`.trim() || order.customer.name || 'عميل بدون اسم'
+                    : order.customerOrder?.brandName || order.brandName || 'غير محدد'}
+                </div>
+
+                <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap pt-1">
+                  <div className="flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span dir="ltr" className="font-mono">
+                      {order.customer?.phone || '—'}
+                    </span>
+                  </div>
+                  {(order.brandName || order.customerOrder?.brandName) && (
+                    <div className="flex items-center gap-1">
+                      <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span>{order.brandName || order.customerOrder?.brandName}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Factory Card */}
+          {(() => {
+            const primaryFactory =
+              order.executionFactory ||
+              order.stages?.find((st) => st.partnerFactoryId && st.partnerFactory)?.partnerFactory ||
+              null;
+
+            const stagesWithFactory =
+              order.stages?.filter((st) => st.partnerFactory || st.partnerFactoryId) || [];
+
+            const distinctFactoryCount =
+              order.executionFactoryCount ??
+              new Set(stagesWithFactory.map((st) => st.partnerFactoryId).filter(Boolean)).size;
+
+            return (
+              <div className="p-4 rounded-xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>المصنع المنفذ وجهة التشغيل</span>
+                    </span>
+                    {primaryFactory ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                        تشغيل خارجي
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
+                        تشغيل داخلي
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-foreground">
+                        {primaryFactory?.name || 'إنتاج داخلي (صالتنا)'}
+                      </span>
+                      {primaryFactory?.code && (
+                        <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          {primaryFactory.code}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap pt-1">
+                      {primaryFactory?.contactPerson && (
+                        <div className="flex items-center gap-1">
+                          <User className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span>{primaryFactory.contactPerson}</span>
+                        </div>
+                      )}
+                      {primaryFactory?.phone && (
+                        <div className="flex items-center gap-1">
+                          <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span dir="ltr" className="font-mono">{primaryFactory.phone}</span>
+                        </div>
+                      )}
+                      {!primaryFactory?.contactPerson && !primaryFactory?.phone && (
+                        <span className="text-xs text-muted-foreground">
+                          {primaryFactory ? 'لا توجد بيانات تواصل مسجلة للمصنع' : 'تنفيذ كامل عبر خطوط الإنتاج الداخلية'}
+                        </span>
+                      )}
+                    </div>
+
+                    {stagesWithFactory.length > 0 && (
+                      <div className="pt-2 mt-2 border-t border-border/50 text-[11px] text-muted-foreground flex items-center gap-1 flex-wrap">
+                        <span className="font-semibold text-foreground">مراحل المصانع ({distinctFactoryCount}):</span>
+                        {stagesWithFactory.map((st, i) => (
+                          <span key={st.id || i} className="inline-flex items-center gap-1">
+                            <span>{st.name}</span>
+                            <span className="text-primary font-medium">← {st.partnerFactory?.name || 'مصنع شريك'}</span>
+                            {i < stagesWithFactory.length - 1 && <span className="text-muted-foreground/60">•</span>}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
 
         {/* 5-Tab Navigation Strip */}
         <div className="border-b border-border/70 flex items-center gap-1 overflow-x-auto text-xs font-semibold">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Shirt, Calendar, DollarSign, Tag, User } from 'lucide-react';
 import { manufacturingApi, BillOfMaterials, SampleMaterialSource } from '../manufacturingApi';
+import { CustomerPicker } from './CustomerPicker';
 
 interface CreateSampleModalProps {
   isOpen: boolean;
@@ -14,6 +15,8 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
 
   // Form fields
   const [productName, setProductName] = useState('');
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerDisplayName, setCustomerDisplayName] = useState<string>('');
   const [customerName, setCustomerName] = useState('');
   const [brandName, setBrandName] = useState('');
   const [plannedQuantity, setPlannedQuantity] = useState<number>(1);
@@ -82,6 +85,7 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
 
       await manufacturingApi.createSampleOrder({
         productName: productName.trim(),
+        customerId: customerId || undefined,
         customerName: customerName.trim() || undefined,
         brandName: brandName.trim() || undefined,
         plannedQuantity: Number(plannedQuantity) || 1,
@@ -169,17 +173,36 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">
-                اسم العميل (حر أو غير مسجل)
+                العميل <span className="text-muted-foreground text-[10px]">(بحث واختيار عميل مسجل)</span>
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="مثال: أحمد مختار / شركة Z للملابس"
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-                />
-                <User className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
+              <CustomerPicker
+                value={customerId}
+                displayName={customerDisplayName}
+                onChange={(c) => {
+                  if (c) {
+                    setCustomerId(c.id);
+                    setCustomerDisplayName(c.name);
+                    setCustomerName(c.name);
+                  } else {
+                    setCustomerId(null);
+                    setCustomerDisplayName('');
+                  }
+                }}
+              />
+              <div className="mt-1.5">
+                <span className="text-[10px] text-muted-foreground block mb-0.5">
+                  أو اكتب اسم عميل غير مسجل (حر):
+                </span>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="مثال: أحمد مختار / شركة Z للملابس"
+                    className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                  />
+                  <User className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2" />
+                </div>
               </div>
             </div>
 
