@@ -377,7 +377,7 @@ export const StorefrontHead: React.FC<StorefrontHeadProps> = ({
       }
     }
 
-    if (pageSeo?.title?.trim() || !shouldPreserveExistingTitle) {
+    if (pageSeo?.title?.trim() || !shouldPreserveExistingTitle || isDynamicDetailRoute) {
       document.title = finalTitle;
     }
 
