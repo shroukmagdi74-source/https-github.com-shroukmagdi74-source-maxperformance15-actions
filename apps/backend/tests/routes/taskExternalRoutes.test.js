@@ -268,7 +268,11 @@ const mockPrisma = {
     },
     findMany: async ({ where }) => {
       return taskStore
-        .filter((t) => t.companyId === where.companyId)
+        .filter((t) => {
+          if (t.companyId !== where.companyId) return false;
+          if (where.goalId && t.goalId !== where.goalId) return false;
+          return true;
+        })
         .map((t) => {
           const linkedGoal = t.goalId ? goalStore.find((g) => g.id === t.goalId) : null;
           return {
@@ -886,5 +890,49 @@ test('19) Rejects invalid goalId with 400 when creating task', async () => {
   assert.strictEqual(response.statusCode, 400);
   assert.strictEqual(response.body.success, false);
   assert.match(response.body.message, /goalId/i);
+});
+
+test('20) Filtering tasks by goalId returns only tasks linked to that goal', async () => {
+  resetTestState();
+
+  const goalRes = await request(app)
+    .post('/api/v1/external/tasks/goals')
+    .set('x-api-key', keyPairFull.rawKey)
+    .send({
+      title: 'Targeted Goal',
+      targetValue: 10
+    });
+
+  const targetGoalId = goalRes.body.id;
+
+  // Create task linked to goal
+  await request(app)
+    .post('/api/v1/external/tasks')
+    .set('x-api-key', keyPairFull.rawKey)
+    .send({
+      title: 'Linked Task',
+      description: 'Linked to goal',
+      goalId: targetGoalId
+    });
+
+  // Create task not linked to goal
+  await request(app)
+    .post('/api/v1/external/tasks')
+    .set('x-api-key', keyPairFull.rawKey)
+    .send({
+      title: 'Unlinked Task',
+      description: 'No goal'
+    });
+
+  // Query with goalId filter
+  const filteredRes = await request(app)
+    .get(`/api/v1/external/tasks?goalId=${targetGoalId}`)
+    .set('x-api-key', keyPairFull.rawKey);
+
+  assert.strictEqual(filteredRes.statusCode, 200);
+  assert.strictEqual(filteredRes.body.success, true);
+  assert.strictEqual(filteredRes.body.data.length, 1);
+  assert.strictEqual(filteredRes.body.data[0].goalId, targetGoalId);
+  assert.strictEqual(filteredRes.body.data[0].title, 'Linked Task');
 });
 

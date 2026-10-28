@@ -395,13 +395,26 @@ export const GoalsTab: React.FC = () => {
                         <span>المهام المرتبطة ({goal.tasks.length})</span>
                       </div>
                       <div style={styles.linkedTasksList}>
-                        {goal.tasks.slice(0, 3).map((t) => (
-                          <div key={t.id} style={styles.linkedTaskItem} title={t.title}>
-                            <span style={styles.linkedTaskBullet}>•</span>
-                            <span style={styles.linkedTaskTitle}>{t.title}</span>
-                            <span style={styles.linkedTaskStatus}>{t.status}</span>
-                          </div>
-                        ))}
+                        {goal.tasks.slice(0, 3).map((t) => {
+                          const s = String(t.status || '').toUpperCase();
+                          const badge = s === 'COMPLETED'
+                            ? { label: 'مكتملة', color: 'var(--accent-green)', bg: 'rgba(34, 197, 94, 0.15)' }
+                            : s === 'IN_PROGRESS'
+                            ? { label: 'قيد التنفيذ', color: 'var(--accent-blue)', bg: 'rgba(56, 189, 248, 0.15)' }
+                            : s === 'IN_REVIEW'
+                            ? { label: 'مراجعة', color: '#c084fc', bg: 'rgba(168, 85, 247, 0.15)' }
+                            : { label: 'انتظار', color: 'var(--text-dim)', bg: 'rgba(255, 255, 255, 0.08)' };
+
+                          return (
+                            <div key={t.id} style={styles.linkedTaskItem} title={t.title}>
+                              <span style={styles.linkedTaskBullet}>•</span>
+                              <span style={styles.linkedTaskTitle}>{t.title}</span>
+                              <span style={{ ...styles.linkedTaskStatus, color: badge.color, backgroundColor: badge.bg }}>
+                                {badge.label}
+                              </span>
+                            </div>
+                          );
+                        })}
                         {goal.tasks.length > 3 && (
                           <div style={styles.linkedTasksMore}>+{goal.tasks.length - 3} مهام أخرى</div>
                         )}

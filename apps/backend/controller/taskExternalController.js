@@ -183,6 +183,7 @@ const taskExternalController = {
       const { companyId } = getIntegrationContext(req);
       const {
         projectId,
+        goalId,
         status,
         priority,
         assignedTo,
@@ -198,6 +199,7 @@ const taskExternalController = {
       const where = {
         companyId,
         ...(projectId && { projectId }),
+        ...(goalId && { goalId }),
         ...(status && { status: normalizeStatus(status, undefined) }),
         ...(priority && { priority: normalizePriority(priority, undefined) }),
         ...(assignedTo && { assignedTo })
