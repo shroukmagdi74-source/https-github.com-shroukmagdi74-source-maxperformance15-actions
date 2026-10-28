@@ -237,8 +237,16 @@ export const useEmployeesController = () => {
     try {
       setSubmitting(true);
       setErrors([]);
-      await api.post("/hr/employees", formData);
-      toast.success(t("employees.successAdd"));
+
+      // For inactive former employees, use the reactivation endpoint
+      if (lookupResult?.status === "INACTIVE_FORMER_EMPLOYEE" && lookupResult?.user?.id) {
+        await api.post(`/hr/employees/${lookupResult.user.id}/reactivate`, formData);
+        toast.success(t("employees.successReactivate"));
+      } else {
+        await api.post("/hr/employees", formData);
+        toast.success(t("employees.successAdd"));
+      }
+
       setShowAddDialog(false);
       resetForm();
       fetchEmployees();
@@ -272,6 +280,12 @@ export const useEmployeesController = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleReactivateEmployee = async (userId: string) => {
+    // Reactivation via the add dialog: pre-fill data and let user submit with updated info
+    // The actual API call happens in handleAddEmployee when INACTIVE_FORMER_EMPLOYEE is detected
+    toast.info(t("employees.reactivateHint"));
   };
 
   const handleDeleteEmployee = async (employeeToDelete: Employee) => {
@@ -349,6 +363,7 @@ export const useEmployeesController = () => {
     openAssetsDialog,
     handleAddEmployee,
     handleDeleteEmployee,
+    handleReactivateEmployee,
     resetForm,
   };
 };

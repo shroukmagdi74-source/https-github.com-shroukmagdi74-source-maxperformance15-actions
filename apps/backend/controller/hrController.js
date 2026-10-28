@@ -1455,6 +1455,8 @@ async function lookupUser(req, res) {
         phone: true,
         avatar: true,
         role: true,
+        isActive: true,
+        lastLoginAt: true,
         companyId: true,
         employeeNumber: true,
         departmentRelation: {
@@ -1538,6 +1540,34 @@ async function lookupUser(req, res) {
           phone: user.phone,
           avatar: user.avatar,
           role: currentCompanyMembership?.role || user.role || "AGENT",
+          lastLoginAt: user.lastLoginAt || null,
+        },
+      });
+    }
+
+    // فحص هل كان المستخدم موظفاً أو عضواً سابقاً في هذه الشركة وتم تعطيله أو حذفه
+    const isFormerCompanyMember =
+      Boolean(currentCompanyMembership && !currentCompanyMembership.isActive) ||
+      Boolean(user.employees && user.employees.companyId === companyId && user.employees.status !== "ACTIVE") ||
+      Boolean(isCurrentCompanyDirect && !user.isActive);
+
+    if (isFormerCompanyMember) {
+      return res.json({
+        success: true,
+        exists: true,
+        status: "INACTIVE_FORMER_EMPLOYEE",
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone,
+          avatar: user.avatar,
+          employeeNumber: user.employees?.employeeNumber || user.employeeNumber || null,
+          department: user.employees?.department?.name || user.departmentRelation?.name || null,
+          position: user.employees?.position?.title || user.positionRelation?.title || null,
+          role: currentCompanyMembership?.role || user.role || "AGENT",
+          lastLoginAt: user.lastLoginAt || null,
         },
       });
     }
@@ -1554,6 +1584,8 @@ async function lookupUser(req, res) {
         email: user.email,
         phone: user.phone,
         avatar: user.avatar,
+        role: user.role || "AGENT",
+        lastLoginAt: user.lastLoginAt || null,
       },
     });
   } catch (error) {
@@ -1610,6 +1642,44 @@ async function createEmployee(req, res) {
       code: error.code || "UNKNOWN_ERROR",
       errors: error.errors || undefined, // إضافة تفاصيل الأخطاء
       details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+}
+
+/**
+ * إعادة تفعيل موظف سابق
+ * POST /api/hr/employees/:id/reactivate
+ */
+async function reactivateEmployee(req, res) {
+  try {
+    const { companyId } = req.user;
+    const { id } = req.params;
+    console.log(
+      `📥 [HR] Reactivating employee ${id} with data:`,
+      JSON.stringify(req.body, null, 2),
+    );
+    const employee = await employeeService.reactivateEmployee(
+      companyId,
+      id,
+      req.body,
+    );
+    console.log(
+      "✅ [HR] Employee reactivated successfully:",
+      employee.employeeNumber,
+    );
+    res.json({
+      success: true,
+      message: "تم إعادة تفعيل الموظف بنجاح",
+      employee,
+    });
+  } catch (error) {
+    console.error("❌ Error reactivating employee:", error);
+    const statusCode =
+      error.statusCode || (error.code === "NOT_FOUND" ? 404 : 500);
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || "فشل في إعادة تفعيل الموظف",
+      error: error.message,
     });
   }
 }
@@ -7614,6 +7684,7 @@ module.exports = {
   // Employees
   lookupUser,
   createEmployee,
+  reactivateEmployee,
   getEmployees,
   getOnlineTeam,
   getEmployeeById,

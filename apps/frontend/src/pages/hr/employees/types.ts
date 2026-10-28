@@ -41,7 +41,8 @@ export interface LookupResponse {
     | "NOT_FOUND"
     | "ALREADY_ACTIVE_EMPLOYEE"
     | "COMPANY_USER_NOT_EMPLOYEE"
-    | "EXISTING_PLATFORM_USER";
+    | "EXISTING_PLATFORM_USER"
+    | "INACTIVE_FORMER_EMPLOYEE";
   user?: {
     id: string;
     firstName: string;
@@ -53,6 +54,9 @@ export interface LookupResponse {
     employeeNumber?: string;
     department?: string;
     position?: string;
+    hireDate?: string;
+    terminationDate?: string;
+    lastLoginAt?: string;
   };
 }
 

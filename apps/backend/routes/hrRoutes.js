@@ -254,6 +254,7 @@ router.put('/employees/:id', verifyToken.authenticateToken, verifyToken.requireR
 router.delete('/employees/:id', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.deleteEmployee);
 router.post('/employees/:id/terminate', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.terminateEmployee);
 router.post('/employees/:id/link-user', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.linkEmployeeToUser);
+router.post('/employees/:id/reactivate', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.reactivateEmployee);
 
 // 🔗 دعوات وانضمام الموظفين الذاتي - Employee Invitations Management (Admin)
 router.post('/employee-invitations', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), employeeInvitationController.createEmployeeInvitation);

@@ -251,6 +251,7 @@ class EmployeeService {
       lastName: data.lastName || currentUser?.lastName || 'جديد',
       phone: data.phone && data.phone !== '' ? data.phone : (currentUser?.phone || null),
       avatar: data.avatar || null,
+      isActive: true,
       // If user has an existing primary companyId, preserve it. If null, set this companyId.
       companyId: (currentUser && currentUser.companyId) ? currentUser.companyId : companyId,
       // Deduction fields
@@ -945,6 +946,131 @@ class EmployeeService {
       return user;
     } catch (error) {
       console.error('❌ Error terminating employee:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * إعادة تفعيل موظف سابق
+   */
+  async reactivateEmployee(companyId, employeeId, data = {}) {
+    try {
+      console.log(`🔄 [HR] Reactivating employee ${employeeId} for company ${companyId}`);
+
+      // التحقق من وجود المستخدم
+      const user = await this.prisma.user.findUnique({
+        where: { id: employeeId }
+      });
+
+      if (!user) {
+        throw new NotFoundError('المستخدم غير موجود');
+      }
+
+      // 1. توليد أو استعادة رقم الموظف إذا لم يكن موجوداً
+      let employeeNumber = data.employeeNumber || user.employeeNumber;
+      if (!employeeNumber) {
+        const lastEmployee = await this.prisma.user.findFirst({
+          where: {
+            companyId,
+            employeeNumber: { not: null }
+          },
+          orderBy: { employeeNumber: 'desc' },
+          select: { employeeNumber: true }
+        });
+
+        let nextNumber = 1;
+        if (lastEmployee?.employeeNumber) {
+          const match = lastEmployee.employeeNumber.match(/EMP(\d+)/);
+          if (match) {
+            nextNumber = parseInt(match[1], 10) + 1;
+          }
+        }
+        employeeNumber = `EMP${String(nextNumber).padStart(5, '0')}`;
+      }
+
+      // 2. تحديث بيانات المستخدم وتفعيله
+      const updateUserData = {
+        isActive: true,
+        employeeNumber,
+        companyId: user.companyId || companyId,
+        departmentId: (data.departmentId && data.departmentId.trim() !== '') ? data.departmentId : (user.departmentId || null),
+        positionId: (data.positionId && data.positionId.trim() !== '') ? data.positionId : (user.positionId || null),
+        hireDate: data.hireDate ? new Date(data.hireDate) : (user.hireDate || new Date()),
+        contractType: (() => {
+          if (!data.contractType || data.contractType === '') return user.contractType || 'FULL_TIME';
+          const type = data.contractType.toUpperCase();
+          if (type === 'INTERNSHIP') return 'INTERN';
+          if (['CONTRACT', 'TEMPORARY', 'FREELANCE'].includes(type)) return 'CONTRACTOR';
+          return data.contractType;
+        })(),
+        baseSalary: data.baseSalary ? parseFloat(data.baseSalary) : (user.baseSalary || null),
+        firstName: data.firstName || user.firstName,
+        lastName: data.lastName || user.lastName,
+        phone: data.phone || user.phone,
+      };
+
+      if (data.enableAutoDeduction !== undefined) updateUserData.enableAutoDeduction = data.enableAutoDeduction;
+      if (data.monthlyGraceMinutes !== undefined) updateUserData.monthlyGraceMinutes = parseInt(data.monthlyGraceMinutes);
+      if (data.maxDailyLateMinutes !== undefined) updateUserData.maxDailyLateMinutes = parseInt(data.maxDailyLateMinutes);
+      if (data.lateDeductionRate !== undefined) updateUserData.lateDeductionRate = parseFloat(data.lateDeductionRate);
+
+      const updatedUser = await this.prisma.user.update({
+        where: { id: employeeId },
+        data: updateUserData,
+        include: {
+          departmentRelation: true,
+          positionRelation: true
+        }
+      });
+
+      // 3. تفعيل أو إنشاء سجل UserCompany
+      await this.prisma.userCompany.upsert({
+        where: {
+          userId_companyId: {
+            userId: employeeId,
+            companyId: companyId
+          }
+        },
+        update: {
+          isActive: true,
+          role: data.role || 'AGENT'
+        },
+        create: {
+          userId: employeeId,
+          companyId: companyId,
+          role: data.role || 'AGENT',
+          isActive: true,
+          isDefault: false
+        }
+      });
+
+      // 4. مزامنة مع جدول Employee (المرآة)
+      await this.syncWithEmployeeTable(employeeId, companyId);
+
+      // 5. إرسال إشعار ترحيبي للموظف
+      try {
+        const comp = await this.prisma.company.findUnique({
+          where: { id: companyId },
+          select: { name: true }
+        });
+        await this.prisma.notification.create({
+          data: {
+            userId: employeeId,
+            companyId: companyId,
+            title: 'تمت إعادة تفعيل حسابك الوظيفي',
+            message: `تمت إعادة تفعيل حسابك كموظف في شركة "${comp?.name || 'الشركة'}" بنجاح. يمكنك الآن متابعة مهامك.`,
+            type: 'INFO',
+            isRead: false
+          }
+        });
+      } catch (notifErr) {
+        console.warn('⚠️ Could not send reactivation notification to employee:', notifErr.message);
+      }
+
+      console.log(`✅ [HR] Successfully reactivated employee ${updatedUser.employeeNumber} (${updatedUser.email})`);
+      return updatedUser;
+    } catch (error) {
+      console.error('❌ Error reactivating employee:', error);
       throw error;
     }
   }

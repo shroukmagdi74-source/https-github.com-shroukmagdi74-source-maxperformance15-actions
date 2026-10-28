@@ -50,6 +50,7 @@ export const Employees: React.FC = () => {
     openAssetsDialog,
     handleAddEmployee,
     handleDeleteEmployee,
+    handleReactivateEmployee,
     resetForm,
   } = useEmployeesController();
 
@@ -159,6 +160,7 @@ export const Employees: React.FC = () => {
         submitting={submitting}
         onSubmit={handleAddEmployee}
         onCancel={() => setShowAddDialog(false)}
+        onReactivate={handleReactivateEmployee}
       />
 
       {/* Employee Self-Onboarding Invite Modal */}
