@@ -25,6 +25,8 @@ describe('App Version Routes Integration Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+      expect(res.body.source).toBeDefined();
+      expect(['default', 'db']).toContain(res.body.source);
       expect(res.body.data).toBeDefined();
 
       const { data } = res.body;

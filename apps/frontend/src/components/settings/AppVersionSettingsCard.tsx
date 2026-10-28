@@ -13,6 +13,7 @@ import {
   checkAppUpdate,
   openUpdateDownload,
   isAndroidAppEnvironment,
+  compareSemver,
   AppVersionInfo,
 } from "../../services/appUpdateService";
 import { AndroidAppUpdateModal } from "../mobile/AndroidAppUpdateModal";
@@ -62,10 +63,11 @@ export const AppVersionSettingsCard: React.FC = () => {
     loadVersionData(false);
   }, [loadVersionData]);
 
-  const hasUpdate =
-    latestInfo &&
-    (Boolean((latestInfo.latestVersionCode || 0) > currentVersion.build) ||
-      latestInfo.latestVersion !== currentVersion.version);
+  const codeDiff = (latestInfo?.latestVersionCode || 0) > currentVersion.build;
+  const semverDiff = latestInfo?.latestVersion
+    ? compareSemver(currentVersion.version, latestInfo.latestVersion) < 0
+    : false;
+  const hasUpdate = Boolean(latestInfo && (semverDiff || codeDiff));
 
   return (
     <>

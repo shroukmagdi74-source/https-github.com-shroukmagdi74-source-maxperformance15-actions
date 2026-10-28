@@ -78,13 +78,21 @@ async function getAndroidVersionConfig() {
       });
 
       if (dbSetting?.config) {
-        const parsed = JSON.parse(dbSetting.config);
+        let parsed = {};
+        try {
+          parsed = typeof dbSetting.config === 'string' ? JSON.parse(dbSetting.config) : dbSetting.config;
+        } catch (e) {
+          console.warn('⚠️ [APP-VERSION] Failed to parse config JSON:', e.message);
+        }
         return {
-          ...DEFAULT_ANDROID_VERSION_CONFIG,
-          ...parsed,
-          ...(dynamicStats || {}),
-          isEnabled: dbSetting.isEnabled ?? true,
-          updatedAt: dbSetting.updatedAt || new Date().toISOString()
+          config: {
+            ...DEFAULT_ANDROID_VERSION_CONFIG,
+            ...parsed,
+            ...(dynamicStats || {}),
+            isEnabled: dbSetting.isEnabled ?? true,
+            updatedAt: dbSetting.updatedAt || new Date().toISOString()
+          },
+          source: 'db'
         };
       }
     }
@@ -93,10 +101,13 @@ async function getAndroidVersionConfig() {
   }
 
   return {
-    ...DEFAULT_ANDROID_VERSION_CONFIG,
-    ...(dynamicStats || {}),
-    isEnabled: true,
-    updatedAt: new Date().toISOString()
+    config: {
+      ...DEFAULT_ANDROID_VERSION_CONFIG,
+      ...(dynamicStats || {}),
+      isEnabled: true,
+      updatedAt: new Date().toISOString()
+    },
+    source: 'default'
   };
 }
 
@@ -106,15 +117,17 @@ async function getAndroidVersionConfig() {
  */
 router.get('/android', async (req, res) => {
   try {
-    const config = await getAndroidVersionConfig();
+    const { config, source } = await getAndroidVersionConfig();
     return res.status(200).json({
       success: true,
+      source,
       data: config
     });
   } catch (error) {
     console.error('❌ [APP-VERSION] Error fetching android version:', error);
     return res.status(200).json({
       success: true,
+      source: 'default',
       data: DEFAULT_ANDROID_VERSION_CONFIG
     });
   }
@@ -128,9 +141,10 @@ router.get('/', async (req, res) => {
   const platform = (req.query.platform || 'android').toString().toLowerCase();
 
   if (platform === 'android') {
-    const config = await getAndroidVersionConfig();
+    const { config, source } = await getAndroidVersionConfig();
     return res.status(200).json({
       success: true,
+      source,
       data: config
     });
   }

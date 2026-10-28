@@ -8,6 +8,7 @@ const superAdminExternalApiController = require("../controller/superAdminExterna
 const storePagesController = require("../controller/storePagesController");
 const superAdminCompanyOrdersController = require("../controller/superAdminCompanyOrdersController");
 const { getSharedPrismaClient } = require("../services/sharedDatabase");
+const { validateAndroidVersionConfig } = require("../utils/appVersionConfig");
 const aiServiceAdminClient = require("../services/aiServiceAdminClient");
 const { TOOLS } = { TOOLS: {} };
 const { t } = require("../services/i18n");
@@ -1622,6 +1623,72 @@ router.put("/support-settings", async (req, res) => {
   } catch (error) {
     console.error("[SA] support-settings error:", error.message);
     return res.status(500).json({ success: false, error: "فشل حفظ إعدادات الدعم الفني" });
+  }
+});
+
+// 📱 Android App Version Management (T24)
+// GET  /api/v1/super-admin/app-version/android
+router.get("/app-version/android", async (req, res) => {
+  try {
+    const prisma = getSharedPrismaClient();
+    const row = await prisma.systemSettings.findUnique({
+      where: { systemName: "android_app_version" },
+    });
+    let parsedConfig = null;
+    if (row && row.config) {
+      try {
+        parsedConfig = typeof row.config === "string" ? JSON.parse(row.config) : row.config;
+      } catch (err) {
+        console.warn("[SA] Error parsing android_app_version config:", err.message);
+        parsedConfig = null;
+      }
+    }
+    return res.json({
+      success: true,
+      source: row ? "db" : "default",
+      data: parsedConfig,
+    });
+  } catch (error) {
+    console.error("[SA] Error fetching android app version settings:", error.message);
+    return res.status(500).json({ success: false, error: "فشل تحميل إعدادات إصدار تطبيق الأندرويد" });
+  }
+});
+
+// PUT  /api/v1/super-admin/app-version/android
+router.put("/app-version/android", async (req, res) => {
+  try {
+    const { ok, errors, value } = validateAndroidVersionConfig(req.body);
+    if (!ok) {
+      return res.status(400).json({
+        success: false,
+        message: "إعدادات إصدار غير صالحة",
+        errors,
+      });
+    }
+
+    const prisma = getSharedPrismaClient();
+    await prisma.systemSettings.upsert({
+      where: { systemName: "android_app_version" },
+      update: {
+        config: JSON.stringify(value),
+        isEnabled: value.isEnabled !== false,
+        updatedAt: new Date(),
+      },
+      create: {
+        id: "sys_android_app_version",
+        systemName: "android_app_version",
+        displayName: "Android App Version",
+        description: "إصدار تطبيق الأندرويد وقواعد الإلزام",
+        category: "mobile",
+        isEnabled: true,
+        config: JSON.stringify(value),
+      },
+    });
+
+    return res.json({ success: true, data: value });
+  } catch (error) {
+    console.error("[SA] Error saving android app version settings:", error.message);
+    return res.status(500).json({ success: false, error: "فشل حفظ إعدادات إصدار تطبيق الأندرويد" });
   }
 });
 

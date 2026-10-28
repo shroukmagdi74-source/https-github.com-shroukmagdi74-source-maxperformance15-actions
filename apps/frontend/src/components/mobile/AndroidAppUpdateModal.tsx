@@ -100,6 +100,54 @@ export const AndroidAppUpdateModal: React.FC<AndroidAppUpdateModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, updateData?.isMandatory]);
 
+  // Focus trap and accessibility inert for background elements when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const modalRoot = document.getElementById('android-update-modal-root');
+    const root = document.getElementById('root');
+    const siblings = Array.from(root?.children || []).filter(
+      (el) => el.id !== 'android-update-modal-root'
+    );
+    siblings.forEach((el) => (el as HTMLElement).setAttribute('inert', ''));
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      if (!modalRoot) return;
+
+      const focusable = Array.from(
+        modalRoot.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+
+      if (focusable.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first || !modalRoot.contains(document.activeElement)) {
+          last.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last || !modalRoot.contains(document.activeElement)) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      siblings.forEach((el) => (el as HTMLElement).removeAttribute('inert'));
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [isOpen]);
+
   if (!isOpen || !updateData?.versionInfo) {
     return null;
   }
@@ -134,6 +182,7 @@ export const AndroidAppUpdateModal: React.FC<AndroidAppUpdateModalProps> = ({
 
   return (
     <div
+      id="android-update-modal-root"
       role="dialog"
       aria-modal="true"
       aria-labelledby="update-modal-title"

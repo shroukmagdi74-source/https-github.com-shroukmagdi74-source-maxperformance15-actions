@@ -72,6 +72,7 @@ describe('AndroidAppUpdateModal', () => {
     expect(screen.getByText('v1.0.6')).toBeInTheDocument();
     expect(screen.getByText('v1.0.8')).toBeInTheDocument();
     expect(screen.getByText('تحديث أمني وإصلاحات هامة')).toBeInTheDocument();
+    expect(document.getElementById('android-update-modal-root')).toBeInTheDocument();
 
     // Close button should NOT exist in mandatory mode
     expect(screen.queryByLabelText('إغلاق التنبيه')).toBeNull();
