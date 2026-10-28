@@ -1,15 +1,16 @@
 /**
  * @file merge-affiliate-apps.js
- * @description One-off migration script to safely unify 'affiliate-program' into 'affiliate-pro'.
+ * @description سكريبت ترحيل لدمج تطبيق 'affiliate-program' في 'affiliate-pro' بأمان وبدون فقدان بيانات.
  *
- * SAFETY & DESIGN:
- *   - Default is DRY RUN; writes only when invoked with `--apply`.
- *   - NO row is ever deleted (affiliate-program status becomes 'INACTIVE').
- *   - Free grandfathered state is preserved: does NOT set nextBillingAt or validUntil unless already present.
- *   - Idempotent: re-running on an already-migrated database does nothing (skipped).
- *   - Supports `--verify` flag to report counts of companies on legacy slug (expecting 0 active after apply).
+ * معايير الأمان والتصميم:
+ *   - الوضع الافتراضي هو DRY RUN؛ لا تتم أي كتابة إلا عند التمرير الصريح لـ `--apply`.
+ *   - لا يتم حذف أي سجل من قاعدة البيانات (يتم تحويل حالة company_apps لتطبيق affiliate-program إلى 'INACTIVE').
+ *   - الحفاظ على الاشتراكات والإعدادات: لا يتم تعديل nextBillingAt أو validUntil إلا لو كانت موجودة بالفعل.
+ *   - بعد الانتهاء، يتم وسم تطبيق 'affiliate-program' في marketplace_apps بـ isActive=false و isPublic=false (بدون حذف).
+ *   - يدعم السكريبت خاصية Idempotency: إعادة تشغيله على داتابيز مرحلة بالفعل لن يحدث أي أثر مكرر.
+ *   - يدعم خيار `--verify` للتأكد من أعداد الشركات وحالة التطبيق.
  *
- * Usage:
+ * الاستخدام:
  *   node scripts/one-off/merge-affiliate-apps.js [--dry-run|--apply] [--verify] [--batch=500]
  */
 
@@ -77,21 +78,21 @@ function resolveBestStatus(existingStatus, legacyStatus) {
 }
 
 async function runVerify(prisma) {
-  console.log('\n--- VERIFY MODE ---');
+  console.log('\n--- وضع التحقق (VERIFY MODE) ---');
   const legacyApp = await prisma.marketplaceApp.findUnique({
     where: { slug: LEGACY_SLUG },
-    select: { id: true, slug: true, name: true }
+    select: { id: true, slug: true, name: true, isActive: true, isPublic: true }
   });
 
   const proApp = await prisma.marketplaceApp.findUnique({
     where: { slug: TARGET_SLUG },
-    select: { id: true, slug: true, name: true }
+    select: { id: true, slug: true, name: true, isActive: true, isPublic: true }
   });
 
   if (!legacyApp) {
-    console.log(`MarketplaceApp '${LEGACY_SLUG}' does not exist in database.`);
-    console.log(`active_legacy=0 (expected: 0 after apply)`);
-    return { activeLegacyCount: 0, inactiveLegacyCount: 0, activeProCount: 0 };
+    console.log(`تطبيق '${LEGACY_SLUG}' غير موجود في جدول marketplace_apps.`);
+    console.log(`active_legacy=0 (المتوقع: 0 بعد تطبيق الترحيل)`);
+    return { activeLegacyCount: 0, inactiveLegacyCount: 0, activeProCount: 0, isLegacyDeactivated: true };
   }
 
   const activeLegacyCount = await prisma.companyApp.count({
@@ -118,18 +119,21 @@ async function runVerify(prisma) {
     });
   }
 
-  console.log(`Verification counts:`);
-  console.log(`  active_legacy_rows (${LEGACY_SLUG}):   ${activeLegacyCount} (expected: 0 after apply)`);
-  console.log(`  inactive_legacy_rows (${LEGACY_SLUG}): ${inactiveLegacyCount}`);
-  console.log(`  active_pro_rows (${TARGET_SLUG}):      ${activeProCount}`);
+  const isLegacyDeactivated = !legacyApp.isActive && !legacyApp.isPublic;
 
-  if (activeLegacyCount === 0) {
-    console.log(`\n✅ VERIFY SUCCESS: 0 companies left with active legacy slug '${LEGACY_SLUG}'.`);
+  console.log(`إحصائيات التحقق:`);
+  console.log(`  صفوف legacy النشطة (${LEGACY_SLUG}):   ${activeLegacyCount} (المتوقع: 0 بعد الترحيل)`);
+  console.log(`  صفوف legacy غير النشطة (${LEGACY_SLUG}): ${inactiveLegacyCount}`);
+  console.log(`  صفوف pro النشطة (${TARGET_SLUG}):      ${activeProCount}`);
+  console.log(`  حالة تطبيق legacy في الكتالوج: isActive=${legacyApp.isActive}, isPublic=${legacyApp.isPublic}`);
+
+  if (activeLegacyCount === 0 && isLegacyDeactivated) {
+    console.log(`\n✅ تم التحقق بنجاح: تم ترحيل جميع الشركات وإلغاء تنشيط '${LEGACY_SLUG}' بالكامل.`);
   } else {
-    console.log(`\n⚠️ VERIFY PENDING: ${activeLegacyCount} companies still have active legacy slug '${LEGACY_SLUG}'.`);
+    console.log(`\n⚠️ التحقق معلق: ما زال هناك ${activeLegacyCount} شركة نشطة على التطبيق القديم أو التطبيق لم يتم تعطيله بعد.`);
   }
 
-  return { activeLegacyCount, inactiveLegacyCount, activeProCount };
+  return { activeLegacyCount, inactiveLegacyCount, activeProCount, isLegacyDeactivated };
 }
 
 async function runMigration(prisma, { isApply, batchSize }) {
@@ -140,12 +144,12 @@ async function runMigration(prisma, { isApply, batchSize }) {
 
   const legacyApp = await prisma.marketplaceApp.findUnique({
     where: { slug: LEGACY_SLUG },
-    select: { id: true, slug: true, name: true }
+    select: { id: true, slug: true, name: true, isActive: true, isPublic: true }
   });
 
   const proApp = await prisma.marketplaceApp.findUnique({
     where: { slug: TARGET_SLUG },
-    select: { id: true, slug: true, name: true }
+    select: { id: true, slug: true, name: true, isActive: true, isPublic: true }
   });
 
   if (!legacyApp) {
@@ -306,13 +310,38 @@ async function runMigration(prisma, { isApply, batchSize }) {
     }
   }
 
-  // Print table
+  // عرض جدول العمليات لكل شركة
   if (tableRows.length > 0) {
     console.table(tableRows);
   }
 
-  // Print summary
-  console.log(`\nSummary: total=${total} would_update=${wouldUpdate} updated=${updated} skipped=${skipped} failed=${failed}`);
+  // خطوة وسم تطبيق 'affiliate-program' كـ غير نشط وغير عام في marketplace_apps (بدون حذف)
+  const isLegacyAlreadyDeactivated = !legacyApp.isActive && !legacyApp.isPublic;
+  let legacyAppDeactivated = false;
+
+  if (isLegacyAlreadyDeactivated) {
+    console.log(`ℹ️ تطبيق '${LEGACY_SLUG}' في marketplace_apps معطل بالفعل (isActive=false, isPublic=false).`);
+  } else if (!isApply) {
+    console.log(`🔍 [DRY-RUN] سيتم وسم تطبيق '${LEGACY_SLUG}' في marketplace_apps كـ (isActive=false, isPublic=false).`);
+  } else {
+    try {
+      await prisma.marketplaceApp.update({
+        where: { id: legacyApp.id },
+        data: {
+          isActive: false,
+          isPublic: false
+        }
+      });
+      legacyAppDeactivated = true;
+      console.log(`✅ [APPLY] تم بنجاح وسم تطبيق '${LEGACY_SLUG}' في marketplace_apps كـ (isActive=false, isPublic=false).`);
+    } catch (appErr) {
+      console.error(`❌ فشل تحديث تطبيق '${LEGACY_SLUG}' في marketplace_apps:`, appErr.message);
+    }
+  }
+
+  // طباعة الملخص والعدادات
+  console.log(`\nالملخص: إجمالي_الشركات=${total} سيتم_التحديث=${wouldUpdate} تم_التحديث=${updated} تم_التخطي=${skipped} فشل=${failed} تعطيل_التطبيق_القديم=${legacyAppDeactivated || isLegacyAlreadyDeactivated ? 'نعم' : 'معلق'}`);
+  console.log(`Summary: total=${total} would_update=${wouldUpdate} updated=${updated} skipped=${skipped} failed=${failed} legacy_app_deactivated=${legacyAppDeactivated || isLegacyAlreadyDeactivated}`);
 }
 
 async function main() {

@@ -74,7 +74,8 @@ const ensureAffiliateRequiredApps = async (prisma, companyId, isActive) => {
             where: {
                 slug: {
                     in: AFFILIATE_REQUIRED_APP_SLUGS
-                }
+                },
+                isActive: true
             },
             select: {
                 id: true,
@@ -86,7 +87,8 @@ const ensureAffiliateRequiredApps = async (prisma, companyId, isActive) => {
             return [];
         }
 
-        await Promise.all(
+        // استخدام allSettled لضمان أن تعطل أو غياب أي تطبيق لا يكسر العملية
+        const results = await Promise.allSettled(
             apps.map((app) =>
                 prisma.companyApp.upsert({
                     where: {
@@ -105,14 +107,21 @@ const ensureAffiliateRequiredApps = async (prisma, companyId, isActive) => {
                         activePricingModel: 'SUBSCRIPTION',
                         settings: {
                             installedBy: 'affiliate-settings',
-                            reason: 'affiliate-program-core-tools'
+                            reason: 'affiliate-pro-core-tools'
                         }
                     }
                 })
             )
         );
 
-        return apps.map((app) => app.slug);
+        const activatedSlugs = [];
+        results.forEach((res, idx) => {
+            if (res.status === 'fulfilled') {
+                activatedSlugs.push(apps[idx].slug);
+            }
+        });
+
+        return activatedSlugs;
     } catch (appError) {
         console.error('⚠️ [AFFILIATE-SETTINGS] Failed to ensure required apps:', appError);
         return [];

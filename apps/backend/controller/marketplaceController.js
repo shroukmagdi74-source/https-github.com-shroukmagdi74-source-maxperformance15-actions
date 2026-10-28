@@ -69,7 +69,10 @@ async function enrichAppsWithDbState(apps, user) {
 
   const dbApps = await executeWithRetry(async () => {
     return await getSharedPrismaClient().marketplaceApp.findMany({
-      where: { slug: { in: slugs } },
+      where: {
+        slug: { in: slugs },
+        isActive: true
+      },
       select: {
         id: true,
         slug: true,
@@ -770,6 +773,7 @@ async function resolveBundleForWrite(slug) {
   const dbApps = await executeWithRetry(async () => {
     return await getSharedPrismaClient().marketplaceApp.findMany({
       where: {
+        isActive: true,
         category: { notIn: LEGACY_TEMPLATE_CATEGORY_VALUES },
         OR: [
           { id: { in: rawTokens } },
@@ -873,6 +877,8 @@ exports.getAllApps = async (req, res) => {
 
       if (catalogSource === 'hybrid') {
         apps = await enrichAppsWithDbState(apps, req.user);
+        // فلترة أي تطبيقات غير نشطة للمستخدم
+        apps = apps.filter((app) => app.isActive !== false);
       }
       apps = apps.map((app) => normalizeMarketplaceAppForApi({
         ...app,
@@ -2342,7 +2348,10 @@ exports.subscribeToBundle = async (req, res) => {
         const nextBillingAt = new Date();
         nextBillingAt.setDate(nextBillingAt.getDate() + 30);
         const bundleApps = await tx.marketplaceApp.findMany({
-          where: { id: { in: bundleAppIds } },
+          where: {
+            id: { in: bundleAppIds },
+            isActive: true
+          },
           select: {
             id: true,
             slug: true,
@@ -2535,7 +2544,10 @@ async function activatePaidBundleApps(prisma, bundle, bundleAppIds, companyId) {
   const nextBillingAt = new Date();
   nextBillingAt.setDate(nextBillingAt.getDate() + 30);
   const bundleApps = await prisma.marketplaceApp.findMany({
-    where: { id: { in: bundleAppIds } },
+    where: {
+      id: { in: bundleAppIds },
+      isActive: true
+    },
     select: { id: true, slug: true }
   });
   const bundleAppById = new Map(bundleApps.map((a) => [a.id, a]));
