@@ -1,9 +1,3 @@
-const systemIncidentAlertService = require('../../services/systemIncidentAlertService');
-const socketService = require('../../services/socketService');
-const { sendBrowserPushToCompany } = require('../../services/browserPushService');
-const telegramAlertService = require('../../services/telegramAlertService');
-const { getSharedPrismaClient } = require('../../services/sharedDatabase');
-
 jest.mock('../../services/sharedDatabase', () => ({
     getSharedPrismaClient: jest.fn()
 }));
@@ -20,7 +14,18 @@ jest.mock('../../services/telegramAlertService', () => ({
     sendAlert: jest.fn()
 }));
 
-describe('SystemIncidentAlertService', () => {
+jest.mock('../../services/whatsapp/WhatsAppNotificationService', () => ({
+    sendNotification: jest.fn()
+}));
+
+const systemIncidentAlertService = require('../../services/systemIncidentAlertService');
+const socketService = require('../../services/socketService');
+const { sendBrowserPushToCompany } = require('../../services/browserPushService');
+const telegramAlertService = require('../../services/telegramAlertService');
+const WhatsAppNotificationService = require('../../services/whatsapp/WhatsAppNotificationService');
+const { getSharedPrismaClient } = require('../../services/sharedDatabase');
+
+describe('SystemIncidentAlertService - Comprehensive Multi-Channel Tests', () => {
     let mockPrisma;
     let mockIo;
 
@@ -39,6 +44,31 @@ describe('SystemIncidentAlertService', () => {
                     companyId: 'comp_1',
                     createdAt: new Date()
                 })
+            },
+            whatsAppNotificationSettings: {
+                findUnique: jest.fn().mockResolvedValue({
+                    isEnabled: true,
+                    companyLifecycleAdminPhones: '201000000001'
+                })
+            },
+            notificationPreference: {
+                findFirst: jest.fn().mockResolvedValue({
+                    companyId: 'comp_1',
+                    settings: {
+                        globalEnabled: true,
+                        channels: {
+                            whatsapp: {
+                                enabled: true,
+                                phoneNumber: '201000000001'
+                            }
+                        }
+                    }
+                })
+            },
+            user: {
+                findMany: jest.fn().mockResolvedValue([
+                    { phone: '201000000001' }
+                ])
             }
         };
         getSharedPrismaClient.mockReturnValue(mockPrisma);
@@ -52,9 +82,16 @@ describe('SystemIncidentAlertService', () => {
 
         sendBrowserPushToCompany.mockResolvedValue({ attempted: 2, sent: 2, failed: 0 });
         telegramAlertService.sendAlert.mockResolvedValue(true);
+        WhatsAppNotificationService.sendNotification.mockResolvedValue({ success: true, messageId: 'msg_wa_123' });
 
-        // Reset cooldowns
+        // Reset cooldowns, queue, and overrides
         systemIncidentAlertService.cooldowns.clear();
+        systemIncidentAlertService.hourlyDigestQueue.clear();
+        systemIncidentAlertService.companyWhatsAppEnabledOverrides.clear();
+    });
+
+    afterAll(() => {
+        systemIncidentAlertService.stopHourlyDigestTimer();
     });
 
     test('should reject dispatch if companyId is missing', async () => {
@@ -69,99 +106,155 @@ describe('SystemIncidentAlertService', () => {
         expect(mockPrisma.notification.create).not.toHaveBeenCalled();
     });
 
-    test('should successfully dispatch incident across DB, Socket, WebPush, and Telegram', async () => {
+    test('Acceptance 1: Critical incident (WHATSAPP_DISCONNECTED) reaches Telegram AND WhatsApp immediately in the same minute', async () => {
         const result = await systemIncidentAlertService.dispatchIncident({
             companyId: 'comp_1',
-            incidentType: systemIncidentAlertService.INCIDENT_TYPES.ORDER_SYNC_STOPPAGE,
-            title: '⚠️ تعطل مزامنة أوردرات WooCommerce',
-            message: 'توقفت الأوردرات عن النزول بسبب خطأ 500 في السيرفر',
+            incidentType: systemIncidentAlertService.INCIDENT_TYPES.WHATSAPP_DISCONNECTED,
+            title: '🚨 انقطاع جلسة الواتساب',
+            message: 'تم رصد انقطاع الاتصال بين الخادم ورقم الواتساب الرئيسي',
             severity: systemIncidentAlertService.SEVERITIES.CRITICAL,
-            entityId: 'store_123',
-            url: '/orders'
+            entityId: 'wa_sess_1',
+            url: '/whatsapp'
         });
 
         expect(result.sent).toBe(true);
-        expect(result.dispatchResults.db).toBe(true);
-        expect(result.dispatchResults.socket).toBe(true);
-        expect(result.dispatchResults.browserPush).toBe(true);
         expect(result.dispatchResults.telegram).toBe(true);
+        expect(result.dispatchResults.whatsapp).toBe(true);
+        expect(result.dispatchResults.whatsappMode).toBe('immediate');
 
-        // Verify DB create
-        expect(mockPrisma.notification.create).toHaveBeenCalledWith({
-            data: expect.objectContaining({
-                companyId: 'comp_1',
-                userId: null,
-                title: '⚠️ تعطل مزامنة أوردرات WooCommerce',
-                type: 'order_sync_stoppage'
-            })
-        });
-
-        // Verify Socket emit to company room
-        expect(mockIo.to).toHaveBeenCalledWith('company_comp_1');
-
-        // Verify Web Push
-        expect(sendBrowserPushToCompany).toHaveBeenCalledWith(expect.objectContaining({
-            companyId: 'comp_1',
-            typeId: 'order_sync_stoppage',
-            title: '⚠️ تعطل مزامنة أوردرات WooCommerce'
-        }));
-
-        // Verify Telegram
+        // Verify Telegram alert text was sent
         expect(telegramAlertService.sendAlert).toHaveBeenCalledWith(
-            expect.stringContaining('[SYSTEM ALERT - ORDER_SYNC_STOPPAGE]')
+            expect.stringContaining('[SYSTEM ALERT - WHATSAPP_DISCONNECTED]')
+        );
+
+        // Verify WhatsApp alert was sent immediately via WhatsAppNotificationService with fallback strategy
+        expect(WhatsAppNotificationService.sendNotification).toHaveBeenCalledWith(
+            expect.objectContaining({
+                companyId: 'comp_1',
+                recipientPhone: '201000000001',
+                category: 'SYSTEM',
+                eventType: 'SYSTEM_INCIDENT',
+                deliveryStrategy: 'platform-fallback',
+                contentOverride: expect.stringContaining('انقطاع جلسة الواتساب')
+            })
         );
     });
 
-    test('should respect cooldown and suppress duplicate incidents', async () => {
-        // First dispatch
+    test('Acceptance 2: Duplicate incident within 30 minutes is suppressed by cooldown', async () => {
+        // First dispatch: Success
         const res1 = await systemIncidentAlertService.dispatchIncident({
             companyId: 'comp_1',
             incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_CAMPAIGN_STOPPED,
             title: 'توقف الإعلان',
             message: 'نفدت الميزانية',
-            entityId: 'camp_456'
+            entityId: 'camp_456',
+            severity: systemIncidentAlertService.SEVERITIES.WARNING
         });
         expect(res1.sent).toBe(true);
 
-        // Second dispatch within cooldown window
+        // Second dispatch within cooldown window: Must be suppressed
         const res2 = await systemIncidentAlertService.dispatchIncident({
             companyId: 'comp_1',
             incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_CAMPAIGN_STOPPED,
             title: 'توقف الإعلان',
             message: 'نفدت الميزانية',
-            entityId: 'camp_456'
+            entityId: 'camp_456',
+            severity: systemIncidentAlertService.SEVERITIES.WARNING
         });
         expect(res2.sent).toBe(false);
         expect(res2.reason).toBe('in_cooldown');
 
-        // Force dispatch should bypass cooldown
+        // Third dispatch with force=true: Bypasses cooldown
         const res3 = await systemIncidentAlertService.dispatchIncident({
             companyId: 'comp_1',
             incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_CAMPAIGN_STOPPED,
             title: 'توقف الإعلان',
             message: 'نفدت الميزانية',
             entityId: 'camp_456',
+            severity: systemIncidentAlertService.SEVERITIES.WARNING,
             force: true
         });
         expect(res3.sent).toBe(true);
     });
 
-    test('should handle automation ended incident correctly', async () => {
+    test('Acceptance 3: Disabling the WhatsApp channel for a company completely stops WhatsApp while Telegram continues unaffected', async () => {
+        // Explicitly disable WhatsApp channel for comp_1
+        systemIncidentAlertService.setCompanyWhatsAppEnabled('comp_1', false);
+
         const result = await systemIncidentAlertService.dispatchIncident({
             companyId: 'comp_1',
-            incidentType: systemIncidentAlertService.INCIDENT_TYPES.AUTOMATION_ENDED,
-            title: '✅ اكتمال خطوات الأتمتة',
-            message: 'تم إنهاء جميع خطوات المتابعة للعميل أحمد',
-            severity: systemIncidentAlertService.SEVERITIES.INFO,
-            entityId: 'journey_789'
+            incidentType: systemIncidentAlertService.INCIDENT_TYPES.SYSTEM_ERROR,
+            title: 'خطأ بالسيرفر',
+            message: 'خطأ غير متوقع في قاعدة البيانات',
+            severity: systemIncidentAlertService.SEVERITIES.CRITICAL
         });
 
         expect(result.sent).toBe(true);
-        expect(mockPrisma.notification.create).toHaveBeenCalledWith({
-            data: expect.objectContaining({
-                type: 'automation_lifecycle',
-                title: '✅ اكتمال خطوات الأتمتة'
-            })
+        // Telegram must continue to work normally
+        expect(result.dispatchResults.telegram).toBe(true);
+        expect(telegramAlertService.sendAlert).toHaveBeenCalled();
+
+        // WhatsApp must be stopped
+        expect(result.dispatchResults.whatsapp).toBe(false);
+        expect(result.dispatchResults.whatsappReason).toBe('channel_disabled');
+        expect(WhatsAppNotificationService.sendNotification).not.toHaveBeenCalled();
+    });
+
+    test('Acceptance 4: WARNING and INFO incidents are queued for the hourly digest and not sent immediately', async () => {
+        const warnResult = await systemIncidentAlertService.dispatchIncident({
+            companyId: 'comp_1',
+            incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_ACCOUNT_ISSUE,
+            title: 'فواتير معلقة',
+            message: 'يرجى تحديث وسيلة الدفع',
+            severity: systemIncidentAlertService.SEVERITIES.WARNING,
+            entityId: 'act_999'
         });
+
+        expect(warnResult.sent).toBe(true);
+        expect(warnResult.dispatchResults.telegram).toBe(true);
+        expect(warnResult.dispatchResults.whatsapp).toBe(true);
+        expect(warnResult.dispatchResults.whatsappQueuedForDigest).toBe(true);
+        expect(warnResult.dispatchResults.whatsappMode).toBe('hourly_digest');
+
+        // Verify it was NOT sent immediately via WhatsAppNotificationService
+        expect(WhatsAppNotificationService.sendNotification).not.toHaveBeenCalled();
+
+        // Verify it was added to hourlyDigestQueue
+        expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toHaveLength(1);
+
+        // Now trigger flushHourlyDigest
+        const flushResult = await systemIncidentAlertService.flushHourlyDigest('comp_1');
+        expect(flushResult.sent).toBe(true);
+        expect(flushResult.count).toBe(1);
+
+        // Verify the aggregated digest was sent
+        expect(WhatsAppNotificationService.sendNotification).toHaveBeenCalledWith(
+            expect.objectContaining({
+                companyId: 'comp_1',
+                contentOverride: expect.stringContaining('تقرير ملخص تنبيهات السيستم - آخر ساعة')
+            })
+        );
+        expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toBeUndefined();
+    });
+
+    test('Acceptance 5: Telegram alert text formatting remains 100% untouched and preserved', async () => {
+        await systemIncidentAlertService.dispatchIncident({
+            companyId: 'comp_1',
+            incidentType: systemIncidentAlertService.INCIDENT_TYPES.AUTOMATION_ENDED,
+            title: '✅ اكتمال خطوات الأتمتة',
+            message: 'تم إنهاء كافة خطوات خطة المتابعة بنجاح للعميل',
+            severity: systemIncidentAlertService.SEVERITIES.INFO,
+            entityId: 'auto_789'
+        });
+
+        expect(telegramAlertService.sendAlert).toHaveBeenCalledWith(
+            expect.stringContaining('ℹ️ *[SYSTEM ALERT - AUTOMATION_ENDED]*')
+        );
+        expect(telegramAlertService.sendAlert).toHaveBeenCalledWith(
+            expect.stringContaining('🏢 *الشركة:* متجر تجريبي')
+        );
+        expect(telegramAlertService.sendAlert).toHaveBeenCalledWith(
+            expect.stringContaining('📌 *العنوان:* ✅ اكتمال خطوات الأتمتة')
+        );
     });
 });

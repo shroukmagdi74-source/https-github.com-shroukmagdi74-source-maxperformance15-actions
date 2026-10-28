@@ -322,6 +322,10 @@ const buildDefaultSettings = ({
       volume: 100,
       pattern: "coins",
     },
+    whatsapp: {
+      enabled: true,
+      phoneNumber: "",
+    },
   },
   typeSettings: buildDefaultTypeSettings(),
 });
@@ -386,6 +390,10 @@ const mergeSettingsWithDefaults = (incomingSettings = {}, defaults) => {
         ...defaults.channels.incompleteSound,
         ...(incomingSettings.channels?.incompleteSound || {}),
       },
+      whatsapp: {
+        ...defaults.channels.whatsapp,
+        ...(incomingSettings.channels?.whatsapp || {}),
+      },
     },
     typeSettings: nextTypeSettings,
   };
@@ -416,6 +424,27 @@ const isQuietHoursActive = (settings) => {
   }
 
   return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+};
+
+const shouldDeliverWhatsAppNotificationForType = (settings, typeId) => {
+  if (!settings?.globalEnabled) {
+    return false;
+  }
+
+  if (settings?.channels?.whatsapp?.enabled === false) {
+    return false;
+  }
+
+  const typeSettings = settings.typeSettings?.[typeId];
+  if (typeSettings && typeSettings.enabled === false) {
+    return false;
+  }
+
+  if (typeSettings && Array.isArray(typeSettings.channels)) {
+    return typeSettings.channels.includes("whatsapp");
+  }
+
+  return true;
 };
 
 const shouldDeliverBrowserNotificationForType = (settings, typeId) => {
@@ -548,5 +577,6 @@ module.exports = {
   isQuietHoursActive,
   mergeSettingsWithDefaults,
   saveNotificationSettingsForUser,
+  shouldDeliverWhatsAppNotificationForType,
   shouldDeliverBrowserNotificationForType,
 };

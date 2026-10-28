@@ -4,7 +4,8 @@ export type NotificationChannelId =
   | "sms"
   | "inApp"
   | "browser"
-  | "sound";
+  | "sound"
+  | "whatsapp";
 
 export interface NotificationTypePreference {
   enabled: boolean;
@@ -60,6 +61,10 @@ export interface NotificationSettingsData {
       enabled: boolean;
       volume: number;
       pattern: string;
+    };
+    whatsapp: {
+      enabled: boolean;
+      phoneNumber: string;
     };
   };
   typeSettings: Record<string, NotificationTypePreference>;

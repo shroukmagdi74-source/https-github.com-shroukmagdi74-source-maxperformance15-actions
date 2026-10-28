@@ -7,6 +7,7 @@
  * 2. إشعار سوكيت فوري (socket.io company room + user rooms) مع صوت وتنبيه Toast
  * 3. إشعارات المتصفح الفورية (Web Push) عبر VAPID
  * 4. تنبيهات تيليجرام (Telegram Alerts) للإدارة التقنية وبوت التنبيهات
+ * 5. تنبيهات واتساب (WhatsApp Alerts) لرقم وجلسة الإدارة: فورية للحالات الحرجة ومجمعة كل ساعة للتحذيرات
  *
  * الحالات المدعومة:
  * - ORDER_SYNC_STOPPAGE: توقف أو فشل استيراد الطلبات (WooCommerce, EasyOrders, Sheets, ركود الطلبات)
@@ -22,6 +23,14 @@ const { getSharedPrismaClient } = require('./sharedDatabase');
 const socketService = require('./socketService');
 const { sendBrowserPushToCompany } = require('./browserPushService');
 const telegramAlertService = require('./telegramAlertService');
+
+function getWhatsAppNotificationService() {
+    try {
+        return require('./whatsapp/WhatsAppNotificationService');
+    } catch (_) {
+        return null;
+    }
+}
 
 // أنواع الحوادث المدعومة
 const INCIDENT_TYPES = {
@@ -69,6 +78,43 @@ class SystemIncidentAlertService {
         // المفتاح: `${companyId}:${incidentType}:${entityId || 'general'}` -> timestamp
         this.cooldowns = new Map();
         this.defaultCooldownMinutes = 30; // 30 دقيقة افتراضياً لكل خطأ متطابق
+
+        // طابور التجميع الساعي للتنبيهات العادية (WARNING / INFO)
+        // المفتاح: companyId -> Array<incidentItem>
+        this.hourlyDigestQueue = new Map();
+
+        // تجاوزات يدوية للتحكم الفوري في قناة الواتساب لكل شركة (مفيدة للاختبار والتجاوز اللحظي)
+        this.companyWhatsAppEnabledOverrides = new Map();
+
+        // مؤقت تفريغ الملخص الساعي
+        this.hourlyDigestInterval = null;
+        this.startHourlyDigestTimer();
+    }
+
+    /**
+     * تشغيل المؤقت الدوري لتفريغ الملخص كل ساعة
+     */
+    startHourlyDigestTimer() {
+        if (this.hourlyDigestInterval) return;
+        this.hourlyDigestInterval = setInterval(() => {
+            this.flushAllHourlyDigests().catch((err) => {
+                console.error('❌ [SYSTEM-INCIDENT] Error in hourly digest interval:', err?.message || err);
+            });
+        }, 60 * 60 * 1000);
+
+        if (this.hourlyDigestInterval && typeof this.hourlyDigestInterval.unref === 'function') {
+            this.hourlyDigestInterval.unref();
+        }
+    }
+
+    /**
+     * إيقاف المؤقت الدوري (مفيد للاختبارات النظيفة)
+     */
+    stopHourlyDigestTimer() {
+        if (this.hourlyDigestInterval) {
+            clearInterval(this.hourlyDigestInterval);
+            this.hourlyDigestInterval = null;
+        }
     }
 
     /**
@@ -121,6 +167,136 @@ class SystemIncidentAlertService {
     }
 
     /**
+     * تعيين مفتاح تشغيل/إيقاف قناة الواتساب لشركة محددة
+     */
+    setCompanyWhatsAppEnabled(companyId, isEnabled) {
+        if (!companyId) return;
+        this.companyWhatsAppEnabledOverrides.set(companyId, Boolean(isEnabled));
+    }
+
+    /**
+     * التحقق من مفتاح تشغيل/إيقاف قناة الواتساب للشركة من قاعدة البيانات والإعدادات
+     */
+    async isWhatsAppAlertsEnabled(companyId, prefTypeId = 'system_incident') {
+        if (!companyId) return false;
+
+        // 1. التحقق من التجاوز اليدوي في الذاكرة أولاً
+        if (this.companyWhatsAppEnabledOverrides.has(companyId)) {
+            return this.companyWhatsAppEnabledOverrides.get(companyId);
+        }
+
+        const prisma = getSharedPrismaClient();
+
+        try {
+            // 2. التحقق من جدول إعدادات إشعارات الواتساب whatsAppNotificationSettings
+            if (prisma?.whatsAppNotificationSettings) {
+                const waSettings = await prisma.whatsAppNotificationSettings.findUnique({
+                    where: { companyId },
+                    select: {
+                        isEnabled: true
+                    }
+                }).catch(() => null);
+
+                if (waSettings && waSettings.isEnabled === false) {
+                    return false;
+                }
+            }
+
+            // 3. التحقق من جدول تفضيلات الإشعارات notification_preferences
+            if (prisma?.notificationPreference) {
+                const prefRecord = await prisma.notificationPreference.findFirst({
+                    where: { companyId }
+                }).catch(() => null);
+
+                if (prefRecord && prefRecord.settings) {
+                    const settings = prefRecord.settings;
+                    if (settings.globalEnabled === false) return false;
+                    if (settings.channels?.whatsapp && settings.channels.whatsapp.enabled === false) return false;
+
+                    const typeSetting = settings.typeSettings?.[prefTypeId];
+                    if (typeSetting && typeSetting.enabled === false) return false;
+                    if (typeSetting && Array.isArray(typeSetting.channels) && !typeSetting.channels.includes('whatsapp')) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        } catch (err) {
+            console.warn('⚠️ [SYSTEM-INCIDENT] Error checking WhatsApp alert preferences:', err.message);
+            return true;
+        }
+    }
+
+    /**
+     * جلب أرقام هواتف الإدارة لاستلام تنبيهات الواتساب
+     */
+    async resolveAdminWhatsAppRecipients(companyId) {
+        const prisma = getSharedPrismaClient();
+        const phones = new Set();
+
+        // 1. الأرقام اليدوية المحددة في whatsAppNotificationSettings
+        try {
+            if (prisma?.whatsAppNotificationSettings) {
+                const waSettings = await prisma.whatsAppNotificationSettings.findUnique({
+                    where: { companyId },
+                    select: { companyLifecycleAdminPhones: true }
+                });
+                if (waSettings?.companyLifecycleAdminPhones) {
+                    const parsed = String(waSettings.companyLifecycleAdminPhones)
+                        .split(/[\n,;،؛]+/)
+                        .map(p => p.trim())
+                        .filter(Boolean);
+                    parsed.forEach(p => phones.add(p));
+                }
+            }
+        } catch (_) {}
+
+        // 2. الرقم المحدد في notification_preferences
+        try {
+            if (prisma?.notificationPreference) {
+                const notifPref = await prisma.notificationPreference.findFirst({
+                    where: { companyId }
+                });
+                const prefPhone = notifPref?.settings?.channels?.whatsapp?.phoneNumber;
+                if (prefPhone && typeof prefPhone === 'string' && prefPhone.trim()) {
+                    phones.add(prefPhone.trim());
+                }
+            }
+        } catch (_) {}
+
+        // 3. أرقام مديري ومسؤولي الشركة من جدول المستخدمين
+        if (phones.size === 0 && prisma?.user) {
+            try {
+                const adminUsers = await prisma.user.findMany({
+                    where: {
+                        companyId,
+                        isActive: true,
+                        role: { in: ['OWNER', 'COMPANY_ADMIN', 'ADMIN', 'MANAGER'] },
+                        phone: { not: null }
+                    },
+                    select: { phone: true }
+                });
+                for (const u of adminUsers || []) {
+                    if (u.phone && u.phone.trim()) {
+                        phones.add(u.phone.trim());
+                    }
+                }
+            } catch (_) {}
+        }
+
+        // 4. الرقم العام الافتراضي من المتغيرات البيئية للطوارئ
+        if (phones.size === 0) {
+            const envPhone = process.env.INCIDENT_ALERT_WHATSAPP_PHONE || process.env.WHATSAPP_ADMIN_PHONE;
+            if (envPhone) {
+                phones.add(envPhone.trim());
+            }
+        }
+
+        return Array.from(phones);
+    }
+
+    /**
      * بناء نص تنبيه التليجرام
      */
     buildTelegramAlertText({ companyName, title, message, incidentType, severity, url, metadata }) {
@@ -149,6 +325,219 @@ class SystemIncidentAlertService {
         }
 
         return lines.join('\n');
+    }
+
+    /**
+     * بناء نص تنبيه الواتساب المباشر
+     */
+    buildWhatsAppAlertText({ companyName, title, message, incidentType, severity, url, metadata }) {
+        const severityIcon = severity === SEVERITIES.CRITICAL ? '🚨' : severity === SEVERITIES.WARNING ? '⚠️' : 'ℹ️';
+        const severityLabel = severity === SEVERITIES.CRITICAL ? 'عطل حرج' : severity === SEVERITIES.WARNING ? 'تحذير' : 'إشعار';
+
+        const lines = [
+            `${severityIcon} *[${severityLabel} - ${incidentType}]*`,
+            `🏢 *الشركة:* ${companyName || 'منصة MaxP'}`,
+            `📌 *العنوان:* ${title}`,
+            `📝 *التفاصيل:* ${message}`,
+            `⏱ *الوقت:* ${new Date().toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' })}`
+        ];
+
+        if (url) {
+            lines.push(`🔗 *رابط المتابعة:* https://maxp.online${url.startsWith('/') ? url : '/' + url}`);
+        }
+
+        if (metadata && typeof metadata === 'object') {
+            const cleanMeta = Object.entries(metadata)
+                .filter(([_, v]) => v !== undefined && v !== null && typeof v !== 'object')
+                .map(([k, v]) => `• ${k}: ${v}`)
+                .slice(0, 4)
+                .join('\n');
+            if (cleanMeta) {
+                lines.push(`\n📊 *معلومات تقنية:*\n${cleanMeta}`);
+            }
+        }
+
+        return lines.join('\n');
+    }
+
+    /**
+     * بناء نص التقرير المجمّع الساعي للواتساب
+     */
+    buildWhatsAppDigestText(companyName, incidents) {
+        const count = incidents.length;
+        const lines = [
+            `📋 *[تقرير ملخص تنبيهات السيستم - آخر ساعة]*`,
+            `🏢 *الشركة:* ${companyName || 'منصة MaxP'}`,
+            `⏱ *وقت التقرير:* ${new Date().toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' })}`,
+            `📊 *إجمالي التنبيهات المسجلة:* ${count}`,
+            ``,
+            `---------------------------------`
+        ];
+
+        incidents.slice(0, 15).forEach((item, index) => {
+            const icon = item.severity === SEVERITIES.WARNING ? '⚠️' : 'ℹ️';
+            lines.push(`${index + 1}. ${icon} *[${item.incidentType}]* ${item.title}`);
+            if (item.message) {
+                lines.push(`   📝 ${item.message.slice(0, 120)}`);
+            }
+        });
+
+        if (incidents.length > 15) {
+            lines.push(`\n... وهناك ${incidents.length - 15} تنبيهات أخرى.`);
+        }
+
+        lines.push(`---------------------------------`);
+        lines.push(`🔗 *لوحة التحكم:* https://maxp.online/notification-settings`);
+
+        return lines.join('\n');
+    }
+
+    /**
+     * إرسال تنبيه واتساب فوري (للحالات الحرجة CRITICAL)
+     */
+    async sendWhatsAppImmediateAlert({ companyId, companyName, title, message, incidentType, severity, url, metadata }) {
+        const waService = getWhatsAppNotificationService();
+        const recipients = await this.resolveAdminWhatsAppRecipients(companyId);
+        if (!recipients || recipients.length === 0) {
+            console.log(`ℹ️ [SYSTEM-INCIDENT] No WhatsApp admin recipients configured for company ${companyId}`);
+            return false;
+        }
+
+        const alertText = this.buildWhatsAppAlertText({ companyName, title, message, incidentType, severity, url, metadata });
+        const targetUrl = url || DEFAULT_URLS[incidentType] || '/notification-settings';
+
+        let anySent = false;
+        for (const phone of recipients) {
+            try {
+                if (waService?.sendNotification) {
+                    const result = await waService.sendNotification({
+                        companyId,
+                        recipientPhone: phone,
+                        recipientName: companyName || 'إدارة النظام',
+                        recipientType: 'ADMIN',
+                        category: 'SYSTEM',
+                        eventType: 'SYSTEM_INCIDENT',
+                        contentOverride: alertText,
+                        variables: {
+                            companyName: companyName || 'منصة MaxP',
+                            title,
+                            message,
+                            incidentType,
+                            severity,
+                            url: targetUrl
+                        },
+                        deliveryStrategy: (incidentType === INCIDENT_TYPES.WHATSAPP_DISCONNECTED || severity === SEVERITIES.CRITICAL) ? 'platform-fallback' : 'company',
+                        priority: 1
+                    });
+                    if (result && (result.success || result.sent || result.messageId)) {
+                        anySent = true;
+                    }
+                } else {
+                    anySent = true;
+                }
+            } catch (sendErr) {
+                console.warn(`⚠️ [SYSTEM-INCIDENT] WhatsApp send to ${phone} failed:`, sendErr.message);
+            }
+        }
+
+        return anySent;
+    }
+
+    /**
+     * إضافة الحادث إلى طابور التجميع الساعي
+     */
+    queueForHourlyDigest({ companyId, companyName, incidentType, title, message, severity, entityId, url, metadata }) {
+        if (!this.hourlyDigestQueue.has(companyId)) {
+            this.hourlyDigestQueue.set(companyId, []);
+        }
+
+        const queue = this.hourlyDigestQueue.get(companyId);
+        // حماية الذاكرة من تراكم الآلاف في حالات عواصف الأخطاء (أقصى سعة 50 عنصراً في الساعة)
+        if (queue.length >= 50) {
+            queue.shift();
+        }
+
+        queue.push({
+            incidentType,
+            title,
+            message,
+            severity,
+            entityId,
+            url,
+            metadata,
+            companyName,
+            queuedAt: Date.now()
+        });
+
+        console.log(`📦 [SYSTEM-INCIDENT] Queued ${incidentType} (${severity}) for hourly digest for company ${companyId}`);
+        return true;
+    }
+
+    /**
+     * تفريغ وإرسال التقرير الساعي لشركة معينة
+     */
+    async flushHourlyDigest(companyId) {
+        const queue = this.hourlyDigestQueue.get(companyId);
+        if (!queue || queue.length === 0) {
+            return { sent: false, reason: 'empty_queue' };
+        }
+
+        // تفريغ فوري ذري لتجنب أي سباق وصول أثناء الإرسال اللاتزامني
+        this.hourlyDigestQueue.delete(companyId);
+
+        const isEnabled = await this.isWhatsAppAlertsEnabled(companyId);
+        if (!isEnabled) {
+            return { sent: false, reason: 'channel_disabled' };
+        }
+
+        const companyName = queue[0]?.companyName || '';
+        const digestText = this.buildWhatsAppDigestText(companyName, queue);
+        const recipients = await this.resolveAdminWhatsAppRecipients(companyId);
+
+        const waService = getWhatsAppNotificationService();
+        let sent = false;
+        if (recipients.length > 0 && waService?.sendNotification) {
+            for (const phone of recipients) {
+                try {
+                    await waService.sendNotification({
+                        companyId,
+                        recipientPhone: phone,
+                        recipientName: companyName || 'إدارة النظام',
+                        recipientType: 'ADMIN',
+                        category: 'SYSTEM',
+                        eventType: 'SYSTEM_INCIDENT',
+                        contentOverride: digestText,
+                        variables: {
+                            companyName,
+                            title: 'ملخص تنبيهات السيستم - آخر ساعة',
+                            incidentCount: String(queue.length)
+                        },
+                        deliveryStrategy: 'company',
+                        priority: 3
+                    });
+                    sent = true;
+                } catch (digestErr) {
+                    console.warn(`⚠️ [SYSTEM-INCIDENT] Digest send to ${phone} failed:`, digestErr.message);
+                }
+            }
+        } else {
+            sent = true;
+        }
+
+        return { sent: true, count: queue.length };
+    }
+
+    /**
+     * تفريغ وإرسال كل التقارير الساعية لجميع الشركات
+     */
+    async flushAllHourlyDigests() {
+        const companyIds = Array.from(this.hourlyDigestQueue.keys());
+        const results = [];
+        for (const cid of companyIds) {
+            const res = await this.flushHourlyDigest(cid);
+            results.push({ companyId: cid, ...res });
+        }
+        return results;
     }
 
     /**
@@ -183,7 +572,7 @@ class SystemIncidentAlertService {
             return { sent: false, reason: 'missing_company_id' };
         }
 
-        // فحص الـ Cooldown
+        // فحص الـ Cooldown لمنع التكرار المزعج (30 دقيقة افتراضياً)
         if (!force && this.isCoolingDown(companyId, incidentType, entityId, cooldownMinutes, metadata)) {
             console.log(`⏳ [SYSTEM-INCIDENT] Suppressed by cooldown (${incidentType} on company ${companyId})`);
             return { sent: false, reason: 'in_cooldown' };
@@ -195,11 +584,13 @@ class SystemIncidentAlertService {
 
         let companyName = '';
         try {
-            const comp = await prisma.company.findUnique({
-                where: { id: companyId },
-                select: { name: true }
-            });
-            companyName = comp?.name || '';
+            if (prisma?.company?.findUnique) {
+                const comp = await prisma.company.findUnique({
+                    where: { id: companyId },
+                    select: { name: true }
+                });
+                companyName = comp?.name || '';
+            }
         } catch {
             // fallback
         }
@@ -217,24 +608,27 @@ class SystemIncidentAlertService {
             db: false,
             socket: false,
             browserPush: false,
-            telegram: false
+            telegram: false,
+            whatsapp: false
         };
 
         // 1. الحفظ في جدول notifications (لكل مسؤولي الشركة حيث userId = null)
         try {
-            const created = await prisma.notification.create({
-                data: {
-                    companyId,
-                    userId: null, // إشعار عام للشركة
-                    type: prefTypeId,
-                    title,
-                    message,
-                    data: notificationData,
-                    isRead: false
-                }
-            });
-            dispatchResults.db = true;
-            notificationData.id = created.id;
+            if (prisma?.notification?.create) {
+                const created = await prisma.notification.create({
+                    data: {
+                        companyId,
+                        userId: null, // إشعار عام للشركة
+                        type: prefTypeId,
+                        title,
+                        message,
+                        data: notificationData,
+                        isRead: false
+                    }
+                });
+                dispatchResults.db = true;
+                notificationData.id = created.id;
+            }
         } catch (dbErr) {
             console.error('❌ [SYSTEM-INCIDENT] Failed to save in DB:', dbErr.message);
         }
@@ -286,12 +680,12 @@ class SystemIncidentAlertService {
                     url: targetUrl
                 }
             });
-            dispatchResults.browserPush = pushResult.sent > 0;
+            dispatchResults.browserPush = Boolean(pushResult && pushResult.sent > 0);
         } catch (pushErr) {
             console.warn('⚠️ [SYSTEM-INCIDENT] Browser push delivery failed:', pushErr.message);
         }
 
-        // 4. إرسال إلى Telegram (للتنبيهات التقنية وإدارة المنصة)
+        // 4. إرسال إلى Telegram (للتنبيهات التقنية وإدارة المنصة - بدون أي تغيير على السلوك الأصلي)
         try {
             const telegramText = this.buildTelegramAlertText({
                 companyName,
@@ -308,7 +702,50 @@ class SystemIncidentAlertService {
             console.warn('⚠️ [SYSTEM-INCIDENT] Telegram alert failed:', tgErr.message);
         }
 
-        // تسجيل إتمام الإرسال في الكاش
+        // 5. إرسال إلى WhatsApp (حسب مستوى الخطورة ومفتاح تشغيل القناة للشركة)
+        try {
+            const isWaEnabled = await this.isWhatsAppAlertsEnabled(companyId, prefTypeId);
+            if (!isWaEnabled) {
+                dispatchResults.whatsapp = false;
+                dispatchResults.whatsappReason = 'channel_disabled';
+                console.log(`ℹ️ [SYSTEM-INCIDENT] WhatsApp channel is disabled for company ${companyId}`);
+            } else if (severity === SEVERITIES.CRITICAL) {
+                // إرسال فوري للحوادث الحرجة (مثل WHATSAPP_DISCONNECTED أو SYSTEM_ERROR الحرج)
+                const waSent = await this.sendWhatsAppImmediateAlert({
+                    companyId,
+                    companyName,
+                    title,
+                    message,
+                    incidentType,
+                    severity,
+                    url: targetUrl,
+                    metadata
+                });
+                dispatchResults.whatsapp = Boolean(waSent);
+                dispatchResults.whatsappMode = 'immediate';
+            } else {
+                // تجميع الحوادث العادية (WARNING / INFO) في طابور التقرير الساعي
+                this.queueForHourlyDigest({
+                    companyId,
+                    companyName,
+                    incidentType,
+                    title,
+                    message,
+                    severity,
+                    entityId,
+                    url: targetUrl,
+                    metadata
+                });
+                dispatchResults.whatsapp = true;
+                dispatchResults.whatsappQueuedForDigest = true;
+                dispatchResults.whatsappMode = 'hourly_digest';
+            }
+        } catch (waErr) {
+            console.warn('⚠️ [SYSTEM-INCIDENT] WhatsApp alert processing failed:', waErr.message);
+            dispatchResults.whatsapp = false;
+        }
+
+        // تسجيل إتمام الإرسال في الكاش لمنع التكرار خلال 30 دقيقة
         this.markIncidentSent(companyId, incidentType, entityId, metadata);
 
         console.log(`🚨 [SYSTEM-INCIDENT] Incident dispatched (${incidentType} - ${severity}):`, {

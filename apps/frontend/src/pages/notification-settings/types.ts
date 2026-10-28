@@ -74,7 +74,7 @@ export const createNormalizedSettings = ({
     const existing = rawSettings?.typeSettings?.[type.id];
     const defaults = buildDefaultTypePreference(type);
 
-    const mergedChannels = Array.isArray(existing?.channels)
+    const mergedChannels = (existing && Array.isArray(existing.channels))
       ? existing.channels.filter((channel) => type.channels.includes(channel))
       : defaults.channels;
 
@@ -142,6 +142,10 @@ export const createNormalizedSettings = ({
             : 100,
         pattern: rawSettings?.channels?.incompleteSound?.pattern || "coins",
       },
+      whatsapp: {
+        enabled: rawSettings?.channels?.whatsapp?.enabled ?? true,
+        phoneNumber: rawSettings?.channels?.whatsapp?.phoneNumber || "",
+      },
     },
     typeSettings: baseTypeSettings,
   };
@@ -157,6 +161,7 @@ export const getChannelName = (channel: NotificationChannelId | string): string 
     sms: "الرسائل النصية",
     inApp: "داخل التطبيق",
     browser: "إشعار المتصفح",
+    whatsapp: "واتساب الإدارة",
   };
 
   return names[channel] || channel;

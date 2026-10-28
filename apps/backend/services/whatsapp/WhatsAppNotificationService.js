@@ -1448,6 +1448,9 @@ async function sendNotification(options) {
       eventType === 'ORDER_CREATED' ||
       eventType === 'ORDER_CONFIRMED' ||
       eventType === 'CONFIRMED' ||
+      eventType === 'SYSTEM_INCIDENT' ||
+      category === 'SYSTEM' ||
+      options.priority === 1 ||
       COMPANY_LIFECYCLE_EVENT_TYPES.has(eventType);
 
     if (isQuietHours(settings) && !scheduleAt && !bypassQuietHours) {

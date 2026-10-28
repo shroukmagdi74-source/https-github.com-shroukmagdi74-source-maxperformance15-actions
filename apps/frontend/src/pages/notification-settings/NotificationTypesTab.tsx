@@ -43,6 +43,8 @@ export const getNotificationChannelIcon = (channel: NotificationChannelId) => {
       return <ChatBubbleLeftRightIcon className="h-5 w-5" />;
     case "browser":
       return <ComputerDesktopIcon className="h-5 w-5" />;
+    case "whatsapp":
+      return <ChatBubbleLeftRightIcon className="h-5 w-5 text-emerald-600" />;
     case "inApp":
     default:
       return <BellIcon className="h-5 w-5" />;

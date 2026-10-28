@@ -466,6 +466,55 @@ export const NotificationGeneralTab: React.FC<NotificationGeneralTabProps> = ({
               </div>
             ) : null}
           </div>
+
+          {/* WhatsApp Card */}
+          <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start">
+                <ChatBubbleLeftRightIcon className="ml-3 h-6 w-6 text-emerald-600" />
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                    واتساب الإدارة (إشعارات وأعطال السيستم)
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    إرسال تنبيهات الأعطال الحرجة فوراً والتحذيرات مجمعة كل ساعة إلى رقم الإدارة.
+                  </p>
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={settings.channels.whatsapp?.enabled ?? true}
+                label="تفعيل إشعارات الواتساب"
+                onChange={(checked) =>
+                  updateSettings("channels.whatsapp.enabled", checked)
+                }
+              />
+            </div>
+
+            {settings.channels.whatsapp?.enabled ? (
+              <div className="mt-4 grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 dark:border-gray-700">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    رقم هاتف الإدارة لاستلام التنبيهات والأعطال
+                  </label>
+                  <input
+                    type="tel"
+                    value={settings.channels.whatsapp?.phoneNumber || ""}
+                    onChange={(event) =>
+                      updateSettings(
+                        "channels.whatsapp.phoneNumber",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="مثال: 201012345678"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-mono tabular-nums"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    💡 الأعطال الحرجة (مثل انقطاع الجلسة) تُرسل فوراً في نفس الدقيقة، بينما التحذيرات العادية تُرسل في تقرير ملخص كل ساعة.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
