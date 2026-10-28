@@ -27,6 +27,12 @@ import { StudioTemplateGalleryPanel } from "./StudioTemplateGalleryPanel";
 import { StudioThemeGalleryPanel } from "./StudioThemeGalleryPanel";
 import { StudioVariablesPanel } from "./StudioVariablesPanel";
 import { StudioVariablesStyle } from "./StudioVariablesStyle";
+import { LegalBundlePanel } from "../compliance/LegalBundlePanel";
+import {
+  buildLegalBundlePage,
+  buildLegalBundleSectionSettings,
+  type LegalBundlePlan,
+} from "../compliance/legalBundle";
 import { StudioGlobalComponentsPanel } from "./inspector/StudioGlobalComponentsPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
@@ -1341,6 +1347,64 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     [activePageKey, currentDesignTokens, handleDesignTokensChange, onSave, setSelectedSectionKey, companyId]
   );
 
+  // COMPLY-1: adds the cookie bar to the current page plus the two policy pages,
+  // built from the panel's idempotent plan (nothing is ever added twice).
+  const handleApplyLegalBundle = useCallback(
+    (plan: LegalBundlePlan) => {
+      if (!plan || plan.items.length === 0) {
+        return;
+      }
+
+      const currentTokens = (currentDesignTokens as Record<string, any>) || {};
+      const currentPages = (currentTokens["pages"] as Record<string, any>) || {};
+      const nextPages: Record<string, any> = { ...currentPages };
+
+      plan.items.forEach((item) => {
+        if (item.kind === "section") {
+          const targetPageKey = item.pageKey || activePageKey || "home";
+          const pageFromTokens: Record<string, any> | undefined = nextPages[targetPageKey];
+          const existingPage: Record<string, any> =
+            pageFromTokens || (targetPageKey === activePageKey ? (activePageConfig as Record<string, any>) : {}) || {};
+          const existingSections: any[] = Array.isArray(existingPage["sections"])
+            ? [...existingPage["sections"]]
+            : [];
+          const alreadyPresent = existingSections.some((section: any) =>
+            (typeof section === "string" ? section : section?.type) === item.sectionType
+          );
+
+          if (!alreadyPresent) {
+            existingSections.push({
+              key: `${item.sectionType}-${Date.now()}`,
+              type: item.sectionType,
+              settings: buildLegalBundleSectionSettings("ar"),
+            });
+          }
+
+          nextPages[targetPageKey] = { ...existingPage, id: targetPageKey, sections: existingSections };
+          return;
+        }
+
+        if (nextPages[item.pageKey]) {
+          return;
+        }
+
+        nextPages[item.pageKey] = buildLegalBundlePage(
+          { pageKey: item.pageKey, sectionType: item.sectionType, title: item.label },
+          "ar"
+        );
+      });
+
+      handleDesignTokensChange({
+        ...currentTokens,
+        pages: nextPages,
+        pageOverrides: nextPages,
+      });
+      onSave();
+      toast.success("تمت إضافة حزمة الامتثال: شريط الكوكيز وصفحتي الخصوصية والشروط");
+    },
+    [activePageConfig, activePageKey, currentDesignTokens, handleDesignTokensChange, onSave]
+  );
+
   const handleApplyTheme = useCallback(
     (newThemeId: string, nextTokens: Record<string, unknown>) => {
       // TOKENS-1: theme switching must never wipe merchant-authored --sf-* variables
@@ -1772,6 +1836,23 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                   <StudioHeaderFooterPanel
                     designTokens={currentDesignTokens}
                     onChange={handleDesignTokensChange}
+                    onClose={() => setIsLeftDrawerOpen(false)}
+                  />
+                )}
+
+                {leftRailTab === "compliance" && (
+                  <LegalBundlePanel
+                    activePageKey={activePageKey}
+                    existingSectionTypes={activeSections.map((section: any) =>
+                      typeof section === "string" ? section : section?.type || ""
+                    )}
+                    existingPageKeys={Array.from(
+                      new Set([
+                        ...Object.keys(((currentDesignTokens as any)?.pages as Record<string, unknown>) || {}),
+                        ...Object.keys(((currentDesignTokens as any)?.pageOverrides as Record<string, unknown>) || {}),
+                      ])
+                    )}
+                    onApplyBundle={handleApplyLegalBundle}
                     onClose={() => setIsLeftDrawerOpen(false)}
                   />
                 )}

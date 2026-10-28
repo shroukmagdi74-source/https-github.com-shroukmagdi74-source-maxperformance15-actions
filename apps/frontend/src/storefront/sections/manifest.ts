@@ -3959,6 +3959,59 @@ export const STOREFRONT_SECTION_MANIFEST = {
       { key: "subtitle", label: "الوصف", type: "textarea" },
     ],
   },
+  "cookie-consent": {
+    label: "شريط موافقة الكوكيز",
+    component: "cookie-consent",
+    note: "شريط يظهر للزائر قبل أي قياس، يحفظ القبول أو الرفض، ولا يبعت أي حدث قياس قبل الموافقة.",
+    variants: [{ value: "inline", label: "داخل الصفحة" }, { value: "fixed", label: "ملتصق بأسفل الشاشة" }],
+    fields: [
+      { key: "locale", label: "اللغة", type: "select", options: [{ label: "عربي", value: "ar" }, { label: "English", value: "en" }] },
+      { key: "title", label: "العنوان", type: "text", placeholder: "الكوكيز والقياس" },
+      { key: "description", label: "الوصف", type: "textarea", placeholder: "نستخدم الكوكيز لتشغيل المتجر وحفظ تفضيلاتك." },
+      { key: "acceptLabel", label: "نص زر القبول", type: "text", placeholder: "قبول" },
+      { key: "rejectLabel", label: "نص زر الرفض", type: "text", placeholder: "رفض" },
+      { key: "policyHref", label: "رابط سياسة الخصوصية", type: "url", placeholder: "/privacy" },
+      { key: "policyLabel", label: "نص رابط السياسة", type: "text", placeholder: "سياسة الخصوصية" },
+      { key: "variant", label: "طريقة العرض", type: "select", options: [{ label: "داخل الصفحة", value: "inline" }, { label: "ملتصق بأسفل الشاشة", value: "fixed" }] },
+    ],
+  },
+  "privacy-policy": {
+    label: "سياسة الخصوصية",
+    component: "privacy-policy",
+    note: "نص عام محايد جاهز للتعديل، مع تذكير ظاهر بمراجعة مستشارك القانوني.",
+    fields: [
+      { key: "locale", label: "اللغة", type: "select", options: [{ label: "عربي", value: "ar" }, { label: "English", value: "en" }] },
+      { key: "badge", label: "الشارة", type: "text", placeholder: "الخصوصية" },
+      { key: "title", label: "العنوان", type: "text", placeholder: "سياسة الخصوصية" },
+      { key: "subtitle", label: "الوصف المختصر", type: "textarea", placeholder: "كيف نتعامل مع بياناتك داخل المتجر." },
+      { key: "body", label: "الفقرات", type: "textarea", helperText: "افصل بين الفقرات بسطر فارغ. لو سيبتها فاضية هيتم استخدام النص الافتراضي." },
+      { key: "lastUpdated", label: "تاريخ آخر تحديث", type: "text", placeholder: "2026-10-28" },
+    ],
+  },
+  "terms-of-use": {
+    label: "شروط الاستخدام",
+    component: "terms-of-use",
+    note: "نص عام محايد جاهز للتعديل، مع تذكير ظاهر بمراجعة مستشارك القانوني.",
+    fields: [
+      { key: "locale", label: "اللغة", type: "select", options: [{ label: "عربي", value: "ar" }, { label: "English", value: "en" }] },
+      { key: "badge", label: "الشارة", type: "text", placeholder: "الشروط" },
+      { key: "title", label: "العنوان", type: "text", placeholder: "شروط الاستخدام" },
+      { key: "subtitle", label: "الوصف المختصر", type: "textarea", placeholder: "الأساسيات التي تنظم الشراء من المتجر." },
+      { key: "body", label: "الفقرات", type: "textarea", helperText: "افصل بين الفقرات بسطر فارغ. لو سيبتها فاضية هيتم استخدام النص الافتراضي." },
+      { key: "lastUpdated", label: "تاريخ آخر تحديث", type: "text", placeholder: "2026-10-28" },
+    ],
+  },
+  "marketing-consent": {
+    label: "موافقة تسويقية",
+    component: "marketing-consent",
+    note: "خانة اختيار اختيارية للرسائل التسويقية، منفصلة عن موافقة الكوكيز.",
+    fields: [
+      { key: "locale", label: "اللغة", type: "select", options: [{ label: "عربي", value: "ar" }, { label: "English", value: "en" }] },
+      { key: "label", label: "نص الموافقة", type: "textarea", placeholder: "أوافق على استلام رسائل تسويقية عبر البريد أو واتساب." },
+      { key: "helperText", label: "نص مساعد", type: "text", placeholder: "الموافقة اختيارية وتقدر تلغيها في أي وقت." },
+      { key: "name", label: "اسم الحقل", type: "text", placeholder: "marketingConsent" },
+    ],
+  },
 } as const satisfies Record<string, StorefrontSectionManifestEntry>;
 
 export type StorefrontSectionId = keyof typeof STOREFRONT_SECTION_MANIFEST;

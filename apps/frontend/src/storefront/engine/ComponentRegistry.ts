@@ -36,6 +36,10 @@ const MemberRegistration = React.lazy(() => import('../sections/MemberRegistrati
 const ShoppingIntents = React.lazy(() => import('../sections/ShoppingIntents'));
 const OfferBento = React.lazy(() => import('../sections/OfferBento'));
 const InfoContentSection = React.lazy(() => import('../sections/InfoContentSection'));
+const CookieConsentSection = React.lazy(() => import('../sections/CookieConsentSection'));
+const PrivacyPolicySection = React.lazy(() => import('../compliance/PrivacyPolicySection'));
+const TermsSection = React.lazy(() => import('../compliance/TermsSection'));
+const MarketingConsentSection = React.lazy(() => import('../sections/MarketingConsentSection'));
 const JournalStrip = React.lazy(() => import('../sections/JournalStrip'));
 const ShoeFitFinder = React.lazy(() => import('../sections/ShoeFitFinder'));
 const TikTokFeedSection = React.lazy(() => import('../sections/TikTokFeedSection'));
@@ -164,6 +168,10 @@ const baseComponentRegistry: Record<
   'shoe-fit-finder': ShoeFitFinder,
   'journal-strip': JournalStrip,
   'info-content': InfoContentSection,
+  'cookie-consent': CookieConsentSection,
+  'privacy-policy': PrivacyPolicySection,
+  'terms-of-use': TermsSection,
+  'marketing-consent': MarketingConsentSection,
   'member-registration': MemberRegistration,
   'tiktok-feed': TikTokFeedSection,
   'affiliate-disclosure': AffiliateDisclosure,

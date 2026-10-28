@@ -9,11 +9,18 @@ import {
   trackClick,
   observeSectionView,
 } from '../analytics/beacon';
+import {
+  resetConsentCache,
+  writeCookieConsent,
+} from '../compliance/consentStore';
 
 describe('Storefront Analytics Beacon (AN-1)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.sessionStorage.clear();
+    // COMPLY-1: visitor tracking (view/click) only runs after an explicit
+    // "granted" decision, so these dispatch tests seed that decision.
+    writeCookieConsent('granted');
     setStorefrontCompanySlug('swan-store');
   });
 

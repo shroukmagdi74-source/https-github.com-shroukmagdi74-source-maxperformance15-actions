@@ -8,15 +8,30 @@
  */
 
 import { getApiUrl } from '../../config/environment';
+import { hasAnalyticsConsent } from '../compliance/consentStore';
 
 export type StorefrontEventType =
   | 'view'
   | 'click'
+  | 'consent_update'
   | 'studio_open'
   | 'studio_publish'
   | 'studio_template_apply'
   | 'studio_ai_open'
   | 'studio_error';
+
+/**
+ * Visitor-facing events are only dispatched after an explicit cookie "granted".
+ * Studio operational events (studio_*) run inside the authenticated editor and
+ * are not visitor tracking, so they keep working without that decision.
+ */
+const VISITOR_CONSENT_EVENTS: ReadonlySet<StorefrontEventType> = new Set<StorefrontEventType>([
+  'view',
+  'click',
+]);
+
+export const requiresVisitorConsent = (eventType: StorefrontEventType): boolean =>
+  VISITOR_CONSENT_EVENTS.has(eventType);
 
 export interface AnalyticsEventPayload {
   companySlug?: string;
@@ -183,6 +198,11 @@ export const getSessionId = (): string => {
  */
 export const sendAnalyticsEvent = (payload: AnalyticsEventPayload): boolean => {
   if (typeof window === 'undefined') {
+    return false;
+  }
+
+  // COMPLY-1: zero visitor tracking until the visitor explicitly accepts.
+  if (requiresVisitorConsent(payload.eventType) && !hasAnalyticsConsent()) {
     return false;
   }
 
@@ -388,6 +408,11 @@ export const observeSectionView = (
   companySlug?: string
 ): (() => void) => {
   if (!element || typeof window === 'undefined') {
+    return () => {};
+  }
+
+  // COMPLY-1: do not even observe before the visitor grants consent.
+  if (!hasAnalyticsConsent()) {
     return () => {};
   }
 

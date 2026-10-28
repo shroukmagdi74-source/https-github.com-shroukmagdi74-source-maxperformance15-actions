@@ -13,6 +13,7 @@ import {
   SwatchIcon,
   CubeTransparentIcon,
   AdjustmentsHorizontalIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioLeftRailTab } from "./StudioTypes";
 
@@ -21,7 +22,8 @@ export type StudioLeftRailActiveTab =
   | "header-footer"
   | "templates"
   | "themes"
-  | "components";
+  | "components"
+  | "compliance";
 
 interface StudioLeftRailProps {
   activeTab: StudioLeftRailActiveTab;
@@ -51,6 +53,7 @@ export const StudioLeftRail: React.FC<StudioLeftRailProps> = ({
     { id: "layers", label: "الهيكل", icon: Squares2X2Icon },
     { id: "pages", label: "صفحات", icon: DocumentDuplicateIcon },
     { id: "header-footer", label: "الهيدر والفوتر", icon: WindowIcon },
+    { id: "compliance" as StudioLeftRailActiveTab, label: "امتثال", icon: ShieldCheckIcon },
     { id: "media", label: "وسائط", icon: PhotoIcon },
     { id: "styles", label: "أنماط", icon: PaintBrushIcon },
     { id: "variables", label: "متغيرات", icon: AdjustmentsHorizontalIcon },
