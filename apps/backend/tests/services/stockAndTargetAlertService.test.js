@@ -1,6 +1,7 @@
 /**
  * @file stockAndTargetAlertService.test.js
- * @description Unit tests for automated stock monitoring and daily/weekly order target alerts.
+ * @description Unit tests for StockAndTargetAlertService: atomic ledger gate, milestone sequencing,
+ * company isolation, dryRun mode, and jsonb_set settings persistence.
  */
 
 const stockAndTargetAlertService = require('../../services/stockAndTargetAlertService');
@@ -13,7 +14,9 @@ describe('StockAndTargetAlertService - Unit Test Suite', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockSendNotification = jest.spyOn(WhatsAppNotificationService, 'sendNotification').mockResolvedValue({ success: true });
+    mockSendNotification = jest
+      .spyOn(WhatsAppNotificationService, 'sendNotification')
+      .mockResolvedValue({ success: true });
   });
 
   afterEach(() => {
@@ -23,187 +26,373 @@ describe('StockAndTargetAlertService - Unit Test Suite', () => {
     }
   });
 
-  describe('1. Calendar & Date Calculations', () => {
-    test('getWeekStartDate returns Saturday 00:00:00', () => {
-      // Wednesday, Sept 23, 2026
-      const midWeek = new Date(2026, 8, 23, 14, 30, 0);
-      const weekStart = stockAndTargetAlertService.getWeekStartDate(midWeek);
-
-      // Day 6 is Saturday
-      expect(weekStart.getDay()).toBe(6);
-      expect(weekStart.getHours()).toBe(0);
-      expect(weekStart.getMinutes()).toBe(0);
-      expect(weekStart.getSeconds()).toBe(0);
-      expect(weekStart.getDate()).toBe(19); // Saturday Sept 19
-    });
-
-    test('getWeekStartDate on Saturday itself returns the same day 00:00:00', () => {
-      const sat = new Date(2026, 8, 26, 16, 0, 0);
-      const weekStart = stockAndTargetAlertService.getWeekStartDate(sat);
-      expect(weekStart.getDay()).toBe(6);
-      expect(weekStart.getDate()).toBe(26);
-      expect(weekStart.getHours()).toBe(0);
-    });
-  });
-
-  describe('2. Message Formatting (Anti-Slop & Precision)', () => {
-    test('formats daily 100% target achievement message properly', () => {
-      const msg = stockAndTargetAlertService._formatTargetAlertMessage({
-        storeName: 'متجر الأناقة',
-        milestone: '100%',
-        actualOrders: 50,
-        targetOrders: 50,
-        percentage: 100,
-      });
-
-      expect(msg).toContain('متجر الأناقة');
-      expect(msg).toContain('100%');
-      expect(msg).toContain('50');
-      expect(msg).not.toMatch(/[🤖🚀⚡✨🔥💡🎯🛒🧠]/); // Anti-slop: zero emoji littering
-    });
-
-    test('formats weekly target achievement message properly', () => {
-      const msg = stockAndTargetAlertService._formatWeeklyTargetAlertMessage({
-        storeName: 'متجر الأناقة',
-        milestone: '80%',
-        actualOrders: 240,
-        targetOrders: 300,
-        percentage: 80,
-        remainingOrders: 60,
-      });
-
-      expect(msg).toContain('تحديث أداء المبيعات الأسبوعي');
-      expect(msg).toContain('240');
-      expect(msg).toContain('300');
-      expect(msg).toContain('60');
-      expect(msg).not.toMatch(/[🤖🚀⚡✨🔥💡🎯🛒🧠]/);
-    });
-  });
-
-  describe('3. Daily Target Evaluation', () => {
-    test('returns false if daily_orders is not set or 0', async () => {
-      const company = { id: 'c1', name: 'Store 1' };
-      const config = { daily_orders: 0 };
-      const res = await stockAndTargetAlertService._evaluateDailyOrderTargets(company, config, '01012345678');
-      expect(res).toBe(false);
-      expect(mockSendNotification).not.toHaveBeenCalled();
-    });
-
-    test('triggers 50% milestone alert when orders reach 50% of target', async () => {
+  describe('1. Atomic claim gate and P2002 deduplication (T00 §2.3 / T20 §3.1)', () => {
+    test('claim returns true on first attempt and false on second attempt when P2002 occurs', async () => {
+      let callCount = 0;
       mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
         const dummyPrisma = {
-          order: { count: jest.fn().mockResolvedValue(25) },
-          company: { findUnique: jest.fn().mockResolvedValue({ settings: '{}' }), update: jest.fn() },
-        };
-        return cb(dummyPrisma);
-      });
-
-      const company = { id: 'c1', name: 'Store 1' };
-      const config = { daily_orders: 50, notified_milestones: [] };
-
-      const res = await stockAndTargetAlertService._evaluateDailyOrderTargets(company, config, '01012345678');
-      expect(res).toBe(true);
-      expect(mockSendNotification).toHaveBeenCalledTimes(1);
-      expect(mockSendNotification.mock.calls[0][0].contentOverride).toContain('50%');
-    });
-
-    test('does not re-trigger milestone if already in notified_milestones for today', async () => {
-      const todayDateKey = new Date().toISOString().slice(0, 10);
-      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
-        const dummyPrisma = {
-          order: { count: jest.fn().mockResolvedValue(25) },
-        };
-        return cb(dummyPrisma);
-      });
-
-      const company = { id: 'c1', name: 'Store 1' };
-      const config = {
-        daily_orders: 50,
-        last_notified_target_date: todayDateKey,
-        notified_milestones: ['50%'],
-      };
-
-      const res = await stockAndTargetAlertService._evaluateDailyOrderTargets(company, config, '01012345678');
-      expect(res).toBe(false);
-      expect(mockSendNotification).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('4. Weekly Target Evaluation', () => {
-    test('returns false if weekly_orders is not set or 0', async () => {
-      const company = { id: 'c1', name: 'Store 1' };
-      const config = { weekly_orders: 0 };
-      const res = await stockAndTargetAlertService._evaluateWeeklyOrderTargets(company, config, '01012345678');
-      expect(res).toBe(false);
-      expect(mockSendNotification).not.toHaveBeenCalled();
-    });
-
-    test('triggers 100% milestone alert when weekly orders reach target', async () => {
-      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
-        const dummyPrisma = {
-          order: { count: jest.fn().mockResolvedValue(305) },
-          company: { findUnique: jest.fn().mockResolvedValue({ settings: '{}' }), update: jest.fn() },
-        };
-        return cb(dummyPrisma);
-      });
-
-      const company = { id: 'c1', name: 'Store 1' };
-      const config = { weekly_orders: 300, notified_weekly_milestones: ['50%', '80%'] };
-
-      const res = await stockAndTargetAlertService._evaluateWeeklyOrderTargets(company, config, '01012345678');
-      expect(res).toBe(true);
-      expect(mockSendNotification).toHaveBeenCalledTimes(1);
-      expect(mockSendNotification.mock.calls[0][0].contentOverride).toContain('100%');
-      expect(mockSendNotification.mock.calls[0][0].contentOverride).toContain('تارجت الأسبوع');
-    });
-
-    test('suppresses duplicate weekly alerts in the same week', async () => {
-      const weekStartKey = stockAndTargetAlertService.getWeekStartDate().toISOString().slice(0, 10);
-      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
-        const dummyPrisma = {
-          order: { count: jest.fn().mockResolvedValue(305) },
-        };
-        return cb(dummyPrisma);
-      });
-
-      const company = { id: 'c1', name: 'Store 1' };
-      const config = {
-        weekly_orders: 300,
-        last_notified_weekly_target_date: weekStartKey,
-        notified_weekly_milestones: ['50%', '80%', '100%'],
-      };
-
-      const res = await stockAndTargetAlertService._evaluateWeeklyOrderTargets(company, config, '01012345678');
-      expect(res).toBe(false);
-      expect(mockSendNotification).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('5. Low Stock Evaluation & Variant Safety', () => {
-    test('queries variants with trackInventory = true', async () => {
-      let variantQueryArgs = null;
-      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
-        const dummyPrisma = {
-          product: { findMany: jest.fn().mockResolvedValue([]) },
-          productVariant: {
-            findMany: jest.fn().mockImplementation((args) => {
-              variantQueryArgs = args;
-              return [{ name: 'L / Red', sku: 'SKU-RED-L', stock: 2, product: { name: 'قميص كاجوال' } }];
+          aiRuntimeLedger: {
+            create: jest.fn().mockImplementation(() => {
+              callCount++;
+              if (callCount === 1) {
+                return Promise.resolve({ id: 'ledger_1' });
+              }
+              const p2002 = new Error('Unique constraint failed on idempotencyKey');
+              p2002.code = 'P2002';
+              return Promise.reject(p2002);
             }),
           },
-          company: { findUnique: jest.fn().mockResolvedValue({ settings: '{}' }), update: jest.fn() },
         };
         return cb(dummyPrisma);
       });
 
-      const company = { id: 'c1', name: 'Store 1' };
-      const config = { min_stock_threshold: 5 };
+      const key = 'target:comp_1:daily:2026-10-28:100';
+      const first = await stockAndTargetAlertService.claim('comp_1', key, { test: 1 });
+      expect(first).toBe(true);
 
-      const res = await stockAndTargetAlertService._evaluateStockLevels(company, config, '01012345678');
-      expect(res).toBe(true);
-      expect(variantQueryArgs.where.trackInventory).toBe(true);
+      const second = await stockAndTargetAlertService.claim('comp_1', key, { test: 1 });
+      expect(second).toBe(false);
+    });
+
+    test('P2002 error prevents WhatsApp message from being sent', async () => {
+      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
+        const dummyPrisma = {
+          company: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'comp_1',
+              name: 'Test Store',
+              phone: '01011112222',
+              settings: JSON.stringify({
+                order_targets: {
+                  enabled: true,
+                  daily_orders: 10,
+                  alert_phone: '01011112222',
+                  notify_whatsapp: true,
+                },
+              }),
+            }),
+          },
+          order: {
+            count: jest.fn().mockResolvedValue(10), // 100%
+          },
+          aiRuntimeLedger: {
+            create: jest.fn().mockRejectedValue({ code: 'P2002', message: 'Unique constraint' }),
+            update: jest.fn(),
+          },
+          product: { findMany: jest.fn().mockResolvedValue([]) },
+          productVariant: { findMany: jest.fn().mockResolvedValue([]) },
+        };
+        return cb(dummyPrisma);
+      });
+
+      const res = await stockAndTargetAlertService.runDueChecks({ companyId: 'comp_1', dryRun: false });
+      expect(res.targetAlertsSent).toBe(0);
+      expect(mockSendNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('2. Milestone sequencing fix (T20 §3.1 b)', () => {
+    test('reaching 100% triggers only 100% and subsequent run does NOT trigger 80% or 50%', async () => {
+      let notifiedList = [];
+      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
+        const dummyPrisma = {
+          company: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'comp_1',
+              name: 'Test Store',
+              phone: '01011112222',
+              settings: JSON.stringify({
+                order_targets: {
+                  enabled: true,
+                  daily_orders: 10,
+                  milestones: [50, 80, 100],
+                  notified_milestones: notifiedList,
+                  last_notified_target_date: new Date().toISOString().slice(0, 10),
+                },
+              }),
+            }),
+          },
+          order: {
+            count: jest.fn().mockResolvedValue(10), // 100%
+          },
+          aiRuntimeLedger: {
+            create: jest.fn().mockResolvedValue({ id: 'led_1' }),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          aiNotification: {
+            create: jest.fn().mockResolvedValue({}),
+          },
+          product: { findMany: jest.fn().mockResolvedValue([]) },
+          productVariant: { findMany: jest.fn().mockResolvedValue([]) },
+          $executeRawUnsafe: jest.fn().mockImplementation((_sql, jsonStr) => {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.notified_milestones) {
+              notifiedList = parsed.notified_milestones;
+            }
+            return Promise.resolve(1);
+          }),
+        };
+        return cb(dummyPrisma);
+      });
+
+      // Run 1: 100% reached
+      const run1 = await stockAndTargetAlertService.runDueChecks({ companyId: 'comp_1', dryRun: true });
+      expect(run1.targetAlertsSent).toBe(1);
+      expect(notifiedList).toContain('100%');
+
+      // Run 2: Immediately run again, must NOT trigger 80% or 50%
+      const run2 = await stockAndTargetAlertService.runDueChecks({ companyId: 'comp_1', dryRun: true });
+      expect(run2.targetAlertsSent).toBe(0);
+      expect(notifiedList).not.toContain('80%');
+      expect(notifiedList).not.toContain('50%');
+    });
+  });
+
+  describe('3. 3 Consecutive runs => exactly 1 alert sent (T20 §1 & §4 step 5)', () => {
+    test('consecutive checks on same day send only one alert', async () => {
+      const ledgerMap = new Map();
+
+      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
+        const dummyPrisma = {
+          company: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'comp_1',
+              name: 'Test Store',
+              phone: '01011112222',
+              settings: JSON.stringify({
+                order_targets: {
+                  enabled: true,
+                  daily_orders: 5,
+                  alert_phone: '01011112222',
+                },
+              }),
+            }),
+          },
+          order: {
+            count: jest.fn().mockResolvedValue(5),
+          },
+          aiRuntimeLedger: {
+            create: jest.fn().mockImplementation(({ data }) => {
+              if (ledgerMap.has(data.idempotencyKey)) {
+                const err = new Error('Unique violation');
+                err.code = 'P2002';
+                return Promise.reject(err);
+              }
+              ledgerMap.set(data.idempotencyKey, data);
+              return Promise.resolve({ id: 'l_1' });
+            }),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          aiNotification: { create: jest.fn().mockResolvedValue({}) },
+          product: { findMany: jest.fn().mockResolvedValue([]) },
+          productVariant: { findMany: jest.fn().mockResolvedValue([]) },
+          $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+        };
+        return cb(dummyPrisma);
+      });
+
+      const res1 = await stockAndTargetAlertService.runDueChecks({ companyId: 'comp_1', dryRun: false });
+      const res2 = await stockAndTargetAlertService.runDueChecks({ companyId: 'comp_1', dryRun: false });
+      const res3 = await stockAndTargetAlertService.runDueChecks({ companyId: 'comp_1', dryRun: false });
+
+      expect(res1.targetAlertsSent).toBe(1);
+      expect(res2.targetAlertsSent).toBe(0);
+      expect(res3.targetAlertsSent).toBe(0);
       expect(mockSendNotification).toHaveBeenCalledTimes(1);
-      expect(mockSendNotification.mock.calls[0][0].contentOverride).toContain('قميص كاجوال (L / Red)');
+    });
+  });
+
+  describe('4. Company isolation & error resilience (T20 §3.1 c)', () => {
+    test('an error in company 1 does NOT stop company 2 from being evaluated', async () => {
+      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
+        const dummyPrisma = {
+          company: {
+            findMany: jest.fn().mockResolvedValue([
+              {
+                id: 'comp_broken',
+                name: 'Broken Store',
+                phone: '01000000001',
+                settings: JSON.stringify({
+                  order_targets: {
+                    enabled: true,
+                    daily_orders: 10,
+                    alert_phone: '01000000001',
+                  },
+                }),
+              },
+              {
+                id: 'comp_healthy',
+                name: 'Healthy Store',
+                phone: '01000000002',
+                settings: JSON.stringify({
+                  order_targets: {
+                    enabled: true,
+                    daily_orders: 5,
+                    alert_phone: '01000000002',
+                  },
+                }),
+              },
+            ]),
+          },
+          order: {
+            count: jest.fn().mockImplementation(({ where }) => {
+              if (where.companyId === 'comp_broken') {
+                throw new Error('Database connection failed for broken company');
+              }
+              return Promise.resolve(5);
+            }),
+          },
+          aiRuntimeLedger: {
+            create: jest.fn().mockResolvedValue({ id: 'led_2' }),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          aiNotification: { create: jest.fn().mockResolvedValue({}) },
+          product: { findMany: jest.fn().mockResolvedValue([]) },
+          productVariant: { findMany: jest.fn().mockResolvedValue([]) },
+          $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+        };
+        return cb(dummyPrisma);
+      });
+
+      const result = await stockAndTargetAlertService.runDueChecks({ dryRun: true });
+      expect(result.checkedCompanies).toBe(2);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0].companyId).toBe('comp_broken');
+      expect(result.targetAlertsSent).toBe(1); // comp_healthy processed successfully!
+    });
+  });
+
+  describe('5. Atomic Settings Update with jsonb_set (T00 §2.2 / T20 §3.1 d)', () => {
+    test('_persistTargetMeta uses $executeRawUnsafe with jsonb_set and never calls full update', async () => {
+      let rawSql = '';
+      let rawParams = [];
+
+      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
+        const dummyPrisma = {
+          company: {
+            update: jest.fn(),
+          },
+          $executeRawUnsafe: jest.fn().mockImplementation((sql, ...params) => {
+            rawSql = sql;
+            rawParams = params;
+            return Promise.resolve(1);
+          }),
+        };
+        return cb(dummyPrisma);
+      });
+
+      await stockAndTargetAlertService._persistTargetMeta('comp_123', {
+        daily_orders: 20,
+        enabled: true,
+      });
+
+      expect(rawSql).toContain('jsonb_set');
+      expect(rawSql).toContain('{order_targets}');
+      expect(rawParams[0]).toContain('"daily_orders":20');
+      expect(rawParams[1]).toBe('comp_123');
+    });
+
+    test('updateSettings updates targets atomically and returns merged object', async () => {
+      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
+        const dummyPrisma = {
+          $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+          company: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'comp_1',
+              phone: '01011112222',
+              settings: JSON.stringify({
+                qa: true,
+                order_targets: {
+                  daily_orders: 15,
+                  min_stock_threshold: 4,
+                  enabled: true,
+                },
+              }),
+            }),
+          },
+        };
+        return cb(dummyPrisma);
+      });
+
+      const updated = await stockAndTargetAlertService.updateSettings('comp_1', {
+        weekly_orders: 50,
+      });
+
+      expect(updated.enabled).toBe(true);
+      expect(updated.daily_orders).toBe(15);
+      expect(updated.min_stock_threshold).toBe(4);
+    });
+  });
+
+  describe('6. Validation & Boundary Conditions', () => {
+    test('updateSettings rejects min_stock_threshold <= 0', async () => {
+      await expect(
+        stockAndTargetAlertService.updateSettings('comp_1', { min_stock_threshold: 0 })
+      ).rejects.toThrow('الحد الأدنى للمخزون يجب أن يكون أكبر من صفر');
+    });
+
+    test('updateSettings rejects empty milestones array', async () => {
+      await expect(
+        stockAndTargetAlertService.updateSettings('comp_1', { milestones: [] })
+      ).rejects.toThrow('مراحل التنبيه لا يمكن أن تكون فارغة');
+    });
+
+    test('updateSettings rejects negative daily_orders', async () => {
+      await expect(
+        stockAndTargetAlertService.updateSettings('comp_1', { daily_orders: -5 })
+      ).rejects.toThrow('تارجت الأوردرات اليومي غير صالح');
+    });
+
+    test('disabled company increments skipped without sending', async () => {
+      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
+        const dummyPrisma = {
+          company: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'comp_1',
+              phone: '01011112222',
+              settings: JSON.stringify({
+                order_targets: {
+                  enabled: false,
+                  daily_orders: 10,
+                },
+              }),
+            }),
+          },
+        };
+        return cb(dummyPrisma);
+      });
+
+      const res = await stockAndTargetAlertService.runDueChecks({ companyId: 'comp_1' });
+      expect(res.checkedCompanies).toBe(1);
+      expect(res.skipped).toBe(1);
+      expect(res.targetAlertsSent).toBe(0);
+      expect(mockSendNotification).not.toHaveBeenCalled();
+    });
+
+    test('missing phone increments skipped without throwing', async () => {
+      mockSafeQuery = jest.spyOn(sharedDb, 'safeQuery').mockImplementation(async (cb) => {
+        const dummyPrisma = {
+          company: {
+            findUnique: jest.fn().mockResolvedValue({
+              id: 'comp_1',
+              phone: null,
+              settings: JSON.stringify({
+                order_targets: {
+                  enabled: true,
+                  daily_orders: 10,
+                  alert_phone: null,
+                },
+              }),
+            }),
+          },
+        };
+        return cb(dummyPrisma);
+      });
+
+      const res = await stockAndTargetAlertService.runDueChecks({ companyId: 'comp_1' });
+      expect(res.checkedCompanies).toBe(1);
+      expect(res.skipped).toBe(1);
+      expect(res.errors.length).toBe(0);
     });
   });
 });

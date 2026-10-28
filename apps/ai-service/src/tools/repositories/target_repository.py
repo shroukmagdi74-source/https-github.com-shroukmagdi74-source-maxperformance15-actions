@@ -33,6 +33,12 @@ class TargetRepository(BaseRepository):
             settings_dict = {}
 
         stored = settings_dict.get("order_targets", {})
+        raw_milestones = stored.get("milestones")
+        if isinstance(raw_milestones, list) and raw_milestones:
+            milestones = [int(str(m).replace("%", "")) for m in raw_milestones if str(m).replace("%", "").isdigit()]
+        else:
+            milestones = [50, 80, 100]
+
         return {
             "daily_orders": int(stored.get("daily_orders", 0) or 0),
             "weekly_orders": int(stored.get("weekly_orders", 0) or 0),
@@ -41,41 +47,39 @@ class TargetRepository(BaseRepository):
             "min_stock_threshold": int(stored.get("min_stock_threshold", 5) or 5),
             "alert_phone": stored.get("alert_phone"),
             "notify_whatsapp": bool(stored.get("notify_whatsapp", True)),
+            "enabled": bool(stored.get("enabled", False)),
+            "milestones": milestones,
+            "last_notified_target_date": stored.get("last_notified_target_date"),
+            "notified_milestones": stored.get("notified_milestones") or [],
+            "last_notified_weekly_target_date": stored.get("last_notified_weekly_target_date"),
+            "notified_weekly_milestones": stored.get("notified_weekly_milestones") or [],
+            "last_stock_alert_date": stored.get("last_stock_alert_date"),
             "updated_at": stored.get("updated_at"),
         }
 
     async def set_targets(self, company_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-        """Persist updated targets into company settings."""
+        """Persist updated targets into company settings atomically using jsonb_set."""
         if not company_id:
             return {"success": False, "error": "Missing company_id"}
 
-        row = await self._session.execute(
-            text('SELECT settings FROM public.companies WHERE id = :cid LIMIT 1'),
-            {"cid": company_id},
-        )
-        first = row.first()
-        raw_settings = first[0] if first else None
+        patch = {k: v for k, v in updates.items() if v is not None}
+        patch["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-        try:
-            settings_dict = json.loads(raw_settings) if isinstance(raw_settings, str) else (raw_settings or {})
-        except Exception:
-            settings_dict = {}
+        sql = text("""
+            UPDATE public.companies
+            SET settings = jsonb_set(
+                COALESCE(NULLIF(settings,'')::jsonb, '{}'::jsonb),
+                '{order_targets}',
+                COALESCE(COALESCE(NULLIF(settings,'')::jsonb, '{}'::jsonb)->'order_targets', '{}'::jsonb) || CAST(:patch AS jsonb)
+            )::text,
+            "updatedAt" = NOW()
+            WHERE id = :cid
+        """)
 
-        targets = settings_dict.get("order_targets", {})
-        for k, v in updates.items():
-            if v is not None:
-                targets[k] = v
-
-        targets["updated_at"] = datetime.now(timezone.utc).isoformat()
-        settings_dict["order_targets"] = targets
-
-        new_settings_str = json.dumps(settings_dict, ensure_ascii=False)
-        await self._session.execute(
-            text('UPDATE public.companies SET settings = :settings, "updatedAt" = NOW() WHERE id = :cid'),
-            {"settings": new_settings_str, "cid": company_id},
-        )
+        await self._session.execute(sql, {"patch": json.dumps(patch, ensure_ascii=False), "cid": company_id})
         await self._session.commit()
 
+        targets = await self.get_targets(company_id)
         return {"success": True, "targets": targets}
 
     async def get_target_progress(
@@ -220,5 +224,12 @@ class TargetRepository(BaseRepository):
             "min_stock_threshold": 5,
             "alert_phone": None,
             "notify_whatsapp": True,
+            "enabled": False,
+            "milestones": [50, 80, 100],
+            "last_notified_target_date": None,
+            "notified_milestones": [],
+            "last_notified_weekly_target_date": None,
+            "notified_weekly_milestones": [],
+            "last_stock_alert_date": None,
             "updated_at": None,
         }
