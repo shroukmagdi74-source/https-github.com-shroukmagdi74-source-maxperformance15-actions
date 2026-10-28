@@ -835,15 +835,18 @@ export const TasksTab: React.FC = () => {
     );
     const canDirectComplete = isAdminOrManager || isCreator;
 
+    const priority = String(taskObj?.priority || 'MEDIUM').toUpperCase();
+    const needsGate = priority === 'HIGH' || priority === 'URGENT' || (priority === 'MEDIUM' && !taskObj?.hasEvidence && !taskObj?.evidence);
+
     if (canDirectComplete) {
-      if (taskObj && (String(taskObj.priority).toUpperCase() === 'HIGH' || String(taskObj.priority).toUpperCase() === 'URGENT')) {
+      if (taskObj && needsGate) {
         setApprovalGateTask(taskObj);
       } else {
         handleUpdateStatus(taskId, 'COMPLETED');
       }
     } else {
       // Non-admin assignee submits task for review and approval
-      if (taskObj && (String(taskObj.priority).toUpperCase() === 'HIGH' || String(taskObj.priority).toUpperCase() === 'URGENT')) {
+      if (taskObj && needsGate) {
         setApprovalGateTask(taskObj);
       } else {
         handleUpdateStatus(taskId, 'IN_REVIEW');

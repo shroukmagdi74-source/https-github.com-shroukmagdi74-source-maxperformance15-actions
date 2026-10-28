@@ -215,7 +215,7 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
       if (!notTestedScope.trim()) missing.push('نطاق ما لم يتم اختباره');
       if (!beforeSlot.id && !beforeSlot.url) missing.push('صورة قبل');
       if (!afterSlot.id && !afterSlot.url) missing.push('صورة بعد');
-      if (!proofSlot.id && !proofSlot.url && !beforeSlot.id && !afterSlot.id) missing.push('مرفق إثبات التشغيل');
+      if (!proofSlot.id && !proofSlot.url) missing.push('مرفق إثبات التشغيل');
     } else if (normalizedPriority === 'MEDIUM') {
       if (!changeType.trim()) missing.push('نوع التغيير');
       if (!commitOrPath.trim() && !task.pageUrl) missing.push('لينك الصفحة أو الكوميت/مسار الملفات');
