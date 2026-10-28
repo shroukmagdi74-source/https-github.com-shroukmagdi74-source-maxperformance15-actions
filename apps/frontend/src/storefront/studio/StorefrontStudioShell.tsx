@@ -32,6 +32,16 @@ import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
 import { StudioExportImportModal } from "./StudioExportImportModal";
 import { StudioErrorBoundary } from "./StudioErrorBoundary";
+import { StudioCommentsLayer, type StudioCommentDraftInput, type StudioCommentSectionTarget } from "./StudioCommentsLayer";
+import { StudioCommentsPanel } from "./StudioCommentsPanel";
+import {
+  addStudioCommentToSettings,
+  deleteStudioCommentFromSettings,
+  findStudioSectionElement,
+  readStudioComments,
+  resolveCommentAuthorName,
+  setStudioCommentResolvedInSettings,
+} from "./utils/studioComments";
 import {
   trackStudioOpen,
   trackStudioPublish,
@@ -85,6 +95,7 @@ import {
   type StudioZoomLevel,
   type StudioInspectorTab,
   type StudioSelectedElement,
+  type StudioComment,
 } from "./StudioTypes";
 import { PageComposer } from "../engine/PageComposer";
 import { StorefrontThemeProvider } from "../engine/ThemeProvider";
@@ -416,6 +427,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   >([]);
   const [contextMenu, setContextMenu] = useState<StudioContextMenuState | null>(null);
   const [clipboardSection, setClipboardSection] = useState<any | null>(null);
+  // CMT-1 — وضع التعليق على الكانفس + بانل كل التعليقات
+  const [isCommentsMode, setIsCommentsMode] = useState<boolean>(false);
+  const [isCommentsPanelOpen, setIsCommentsPanelOpen] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -717,6 +731,118 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
       }
     },
     [toggleSectionSelection, setSelectedSectionKey, setSelectedSectionKeys]
+  );
+
+  // CMT-1 — تعليقات الكانفس (تُحفظ داخل نفس settings blob: designTokens.comments)
+  const studioCommentTargets = useMemo<StudioCommentSectionTarget[]>(
+    () =>
+      activeSections.map((entry: any, index: number) => {
+        const key = getSectionKey(entry, index);
+        const type = typeof entry === "string" ? entry : entry?.type || "section";
+        const explicitLabel =
+          typeof entry === "object" && entry !== null
+            ? entry.label || entry.settings?.label
+            : "";
+        const label =
+          (typeof explicitLabel === "string" && explicitLabel.trim() ? explicitLabel : "") ||
+          getStorefrontSectionManifest(type)?.label ||
+          getStorefrontSectionLabel(type);
+        return { key, label: String(label || type) };
+      }),
+    [activeSections]
+  );
+
+  const studioComments = useMemo(
+    () => readStudioComments(currentDesignTokens),
+    [currentDesignTokens]
+  );
+
+  const commentSectionKeysByPage = useMemo(
+    () => ({
+      [activePageKey || "home"]: studioCommentTargets.map((target) => target.key),
+    }),
+    [activePageKey, studioCommentTargets]
+  );
+
+  const commentSectionLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    studioCommentTargets.forEach((target) => {
+      labels[`${activePageKey || "home"}::${target.key}`] = target.label;
+    });
+    return labels;
+  }, [activePageKey, studioCommentTargets]);
+
+  const commentAuthorName = useMemo(
+    () => resolveCommentAuthorName(effectiveUser),
+    [effectiveUser]
+  );
+
+  const handleAddStudioComment = useCallback(
+    (input: StudioCommentDraftInput) => {
+      if (!canEdit) {
+        toast.error("أنت في وضع المشاهدة: لا يمكن إضافة تعليقات");
+        return;
+      }
+      const result = addStudioCommentToSettings(currentDesignTokens, {
+        pageKey: activePageKey || "home",
+        sectionKey: input.sectionKey,
+        anchor: input.anchor,
+        text: input.text,
+        author: commentAuthorName,
+      });
+      if (!result.comment) {
+        toast.error("تعذر إضافة التعليق: النص فارغ");
+        return;
+      }
+      handleDesignTokensChange(result.tokens);
+      onSave();
+    },
+    [
+      activePageKey,
+      canEdit,
+      commentAuthorName,
+      currentDesignTokens,
+      handleDesignTokensChange,
+      onSave,
+    ]
+  );
+
+  const handleSetStudioCommentResolved = useCallback(
+    (id: string, resolved: boolean) => {
+      if (!canEdit) return;
+      handleDesignTokensChange(
+        setStudioCommentResolvedInSettings(currentDesignTokens, id, resolved)
+      );
+      onSave();
+    },
+    [canEdit, currentDesignTokens, handleDesignTokensChange, onSave]
+  );
+
+  const handleDeleteStudioComment = useCallback(
+    (id: string) => {
+      if (!canEdit) return;
+      handleDesignTokensChange(
+        deleteStudioCommentFromSettings(currentDesignTokens, id)
+      );
+      onSave();
+    },
+    [canEdit, currentDesignTokens, handleDesignTokensChange, onSave]
+  );
+
+  const handleNavigateToStudioComment = useCallback(
+    (comment: StudioComment) => {
+      if (!comment || !comment.sectionKey) return;
+      if (comment.pageKey !== (activePageKey || "home")) {
+        setActivePageKey(comment.pageKey);
+      }
+      handleSelectSection(comment.sectionKey);
+      setIsInspectorOpen(true);
+      const element = findStudioSectionElement(comment.sectionKey);
+      if (element && typeof element.scrollIntoView === "function") {
+        element.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    },
+    [activePageKey, handleSelectSection, setActivePageKey]
   );
 
   const handleTouchReorder = useCallback(
@@ -1994,8 +2120,34 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                   </div>
                 )}
               </div>
+              {/* CMT-1 — طبقة تعليقات الكانفس (محرر فقط، لا تُرندر في المتجر العام) */}
+              <StudioCommentsLayer
+                pageKey={activePageKey || "home"}
+                sections={studioCommentTargets}
+                comments={studioComments}
+                canComment={canEdit}
+                isActive={isCommentsMode}
+                onToggleActive={setIsCommentsMode}
+                onOpenPanel={() => setIsCommentsPanelOpen(true)}
+                onAddComment={handleAddStudioComment}
+              />
             </StorefrontThemeProvider>
           </StudioCanvasStage>
+
+          {/* CMT-1 — بانل كل التعليقات (مفتوح/محلول) */}
+          <StudioCommentsPanel
+            isOpen={isCommentsPanelOpen}
+            onClose={() => setIsCommentsPanelOpen(false)}
+            comments={studioComments}
+            activePageKey={activePageKey || "home"}
+            pageSectionKeys={commentSectionKeysByPage}
+            sectionLabels={commentSectionLabels}
+            canEdit={canEdit}
+            onResolve={(id) => handleSetStudioCommentResolved(id, true)}
+            onReopen={(id) => handleSetStudioCommentResolved(id, false)}
+            onDelete={handleDeleteStudioComment}
+            onNavigate={handleNavigateToStudioComment}
+          />
 
           {/* Right Inspector Panel - Slide-over on mobile, inline on desktop */}
           {isInspectorOpen && (

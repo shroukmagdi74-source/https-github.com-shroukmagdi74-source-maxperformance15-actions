@@ -619,3 +619,31 @@ export interface StudioPrePublishSnapshot {
   createdAt: string;
   snapshot: Record<string, unknown>;
 }
+
+/**
+ * CMT-1: تعليقات على الكانفس.
+ * تُحفظ داخل نفس settings blob (designTokens.comments) — صفر backend وصفر schema.
+ * المؤلف = اسم المستخدم فقط (صفر PII: لا بريد ولا هاتف).
+ */
+export interface StudioCommentAnchor {
+  /** نسبة أفقية داخل القسم (0-100) */
+  x: number;
+  /** نسبة رأسية داخل القسم (0-100) */
+  y: number;
+}
+
+export interface StudioComment {
+  id: string;
+  pageKey: string;
+  sectionKey: string | null;
+  anchor?: StudioCommentAnchor;
+  text: string;
+  author: string;
+  createdAt: string;
+  resolved: boolean;
+}
+
+export interface StudioCommentsSettings {
+  comments?: StudioComment[];
+  [key: string]: unknown;
+}
