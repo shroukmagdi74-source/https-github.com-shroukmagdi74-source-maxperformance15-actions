@@ -507,7 +507,10 @@ const ClassicSidebar: React.FC<ClassicSidebarProps> = ({
           })}
       </div>
 
-      <AppInstallActions layout="sidebar" isCollapsed={isCollapsed} />
+      {/* تثبيت التطبيق يظهر على الشاشات الكبيرة فقط (مخفي على الموبايل) */}
+      <div className="hidden lg:block">
+        <AppInstallActions layout="sidebar" isCollapsed={isCollapsed} />
+      </div>
     </div>
   );
 };

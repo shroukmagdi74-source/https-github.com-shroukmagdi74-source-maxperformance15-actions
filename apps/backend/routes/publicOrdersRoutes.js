@@ -2306,11 +2306,17 @@ router.post('/', async (req, res) => {
       }
 
       // 1. 🌟 CREATE PRIMARY ORDER (Single Source of Truth)
+      // storeId: كل شركة عندها متجر واحد — نربط الأوردر بمتجر الشركة
+      const companyStore = await tx.store.findFirst({
+        where: { companyId: company.id },
+        select: { id: true },
+      });
       const primaryOrderRecord = await tx.order.create({
         data: {
           orderNumber,
           customerId: customer.id,
           companyId: company.id,
+          storeId: companyStore?.id || null,
           customerName: guestName,
           customerPhone: guestPhone,
           customerEmail: guestEmail || null,

@@ -368,6 +368,15 @@ export const StorefrontHead: React.FC<StorefrontHeadProps> = ({
       finalTitle = storeName;
     }
 
+    // SEO: صفحة المنتج/المقال تعرض اسم العنصر فقط بدون لاحقة "| اسم المتجر"
+    if (isDynamicDetailRoute && storeName) {
+      const storeSuffix = `| ${storeName}`;
+      const trimmedTitle = finalTitle.trim();
+      if (trimmedTitle.toLowerCase().endsWith(storeSuffix.toLowerCase())) {
+        finalTitle = trimmedTitle.slice(0, trimmedTitle.length - storeSuffix.length).trim();
+      }
+    }
+
     if (pageSeo?.title?.trim() || !shouldPreserveExistingTitle) {
       document.title = finalTitle;
     }
