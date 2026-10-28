@@ -883,6 +883,7 @@ model FacebookPage {
   instagramAccountId      String?                   @unique
   instagramAccountName    String?
   facebookAccountId       String?
+  facebookAppKey          String?                   @default("primary")
   blockedCustomersOnPages BlockedCustomersOnPage[]
   facebookPosts           FacebookPost[]
   company                 Company?                  @relation(fields: [companyId], references: [id], onDelete: Cascade)

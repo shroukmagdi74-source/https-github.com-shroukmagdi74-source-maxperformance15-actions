@@ -123,11 +123,47 @@ const getFacebookAppSecret = () =>
 const getFacebookConfigId = () =>
   getFacebookOAuthConfig().configId;
 
+/**
+ * جلب إعدادات تطبيق فيسبوك بحسب المفتاح ('primary' أو 'growth')
+ * مع التراجع التلقائي إلى primary إذا لم يكن growth مضبوطاً
+ * @param {string} [key='primary']
+ * @returns {{ appId: string, appSecret: string, loginConfigId: string }}
+ */
+const getFacebookAppKeyConfig = (key = "primary") => {
+  const normalizedKey = String(key || "primary").trim().toLowerCase();
+  const primaryOAuth = getFacebookOAuthConfig();
+  const primaryConfig = {
+    appId: primaryOAuth.appId,
+    appSecret: primaryOAuth.appSecret,
+    loginConfigId: primaryOAuth.configId,
+  };
+
+  if (normalizedKey === "growth") {
+    const growthAppId = chooseCredential(process.env.FACEBOOK_GROWTH_APP_ID);
+    const growthAppSecret = chooseCredential(process.env.FACEBOOK_GROWTH_APP_SECRET);
+    const growthLoginConfigId = normalizeCredential(process.env.FACEBOOK_GROWTH_LOGIN_CONFIG_ID);
+
+    // الرجوع إلى primary كـ fallback إذا لم يكن معرف تطبيق النمو مضبوطاً
+    if (!growthAppId || isPlaceholderFacebookCredential(growthAppId)) {
+      return primaryConfig;
+    }
+
+    return {
+      appId: growthAppId,
+      appSecret: growthAppSecret || primaryConfig.appSecret,
+      loginConfigId: growthLoginConfigId || primaryConfig.loginConfigId,
+    };
+  }
+
+  return primaryConfig;
+};
+
 module.exports = {
   DEFAULT_FACEBOOK_APP_ID,
   FACEBOOK_OAUTH_CONFIG_PATH,
   FACEBOOK_LOGIN_CONFIG_ID,
   buildFacebookBackendCallbackUrl,
+  getFacebookAppKeyConfig,
   getFacebookAppSecret,
   getFacebookConfigId,
   getFacebookOAuthConfig,

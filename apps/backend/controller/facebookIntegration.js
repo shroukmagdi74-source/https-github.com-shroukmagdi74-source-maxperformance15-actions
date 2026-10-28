@@ -3,7 +3,8 @@ const { getSharedPrismaClient, initializeSharedDatabase, executeWithRetry } = re
 const axios = require('axios');
 const { getMetaGraphApiVersion } = require('../config/metaApi');
 const crypto = require('crypto');
-const { getFacebookOAuthConfig } = require('../config/facebookAppConfig');
+const { getFacebookOAuthConfig, getFacebookAppKeyConfig } = require('../config/facebookAppConfig');
+const { getOAuthConfigForPage, resolveFacebookAppKeyForPage } = require('../services/facebookAppResolver');
 const {
     buildFacebookPageTokenFailureMessage,
     validateFacebookPageAccessToken
@@ -137,7 +138,12 @@ const getFacebookAppConfig = async (req, res) => {
         ////console.log('🌍 [FACEBOOK-CONFIG] Environment:', envConfig.environment);
         ////console.log('🔗 [FACEBOOK-CONFIG] Backend URL:', envConfig.backendUrl);
 
-        const fbConfig = getFacebookOAuthConfig();
+        // استخدام الـ resolver لتحديد إعدادات التطبيق (primary أو growth) بناءً على الصفحة أو المفتاح
+        const targetPageId = req.query.pageId || req.query.page_id;
+        const fbConfig = targetPageId
+            ? await getOAuthConfigForPage(targetPageId)
+            : (req.query.facebookAppKey ? getFacebookAppKeyConfig(req.query.facebookAppKey) : getFacebookOAuthConfig());
+
         const config = {
             appId: fbConfig.appId || 'your-facebook-app-id',
             webhookUrl: `${envConfig.backendUrl}/api/v1/webhook`,
@@ -311,7 +317,8 @@ const connectFacebookPage = async (req, res) => {
                         status: 'connected',
                         connectedAt: new Date(),
                         disconnectedAt: null, // Clear disconnection timestamp
-                        companyId: companyId
+                        companyId: companyId,
+                        facebookAppKey: req.body.facebookAppKey || existingPage.facebookAppKey || 'primary'
                     }
                 });
                 ////console.log(`📝 [FACEBOOK-CONNECT] ${isReconnection ? 'Reconnected' : 'Updated'} existing page in database`);
@@ -325,7 +332,8 @@ const connectFacebookPage = async (req, res) => {
                         pageName: pageName || validation.page?.name || 'Unknown Page',
                         status: 'connected',
                         connectedAt: new Date(),
-                        companyId: companyId
+                        companyId: companyId,
+                        facebookAppKey: req.body.facebookAppKey || 'primary'
                     }
                 });
                 ////console.log('➕ [FACEBOOK-CONNECT] Created new page in database');
