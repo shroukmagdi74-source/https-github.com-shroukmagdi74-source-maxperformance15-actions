@@ -895,6 +895,9 @@ const PlatformIntegrations = React.lazy(
 const TikTokPublish = React.lazy(
   () => import("./pages/tiktok-publish/TikTokPublish"),
 );
+const YoutubePublish = React.lazy(
+  () => import("./pages/youtube-publish/YoutubePublish"),
+);
 const TikTokShop = React.lazy(() => import("./pages/tiktok-shop/TikTokShop"));
 const TikTokSettings = React.lazy(() => import("./pages/tiktok-settings/TikTokSettings"));
 
@@ -4730,6 +4733,16 @@ const AppContent = () => {
                   element={
                     <Layout>
                       <TikTokPublish />
+                    </Layout>
+                  }
+                />
+                <Route
+                  path="/youtube/publish"
+                  element={
+                    <Layout>
+                      <AppAccessRoute requiredAppSlugs={['youtube-publish']}>
+                        <YoutubePublish />
+                      </AppAccessRoute>
                     </Layout>
                   }
                 />
