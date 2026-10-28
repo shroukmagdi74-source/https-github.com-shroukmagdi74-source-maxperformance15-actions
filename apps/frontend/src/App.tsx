@@ -1332,6 +1332,9 @@ const SuperAdminFacebookOAuth = React.lazy(
 const PlatformSiteMetaPixel = React.lazy(
   () => import("./pages/super-admin/PlatformSiteMetaPixel"),
 );
+const MetaAppsManagement = React.lazy(
+  () => import("./pages/super-admin/MetaAppsManagement"),
+);
 const PlatformSiteHomepageTemplates = React.lazy(
   () => import("./pages/super-admin/PlatformSiteHomepageTemplates"),
 );
@@ -2838,6 +2841,14 @@ const AppContent = () => {
               element={
                 <Layout>
                   <PlatformSiteMetaPixel />
+                </Layout>
+              }
+            />
+            <Route
+              path="/super-admin/meta-apps"
+              element={
+                <Layout>
+                  <MetaAppsManagement />
                 </Layout>
               }
             />

@@ -43,3 +43,16 @@ model OrderWebhookLog {
   @@index([orderId])
   @@map("order_webhook_logs")
 }
+
+/// سجل منع تكرار أحداث الويب هوك عبر التطبيقات والقنوات
+model WebhookEventDedupe {
+  id                String   @id @default(cuid())
+  channel           String   @default("facebook") // 'facebook' | 'whatsapp' | 'instagram'
+  externalMessageId String
+  appKey            String?  @default("primary")
+  receivedAt        DateTime @default(now())
+
+  @@unique([channel, externalMessageId])
+  @@index([receivedAt])
+  @@map("webhook_event_dedupe")
+}

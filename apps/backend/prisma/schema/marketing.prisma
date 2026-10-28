@@ -202,6 +202,7 @@ model FacebookAccountConnection {
   lastSyncedAt      DateTime?
   lastError         String?
   metadata          String?
+  facebookAppKey    String?      @default("primary")
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   company           Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -223,6 +224,7 @@ model FacebookAdAccount {
   timezone                   String?
   accessToken                String?
   isActive                   Boolean                     @default(true)
+  facebookAppKey             String?                     @default("primary")
   settings                   String?
   connectionSourceId         String?
   createdAt                  DateTime                    @default(now())
@@ -1452,4 +1454,19 @@ model StorefrontAnalyticsEvent {
   @@index([companyId, createdAt])
   @@index([companyId, pageKey])
   @@map("storefront_analytics_events")
+}
+
+/// سجل تطبيقات فيسبوك (Primary + Growth) — تخزين المراجع فقط دون كشف الأسرار
+model FacebookApp {
+  id                    String   @id @default(cuid())
+  key                   String   @unique // 'primary' | 'growth'
+  appId                 String
+  appSecretRef          String   // اسم متغير البيئة أو مفتاح الفولت — ممنوع تخزين السكرت كنص
+  configId              String?
+  webhookVerifyTokenRef String?  // اسم متغير البيئة لمفتاح التحقق
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("facebook_apps")
 }

@@ -72,6 +72,11 @@ router.delete(
 router.get('/business-specialties/app-options', platformSpecialtyController.getMarketplaceAppOptions);
 
 
+// Meta Apps Registry Management (Primary + Growth)
+router.get('/meta-apps', superAdminPlatformController.getMetaApps);
+router.post('/meta-apps', superAdminPlatformController.upsertMetaApp);
+router.patch('/meta-apps/:key/toggle', superAdminPlatformController.toggleMetaAppStatus);
+
 // Platform Central Settings
 router.get('/settings/kashier', superAdminSettingsController.getKashierSettings);
 router.put('/settings/kashier', superAdminSettingsController.updateKashierSettings);

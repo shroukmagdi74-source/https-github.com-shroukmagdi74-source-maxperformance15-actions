@@ -35,7 +35,8 @@ function verifyMetaWebhookSignature(req, secret) {
     return { ok: false, reason: 'missing_raw_body' };
   }
 
-  const signature256 = req.headers['x-hub-signature-256'];
+  const headers = req?.headers || {};
+  const signature256 = headers['x-hub-signature-256'];
   if (typeof signature256 === 'string' && signature256) {
     const expected = `sha256=${crypto.createHmac('sha256', secret).update(rawBody).digest('hex')}`;
     return {
@@ -44,7 +45,7 @@ function verifyMetaWebhookSignature(req, secret) {
     };
   }
 
-  const signature1 = req.headers['x-hub-signature'];
+  const signature1 = headers['x-hub-signature'];
   if (typeof signature1 === 'string' && signature1) {
     const expected = `sha1=${crypto.createHmac('sha1', secret).update(rawBody).digest('hex')}`;
     return {
@@ -54,6 +55,59 @@ function verifyMetaWebhookSignature(req, secret) {
   }
 
   return { ok: false, reason: 'missing_signature' };
+}
+
+/**
+ * التحقق من توقيع الويب هوك مقابل كافة التطبيقات المسجلة (Primary ثم Growth)
+ * أول توقيع يتطابق ينجح ويتم تسجيل التطبيق المطابق في النتيجة
+ * @param {Object} req - كائن الطلب
+ * @param {Array<{ key: string, appSecret: string, appId?: string }>} [appsList] - قائمة أسرار التطبيقات
+ * @returns {{ ok: boolean, matchedApp?: string, appId?: string, reason?: string, skipped?: boolean }}
+ */
+function verifyMetaWebhookSignatureAgainstApps(req, appsList) {
+  const { getAllFacebookAppSecrets } = require('../config/facebookAppConfig');
+  const configured = Array.isArray(appsList) && appsList.length > 0
+    ? appsList
+    : getAllFacebookAppSecrets();
+
+  if (!configured || configured.length === 0) {
+    return { ok: true, skipped: true, reason: 'no_secret_configured', matchedApp: 'primary' };
+  }
+
+  const rawBody = getRawBody(req);
+  if (!rawBody) {
+    return { ok: false, reason: 'missing_raw_body' };
+  }
+
+  const headers = req?.headers || {};
+  const signature256 = headers['x-hub-signature-256'];
+  const signature1 = headers['x-hub-signature'];
+
+  if (!signature256 && !signature1) {
+    return { ok: false, reason: 'missing_signature' };
+  }
+
+  let lastFailureReason = 'invalid_signature';
+  for (const app of configured) {
+    const secret = typeof app === 'string' ? app : app?.appSecret;
+    if (!secret || typeof secret !== 'string' || !secret.trim()) continue;
+
+    const check = verifyMetaWebhookSignature(req, secret.trim());
+    if (check.ok) {
+      const matchedKey = app?.key || 'primary';
+      console.log(`🔒 [WEBHOOK] Verified signature for app "${matchedKey}"`);
+      return {
+        ok: true,
+        matchedApp: matchedKey,
+        appId: app?.appId || null
+      };
+    }
+    if (check.reason) {
+      lastFailureReason = check.reason;
+    }
+  }
+
+  return { ok: false, reason: lastFailureReason, matchedApp: null };
 }
 
 // WhatsApp Cloud webhook — opt-in (default معطّل) عشان معظم الـ deployments
@@ -105,5 +159,6 @@ function shouldStrictlyEnforceFacebookWebhookSignature(env = process.env) {
 module.exports = {
   shouldStrictlyEnforceMetaWebhookSignature,
   shouldStrictlyEnforceFacebookWebhookSignature,
-  verifyMetaWebhookSignature
+  verifyMetaWebhookSignature,
+  verifyMetaWebhookSignatureAgainstApps
 };
