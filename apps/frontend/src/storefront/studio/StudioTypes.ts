@@ -593,3 +593,28 @@ export const PAGE_STYLE_PRESETS: PageStylePreset[] = [
   },
 ];
 
+
+
+export type {
+  ThemeBuilderTemplateType,
+  ThemeBuilderTargetType,
+  ThemeBuilderCondition,
+  ThemeBuilderTemplate,
+  ThemeBuilderPageContent,
+  ResolveTemplateParams,
+} from "./utils/themeBuilder";
+
+export type {
+  StudioExportedPageData,
+  StudioPageDiff,
+  StudioImportValidation,
+  StudioImportResult,
+  ExportPageOptions,
+} from "./utils/studioPageExportImport";
+
+export interface StudioPrePublishSnapshot {
+  id: string;
+  name: "pre-publish";
+  createdAt: string;
+  snapshot: Record<string, unknown>;
+}

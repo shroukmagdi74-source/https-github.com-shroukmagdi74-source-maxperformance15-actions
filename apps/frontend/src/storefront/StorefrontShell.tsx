@@ -91,6 +91,7 @@ import "./styles/storefront-layout.css";
 /* ─────────────────── Search Results ─────────────────── */
 import type { Product } from "./hooks/useProducts";
 import { useProduct, setGlobalPresentationSlug } from "./hooks/useProduct";
+import { resolveThemeBuilderTemplate, type ThemeBuilderTemplate } from "./studio/utils/themeBuilder";
 
 const GlobalConversionHost = React.lazy(
   () => import("./components/GlobalConversionHost"),
@@ -918,6 +919,15 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
       />
     </div>
   );
+  const activeStorefrontTemplates = (
+    (settings as any)?.templates ||
+    (settings as any)?.storefrontSettings?.templates ||
+    (settings as any)?.designTokens?.templates ||
+    (theme as any)?.designTokens?.templates ||
+    (theme as any)?.templates ||
+    []
+  );
+
   const shopPageElement = (
     <div key={`shop:${routePageKey}`} className="w-full flex flex-col">
       {isSproutRoom
@@ -1034,16 +1044,27 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
           </div>
         </div>
       )}
-      <PageComposer
-        pageConfig={theme.pages.shop}
-        layout={resolveStorefrontPageLayout(
-          theme.pages.shop,
-          shopLayoutFallback,
-        )}
-        runtimeText={runtimeText}
-        renderSectionFrame={StorefrontSectionFrame}
-        locale={currentLocale}
-      />
+      {(() => {
+        const matchedArchive = resolveThemeBuilderTemplate({
+          templates: activeStorefrontTemplates,
+          type: "archive",
+          target: "products",
+          entity: null,
+        });
+        const activeShopConfig = matchedArchive?.page || theme.pages.shop;
+        return (
+          <PageComposer
+            pageConfig={activeShopConfig}
+            layout={resolveStorefrontPageLayout(
+              activeShopConfig,
+              shopLayoutFallback,
+            )}
+            runtimeText={runtimeText}
+            renderSectionFrame={StorefrontSectionFrame}
+            locale={currentLocale}
+          />
+        );
+      })()}
     </div>
   );
   const PresentationRouteWrapper: React.FC<{ element: React.ReactElement }> = ({ element }) => {
@@ -1053,6 +1074,35 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
       return () => setGlobalPresentationSlug(null);
     }, [presentationSlug]);
     return element;
+  };
+
+  const StorefrontThemeBuilderPdpWrapper: React.FC<{
+    defaultPage: any;
+    templates: ThemeBuilderTemplate[];
+    runtimeText: any;
+    currentLocale?: any;
+  }> = ({ defaultPage, templates, runtimeText, currentLocale }) => {
+    const { id } = useParams<{ id: string }>();
+    const { product } = useProduct(id);
+
+    const matchedSingle = resolveThemeBuilderTemplate({
+      templates,
+      type: "single",
+      target: "product",
+      entity: product,
+    });
+
+    const activePdpConfig = matchedSingle?.page || defaultPage;
+
+    return (
+      <PageComposer
+        pageConfig={activePdpConfig}
+        layout={resolveStorefrontPageLayout(activePdpConfig, "product-detail")}
+        runtimeText={runtimeText}
+        renderSectionFrame={StorefrontSectionFrame}
+        locale={currentLocale}
+      />
+    );
   };
 
   const productPageElement = (
@@ -1202,12 +1252,11 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
           </div>
         </div>
       )}
-      <PageComposer
-        pageConfig={theme.pages.pdp}
-        layout={resolveStorefrontPageLayout(theme.pages.pdp, "product-detail")}
+      <StorefrontThemeBuilderPdpWrapper
+        defaultPage={theme.pages.pdp}
+        templates={activeStorefrontTemplates}
         runtimeText={runtimeText}
-        renderSectionFrame={StorefrontSectionFrame}
-        locale={currentLocale}
+        currentLocale={currentLocale}
       />
     </div>
   );

@@ -17,6 +17,7 @@ import {
   CheckIcon,
   ClockIcon,
   Cog6ToothIcon,
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 import type { StudioDeviceMode, StudioZoomLevel, StudioPageDefinition, PageStyleScope } from "./StudioTypes";
 import { StudioPageSelector } from "./StudioPageSelector";
@@ -59,6 +60,9 @@ interface StudioTopBarProps {
   onOpenPreview: () => void;
   isHistoryOpen?: boolean;
   onToggleHistory?: () => void;
+  onPublish?: () => void;
+  onOpenExportImport?: () => void;
+  onOpenThemeBuilder?: () => void;
 }
 
 export const StudioTopBar: React.FC<StudioTopBarProps> = ({
@@ -98,6 +102,9 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
   onOpenPreview,
   isHistoryOpen = false,
   onToggleHistory,
+  onPublish,
+  onOpenExportImport,
+  onOpenThemeBuilder,
 }) => {
   const [isZoomMenuOpen, setIsZoomMenuOpen] = useState(false);
 
@@ -450,6 +457,34 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
           </button>
         )}
 
+        {/* Theme Builder Button */}
+        {onOpenThemeBuilder && (
+          <button
+            type="button"
+            data-testid="studio-theme-builder-button"
+            onClick={onOpenThemeBuilder}
+            className="flex h-7 sm:h-8 items-center gap-1 rounded-lg border border-[#32353b] bg-[#202226] px-2 sm:px-2.5 text-xs font-semibold text-[#e8eaee] hover:bg-[#282b30] hover:text-white transition-colors"
+            title="Theme Builder (باني القوالب)"
+          >
+            <SparklesIcon className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Theme Builder</span>
+          </button>
+        )}
+
+        {/* Export / Import Button */}
+        {onOpenExportImport && (
+          <button
+            type="button"
+            data-testid="studio-export-import-button"
+            onClick={onOpenExportImport}
+            className="flex h-7 sm:h-8 items-center gap-1 rounded-lg border border-[#32353b] bg-[#202226] px-2 sm:px-2.5 text-xs font-semibold text-[#e8eaee] hover:bg-[#282b30] hover:text-white transition-colors"
+            title="تصدير واستيراد الصفحة (JSON)"
+          >
+            <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">تصدير/استيراد</span>
+          </button>
+        )}
+
         {/* Live Preview Button */}
         <button
           type="button"
@@ -464,7 +499,8 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
         {/* Publish / Save Button */}
         <button
           type="button"
-          onClick={onSave}
+          data-testid="studio-publish-button"
+          onClick={onPublish || onSave}
           disabled={saving}
           className="flex h-7 sm:h-8 items-center gap-1 rounded-lg bg-[#2b6cf6] px-2.5 sm:px-4 text-xs font-bold text-white shadow-md hover:bg-[#1d5ce6] active:scale-95 transition-all disabled:opacity-50"
         >

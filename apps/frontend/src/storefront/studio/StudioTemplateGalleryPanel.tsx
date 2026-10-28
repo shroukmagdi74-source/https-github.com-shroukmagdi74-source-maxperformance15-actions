@@ -4,9 +4,10 @@ import {
   EyeIcon,
   CheckIcon,
   ExclamationTriangleIcon,
-  SparklesIcon,
   SwatchIcon,
 } from "@heroicons/react/24/outline";
+import StudioThemeBuilderPanel from "./StudioThemeBuilderPanel";
+import type { ThemeBuilderTemplate } from "./utils/themeBuilder";
 import {
   INDUSTRY_PRESETS,
   type IndustryPreset,
@@ -17,6 +18,10 @@ export interface StudioTemplateGalleryPanelProps {
   activePageKey: string;
   onApplyPreset: (preset: IndustryPreset) => void;
   onClose: () => void;
+  templates?: ThemeBuilderTemplate[];
+  onSaveTemplate?: (template: ThemeBuilderTemplate) => void;
+  onDeleteTemplate?: (templateId: string) => void;
+  currentSections?: any[];
 }
 
 const SECTION_TYPE_LABELS: Record<string, string> = {
@@ -45,7 +50,12 @@ export const StudioTemplateGalleryPanel: React.FC<StudioTemplateGalleryPanelProp
   activePageKey,
   onApplyPreset,
   onClose,
+  templates = [],
+  onSaveTemplate = () => {},
+  onDeleteTemplate = () => {},
+  currentSections = [],
 }) => {
+  const [activeSubTab, setActiveSubTab] = useState<"presets" | "theme-builder">("presets");
   const [previewPresetId, setPreviewPresetId] = useState<IndustryPresetId | null>(null);
   const [confirmPreset, setConfirmPreset] = useState<IndustryPreset | null>(null);
 
@@ -85,8 +95,38 @@ export const StudioTemplateGalleryPanel: React.FC<StudioTemplateGalleryPanelProp
         </button>
       </div>
 
-      {/* Preset Cards Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin">
+      {/* Sub-tabs */}
+      <div className="flex border-b border-[#282a30] bg-[#17181c] px-4 pt-1 gap-2 shrink-0">
+        <button
+          type="button"
+          data-testid="tab-industry-presets"
+          onClick={() => setActiveSubTab("presets")}
+          className={`pb-2 px-2 text-[11px] font-bold border-b-2 transition-all ${activeSubTab === "presets" ? "border-[#2b6cf6] text-white" : "border-transparent text-[#9ba0a8] hover:text-white"}`}
+        >
+          قوالب قطاعية
+        </button>
+        <button
+          type="button"
+          data-testid="tab-theme-builder"
+          onClick={() => setActiveSubTab("theme-builder")}
+          className={`pb-2 px-2 text-[11px] font-bold border-b-2 transition-all ${activeSubTab === "theme-builder" ? "border-[#2b6cf6] text-white" : "border-transparent text-[#9ba0a8] hover:text-white"}`}
+        >
+          Theme Builder
+        </button>
+      </div>
+
+      {activeSubTab === "theme-builder" ? (
+        <div className="flex-1 overflow-hidden">
+          <StudioThemeBuilderPanel
+            templates={templates}
+            onSaveTemplate={onSaveTemplate}
+            onDeleteTemplate={onDeleteTemplate}
+            currentSections={currentSections}
+            activePageKey={activePageKey}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin">
         {INDUSTRY_PRESETS.map((preset) => {
           const isPreviewing = previewPresetId === preset.id;
           return (
@@ -232,6 +272,8 @@ export const StudioTemplateGalleryPanel: React.FC<StudioTemplateGalleryPanelProp
           );
         })}
       </div>
+
+      )}
 
       {/* Confirmation Modal Overlay */}
       {confirmPreset && (

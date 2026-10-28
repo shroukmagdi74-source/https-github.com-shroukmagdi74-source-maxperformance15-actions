@@ -14,7 +14,16 @@ import type {
   PageStylesMap,
   SavedStudioSection,
   StudioGlobalComponent,
+  ThemeBuilderTemplate,
+  StudioExportedPageData,
+  StudioImportResult,
+  StudioPrePublishSnapshot,
 } from "../StudioTypes";
+import {
+  exportPage as exportPageHelper,
+  importPage as importPageHelper,
+  downloadJSON,
+} from "../utils/studioPageExportImport";
 import {
   createGlobalComponent,
   detachComponentInstance,
@@ -1898,6 +1907,183 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     [selectedSectionKey, handleDesignTokensChange, onSave]
   );
 
+  // ─────────────────────────────────────────────────────────────
+  // Ticket TPL-2: Export / Import + Pre-Publish Snapshot + Theme Builder
+  // ─────────────────────────────────────────────────────────────
+  const templates = useMemo<ThemeBuilderTemplate[]>(() => {
+    return Array.isArray(currentDesignTokens?.templates)
+      ? (currentDesignTokens.templates as ThemeBuilderTemplate[])
+      : [];
+  }, [currentDesignTokens]);
+
+  const handleSaveTemplate = useCallback(
+    (template: ThemeBuilderTemplate) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentTemplates: ThemeBuilderTemplate[] = Array.isArray(currentTokens.templates)
+        ? (currentTokens.templates as ThemeBuilderTemplate[])
+        : [];
+      const existingIdx = currentTemplates.findIndex((t) => t.id === template.id);
+      let nextTemplates: ThemeBuilderTemplate[];
+      if (existingIdx >= 0) {
+        nextTemplates = [...currentTemplates];
+        nextTemplates[existingIdx] = template;
+      } else {
+        nextTemplates = [template, ...currentTemplates];
+      }
+      const nextTokens = {
+        ...currentTokens,
+        templates: nextTemplates,
+      };
+      handleDesignTokensChange(nextTokens);
+      onSave();
+    },
+    [handleDesignTokensChange, onSave]
+  );
+
+  const handleDeleteTemplate = useCallback(
+    (templateId: string) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const currentTemplates: ThemeBuilderTemplate[] = Array.isArray(currentTokens.templates)
+        ? (currentTokens.templates as ThemeBuilderTemplate[])
+        : [];
+      const nextTemplates = currentTemplates.filter((t) => t.id !== templateId);
+      const nextTokens = {
+        ...currentTokens,
+        templates: nextTemplates,
+      };
+      handleDesignTokensChange(nextTokens);
+      onSave();
+    },
+    [handleDesignTokensChange, onSave]
+  );
+
+  const exportPage = useCallback(
+    (targetKey?: string): StudioExportedPageData => {
+      const pageToExport = targetKey || activePageKey;
+      const targetSections =
+        pageToExport === activePageKey
+          ? activeSectionsRef.current
+          : (currentDesignTokensRef.current?.pages as any)?.[pageToExport]?.sections || [];
+      const styles = (currentDesignTokensRef.current?.pageStyles as PageStylesMap)?.[pageToExport];
+      return exportPageHelper(pageToExport, {
+        sections: targetSections,
+        styles,
+        designTokens: currentDesignTokensRef.current,
+        theme: previewTheme,
+        title: (previewTheme.pages as any)?.[pageToExport]?.title || pageToExport,
+      });
+    },
+    [activePageKey, previewTheme]
+  );
+
+  const downloadPageJSON = useCallback(
+    (targetKey?: string) => {
+      const exported = exportPage(targetKey);
+      downloadJSON(`${targetKey || activePageKey}-page.json`, exported);
+    },
+    [exportPage, activePageKey]
+  );
+
+  const importPage = useCallback(
+    (jsonInput: unknown, confirm: boolean = true): StudioImportResult => {
+      return importPageHelper(jsonInput, {
+        pageKey: activePageKey,
+        currentSections: activeSectionsRef.current,
+        currentStyles: activePageStyle,
+        confirm,
+        onApply: (imported) => {
+          const currentTokens = currentDesignTokensRef.current || {};
+          const pageKey = activePageKeyRef.current;
+          const pageConfig = activePageConfigRef.current;
+          const nextPages = {
+            ...((currentTokens.pages as Record<string, unknown>) || {}),
+            ...((currentTokens.pageOverrides as Record<string, unknown>) || {}),
+            [pageKey]: {
+              ...pageConfig,
+              sections: imported.sections,
+            },
+          };
+          let nextStyles = currentTokens.pageStyles;
+          if (imported.styles) {
+            nextStyles = {
+              ...((currentTokens.pageStyles as PageStylesMap) || {}),
+              [pageKey]: imported.styles,
+            };
+          }
+          const nextTokens = {
+            ...currentTokens,
+            pages: nextPages,
+            pageOverrides: nextPages,
+            ...(nextStyles ? { pageStyles: nextStyles } : {}),
+          };
+          handleDesignTokensChange(nextTokens);
+          onSave();
+          toast.success(`تم استيراد محتوى صفحة "${pageKey}" بنجاح (${imported.sections.length} قسم)`);
+        },
+      });
+    },
+    [activePageKey, activePageStyle, handleDesignTokensChange, onSave]
+  );
+
+  const createPrePublishSnapshot = useCallback((): StudioPrePublishSnapshot => {
+    const currentTokens = currentDesignTokensRef.current || {};
+    const snapshot: StudioPrePublishSnapshot = {
+      id: `pre-publish-${Date.now()}`,
+      name: "pre-publish",
+      createdAt: new Date().toISOString(),
+      snapshot: JSON.parse(
+        JSON.stringify({
+          themeId,
+          designTokens: currentTokens,
+          activePageKey,
+          sections: activeSectionsRef.current,
+          pageStyles: currentTokens.pageStyles,
+        })
+      ),
+    };
+    const existingSnapshots = Array.isArray(currentTokens.snapshots)
+      ? (currentTokens.snapshots as StudioPrePublishSnapshot[])
+      : [];
+    const nextSnapshots = [snapshot, ...existingSnapshots.slice(0, 29)];
+    const nextTokens = {
+      ...currentTokens,
+      snapshots: nextSnapshots,
+    };
+    handleDesignTokensChange(nextTokens);
+    return snapshot;
+  }, [themeId, activePageKey, handleDesignTokensChange]);
+
+  const handleRestorePrePublishSnapshot = useCallback(
+    (targetSnapshot?: StudioPrePublishSnapshot) => {
+      const currentTokens = currentDesignTokensRef.current || {};
+      const snapshots = (currentTokens.snapshots as StudioPrePublishSnapshot[]) || [];
+      const snapToRestore =
+        targetSnapshot || snapshots.find((s) => s.name === "pre-publish") || snapshots[0];
+      if (!snapToRestore || !snapToRestore.snapshot) {
+        toast.error("لا توجد نسخة سابقة للاسترجاع");
+        return false;
+      }
+      const snapData = snapToRestore.snapshot as any;
+      const restoredTokens = snapData.designTokens || snapData;
+      handleDesignTokensChange(restoredTokens);
+      onSave();
+      toast.success("تم استرجاع النسخة السابقة بنجاح 🔄");
+      return true;
+    },
+    [handleDesignTokensChange, onSave]
+  );
+
+  const handlePublish = useCallback(async () => {
+    createPrePublishSnapshot();
+    toast.success("تم حفظ نسخة — استرجاع", {
+      action: {
+        label: "استرجاع",
+        onClick: () => handleRestorePrePublishSnapshot(),
+      },
+    });
+    onSave();
+  }, [createPrePublishSnapshot, handleRestorePrePublishSnapshot, onSave]);
+
   // Sync to global bridge for component decoupling
   useEffect(() => {
     globalBridgeState = {
@@ -2002,6 +2188,16 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     handleUpdateGlobalComponent,
     handleDeleteGlobalComponent,
     handleDetachComponentInstance,
+    // Ticket TPL-2 exports
+    templates,
+    handleSaveTemplate,
+    handleDeleteTemplate,
+    exportPage,
+    downloadPageJSON,
+    importPage,
+    createPrePublishSnapshot,
+    handleRestorePrePublishSnapshot,
+    handlePublish,
   };
 }
 
@@ -2026,6 +2222,15 @@ export interface StudioBridgeState {
   handleUpdateGlobalComponent: (componentId: string, updates: Partial<StudioGlobalComponent>) => void;
   handleDeleteGlobalComponent: (componentId: string, force?: boolean) => boolean | void;
   handleDetachComponentInstance: (sectionKey?: string) => void;
+  // Ticket TPL-2 bridge items
+  templates?: ThemeBuilderTemplate[];
+  handleSaveTemplate?: (template: ThemeBuilderTemplate) => void;
+  handleDeleteTemplate?: (templateId: string) => void;
+  exportPage?: (targetKey?: string) => StudioExportedPageData;
+  importPage?: (jsonInput: unknown, confirm?: boolean) => StudioImportResult;
+  createPrePublishSnapshot?: () => StudioPrePublishSnapshot;
+  handleRestorePrePublishSnapshot?: () => boolean;
+  handlePublish?: () => Promise<void>;
 }
 
 let globalBridgeState: StudioBridgeState = {

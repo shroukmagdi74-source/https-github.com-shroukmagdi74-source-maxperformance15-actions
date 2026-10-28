@@ -27,6 +27,7 @@ import { StudioThemeGalleryPanel } from "./StudioThemeGalleryPanel";
 import { StudioGlobalComponentsPanel } from "./inspector/StudioGlobalComponentsPanel";
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
+import { StudioExportImportModal } from "./StudioExportImportModal";
 import { useStudioTouchDrag } from "./hooks/useStudioTouchDrag";
 import type { StorefrontPageSEOConfig, StorefrontPageStatus } from "../types/theme.types";
 import { buildPresetPage, type IndustryPreset } from "../presets/industryPresets";
@@ -327,6 +328,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   onReload,
 }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [isExportImportModalOpen, setIsExportImportModalOpen] = useState<boolean>(false);
   const { user } = useAuth();
   const companyId = propCompanyId || user?.companyId || "";
   const [deviceMode, setDeviceMode] = useState<StudioDeviceMode>("desktop");
@@ -481,6 +483,15 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     handleUpdateGlobalComponent,
     handleDeleteGlobalComponent,
     handleDetachComponentInstance,
+    templates,
+    handleSaveTemplate,
+    handleDeleteTemplate,
+    exportPage,
+    downloadPageJSON,
+    importPage,
+    createPrePublishSnapshot,
+    handleRestorePrePublishSnapshot,
+    handlePublish,
   } = useStorefrontStudioState({
     themeId,
     externalDesignTokens,
@@ -1190,6 +1201,8 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         onRedo={redo}
         onDiscard={onDiscard}
         onSave={onSave}
+        onPublish={handlePublish}
+        onOpenExportImport={() => setIsExportImportModalOpen(true)}
         onOpenPreview={onOpenPreview}
         isHistoryOpen={isHistoryOpen}
         onToggleHistory={() => setIsHistoryOpen((prev) => !prev)}
@@ -1364,6 +1377,10 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                     activePageKey={activePageKey}
                     onApplyPreset={handleApplyIndustryPreset}
                     onClose={() => setIsLeftDrawerOpen(false)}
+                    templates={templates}
+                    onSaveTemplate={handleSaveTemplate}
+                    onDeleteTemplate={handleDeleteTemplate}
+                    currentSections={activeSections}
                   />
                 )}
 
@@ -1886,6 +1903,19 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
           if (onReload) {
             void onReload();
           }
+        }}
+      />
+
+      <StudioExportImportModal
+        isOpen={isExportImportModalOpen}
+        onClose={() => setIsExportImportModalOpen(false)}
+        activePageKey={activePageKey}
+        currentSections={activeSections}
+        currentStyles={activePageStyle}
+        designTokens={currentDesignTokens}
+        theme={previewTheme}
+        onApplyImport={(data) => {
+          importPage(data, true);
         }}
       />
 

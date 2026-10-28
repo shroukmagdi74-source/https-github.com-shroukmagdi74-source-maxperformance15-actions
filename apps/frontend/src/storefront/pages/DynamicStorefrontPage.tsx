@@ -9,6 +9,7 @@ import { createStorefrontThemeTextReplacer } from "../utils/runtimeBrandText";
 import { resolveStorefrontPageLayout, StorefrontSectionFrame } from "../layout/StorefrontSectionFrame";
 import { sanitizeStorefrontHtml } from "../utils/html";
 import { getStorefrontLocale, getLocaleDirection, localizePageConfig } from "../i18n";
+import { resolveThemeBuilderTemplate } from "../studio/utils/themeBuilder";
 
 const DynamicStorefrontPage: React.FC = () => {
   const { theme } = useStorefrontTheme();
@@ -38,9 +39,37 @@ const DynamicStorefrontPage: React.FC = () => {
     [location.search, settings, theme],
   );
   const resolvedPageKey = [pageSlug, pageSplat].filter(Boolean).join("/");
-  const pageConfig = resolvedPageKey
+  const standardPageConfig = resolvedPageKey
     ? theme.pages[resolvedPageKey] || (pageSlug ? theme.pages[pageSlug] : undefined)
     : undefined;
+
+  const templateConfig = useMemo(() => {
+    const rawTemplates =
+      (settings as any)?.templates ||
+      (settings as any)?.storefrontSettings?.templates ||
+      (settings as any)?.designTokens?.templates ||
+      (theme as any)?.designTokens?.templates ||
+      (theme as any)?.templates;
+    if (!Array.isArray(rawTemplates) || rawTemplates.length === 0) return undefined;
+
+    const isArticle =
+      resolvedPageKey.startsWith("article") ||
+      Boolean(pageSlug?.includes("article")) ||
+      location.pathname.includes("/articles/");
+
+    if (isArticle) {
+      const matched = resolveThemeBuilderTemplate({
+        templates: rawTemplates,
+        type: "single",
+        target: "article",
+        entity: { slug: pageSlug || resolvedPageKey },
+      });
+      if (matched?.page) return matched.page;
+    }
+    return undefined;
+  }, [settings, theme, resolvedPageKey, pageSlug, location.pathname]);
+
+  const pageConfig = templateConfig || standardPageConfig;
 
   const localizedPageConfig = useMemo(() => {
     if (!pageConfig) return undefined;
