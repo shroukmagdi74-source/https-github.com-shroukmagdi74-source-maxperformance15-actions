@@ -9485,9 +9485,12 @@ const handleCustomerRatingRecalculate = async (req, res) => {
   }
 };
 
-router.put('/simple/:orderNumber/customer-rating', verifyToken.authenticateToken, handleCustomerRatingUpdate);
-router.post('/simple/:orderNumber/customer-rating', verifyToken.authenticateToken, handleCustomerRatingUpdate);
-router.post('/simple/:orderNumber/recalculate-rating', verifyToken.authenticateToken, handleCustomerRatingRecalculate);
+router.put('/simple/:orderNumber/customer-rating',
+  verifyToken.authenticateToken, requireDbPermission('customers.edit'), handleCustomerRatingUpdate);
+router.post('/simple/:orderNumber/customer-rating',
+  verifyToken.authenticateToken, requireDbPermission('customers.edit'), handleCustomerRatingUpdate);
+router.post('/simple/:orderNumber/recalculate-rating',
+  verifyToken.authenticateToken, requireDbPermission('customers.edit'), handleCustomerRatingRecalculate);
 router.handleCustomerRatingUpdate = handleCustomerRatingUpdate;
 router.handleCustomerRatingRecalculate = handleCustomerRatingRecalculate;
 

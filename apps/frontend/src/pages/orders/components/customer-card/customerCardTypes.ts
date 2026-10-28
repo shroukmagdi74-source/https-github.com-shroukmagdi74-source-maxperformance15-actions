@@ -27,6 +27,7 @@ export interface CustomerInfoCardProps {
   customFieldConfig?: CustomerInfoCardCustomFieldConfig;
   onOrderUpdated?: () => void;
   onCustomerRatingChange?: (newRating: string) => void;
+  canEditRating?: boolean;
 }
 
 export const blockReasonOptions: Array<{

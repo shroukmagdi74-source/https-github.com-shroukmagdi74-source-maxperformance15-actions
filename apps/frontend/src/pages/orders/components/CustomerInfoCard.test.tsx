@@ -284,12 +284,27 @@ describe("CustomerInfoCard notes and custom fields behavior", () => {
     expect(apiClient.get).toHaveBeenCalledTimes(1);
   });
 
-  it("renders automated customer rating badge in card header without interactive buttons", () => {
+  it("renders customer rating badge in card header with interactive rating button", () => {
     render(
       <MemoryRouter>
         <CustomerInfoCard
           order={{ ...baseOrder, customerRating: "GOOD", customerDeliveryRate: 85, customerDeliveredCount: 8, customerTotalCount: 10 }}
           isEditing={false}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("جيد")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /تقييم العميل/i })).toBeInTheDocument();
+  });
+
+  it("renders automated customer rating badge without interactive buttons when canEditRating is false", () => {
+    render(
+      <MemoryRouter>
+        <CustomerInfoCard
+          order={{ ...baseOrder, customerRating: "GOOD", customerDeliveryRate: 85, customerDeliveredCount: 8, customerTotalCount: 10 }}
+          isEditing={false}
+          canEditRating={false}
         />
       </MemoryRouter>
     );

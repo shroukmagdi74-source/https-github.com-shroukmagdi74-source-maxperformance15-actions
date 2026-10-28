@@ -97,17 +97,6 @@ export const useOrderDetailsSave = ({
 
       await apiClient.put(`/orders-new/simple/${encodedOrderNumber}`, detailsBody);
 
-      // 1.1 Update Customer Rating if changed
-      if (editForm.customerRating && editForm.customerRating !== order?.customerRating) {
-        await apiClient
-          .put(`/orders-new/simple/${encodedOrderNumber}/customer-rating`, {
-            rating: editForm.customerRating,
-          })
-          .catch((err) => {
-            console.warn("Failed to update customer rating during order save:", err.message);
-          });
-      }
-
       // 2. Update Items
       const itemsToUpdate = editForm.items || [];
 
