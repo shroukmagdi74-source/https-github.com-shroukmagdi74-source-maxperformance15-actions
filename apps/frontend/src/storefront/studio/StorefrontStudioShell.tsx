@@ -16,6 +16,7 @@ import { StudioPropertyInspector } from "./StudioPropertyInspector";
 import { StudioCanvasStage } from "./StudioCanvasStage";
 import { StudioSortableSection } from "./StudioSortableSection";
 import { StudioStatusBar } from "./StudioStatusBar";
+import { StudioOnboarding, isOnboardingCompleted } from "./StudioOnboarding";
 import { StudioSectionCatalogModal } from "./StudioSectionCatalogModal";
 import { StudioShortcutsModal } from "./StudioShortcutsModal";
 import { StudioSearchReplacePanel } from "./StudioSearchReplacePanel";
@@ -515,6 +516,20 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
 
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSearchReplacePanel, setShowSearchReplacePanel] = useState(false);
+
+  const serverOnboarded = useMemo(() => {
+    return Boolean(
+      (externalDesignTokens as any)?.studioOnboarded ||
+      (externalDesignTokens as any)?.onboardingSeen ||
+      (externalDesignTokens as any)?.hasSeenOnboarding ||
+      (user as any)?.studioOnboarded ||
+      (user as any)?.preferences?.studioOnboarded
+    );
+  }, [externalDesignTokens, user]);
+
+  const [showOnboardingModal, setShowOnboardingModal] = useState<boolean>(() => {
+    return !isOnboardingCompleted(undefined, serverOnboarded);
+  });
 
   const handleSelectSection = useCallback(
     (key: string, e?: React.MouseEvent) => {
@@ -1845,6 +1860,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         }
         deviceMode={deviceMode}
         onOpenShortcuts={() => setShowShortcutsModal(true)}
+        onOpenOnboarding={() => setShowOnboardingModal(true)}
       />
 
       {/* Search & Replace Floating Panel */}
@@ -1874,6 +1890,18 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
       <StudioShortcutsModal
         isOpen={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
+      />
+
+      {/* First-Run Onboarding Tour Modal */}
+      <StudioOnboarding
+        isOpen={showOnboardingModal}
+        serverOnboarded={serverOnboarded}
+        onClose={() => setShowOnboardingModal(false)}
+        onStartFromTemplate={() => {
+          setShowOnboardingModal(false);
+          setLeftRailTab("templates");
+          setIsLeftDrawerOpen(true);
+        }}
       />
 
       {/* Modals */}

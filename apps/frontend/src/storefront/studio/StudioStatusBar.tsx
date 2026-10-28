@@ -6,6 +6,7 @@ interface StudioStatusBarProps {
   selectedSectionType?: string;
   deviceMode: string;
   onOpenShortcuts?: () => void;
+  onOpenOnboarding?: () => void;
 }
 
 export const StudioStatusBar: React.FC<StudioStatusBarProps> = ({
@@ -14,6 +15,7 @@ export const StudioStatusBar: React.FC<StudioStatusBarProps> = ({
   selectedSectionType,
   deviceMode,
   onOpenShortcuts,
+  onOpenOnboarding,
 }) => {
   return (
     <footer
@@ -47,21 +49,39 @@ export const StudioStatusBar: React.FC<StudioStatusBarProps> = ({
         </span>
       </div>
 
-      {/* Keyboard Shortcuts helper */}
-      <div className="hidden md:flex items-center gap-2 text-[10.5px]">
-        <span>اختصارات ⌨:</span>
-        <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+S حفظ</span>
-        <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+Z تراجع</span>
-        <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+F بحث</span>
-        {onOpenShortcuts && (
+      {/* Keyboard Shortcuts & Help helper */}
+      <div className="flex items-center gap-2 text-[10.5px]">
+        <div className="hidden md:flex items-center gap-2">
+          <span>اختصارات:</span>
+          <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+S حفظ</span>
+          <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+Z تراجع</span>
+          <span className="rounded bg-[#2a2d33] px-1 py-0.5 text-[9.5px] text-[#808791]">Ctrl+F بحث</span>
+          {onOpenShortcuts && (
+            <button
+              type="button"
+              data-testid="open-shortcuts-palette"
+              onClick={onOpenShortcuts}
+              className="rounded bg-[#2b6cf6]/20 px-1.5 py-0.5 text-[9.5px] font-semibold text-[#60a5fa] hover:bg-[#2b6cf6]/30 transition-colors"
+              title="عرض جميع الاختصارات (?)"
+            >
+              ? جميع الاختصارات
+            </button>
+          )}
+        </div>
+
+        {/* Onboarding Help (?) Button */}
+        {onOpenOnboarding && (
           <button
             type="button"
-            data-testid="open-shortcuts-palette"
-            onClick={onOpenShortcuts}
-            className="rounded bg-[#2b6cf6]/20 px-1.5 py-0.5 text-[9.5px] font-semibold text-[#60a5fa] hover:bg-[#2b6cf6]/30 transition-colors"
-            title="عرض جميع الاختصارات (?)"
+            data-testid="studio-onboarding-help-button"
+            onClick={onOpenOnboarding}
+            className="flex items-center justify-center gap-1 rounded bg-[#202226] border border-[#32353b] px-2 py-0.5 text-[9.5px] font-bold text-[#e8eaee] hover:bg-[#2b6cf6] hover:text-white hover:border-[#2b6cf6] transition-colors"
+            title="جولة إرشادية في المحرر (؟)"
+            aria-label="؟"
           >
-            ? جميع الاختصارات
+            <span aria-hidden="true" className="font-bold text-[10.5px]">؟</span>
+            <span className="sr-only">?</span>
+            <span className="hidden sm:inline font-normal">دليل البداية</span>
           </button>
         )}
       </div>
