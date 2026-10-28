@@ -8,6 +8,7 @@ const { validateEmployeeData } = require('../../utils/hrValidation');
 const {
   NotFoundError,
   ConflictError,
+  UnauthorizedError,
   EmployeeError
 } = require('../../utils/hrErrors');
 
@@ -28,29 +29,7 @@ class EmployeeService {
    * إنشاء موظف جديد
    */
   async createEmployee(companyId, data) {
-    // ✅ Log incoming data from frontend for debugging
-    console.log('📥 [HR] Received employee data from frontend:', JSON.stringify({
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      phone: data.phone,
-      departmentId: data.departmentId,
-      positionId: data.positionId,
-      hireDate: data.hireDate,
-      contractType: data.contractType,
-      baseSalary: data.baseSalary,
-      employeeNumber: data.employeeNumber,
-      // Extra fields (not in User model - will be ignored)
-      mobile: data.mobile,
-      password: data.password ? '***' : undefined,
-      role: data.role,
-      nationalId: data.nationalId,
-      dateOfBirth: data.dateOfBirth,
-      gender: data.gender,
-      address: data.address,
-      city: data.city,
-      country: data.country
-    }, null, 2));
+    console.log('📥 [HR] Received employee data for company', companyId);
 
     // التحقق من صحة البيانات
     validateEmployeeData(data);
@@ -261,12 +240,13 @@ class EmployeeService {
       lateDeductionRate: data.lateDeductionRate !== undefined ? parseFloat(data.lateDeductionRate) : null
     };
 
-    // ✅ Log the data that will be saved
-    console.log('💾 [HR] Saving employee data to User table:', JSON.stringify({
-      ...userData,
-      baseSalary: userData.baseSalary ? userData.baseSalary.toString() : null,
-      hireDate: userData.hireDate ? userData.hireDate.toISOString() : null
-    }, null, 2));
+    // ✅ سجل بدون بيانات شخصية (ممنوع طباعة الراتب/التليفون/تاريخ التعيين في اللوج)
+    console.log(
+      '💾 [HR] Saving employee data for company',
+      companyId,
+      '- employeeNumber:',
+      userData.employeeNumber
+    );
 
     let employee;
     if (linkedUserId) {
@@ -959,15 +939,31 @@ class EmployeeService {
 
       // التحقق من وجود المستخدم
       const user = await this.prisma.user.findUnique({
-        where: { id: employeeId }
+        where: { id: employeeId },
+        include: { employees: true, userCompanies: { where: { companyId } } }
       });
 
       if (!user) {
-        throw new NotFoundError('المستخدم غير موجود');
+        throw new NotFoundError('المستخدم');
+      }
+
+      const employeeRecord =
+        user.employees && user.employees.companyId === companyId ? user.employees : null;
+      const membership = (user.userCompanies || [])[0] || null;
+      const belongsToCompany = Boolean(
+        user.companyId === companyId || employeeRecord || membership
+      );
+      if (!belongsToCompany) {
+        throw new UnauthorizedError('هذا المستخدم لا ينتمي إلى شركتك');
+      }
+
+      const otherCompanyEmployee = await this.prisma.employee.findUnique({ where: { userId: employeeId } });
+      if (otherCompanyEmployee && otherCompanyEmployee.companyId !== companyId) {
+        throw new ConflictError('هذا المستخدم مسجل كموظف في شركة أخرى — لا يمكن نقله من هنا');
       }
 
       // 1. توليد أو استعادة رقم الموظف إذا لم يكن موجوداً
-      let employeeNumber = data.employeeNumber || user.employeeNumber;
+      let employeeNumber = data.employeeNumber || user.employeeNumber || employeeRecord?.employeeNumber;
       if (!employeeNumber) {
         const lastEmployee = await this.prisma.user.findFirst({
           where: {
@@ -1033,12 +1029,12 @@ class EmployeeService {
         },
         update: {
           isActive: true,
-          role: data.role || 'AGENT'
+          role: data.role || membership?.role || 'AGENT'
         },
         create: {
           userId: employeeId,
           companyId: companyId,
-          role: data.role || 'AGENT',
+          role: data.role || membership?.role || 'AGENT',
           isActive: true,
           isDefault: false
         }
@@ -1046,6 +1042,13 @@ class EmployeeService {
 
       // 4. مزامنة مع جدول Employee (المرآة)
       await this.syncWithEmployeeTable(employeeId, companyId);
+
+      if (employeeRecord) {
+        await this.prisma.employee.update({
+          where: { id: employeeRecord.id },
+          data: { status: 'ACTIVE', terminationDate: null, terminationReason: null }
+        });
+      }
 
       // 5. إرسال إشعار ترحيبي للموظف
       try {
@@ -1067,7 +1070,7 @@ class EmployeeService {
         console.warn('⚠️ Could not send reactivation notification to employee:', notifErr.message);
       }
 
-      console.log(`✅ [HR] Successfully reactivated employee ${updatedUser.employeeNumber} (${updatedUser.email})`);
+      console.log(`✅ [HR] Successfully reactivated employee ${updatedUser.employeeNumber}`);
       return updatedUser;
     } catch (error) {
       console.error('❌ Error reactivating employee:', error);

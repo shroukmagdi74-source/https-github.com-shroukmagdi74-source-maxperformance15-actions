@@ -1459,6 +1459,15 @@ async function lookupUser(req, res) {
         lastLoginAt: true,
         companyId: true,
         employeeNumber: true,
+        hireDate: true,
+        contractType: true,
+        baseSalary: true,
+        departmentId: true,
+        positionId: true,
+        enableAutoDeduction: true,
+        monthlyGraceMinutes: true,
+        maxDailyLateMinutes: true,
+        lateDeductionRate: true,
         departmentRelation: {
           select: { id: true, name: true },
         },
@@ -1496,98 +1505,93 @@ async function lookupUser(req, res) {
       });
     }
 
-    // فحص الارتباط بالشركة الحالية
-    const isCurrentCompanyDirect = user.companyId === companyId;
+    const { classifyLookupUser } = require("../services/hr/employeeLookupClassifier");
+    const { status } = classifyLookupUser(user, companyId);
     const currentCompanyMembership = user.userCompanies?.[0];
-    const isMemberOfCurrentCompany =
-      isCurrentCompanyDirect ||
-      Boolean(currentCompanyMembership && currentCompanyMembership.isActive);
 
-    // فحص هل لديه سجل موظف نشط في الشركة الحالية
-    const hasEmployeeRecordInCurrentCompany =
-      Boolean(user.employees && user.employees.companyId === companyId && user.employees.status === "ACTIVE") ||
-      Boolean(isCurrentCompanyDirect && user.employeeNumber);
+    switch (status) {
+      case "ALREADY_ACTIVE_EMPLOYEE":
+        return res.json({
+          success: true,
+          exists: true,
+          status: "ALREADY_ACTIVE_EMPLOYEE",
+          user: {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            phone: user.phone,
+            avatar: user.avatar,
+            employeeNumber: user.employees?.employeeNumber || user.employeeNumber || "محدد",
+            department: user.employees?.department?.name || user.departmentRelation?.name || null,
+            position: user.employees?.position?.title || user.positionRelation?.title || null,
+          },
+        });
 
-    if (hasEmployeeRecordInCurrentCompany) {
-      return res.json({
-        success: true,
-        exists: true,
-        status: "ALREADY_ACTIVE_EMPLOYEE",
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          phone: user.phone,
-          avatar: user.avatar,
-          employeeNumber: user.employees?.employeeNumber || user.employeeNumber || "محدد",
-          department: user.employees?.department?.name || user.departmentRelation?.name || null,
-          position: user.employees?.position?.title || user.positionRelation?.title || null,
-        },
-      });
+      case "COMPANY_USER_NOT_EMPLOYEE":
+        return res.json({
+          success: true,
+          exists: true,
+          status: "COMPANY_USER_NOT_EMPLOYEE",
+          user: {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            phone: user.phone,
+            avatar: user.avatar,
+            role: currentCompanyMembership?.role || user.role || "AGENT",
+            lastLoginAt: user.lastLoginAt || null,
+          },
+        });
+
+      case "INACTIVE_FORMER_EMPLOYEE":
+        return res.json({
+          success: true,
+          exists: true,
+          status: "INACTIVE_FORMER_EMPLOYEE",
+          user: {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            phone: user.phone,
+            avatar: user.avatar,
+            employeeNumber: user.employees?.employeeNumber || user.employeeNumber || null,
+            department: user.employees?.department?.name || user.departmentRelation?.name || null,
+            position: user.employees?.position?.title || user.positionRelation?.title || null,
+            role: currentCompanyMembership?.role || user.role || "AGENT",
+            lastLoginAt: user.lastLoginAt || null,
+            hireDate: user.hireDate ? user.hireDate.toISOString().split("T")[0] : "",
+            contractType: user.contractType || "",
+            baseSalary: user.baseSalary ? user.baseSalary.toString() : "",
+            departmentId: user.departmentId || "",
+            positionId: user.positionId || "",
+            enableAutoDeduction: user.enableAutoDeduction !== false,
+            monthlyGraceMinutes: user.monthlyGraceMinutes ?? 60,
+            maxDailyLateMinutes: user.maxDailyLateMinutes ?? 10,
+            lateDeductionRate: user.lateDeductionRate ? user.lateDeductionRate.toString() : "",
+          },
+        });
+
+      case "EXISTING_PLATFORM_USER":
+      default:
+        return res.json({
+          success: true,
+          exists: true,
+          status: "EXISTING_PLATFORM_USER",
+          user: {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            phone: user.phone,
+            avatar: user.avatar,
+            role: user.role || "AGENT",
+            lastLoginAt: user.lastLoginAt || null,
+          },
+        });
     }
-
-    if (isMemberOfCurrentCompany) {
-      return res.json({
-        success: true,
-        exists: true,
-        status: "COMPANY_USER_NOT_EMPLOYEE",
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          phone: user.phone,
-          avatar: user.avatar,
-          role: currentCompanyMembership?.role || user.role || "AGENT",
-          lastLoginAt: user.lastLoginAt || null,
-        },
-      });
-    }
-
-    // فحص هل كان المستخدم موظفاً أو عضواً سابقاً في هذه الشركة وتم تعطيله أو حذفه
-    const isFormerCompanyMember =
-      Boolean(currentCompanyMembership && !currentCompanyMembership.isActive) ||
-      Boolean(user.employees && user.employees.companyId === companyId && user.employees.status !== "ACTIVE") ||
-      Boolean(isCurrentCompanyDirect && !user.isActive);
-
-    if (isFormerCompanyMember) {
-      return res.json({
-        success: true,
-        exists: true,
-        status: "INACTIVE_FORMER_EMPLOYEE",
-        user: {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          phone: user.phone,
-          avatar: user.avatar,
-          employeeNumber: user.employees?.employeeNumber || user.employeeNumber || null,
-          department: user.employees?.department?.name || user.departmentRelation?.name || null,
-          position: user.employees?.position?.title || user.positionRelation?.title || null,
-          role: currentCompanyMembership?.role || user.role || "AGENT",
-          lastLoginAt: user.lastLoginAt || null,
-        },
-      });
-    }
-
-    // مستخدم مسجل مسبقاً على منصة MaxP خارج نطاق هذه الشركة
-    return res.json({
-      success: true,
-      exists: true,
-      status: "EXISTING_PLATFORM_USER",
-      user: {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone,
-        avatar: user.avatar,
-        role: user.role || "AGENT",
-        lastLoginAt: user.lastLoginAt || null,
-      },
-    });
   } catch (error) {
     console.error("❌ Error looking up user for employee creation:", error);
     res.status(500).json({
@@ -1605,10 +1609,7 @@ async function lookupUser(req, res) {
 async function createEmployee(req, res) {
   try {
     const { companyId } = req.user;
-    console.log(
-      "📥 [HR] Creating employee with data:",
-      JSON.stringify(req.body, null, 2),
-    );
+    console.log("📥 [HR] Creating employee for company", companyId);
     const employee = await employeeService.createEmployee(companyId, req.body);
     console.log(
       "✅ [HR] Employee created successfully:",
@@ -1654,10 +1655,7 @@ async function reactivateEmployee(req, res) {
   try {
     const { companyId } = req.user;
     const { id } = req.params;
-    console.log(
-      `📥 [HR] Reactivating employee ${id} with data:`,
-      JSON.stringify(req.body, null, 2),
-    );
+    console.log(`📥 [HR] Reactivating employee ${id} for company`, companyId);
     const employee = await employeeService.reactivateEmployee(
       companyId,
       id,

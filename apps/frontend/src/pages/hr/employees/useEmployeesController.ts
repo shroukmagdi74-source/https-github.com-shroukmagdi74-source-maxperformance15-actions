@@ -94,6 +94,26 @@ export const useEmployeesController = () => {
               password: "",
             }));
           }
+          if (res.data.status === "INACTIVE_FORMER_EMPLOYEE" && res.data.user) {
+            const u = res.data.user;
+            setFormData((prev) => ({
+              ...prev,
+              firstName: prev.firstName || u.firstName || "",
+              lastName: prev.lastName || u.lastName || "",
+              phone: prev.phone || u.phone || "",
+              role: u.role || prev.role || "AGENT",
+              departmentId: u.departmentId || prev.departmentId,
+              positionId: u.positionId || prev.positionId,
+              hireDate: u.hireDate || prev.hireDate,
+              contractType: u.contractType || prev.contractType,
+              baseSalary: u.baseSalary || prev.baseSalary,
+              enableAutoDeduction: u.enableAutoDeduction ?? prev.enableAutoDeduction,
+              monthlyGraceMinutes: u.monthlyGraceMinutes ?? prev.monthlyGraceMinutes,
+              maxDailyLateMinutes: u.maxDailyLateMinutes ?? prev.maxDailyLateMinutes,
+              lateDeductionRate: u.lateDeductionRate ?? prev.lateDeductionRate,
+              password: "",
+            }));
+          }
         }
       } catch (err) {
         console.error("Lookup user error:", err);

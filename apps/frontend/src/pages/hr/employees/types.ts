@@ -55,6 +55,14 @@ export interface LookupResponse {
     department?: string;
     position?: string;
     hireDate?: string;
+    contractType?: string;
+    baseSalary?: string;
+    departmentId?: string;
+    positionId?: string;
+    enableAutoDeduction?: boolean;
+    monthlyGraceMinutes?: number;
+    maxDailyLateMinutes?: number;
+    lateDeductionRate?: string;
     terminationDate?: string;
     lastLoginAt?: string;
   };
