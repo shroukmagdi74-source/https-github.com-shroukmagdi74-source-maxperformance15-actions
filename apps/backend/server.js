@@ -294,6 +294,7 @@ const agentApprovalRoutes = require("./routes/agentApprovalRoutes");
 const knowledgeQuestionRoutes = require("./routes/knowledgeQuestionRoutes");
 const agentControlRoutes = require("./routes/agentControlRoutes");
 const agentManagerRoutes = require("./routes/agentManagerRoutes");
+const agentAutomationRoutes = require("./routes/agentAutomationRoutes");
 const aiAgentChatRoutes = require("./routes/aiAgentChatRoutes");
 const aiSandboxRoutes = require("./routes/aiSandboxRoutes");
 const capabilityCatalogRoutes = require("./routes/capabilityCatalogRoutes");
@@ -1162,6 +1163,7 @@ app.use("/api/v1/agent", agentControlRoutes);
 app.use("/api/v1/agent/approvals", agentApprovalRoutes);
 app.use("/api/v1/agent-approvals", agentApprovalRoutes);
 app.use("/api/v1/agent-manager", agentManagerRoutes);
+app.use("/api/v1/agent-automation", agentAutomationRoutes);
 app.use("/api/v1/ai/chat", aiAgentChatRoutes);
 app.use("/api/v1/ai/knowledge-questions", knowledgeQuestionRoutes);
 app.use("/api/v1/ai-sandbox", aiSandboxRoutes);
@@ -1498,6 +1500,18 @@ try {
 } catch (error) {
   console.error(
     "❌ [STOCK-TARGET-ALERT-CRON] Failed to start Stock and Target alert service:",
+    error,
+  );
+}
+
+// Start Shipping Follow-Up Cron Service
+try {
+  const shippingFollowUpCron = require("./cron/shippingFollowUpCron");
+  shippingFollowUpCron.start();
+  console.log("✅ [SHIPPING-FOLLOWUP-CRON] Shipping follow-up alert service started");
+} catch (error) {
+  console.error(
+    "❌ [SHIPPING-FOLLOWUP-CRON] Failed to start Shipping follow-up alert service:",
     error,
   );
 }

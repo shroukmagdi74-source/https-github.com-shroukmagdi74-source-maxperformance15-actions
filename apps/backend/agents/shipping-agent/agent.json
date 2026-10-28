@@ -48,7 +48,8 @@
     "order_confirm",
     "customer_info",
     "whatsapp_send",
-    "agent_handoff_to"
+    "agent_handoff_to",
+    "delayed_orders_check"
   ],
   "allowedSkills": [
     "order-support"

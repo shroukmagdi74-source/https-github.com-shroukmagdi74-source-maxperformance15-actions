@@ -134,6 +134,7 @@ READ_TOOL_NAMES: set[str] = (CORE_TOOL_NAMES | ADVANCED_TOOL_NAMES | {
     "delegate_task",
     "support_ticket_link",
     "help_guide",
+    "delayed_orders_check",
 }) - GATED_CORE_TOOL_NAMES
 
 
@@ -218,6 +219,7 @@ DIRECT_WRITE_TOOL_NAMES: set[str] = {
     # order_update_details: routine, non-financial, reversible.
     "shipping_ticket_create",
     "shipping_ticket_reply",
+    "delayed_orders_check",
     "order_target_settings",
     "manage_todo",
 }

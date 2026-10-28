@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Shield, Zap, Wrench, Lock } from "lucide-react";
+import { Shield, Zap, Wrench, Lock, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AgentProfilesTab } from "./types";
 import { type AgentProfileResponse } from "../ai-agent-sandbox/services/sandboxApi";
@@ -45,6 +45,11 @@ export const AgentProfilesTabsBar: React.FC<AgentProfilesTabsBarProps> = ({
       key: "guardrails",
       label: t("agentProfiles.tabs.guardrails", "القواعد والتعلم"),
       icon: <Lock className="size-4" />,
+    },
+    {
+      key: "automation",
+      label: t("agentProfiles.tabs.automation", "التشغيل التلقائي"),
+      icon: <Play className="size-4 text-emerald-500" />,
     },
   ];
 

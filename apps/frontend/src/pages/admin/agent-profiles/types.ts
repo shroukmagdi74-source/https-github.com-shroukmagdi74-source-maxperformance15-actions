@@ -1,7 +1,7 @@
 import tokenManager from "../../../utils/tokenManager";
 import { buildApiUrl } from "../../../utils/urlHelper";
 
-export type AgentProfilesTab = "settings" | "skills" | "tools" | "guardrails";
+export type AgentProfilesTab = "settings" | "skills" | "tools" | "guardrails" | "automation";
 
 export interface AgentItem {
   id: string;

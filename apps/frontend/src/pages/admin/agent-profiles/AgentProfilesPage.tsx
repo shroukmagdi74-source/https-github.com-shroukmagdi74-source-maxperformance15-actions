@@ -7,6 +7,7 @@ import AgentSkillsTab from "./AgentSkillsTab";
 import AgentToolsTab from "./AgentToolsTab";
 import CreateAgentDialog from "./CreateAgentDialog";
 import AgentGuardrailsTab from "./AgentGuardrailsTab";
+import { AgentAutomationTab } from "./AgentAutomationTab";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useAgentProfilesState } from "./useAgentProfilesState";
@@ -261,6 +262,10 @@ export default function AgentProfilesPage() {
                       agentModel={profile.agent.model || "gemini-2.5-flash"}
                       agentProvider="GOOGLE"
                     />
+                  )}
+
+                  {tab === "automation" && (
+                    <AgentAutomationTab agent={selectedAgent} />
                   )}
                 </>
               )}

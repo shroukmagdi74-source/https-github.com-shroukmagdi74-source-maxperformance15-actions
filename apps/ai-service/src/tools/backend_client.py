@@ -611,6 +611,19 @@ class BackendClient:
             headers={"x-company-id": company_id},
         )
 
+    async def get_delayed_orders(
+        self, company_id: str, days: int = 2, status: str | None = None, limit: int = 50
+    ) -> dict[str, Any]:
+        """Fetch delayed orders from backend agent-automation API."""
+        params: dict[str, Any] = {"minDays": days, "limit": limit}
+        if status:
+            params["status"] = status
+        return await self._request(
+            "GET", "/api/v1/agent-automation/shipping/delayed",
+            params=params,
+            headers={"x-company-id": company_id},
+        )
+
     async def get_shipping_tickets(
         self, company_id: str, page: int = 1, per_page: int = 15, status: str = "all"
     ) -> dict[str, Any]:
