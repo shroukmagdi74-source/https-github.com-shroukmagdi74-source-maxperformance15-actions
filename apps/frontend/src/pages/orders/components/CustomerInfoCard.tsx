@@ -30,6 +30,8 @@ const CustomerInfoCard: React.FC<CustomerInfoCardProps> = ({
   governments,
   invoiceSettings,
   customFieldConfig: passedCustomFieldConfig,
+  canEditRating,
+  onCustomerRatingChange,
 }) => {
   const { t } = useTranslation();
   const { config: customFieldConfig } = useOrderCustomFieldsConfig({
@@ -98,7 +100,9 @@ const CustomerInfoCard: React.FC<CustomerInfoCardProps> = ({
                 order.customerHistory?.stats?.totalOrders ??
                 (order as any).customer?.totalOrdersCount
               }
-              interactive={false}
+              interactive={canEditRating ?? true}
+              allowManualEdit={canEditRating ?? true}
+              onRatingChange={onCustomerRatingChange}
               variant="badge"
               size="sm"
             />

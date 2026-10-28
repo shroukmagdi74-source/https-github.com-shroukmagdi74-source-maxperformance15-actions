@@ -300,6 +300,8 @@ export interface CustomerRatingBadgeProps {
   isDuplicate?: boolean;
   orderStatus?: string | null;
   onRatingChange?: (newRating: CustomerRatingLevel) => void;
+  /** يسمح باختيار تصنيف يدوي (يتطلب orderNumber وإلا مايبانش) */
+  allowManualEdit?: boolean;
   className?: string;
   variant?: "dot" | "badge" | "detailed" | "health";
 }
@@ -323,6 +325,7 @@ export const CustomerRatingBadge: React.FC<CustomerRatingBadgeProps> = ({
   isDuplicate = false,
   orderStatus,
   onRatingChange,
+  allowManualEdit = false,
   className = "",
   variant = "badge",
 }) => {
@@ -415,6 +418,7 @@ export const CustomerRatingBadge: React.FC<CustomerRatingBadgeProps> = ({
     e.preventDefault();
     setIsMenuOpen(false);
 
+    if (!orderNumber) return;
     if (newLevel === currentRating && !isRecalculating) return;
 
     const previousRating = currentRating;
@@ -739,6 +743,37 @@ export const CustomerRatingBadge: React.FC<CustomerRatingBadgeProps> = ({
                   {isRecalculating ? "جاري إعادة الاحتساب..." : "إعادة احتساب آلي للتقييم"}
                 </span>
               </button>
+            </div>
+          )}
+
+          {allowManualEdit && orderNumber && (
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                تعديل يدوي للتصنيف:
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {CUSTOMER_RATING_OPTIONS.map((opt) => {
+                  const Icon = opt.icon;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={effectiveRatingLevel === opt.value}
+                      disabled={isUpdating || isRecalculating}
+                      onClick={(e) => handleRatingSelect(e, opt.value)}
+                      className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-60 cursor-pointer ${
+                        effectiveRatingLevel === opt.value
+                          ? opt.badgeClass
+                          : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      <Icon className="w-3 h-3 shrink-0" />
+                      <span>{opt.shortLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

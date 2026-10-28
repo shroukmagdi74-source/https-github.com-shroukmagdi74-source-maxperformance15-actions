@@ -116,18 +116,20 @@ describe("CustomerRatingBadge - 2026 Customer Health Score Standards", () => {
     expect(screen.queryByText("4.7")).not.toBeInTheDocument();
   });
 
-  it("renders interactive badge button showing automated telemetry popover without manual override buttons", () => {
+  it("renders interactive badge with manual override options", () => {
     const handleRatingChange = jest.fn();
 
     render(
       <CustomerRatingBadge
         rating="AVERAGE"
+        orderNumber="ORD-1001"
         deliveryRate={65}
         totalDelivered={3}
         totalAttempts={5}
         variant="badge"
         size="sm"
         interactive={true}
+        allowManualEdit={true}
         onRatingChange={handleRatingChange}
       />
     );
@@ -147,8 +149,31 @@ describe("CustomerRatingBadge - 2026 Customer Health Score Standards", () => {
     expect(screen.getByText("مرتجع")).toBeInTheDocument();
     expect(screen.getByText("الإجمالي")).toBeInTheDocument();
 
-    // ZERO manual override section or buttons
+    expect(screen.getByText("تعديل يدوي للتصنيف:")).toBeInTheDocument();
+    expect(screen.getAllByRole("menuitemradio")).toHaveLength(5);
+  });
+
+  it("does not render manual override options when allowManualEdit is false", () => {
+    render(
+      <CustomerRatingBadge
+        rating="AVERAGE"
+        orderNumber="ORD-1001"
+        deliveryRate={65}
+        totalDelivered={3}
+        totalAttempts={5}
+        variant="badge"
+        size="sm"
+        interactive={true}
+        allowManualEdit={false}
+      />
+    );
+
+    const trigger = screen.getByRole("button", { name: /تقييم العميل/i });
+    fireEvent.click(trigger);
+
+    expect(screen.getByText("تقييم العميل الآلي")).toBeInTheDocument();
     expect(screen.queryByText("تعديل يدوي للتصنيف:")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("menuitemradio")).toHaveLength(0);
   });
 
   it("renders recalculate option when orderNumber is provided", () => {
