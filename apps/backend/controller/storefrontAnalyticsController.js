@@ -81,20 +81,31 @@ async function recordEvent(req, res) {
       });
     }
 
-    const { companySlug, pageKey, sectionType, eventType, sessionId, path } = req.body || {};
+    const { companySlug, companyId, pageKey, sectionType, eventType, sessionId, path, errorMessage, sectionKey } = req.body || {};
 
-    // 2. Validate companySlug
-    if (!companySlug || typeof companySlug !== 'string' || !companySlug.trim()) {
+    const cleanSlug = companySlug && typeof companySlug === 'string' ? companySlug.trim().toLowerCase() : '';
+    const cleanCompanyId = companyId && typeof companyId === 'string' ? companyId.trim() : '';
+
+    // 2. Validate companySlug / companyId
+    if (!cleanSlug && !cleanCompanyId) {
       return res.status(400).json({
         success: false,
         message: 'companySlug is required',
       });
     }
 
-    const cleanSlug = companySlug.trim().toLowerCase();
+    // 3. Validate eventType (includes product & error telemetry PERF-1)
+    const ALLOWED_EVENT_TYPES = [
+      'view',
+      'click',
+      'studio_open',
+      'studio_publish',
+      'studio_template_apply',
+      'studio_ai_open',
+      'studio_error',
+    ];
 
-    // 3. Validate eventType
-    if (eventType !== 'view' && eventType !== 'click') {
+    if (!eventType || !ALLOWED_EVENT_TYPES.includes(eventType)) {
       return res.status(400).json({
         success: false,
         message: "eventType must be 'view' or 'click'",
@@ -111,11 +122,19 @@ async function recordEvent(req, res) {
 
     const prisma = getSharedPrismaClient();
 
-    // 5. Look up company by slug
-    const company = await prisma.company.findUnique({
-      where: { slug: cleanSlug },
-      select: { id: true, isActive: true },
-    });
+    // 5. Look up company by slug or companyId
+    let company = null;
+    if (cleanSlug) {
+      company = await prisma.company.findUnique({
+        where: { slug: cleanSlug },
+        select: { id: true, isActive: true },
+      });
+    } else if (cleanCompanyId) {
+      company = await prisma.company.findUnique({
+        where: { id: cleanCompanyId },
+        select: { id: true, isActive: true },
+      });
+    }
 
     if (!company || !company.isActive) {
       return res.status(404).json({
@@ -125,11 +144,13 @@ async function recordEvent(req, res) {
     }
 
     // 6. Persist event — ZERO IP and ZERO personal data
+    const resolvedSectionType = sectionType || sectionKey || (errorMessage ? String(errorMessage).slice(0, 64) : null);
+
     await prisma.storefrontAnalyticsEvent.create({
       data: {
         companyId: company.id,
         pageKey: pageKey.trim().slice(0, 64),
-        sectionType: sectionType ? String(sectionType).trim().slice(0, 64) : null,
+        sectionType: resolvedSectionType ? String(resolvedSectionType).trim().slice(0, 64) : null,
         eventType,
         sessionId: sessionId ? String(sessionId).trim().slice(0, 64) : null,
         path: path ? String(path).trim().slice(0, 255) : null,

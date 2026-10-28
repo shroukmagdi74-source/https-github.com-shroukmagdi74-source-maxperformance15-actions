@@ -43,6 +43,9 @@ interface StudioPropertyInspectorProps {
   onSave?: () => void;
   companyId?: string;
   activePageKey?: string;
+  sections?: any[];
+  pageConfig?: any;
+  theme?: any;
   classes?: StudioStyleClass[];
   selectedClassId?: string | null;
   assignedClassId?: string | null;
@@ -76,6 +79,9 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
   onSave,
   companyId,
   activePageKey,
+  sections,
+  pageConfig,
+  theme,
   classes,
   selectedClassId,
   assignedClassId,
@@ -684,6 +690,9 @@ export const StudioPropertyInspector: React.FC<StudioPropertyInspectorProps> = (
               <StudioInspectorAnalyticsTab
                 companyId={companyId}
                 activePageKey={activePageKey}
+                sections={sections}
+                pageConfig={pageConfig}
+                theme={theme}
               />
             )}
 

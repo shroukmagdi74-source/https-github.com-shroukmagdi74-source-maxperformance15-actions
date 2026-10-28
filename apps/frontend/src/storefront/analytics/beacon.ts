@@ -9,17 +9,84 @@
 
 import { getApiUrl } from '../../config/environment';
 
+export type StorefrontEventType =
+  | 'view'
+  | 'click'
+  | 'studio_open'
+  | 'studio_publish'
+  | 'studio_template_apply'
+  | 'studio_ai_open'
+  | 'studio_error';
+
 export interface AnalyticsEventPayload {
   companySlug?: string;
+  companyId?: string;
   pageKey: string;
   sectionType?: string | null;
-  eventType: 'view' | 'click';
+  eventType: StorefrontEventType;
   sessionId?: string;
   path?: string;
+  errorMessage?: string;
+  sectionKey?: string;
+  meta?: Record<string, unknown>;
 }
 
 let cachedCompanySlug: string | null = null;
+let cachedCompanyId: string | null = null;
 const sessionViewedSections = new Set<string>();
+
+/**
+ * Persists or updates the active storefront company ID in memory and storage (PERF-1).
+ */
+export const setStorefrontCompanyId = (id: string | null | undefined): void => {
+  if (!id) return;
+  const clean = id.trim();
+  cachedCompanyId = clean;
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      window.sessionStorage.setItem('sf_company_id', clean);
+    } catch {
+      // Ignore storage errors in restricted contexts
+    }
+  }
+};
+
+/**
+ * Resolves companyId from parameter, memory, sessionStorage, or URL query.
+ */
+export const resolveStorefrontCompanyId = (explicitId?: string): string => {
+  if (explicitId && explicitId.trim()) {
+    return explicitId.trim();
+  }
+
+  if (cachedCompanyId) {
+    return cachedCompanyId;
+  }
+
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  try {
+    const fromSession = window.sessionStorage?.getItem('sf_company_id');
+    if (fromSession) {
+      cachedCompanyId = fromSession;
+      return fromSession;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('companyId');
+    if (fromQuery) {
+      const clean = fromQuery.trim();
+      setStorefrontCompanyId(clean);
+      return clean;
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return '';
+};
 
 /**
  * Persists or updates the active storefront company slug in memory and storage.
@@ -120,22 +187,34 @@ export const sendAnalyticsEvent = (payload: AnalyticsEventPayload): boolean => {
   }
 
   const slug = resolveStorefrontCompanySlug(payload.companySlug);
-  if (!slug) {
-    // Cannot attribute event without companySlug
+  const companyId = resolveStorefrontCompanyId(payload.companyId);
+  if (!slug && !companyId) {
+    // Cannot attribute event without companySlug or companyId
     return false;
   }
 
   const base = getApiUrl().replace(/\/$/, '');
   const url = `${base}/storefront-analytics/event`;
 
-  const fullPayload = {
-    companySlug: slug,
+  const fullPayload: Record<string, unknown> = {
+    companySlug: slug || undefined,
+    companyId: companyId || undefined,
     pageKey: payload.pageKey || 'home',
     sectionType: payload.sectionType || null,
     eventType: payload.eventType,
     sessionId: payload.sessionId || getSessionId(),
-    path: payload.path || window.location.pathname || '/',
+    path: payload.path || (typeof window !== 'undefined' ? window.location?.pathname : '/') || '/',
   };
+
+  if (payload.errorMessage) {
+    fullPayload.errorMessage = payload.errorMessage;
+  }
+  if (payload.sectionKey) {
+    fullPayload.sectionKey = payload.sectionKey;
+  }
+  if (payload.meta) {
+    fullPayload.meta = payload.meta;
+  }
 
   const bodyString = JSON.stringify(fullPayload);
 
@@ -168,6 +247,94 @@ export const sendAnalyticsEvent = (payload: AnalyticsEventPayload): boolean => {
   } catch {
     return false;
   }
+};
+
+/**
+ * Tracks studio opening (PERF-1).
+ */
+export const trackStudioOpen = (
+  pageKey: string,
+  options?: { companyId?: string; companySlug?: string; path?: string }
+): boolean => {
+  return sendAnalyticsEvent({
+    companyId: options?.companyId,
+    companySlug: options?.companySlug,
+    pageKey: pageKey || 'home',
+    eventType: 'studio_open',
+    path: options?.path,
+  });
+};
+
+/**
+ * Tracks studio publishing / saving (PERF-1).
+ */
+export const trackStudioPublish = (
+  pageKey: string,
+  options?: { companyId?: string; companySlug?: string; sectionCount?: number; path?: string }
+): boolean => {
+  return sendAnalyticsEvent({
+    companyId: options?.companyId,
+    companySlug: options?.companySlug,
+    pageKey: pageKey || 'home',
+    eventType: 'studio_publish',
+    path: options?.path,
+    meta: options?.sectionCount !== undefined ? { sectionCount: options.sectionCount } : undefined,
+  });
+};
+
+/**
+ * Tracks applying a studio page template or industry preset (PERF-1).
+ */
+export const trackStudioTemplateApply = (
+  pageKey: string,
+  templateId?: string,
+  options?: { companyId?: string; companySlug?: string; path?: string }
+): boolean => {
+  return sendAnalyticsEvent({
+    companyId: options?.companyId,
+    companySlug: options?.companySlug,
+    pageKey: pageKey || 'home',
+    sectionType: templateId || 'template',
+    eventType: 'studio_template_apply',
+    path: options?.path,
+  });
+};
+
+/**
+ * Tracks opening AI assistant / studio AI generator (PERF-1).
+ */
+export const trackStudioAiOpen = (
+  pageKey: string,
+  options?: { companyId?: string; companySlug?: string; path?: string }
+): boolean => {
+  return sendAnalyticsEvent({
+    companyId: options?.companyId,
+    companySlug: options?.companySlug,
+    pageKey: pageKey || 'home',
+    eventType: 'studio_ai_open',
+    path: options?.path,
+  });
+};
+
+/**
+ * Tracks a studio rendering error captured by ErrorBoundary (PERF-1).
+ */
+export const trackStudioError = (
+  pageKey: string,
+  error: { message: string; sectionKey?: string },
+  options?: { companyId?: string; companySlug?: string; path?: string }
+): boolean => {
+  const shortMessage = (error.message || 'Render Error').slice(0, 120);
+  return sendAnalyticsEvent({
+    companyId: options?.companyId,
+    companySlug: options?.companySlug,
+    pageKey: pageKey || 'home',
+    sectionType: error.sectionKey || 'unknown-section',
+    eventType: 'studio_error',
+    errorMessage: shortMessage,
+    sectionKey: error.sectionKey,
+    path: options?.path,
+  });
 };
 
 /**

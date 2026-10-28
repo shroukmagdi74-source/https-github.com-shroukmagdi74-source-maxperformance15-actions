@@ -28,6 +28,13 @@ import { StudioGlobalComponentsPanel } from "./inspector/StudioGlobalComponentsP
 import { StudioCreatePageModal } from "./StudioCreatePageModal";
 import { StudioPageSettingsPanel } from "./StudioPageSettingsPanel";
 import { StudioExportImportModal } from "./StudioExportImportModal";
+import { StudioErrorBoundary } from "./StudioErrorBoundary";
+import {
+  trackStudioOpen,
+  trackStudioPublish,
+  trackStudioTemplateApply,
+  trackStudioAiOpen,
+} from "../analytics/beacon";
 import { useStudioTouchDrag } from "./hooks/useStudioTouchDrag";
 import type { StorefrontPageSEOConfig, StorefrontPageStatus } from "../types/theme.types";
 import { buildPresetPage, type IndustryPreset } from "../presets/industryPresets";
@@ -374,6 +381,13 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     return () => {
       isMounted = false;
     };
+  }, [companyId]);
+
+  // Product Metrics: Track studio open once on mount (PERF-1)
+  useEffect(() => {
+    if (companyId) {
+      trackStudioOpen(activePageKey || "home", { companyId });
+    }
   }, [companyId]);
 
   // Library Drag-and-Drop state
@@ -999,9 +1013,12 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
       handleDesignTokensChange(nextTokens);
       onSave();
       setSelectedSectionKey("");
+      if (companyId) {
+        trackStudioTemplateApply(targetPageKey, preset.id, { companyId });
+      }
       toast.success(`تم تطبيق قالب «${preset.label}» على صفحة ${targetPageKey} بنجاح`);
     },
-    [activePageKey, currentDesignTokens, handleDesignTokensChange, onSave, setSelectedSectionKey]
+    [activePageKey, currentDesignTokens, handleDesignTokensChange, onSave, setSelectedSectionKey, companyId]
   );
 
   const handleApplyTheme = useCallback(
@@ -1012,6 +1029,16 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     },
     [handleDesignTokensChange, onSave]
   );
+
+  const handlePublishWithTracking = useCallback(async () => {
+    if (companyId) {
+      trackStudioPublish(activePageKey || "home", {
+        companyId,
+        sectionCount: activeSections?.length,
+      });
+    }
+    await handlePublish();
+  }, [companyId, activePageKey, activeSections?.length, handlePublish]);
 
 
   const pageSectionCounts = useMemo(() => {
@@ -1201,7 +1228,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         onRedo={redo}
         onDiscard={onDiscard}
         onSave={onSave}
-        onPublish={handlePublish}
+        onPublish={handlePublishWithTracking}
         onOpenExportImport={() => setIsExportImportModalOpen(true)}
         onOpenPreview={onOpenPreview}
         isHistoryOpen={isHistoryOpen}
@@ -1238,6 +1265,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                 return;
               }
               if (tab === "ai") {
+                if (companyId) {
+                  trackStudioAiOpen(activePageKey || "home", { companyId });
+                }
                 if (isInspectorOpen && inspectorTab === "interactions") {
                   setIsInspectorOpen(false);
                 } else {
@@ -1633,7 +1663,13 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                               setDraggingLibraryItem(null);
                             }}
                           >
-                            {element}
+                            <StudioErrorBoundary
+                              sectionKey={stableKey}
+                              companyId={companyId}
+                              pageKey={activePageKey}
+                            >
+                              {element}
+                            </StudioErrorBoundary>
                           </StudioSortableSection>
 
                           {/* Drop indicator after last section */}
@@ -1717,6 +1753,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                   onSave={onSave}
                   companyId={companyId}
                   activePageKey={activePageKey}
+                  sections={activeSections}
+                  pageConfig={activePageConfig}
+                  theme={currentDesignTokens}
                 />
               </div>
             </>
