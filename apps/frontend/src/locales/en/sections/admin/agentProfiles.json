@@ -37,6 +37,7 @@
     "skillsJson": "Skills (JSON)",
     "settings": "Settings",
     "guardrails": "Guardrails",
+    "automation": "Automation",
     "advanced": "Advanced",
     "advancedFile": "Advanced file"
   },

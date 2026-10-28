@@ -110,6 +110,32 @@ class ShipmentTrackInput(BaseModel):
         return data
 
 
+class DelayedOrdersCheckInput(BaseModel):
+    days_threshold: int = Field(
+        default=2,
+        description="Minimum days an order has remained in the current status (default: 2)",
+    )
+    status: str | None = Field(
+        default=None,
+        description="Optional status to filter delayed orders by (e.g. 'SHIPPED', 'OUT_FOR_DELIVERY', 'PENDING')",
+    )
+    limit: int = Field(
+        default=50,
+        description="Maximum number of delayed orders to inspect (1-100, default: 50)",
+    )
+    company_id: str | None = Field(default=None, description="Tenant ID (auto-injected)")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _alias(cls, data):  # noqa: N805
+        if isinstance(data, dict):
+            if "days" in data and "days_threshold" not in data:
+                data["days_threshold"] = data["days"]
+            if "min_days" in data and "days_threshold" not in data:
+                data["days_threshold"] = data["min_days"]
+        return data
+
+
 class ShippingCompaniesListInput(BaseModel):
     company_id: str | None = Field(default=None, description="Tenant ID (auto-injected)")
 
@@ -870,6 +896,49 @@ shipping_company_toggle_tool = FunctionTool(
     format_result=_format_shipping_company_toggle,
 )
 
+async def delayed_orders_check(input_data: DelayedOrdersCheckInput) -> dict[str, Any]:
+    """Fetch delayed orders requiring follow-up from backend automation API."""
+    company_id = input_data.company_id or ""
+    if not company_id:
+        return {"success": False, "error": "Missing company_id"}
+
+    from src.tools.backend_client import get_backend_client
+
+    client = get_backend_client()
+    try:
+        res = await client.get_delayed_orders(
+            company_id=company_id,
+            days=input_data.days_threshold,
+            status=input_data.status,
+            limit=input_data.limit,
+        )
+        return res
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def _format_delayed_orders_check(result: dict[str, Any]) -> str:
+    if not result.get("success", False):
+        return f"فشل فحص الطلبات المتأخرة: {result.get('error', 'خطأ غير معروف')}"
+    items = result.get("items", [])
+    if not items:
+        return "لا توجد طلبات متأخرة حالياً مطابقة لمعايير البحث."
+    lines = [f"تم العثور على {len(items)} طلب متأخر:"]
+    for it in items:
+        captain = f" | المندوب: {it['turboCaptainName']} ({it.get('turboCaptainPhone', '')})" if it.get("turboCaptainName") else ""
+        reason = f" | سبب التأخير: {it['turboDelayReason']}" if it.get("turboDelayReason") else ""
+        lines.append(f"• طلب #{it.get('orderNumber')} (حالة: {it.get('status')}) — متأخر منذ {it.get('daysInStatus')} يوم{captain}{reason}")
+    return "\n".join(lines)
+
+
+delayed_orders_check_tool = FunctionTool(
+    name="delayed_orders_check",
+    description="Fetch and inspect delayed orders and shipments waiting for follow-up with shipping carriers. Use to find orders stuck with couriers or exceeding delivery duration.",
+    func=delayed_orders_check,
+    input_model=DelayedOrdersCheckInput,
+    format_result=_format_delayed_orders_check,
+)
+
 __all_tools__ = [
     shipping_rates_tool,
     shipping_zone_set_tool,
@@ -886,5 +955,6 @@ __all_tools__ = [
     shipping_ticket_get_tool,
     shipping_ticket_create_tool,
     shipping_ticket_reply_tool,
+    delayed_orders_check_tool,
 ]
 

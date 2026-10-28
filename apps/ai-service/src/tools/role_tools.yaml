@@ -185,6 +185,7 @@ roles:
     - customer_info
     - whatsapp_send
     - agent_handoff_to
+    - delayed_orders_check
 
   VOICE_ORDER_CONFIRMATION:
     - order_lookup

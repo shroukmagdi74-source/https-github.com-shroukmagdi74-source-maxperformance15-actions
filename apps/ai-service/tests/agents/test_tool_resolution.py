@@ -88,3 +88,14 @@ class TestToolResolution:
             if tool.name == "order_create_confirmed":
                 return
         assert False, "order_create_confirmed not found"
+
+    def test_shipping_role_resolves_delayed_orders_check(self):
+        """Shipping agent role must resolve delayed_orders_check tool."""
+        agent = _make_agent(
+            role="SHIPPING",
+            allowed_tools=[],
+            allowed_skills=[],
+        )
+        tools = agent._resolve_tools()
+        names = {t.name for t in tools}
+        assert "delayed_orders_check" in names
