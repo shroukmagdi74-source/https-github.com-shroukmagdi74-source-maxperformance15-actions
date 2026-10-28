@@ -4561,7 +4561,7 @@ router.get('/simple', verifyToken.authenticateToken, async (req, res) => {
         id: order.orderNumber,
         orderNumber: order.orderNumber,
         customerId: order.customerId || order.customer?.id || null,
-        customerRating: healthStats.customerRating || order.customer?.customerRating || 'UNKNOWN',
+        customerRating: order.customer?.customerRating || healthStats.customerRating || 'UNKNOWN',
         customerSuccessScore: healthStats.healthScore,
         customerDeliveryRate: healthStats.deliveryRate,
         healthScore: healthStats.healthScore,
@@ -4578,7 +4578,7 @@ router.get('/simple', verifyToken.authenticateToken, async (req, res) => {
           lastName: order.customer.lastName,
           phone: order.customer.phone,
           email: order.customer.email,
-          customerRating: healthStats.customerRating || order.customer.customerRating || 'UNKNOWN',
+          customerRating: order.customer.customerRating || healthStats.customerRating || 'UNKNOWN',
           healthScore: healthStats.healthScore,
           deliveryRate: healthStats.deliveryRate ?? order.customer.deliveryRate ?? null,
           totalDelivered: healthStats.totalDelivered,
@@ -4788,7 +4788,7 @@ router.get('/simple', verifyToken.authenticateToken, async (req, res) => {
         id: order.orderNumber,
         orderNumber: order.orderNumber,
         customerId: matchedCust?.id || null,
-        customerRating: healthStats.customerRating || matchedCust?.customerRating || 'UNKNOWN',
+        customerRating: matchedCust?.customerRating || healthStats.customerRating || 'UNKNOWN',
         customerSuccessScore: healthStats.healthScore,
         customerDeliveryRate: healthStats.deliveryRate,
         healthScore: healthStats.healthScore,
@@ -4805,7 +4805,7 @@ router.get('/simple', verifyToken.authenticateToken, async (req, res) => {
           lastName: '',
           phone: order.guestPhone,
           email: order.guestEmail,
-          customerRating: healthStats.customerRating || matchedCust.customerRating || 'UNKNOWN',
+          customerRating: matchedCust.customerRating || healthStats.customerRating || 'UNKNOWN',
           healthScore: healthStats.healthScore,
           deliveryRate: healthStats.deliveryRate ?? matchedCust.deliveryRate ?? null,
           totalDelivered: healthStats.totalDelivered,
@@ -7267,6 +7267,7 @@ router.get('/simple/:orderNumber', verifyToken.authenticateToken, async (req, re
     };
 
     let formattedOrder;
+    let guestCustomer = null;
 
     if (isGuestOrder && guestOrder) {
       const guestShippingZones =
@@ -7326,7 +7327,7 @@ router.get('/simple/:orderNumber', verifyToken.authenticateToken, async (req, re
         variantMap = new Map(variants.map(v => [v.id, v]));
       }
 
-      let guestCustomer = null;
+      guestCustomer = null;
       if (guestOrder.guestPhone) {
         try {
           const { findCustomerByPhone } = require('../utils/customerIdentity');
@@ -8096,7 +8097,8 @@ router.get('/simple/:orderNumber', verifyToken.authenticateToken, async (req, re
           : `عميل جديد (${Math.round(deliveryRate)}% استلام) — لم يكتمل الحد الأدنى للتقييم (3 طلبات)`;
       }
 
-      formattedOrder.customerRating = ratingTier;
+      const storedCustomerRating = order?.customer?.customerRating || guestCustomer?.customerRating;
+      formattedOrder.customerRating = storedCustomerRating || ratingTier;
       formattedOrder.customerSuccessScore = score;
       formattedOrder.customerDeliveryRate = deliveryRate;
       formattedOrder.healthScore = score;
@@ -8109,7 +8111,7 @@ router.get('/simple/:orderNumber', verifyToken.authenticateToken, async (req, re
       formattedOrder.totalOrdersCount = total;
 
       if (formattedOrder.customer) {
-        formattedOrder.customer.customerRating = ratingTier;
+        formattedOrder.customer.customerRating = storedCustomerRating || ratingTier;
         formattedOrder.customer.healthScore = score;
         formattedOrder.customer.deliveryRate = deliveryRate;
         formattedOrder.customer.totalDelivered = Math.floor(delivered);
