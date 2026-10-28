@@ -422,6 +422,7 @@ const buildStorefrontSeoMetadata = ({
   // Clean canonical URL without tracking params
   let canonicalUrl = cleanCanonicalUrl(currentUrl);
   let title = storeName;
+  let entityName = null;
   let description = fallbackDescription;
   let image = defaultImage;
   let type = "website";
@@ -447,6 +448,7 @@ const buildStorefrontSeoMetadata = ({
   if (course) {
     const courseTitle = trimToNull(course.title) || storeName;
     title = courseTitle;
+    entityName = courseTitle;
     description = trimToNull(course.description) || fallbackDescription;
     image = resolveAbsoluteUrl(course.image, currentUrl) || defaultImage;
     type = course.type || "product";
@@ -478,6 +480,7 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      entityName,
       description,
       image,
       faviconUrl,
@@ -507,6 +510,7 @@ const buildStorefrontSeoMetadata = ({
     title = trimToNull(landingSeo.title)
       ? landingTitle
       : applyTitleTemplate(titleTemplate, landingTitle, storeName);
+    entityName = trimToNull(landing.title) || landingTitle;
     description =
       trimToNull(landingSeo.description) ||
       trimToNull(stripHtml(landing.productDescription)) ||
@@ -546,6 +550,7 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      entityName,
       description,
       image,
       faviconUrl,
@@ -574,6 +579,7 @@ const buildStorefrontSeoMetadata = ({
       (routeContext.productKey ? titleizeSegment(routeContext.productKey) : null) ||
       storeName;
     const productTitle = candidateTitle;
+    entityName = trimToNull(productWithSeoOverrides.name) || candidateTitle;
     title = trimToNull(productWithSeoOverrides.metaTitle)
       ? productTitle
       : applyTitleTemplate(titleTemplate, productTitle, storeName);
@@ -679,6 +685,7 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      entityName,
       description,
       image,
       faviconUrl,
@@ -704,6 +711,7 @@ const buildStorefrontSeoMetadata = ({
       trimToNull(category.name) ||
       (routeContext.categorySlug ? titleizeSegment(routeContext.categorySlug) : null) ||
       storeName;
+    entityName = trimToNull(category.name) || categoryTitle;
     title = trimToNull(category.metaTitle)
       ? categoryTitle
       : applyTitleTemplate(titleTemplate, categoryTitle, storeName);
@@ -737,6 +745,7 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      entityName,
       description,
       image,
       faviconUrl,
@@ -757,6 +766,7 @@ const buildStorefrontSeoMetadata = ({
       trimToNull(article.seoTitle) ||
       trimToNull(article.title) ||
       storeName;
+    entityName = trimToNull(article.title) || articleTitle;
     title = trimToNull(article.seoTitle)
       ? articleTitle
       : applyTitleTemplate(titleTemplate, articleTitle, storeName);
@@ -807,6 +817,7 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      entityName,
       description,
       image,
       faviconUrl,
@@ -834,6 +845,8 @@ const buildStorefrontSeoMetadata = ({
     const pageTitle =
       resolvePageNameFromSegment(rawTitle) ||
       rawTitle;
+
+    entityName = trimToNull(storePage.title) || pageTitle;
 
     title = trimToNull(storePage.metaTitle)
       ? storePage.metaTitle
@@ -918,6 +931,7 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      entityName,
       description,
       image,
       faviconUrl,
@@ -941,6 +955,7 @@ const buildStorefrontSeoMetadata = ({
     if (routeContext.pageSegment === "product" || routeContext.pageSegment === "products") {
       const slugTitle = routeContext.productKey ? titleizeSegment(routeContext.productKey) : null;
       pageTitle = slugTitle || "المنتجات";
+      entityName = slugTitle || pageTitle;
       pageDescription = slugTitle
         ? (storeDesc
             ? `تفاصيل ومواصفات ${slugTitle} من ${storeName}. ${storeDesc}`
@@ -956,6 +971,7 @@ const buildStorefrontSeoMetadata = ({
     } else if (routeContext.pageSegment === "collections" || routeContext.pageSegment === "category") {
       const slugTitle = routeContext.categorySlug ? titleizeSegment(routeContext.categorySlug) : null;
       pageTitle = slugTitle || "التصنيفات";
+      entityName = slugTitle || pageTitle;
       pageDescription = slugTitle
         ? (storeDesc
             ? `تصفح منتجات قسم ${slugTitle} من ${storeName}. ${storeDesc}`
@@ -998,6 +1014,7 @@ const buildStorefrontSeoMetadata = ({
 
   return {
     title,
+    entityName,
     description,
     image,
     faviconUrl,
@@ -1026,7 +1043,7 @@ const injectStorefrontSeoTags = (html, metadata) => {
   );
 
   nextHtml = setMetaTag(nextHtml, "name", "description", metadata.description);
-  nextHtml = setMetaTag(nextHtml, "property", "og:title", metadata.title);
+  nextHtml = setMetaTag(nextHtml, "property", "og:title", metadata.entityName || metadata.title);
   nextHtml = setMetaTag(nextHtml, "property", "og:description", metadata.description);
   nextHtml = setMetaTag(nextHtml, "property", "og:type", metadata.type || "website");
   nextHtml = setMetaTag(nextHtml, "property", "og:url", metadata.url);

@@ -45,6 +45,7 @@ model CompanyApp {
   id            String         @id @default(cuid())
   companyId     String
   appId              String
+  customName    String?
   activePricingModel PricingModel @default(SUBSCRIPTION)
   status             String       @default("ACTIVE")
   trialEndsAt   DateTime?

@@ -159,17 +159,214 @@ const hasPermissionAccessForSection = (user: SidebarUser | undefined, sectionId:
     return true;
 };
 
+const LOCKED_SIDEBAR_KEYS = new Set([
+    'dashboard',
+    'main',
+    'settings',
+    '/company-dashboard',
+    '/settings',
+]);
+
+interface SavedSidebarCustomItem {
+    key: string;
+    order: number;
+    visible: boolean;
+    labelAr?: string;
+    labelEn?: string;
+}
+
 const applySidebarOverrides = (
     sections: SidebarSection[],
-    managementData: SidebarManagementData | undefined,
+    managementData: SidebarManagementData | undefined | any,
     userRole: string | undefined | null,
     userSettings?: { enabled: boolean; sections: Record<string, SidebarSectionSettings> } | undefined,
     user?: SidebarUser | undefined,
+    isEn?: boolean,
 ): SidebarSection[] => {
-    const dbSections = managementData?.sections;
-    const userSections = userSettings?.enabled ? userSettings.sections : undefined;
+    let savedItemsList: SavedSidebarCustomItem[] | null = null;
+    const labelsMap = new Map<string, string>();
+    const appCustomNamesMap = new Map<string, string>();
+
+    if (Array.isArray(managementData)) {
+        savedItemsList = managementData as SavedSidebarCustomItem[];
+    } else if (managementData && typeof managementData === 'object') {
+        if (Array.isArray((managementData as any).items)) {
+            savedItemsList = (managementData as any).items;
+        } else if ((managementData as any).items && typeof (managementData as any).items === 'object') {
+            savedItemsList = Object.entries((managementData as any).items).map(([k, v]: [string, any]) => ({
+                key: k,
+                order: typeof v?.order === 'number' ? v.order : 9999,
+                visible: v?.visible !== false,
+                labelAr: v?.labelAr || v?.label,
+                labelEn: v?.labelEn || v?.label,
+            }));
+        } else if (Array.isArray((managementData as any).settings)) {
+            savedItemsList = (managementData as any).settings;
+        } else if (Array.isArray((managementData as any).settings?.items)) {
+            savedItemsList = (managementData as any).settings.items;
+        }
+
+        if ((managementData as any).labels && typeof (managementData as any).labels === 'object') {
+            for (const [k, v] of Object.entries((managementData as any).labels)) {
+                if (typeof v === 'string') labelsMap.set(k.trim().toLowerCase(), v.trim());
+            }
+        }
+
+        if ((managementData as any).apps && typeof (managementData as any).apps === 'object') {
+            for (const [k, v] of Object.entries((managementData as any).apps)) {
+                const cName = (v as any)?.customName || (v as any)?.name;
+                if (cName) appCustomNamesMap.set(k.trim().toLowerCase(), String(cName).trim());
+            }
+        }
+    }
+
+    // Also look up app customName from user company apps
+    const userCompanyApps = (user?.company as any)?.companyApps || (user?.company as any)?.apps || (user as any)?.installedApps || [];
+    if (Array.isArray(userCompanyApps)) {
+        userCompanyApps.forEach((ca: any) => {
+            if (ca && ca.customName) {
+                const cName = String(ca.customName).trim();
+                if (ca.appId) appCustomNamesMap.set(String(ca.appId).toLowerCase(), cName);
+                if (ca.app?.slug) appCustomNamesMap.set(String(ca.app.slug).toLowerCase(), cName);
+                if (ca.slug) appCustomNamesMap.set(String(ca.slug).toLowerCase(), cName);
+                if (ca.id) appCustomNamesMap.set(String(ca.id).toLowerCase(), cName);
+            }
+        });
+    }
 
     const permissionFilteredSections = sections.filter(section => hasPermissionAccessForSection(user, section.id));
+
+    // Priority 1: Saved sidebar customization items (task 83c205dc)
+    if ((savedItemsList && savedItemsList.length > 0) || labelsMap.size > 0 || appCustomNamesMap.size > 0) {
+        const entryMap = new Map<string, SavedSidebarCustomItem>();
+        if (savedItemsList) {
+            savedItemsList.forEach((entry, idx) => {
+                if (!entry || typeof entry.key !== 'string') return;
+                const normalized = entry.key.trim().toLowerCase();
+                const itemEntry = { ...entry, order: typeof entry.order === 'number' ? entry.order : idx };
+                entryMap.set(normalized, itemEntry);
+                if (normalized.startsWith('/')) {
+                    entryMap.set(normalized.replace(/^\//, ''), itemEntry);
+                } else {
+                    entryMap.set(`/${normalized}`, itemEntry);
+                }
+            });
+        }
+
+        // Common key aliases
+        if (entryMap.has('dashboard') && !entryMap.has('main')) {
+            entryMap.set('main', entryMap.get('dashboard')!);
+        }
+        if (entryMap.has('main') && !entryMap.has('dashboard')) {
+            entryMap.set('dashboard', entryMap.get('main')!);
+        }
+        if (entryMap.has('storefront') && !entryMap.has('storefront-design')) {
+            entryMap.set('storefront-design', entryMap.get('storefront')!);
+        }
+        if (entryMap.has('storefront-design') && !entryMap.has('storefront')) {
+            entryMap.set('storefront', entryMap.get('storefront-design')!);
+        }
+        if (entryMap.has('inbox') && !entryMap.has('unified-inbox-section')) {
+            entryMap.set('unified-inbox-section', entryMap.get('inbox')!);
+        }
+
+        const isSuperOrAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER'].includes(user?.role || '');
+        const userPerms = user?.permissions || [];
+
+        return permissionFilteredSections
+            .map((section, secIdx) => {
+                const sectionKey = section.id.toLowerCase();
+                const savedSec = entryMap.get(sectionKey);
+                let customTitle = section.title;
+                let sectionHidden = section.hidden === true;
+                const sectionOrder = savedSec !== undefined ? savedSec.order : 9999 + secIdx;
+
+                // 1. Check direct label or app customName
+                const sectionSlugs = resolveSectionAppSlugs(section.id);
+                for (const slug of sectionSlugs) {
+                    if (appCustomNamesMap.has(slug.toLowerCase())) {
+                        customTitle = appCustomNamesMap.get(slug.toLowerCase())!;
+                        break;
+                    }
+                }
+                if (labelsMap.has(sectionKey)) {
+                    customTitle = labelsMap.get(sectionKey)!;
+                }
+
+                if (savedSec) {
+                    const customLabel = isEn
+                        ? (savedSec.labelEn || savedSec.labelAr)
+                        : (savedSec.labelAr || savedSec.labelEn);
+                    if (customLabel) {
+                        customTitle = customLabel;
+                    }
+                    if (savedSec.visible === false && !LOCKED_SIDEBAR_KEYS.has(sectionKey)) {
+                        sectionHidden = true;
+                    }
+                }
+
+                const updatedItems = section.items
+                    .map((item, itemIdx) => {
+                        const itemRoleAccess = hasRoleAccess(user?.role, item.requiredRoles);
+                        const itemPermissionAccess = isSuperOrAdmin || !item.requiredPermissions || item.requiredPermissions.length === 0 ||
+                            userPerms.some(p => item.requiredPermissions!.includes(p));
+                        const itemAccess = itemRoleAccess && itemPermissionAccess;
+
+                        const itemKey = (item.itemId || getItemId(item) || item.to.replace(/^\//, '')).toLowerCase();
+                        const savedItem = entryMap.get(itemKey) || entryMap.get(item.to.toLowerCase());
+
+                        let customItemLabel = item.label;
+                        // Security first: if no permission/role access, item is strictly hidden
+                        let itemHidden = !itemAccess || item.hidden === true;
+                        const itemOrder = savedItem !== undefined ? savedItem.order : 9999 + itemIdx;
+
+                        if (appCustomNamesMap.has(itemKey)) {
+                            customItemLabel = appCustomNamesMap.get(itemKey)!;
+                        }
+                        if (labelsMap.has(itemKey)) {
+                            customItemLabel = labelsMap.get(itemKey)!;
+                        }
+
+                        if (savedItem) {
+                            const customLabel = isEn
+                                ? (savedItem.labelEn || savedItem.labelAr)
+                                : (savedItem.labelAr || savedItem.labelEn);
+                            if (customLabel) {
+                                customItemLabel = customLabel;
+                            }
+                            const isLocked = LOCKED_SIDEBAR_KEYS.has(itemKey) || LOCKED_SIDEBAR_KEYS.has(item.to.toLowerCase());
+                            if (savedItem.visible === false && !isLocked) {
+                                itemHidden = true;
+                            }
+                        }
+
+                        // Security guarantee: never unhide if access is denied
+                        if (!itemAccess) {
+                            itemHidden = true;
+                        }
+
+                        return {
+                            ...item,
+                            label: customItemLabel,
+                            hidden: itemHidden,
+                            _order: itemOrder,
+                        };
+                    })
+                    .sort((a: any, b: any) => (a._order ?? 0) - (b._order ?? 0));
+
+                return {
+                    ...section,
+                    title: customTitle,
+                    hidden: sectionHidden,
+                    items: updatedItems,
+                    _order: sectionOrder,
+                };
+            })
+            .sort((a: any, b: any) => (a._order ?? 0) - (b._order ?? 0));
+    }
+
+    const dbSections = (managementData as SidebarManagementData)?.sections;
+    const userSections = userSettings?.enabled ? userSettings.sections : undefined;
 
     if ((!dbSections || Object.keys(dbSections).length === 0) && (!userSections || Object.keys(userSections).length === 0)) {
         return permissionFilteredSections.map(section => ({
@@ -1752,7 +1949,7 @@ export const getSidebarConfig = (
     ];
 
     // Apply dynamic sidebar management overrides (from DB settings + user settings)
-    let result = applySidebarOverrides(sidebarConfig, sidebarManagementData, user?.role, userSidebarSettings, user);
+    let result = applySidebarOverrides(sidebarConfig, sidebarManagementData, user?.role, userSidebarSettings, user, isEn);
 
     // Strict per-user app assignment: when assignedApps is configured (non-empty),
     // only the sections belonging to those apps remain.

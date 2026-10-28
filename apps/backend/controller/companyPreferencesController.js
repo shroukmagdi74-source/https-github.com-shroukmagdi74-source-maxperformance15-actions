@@ -21,6 +21,17 @@ const getSidebarPreferences = async (req, res) => {
       });
     }
 
+    const userRole = req.user?.role ? String(req.user.role).toUpperCase() : null;
+    const userPerms = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
+    if (userRole && !['OWNER', 'COMPANY_ADMIN', 'SUPER_ADMIN'].includes(userRole) && !userPerms.includes('settings.manage')) {
+      return res.status(403).json({
+        success: false,
+        message: 'غير مصرح لك بتعديل إعدادات القائمة الجانبية. هذه العملية مخصصة للمالك والمسؤولين فقط',
+        code: 'FORBIDDEN',
+        error: 'غير مصرح لك بتعديل تفضيلات القائمة الجانبية'
+      });
+    }
+
     const prisma = sharedDatabase.getSharedPrismaClient();
     const company = await prisma.company.findUnique({
       where: { id: companyId },
@@ -59,6 +70,17 @@ const updateSidebarPreferences = async (req, res) => {
       return res.status(401).json({
         success: false,
         error: 'مستخدم غير مصرح به أو لا ينتمي لشركة'
+      });
+    }
+
+    const userRole = req.user?.role ? String(req.user.role).toUpperCase() : null;
+    const userPerms = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
+    if (userRole && !['OWNER', 'COMPANY_ADMIN', 'SUPER_ADMIN'].includes(userRole) && !userPerms.includes('settings.manage')) {
+      return res.status(403).json({
+        success: false,
+        message: 'غير مصرح لك بتعديل إعدادات القائمة الجانبية. هذه العملية مخصصة للمالك والمسؤولين فقط',
+        code: 'FORBIDDEN',
+        error: 'غير مصرح لك بتعديل تفضيلات القائمة الجانبية'
       });
     }
 

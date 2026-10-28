@@ -52,11 +52,22 @@ export interface SidebarSectionSettings {
   items: Record<string, SidebarItemSettings>;
 }
 
-export interface SidebarManagementData {
-  sections: Record<string, SidebarSectionSettings>;
-  layout?: string;
-  updatedAt?: string;
+export interface SidebarCustomItem {
+  key: string;
+  order: number;
+  visible: boolean;
+  labelAr?: string;
+  labelEn?: string;
 }
+
+export type SidebarManagementData =
+  | {
+      sections?: Record<string, SidebarSectionSettings>;
+      items?: SidebarCustomItem[];
+      layout?: string;
+      updatedAt?: string;
+    }
+  | SidebarCustomItem[];
 
 // Per-user sidebar settings (stored in localStorage, optional overlay on company settings)
 export interface UserSidebarSettings {

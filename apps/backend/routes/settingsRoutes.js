@@ -433,12 +433,43 @@ router.get('/sidebar', verifyToken.authenticateToken, async (req, res) => {
 
     const sidebarSettings = parsedSettings.sidebarSettings || {};
 
+    let appsMap = {};
+    try {
+      const installedApps = await getSharedPrismaClient().companyApp.findMany({
+        where: {
+          companyId,
+          status: { in: ['ACTIVE', 'TRIAL', 'active', 'trial'] }
+        },
+        include: {
+          app: {
+            select: { id: true, slug: true, name: true, category: true, icon: true, logo: true }
+          }
+        }
+      });
+
+      installedApps.forEach((ca) => {
+        const appKey = ca.app?.slug || ca.appId;
+        appsMap[appKey] = {
+          id: ca.id,
+          appId: ca.appId,
+          slug: ca.app?.slug,
+          name: ca.app?.name,
+          customName: ca.customName || null
+        };
+      });
+    } catch (appsErr) {
+      console.warn('⚠️ [SIDEBAR-SETTINGS] Could not fetch installed apps:', appsErr.message);
+    }
+
     res.json({
       success: true,
       data: {
         layout: company.sidebarLayout || 'three-tier',
-        settings: sidebarSettings
-      }
+        settings: sidebarSettings,
+        apps: appsMap
+      },
+      settings: sidebarSettings,
+      apps: appsMap
     });
   } catch (error) {
     console.error('❌ [SIDEBAR-SETTINGS] Error fetching:', error);
@@ -453,6 +484,16 @@ router.get('/sidebar', verifyToken.authenticateToken, async (req, res) => {
 // Update sidebar settings
 router.put('/sidebar', verifyToken.authenticateToken, async (req, res) => {
   try {
+    const userRole = String(req.user?.role || '').toUpperCase();
+    const userPerms = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
+    if (!['OWNER', 'COMPANY_ADMIN', 'SUPER_ADMIN'].includes(userRole) && !userPerms.includes('settings.manage')) {
+      return res.status(403).json({
+        success: false,
+        message: 'غير مصرح لك بتعديل إعدادات القائمة الجانبية. هذه العملية مخصصة للمالك والمسؤولين فقط',
+        code: 'FORBIDDEN'
+      });
+    }
+
     const companyId = req.user?.companyId || req.user?.userCompanies?.[0]?.companyId;
     if (!companyId) {
       return res.status(403).json({
@@ -462,18 +503,169 @@ router.put('/sidebar', verifyToken.authenticateToken, async (req, res) => {
       });
     }
 
-    const { settings } = req.body;
-    if (!settings || typeof settings !== 'object') {
+    const prisma = getSharedPrismaClient();
+
+    // 1. Handle apps customName if provided: apps: { [appId]: { customName } }
+    if (req.body && typeof req.body === 'object' && req.body.apps && typeof req.body.apps === 'object') {
+      for (const [appKey, appData] of Object.entries(req.body.apps)) {
+        if (!appData || typeof appData !== 'object') continue;
+        if (appData.customName !== undefined && appData.customName !== null) {
+          const rawName = String(appData.customName);
+          const sanitizedName = rawName.replace(/<[^>]*>?/gm, '').trim();
+          if (sanitizedName.length > 0) {
+            if (sanitizedName.length < 2 || sanitizedName.length > 24) {
+              return res.status(400).json({
+                success: false,
+                message: 'الاسم المخصص للتطبيق يجب أن يكون بين 2 و 24 حرفاً',
+                code: 'INVALID_APP_CUSTOM_NAME'
+              });
+            }
+          }
+          await prisma.companyApp.updateMany({
+            where: {
+              companyId,
+              OR: [
+                { id: appKey },
+                { appId: appKey },
+                { app: { slug: appKey } }
+              ]
+            },
+            data: {
+              customName: sanitizedName.length > 0 ? sanitizedName : null
+            }
+          });
+        }
+      }
+    }
+
+    let rawItems = null;
+    if (Array.isArray(req.body)) {
+      rawItems = req.body;
+    } else if (req.body && typeof req.body === 'object') {
+      if (Array.isArray(req.body.items)) {
+        rawItems = req.body.items;
+      } else if (req.body.items && typeof req.body.items === 'object') {
+        rawItems = Object.entries(req.body.items).map(([key, item]) => ({
+          key,
+          ...(item || {})
+        }));
+      } else if (Array.isArray(req.body.settings)) {
+        rawItems = req.body.settings;
+      } else if (req.body.settings && typeof req.body.settings === 'object' && Array.isArray(req.body.settings.items)) {
+        rawItems = req.body.settings.items;
+      } else if (req.body.sections && typeof req.body.sections === 'object') {
+        rawItems = Object.entries(req.body.sections).map(([key, item]) => ({
+          key,
+          ...(item || {})
+        }));
+      } else if (req.body.apps && Object.keys(req.body).length === 1) {
+        return res.json({
+          success: true,
+          message: 'تم حفظ أسماء التطبيقات المخصصة بنجاح'
+        });
+      }
+    }
+
+    if (!rawItems || !Array.isArray(rawItems)) {
       return res.status(400).json({
         success: false,
-        message: 'بيانات الإعدادات غير صالحة'
+        message: 'بيانات القائمة الجانبية غير صالحة. يجب إرسال مصفوفة من العناصر',
+        code: 'INVALID_PAYLOAD'
       });
     }
 
-    const company = await getSharedPrismaClient().company.findUnique({
+    if (rawItems.length > 200) {
+      return res.status(400).json({
+        success: false,
+        message: 'تجاوز الحد الأقصى للعناصر (200 عنصر)',
+        code: 'MAX_ITEMS_EXCEEDED'
+      });
+    }
+
+    const validatedItems = [];
+    for (let i = 0; i < rawItems.length; i++) {
+      const item = rawItems[i];
+      if (!item || typeof item !== 'object') {
+        return res.status(400).json({
+          success: false,
+          message: `العنصر في الموضع ${i} غير صالح`,
+          code: 'INVALID_ITEM'
+        });
+      }
+
+      if (typeof item.key !== 'string' || !item.key.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: `مفتاح العنصر (key) مطلوب في الموضع ${i}`,
+          code: 'MISSING_ITEM_KEY'
+        });
+      }
+
+      const itemOrder = typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : i;
+      if (item.order !== undefined && (typeof item.order !== 'number' || !Number.isFinite(item.order))) {
+        return res.status(400).json({
+          success: false,
+          message: `ترتيب العنصر (order) مطلوب ويجب أن يكون رقماً في الموضع ${i}`,
+          code: 'INVALID_ITEM_ORDER'
+        });
+      }
+
+      const itemVisible = typeof item.visible === 'boolean' ? item.visible : true;
+      if (item.visible !== undefined && typeof item.visible !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: `حالة ظهور العنصر (visible) مطلوبة ويجب أن تكون قيمة منطقية في الموضع ${i}`,
+          code: 'INVALID_ITEM_VISIBLE'
+        });
+      }
+
+      let labelAr = undefined;
+      const rawLabelAr = item.labelAr !== undefined ? item.labelAr : item.label;
+      if (rawLabelAr !== undefined && rawLabelAr !== null) {
+        if (typeof rawLabelAr !== 'string' || rawLabelAr.length > 60) {
+          return res.status(400).json({
+            success: false,
+            message: 'الاسم بالعربية يجب ألا يتجاوز 60 حرفاً',
+            code: 'INVALID_LABEL_AR'
+          });
+        }
+        labelAr = rawLabelAr.replace(/<[^>]*>?/gm, '').trim();
+      }
+
+      let labelEn = undefined;
+      if (item.labelEn !== undefined && item.labelEn !== null) {
+        if (typeof item.labelEn !== 'string' || item.labelEn.length > 60) {
+          return res.status(400).json({
+            success: false,
+            message: 'الاسم بالإنجليزية يجب ألا يتجاوز 60 حرفاً',
+            code: 'INVALID_LABEL_EN'
+          });
+        }
+        labelEn = item.labelEn.replace(/<[^>]*>?/gm, '').trim();
+      }
+
+      validatedItems.push({
+        key: item.key.trim(),
+        order: itemOrder,
+        visible: itemVisible,
+        ...(labelAr !== undefined ? { labelAr } : {}),
+        ...(labelEn !== undefined ? { labelEn } : {}),
+      });
+    }
+
+    validatedItems.sort((a, b) => a.order - b.order);
+    validatedItems.forEach((it, idx) => {
+      it.order = idx;
+    });
+
+    const company = await prisma.company.findUnique({
       where: { id: companyId },
       select: { settings: true }
     });
+
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'الشركة غير موجودة' });
+    }
 
     let currentSettings = {};
     try {
@@ -482,14 +674,10 @@ router.put('/sidebar', verifyToken.authenticateToken, async (req, res) => {
       currentSettings = {};
     }
 
-    // Merge sidebar settings
-    currentSettings.sidebarSettings = {
-      ...(currentSettings.sidebarSettings || {}),
-      ...settings,
-      updatedAt: new Date().toISOString()
-    };
+    // Merge sidebar settings inside company settings JSON without wiping unrelated keys
+    currentSettings.sidebarSettings = validatedItems;
 
-    await getSharedPrismaClient().company.update({
+    await prisma.company.update({
       where: { id: companyId },
       data: { settings: JSON.stringify(currentSettings) }
     });
@@ -497,6 +685,7 @@ router.put('/sidebar', verifyToken.authenticateToken, async (req, res) => {
     res.json({
       success: true,
       data: currentSettings.sidebarSettings,
+      settings: currentSettings.sidebarSettings,
       message: 'تم حفظ إعدادات القائمة الجانبية بنجاح'
     });
   } catch (error) {
