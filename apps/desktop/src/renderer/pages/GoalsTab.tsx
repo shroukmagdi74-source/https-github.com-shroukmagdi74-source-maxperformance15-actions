@@ -17,6 +17,14 @@ import {
 import { audioAlerts } from '../utils/audioAlerts';
 import { CreateGoalModal } from '../components/goals/CreateGoalModal';
 
+interface LinkedTaskItem {
+  id: string;
+  title: string;
+  status: string;
+  priority?: string;
+  progress?: number;
+}
+
 interface GoalItem {
   id: string;
   title: string;
@@ -38,6 +46,7 @@ interface GoalItem {
   isAutoTracked?: boolean;
   metricKey?: string;
   metricLabel?: string;
+  tasks?: LinkedTaskItem[];
 }
 
 export const GoalsTab: React.FC = () => {
@@ -378,6 +387,28 @@ export const GoalsTab: React.FC = () => {
                     />
                   </div>
 
+                  {/* Linked Tasks */}
+                  {goal.tasks && goal.tasks.length > 0 && (
+                    <div style={styles.linkedTasksContainer}>
+                      <div style={styles.linkedTasksHeader}>
+                        <CheckCircle2 size={10} color="var(--accent-blue)" />
+                        <span>المهام المرتبطة ({goal.tasks.length})</span>
+                      </div>
+                      <div style={styles.linkedTasksList}>
+                        {goal.tasks.slice(0, 3).map((t) => (
+                          <div key={t.id} style={styles.linkedTaskItem} title={t.title}>
+                            <span style={styles.linkedTaskBullet}>•</span>
+                            <span style={styles.linkedTaskTitle}>{t.title}</span>
+                            <span style={styles.linkedTaskStatus}>{t.status}</span>
+                          </div>
+                        ))}
+                        {goal.tasks.length > 3 && (
+                          <div style={styles.linkedTasksMore}>+{goal.tasks.length - 3} مهام أخرى</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Telemetry Numbers & Quick Increment Actions */}
                   <div style={styles.goalFooter}>
                     <div style={styles.goalTelemetry}>
@@ -645,6 +676,55 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     cursor: 'pointer',
     transition: 'all 120ms ease',
+  },
+  linkedTasksContainer: {
+    borderTop: '1px solid var(--border-subtle)',
+    paddingTop: 6,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  linkedTasksHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    color: 'var(--text-dim)',
+  },
+  linkedTasksList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+  },
+  linkedTaskItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 10,
+    color: 'var(--text-secondary)',
+  },
+  linkedTaskBullet: {
+    color: 'var(--accent-blue)',
+    fontSize: 10,
+  },
+  linkedTaskTitle: {
+    flex: 1,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  linkedTaskStatus: {
+    fontSize: 9,
+    padding: '1px 4px',
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    color: 'var(--text-muted)',
+  },
+  linkedTasksMore: {
+    fontSize: 9,
+    color: 'var(--text-muted)',
+    fontStyle: 'italic',
   },
 };
 
