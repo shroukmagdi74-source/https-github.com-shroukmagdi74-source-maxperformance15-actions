@@ -211,4 +211,63 @@ describe('Task Delivery Gate & Severity Enforcement Tests', () => {
       expect(result.error).toContain('سبب الإرجاع للتعديل إلزامي');
     });
   });
+
+  describe('4. Desktop Evidence Payload Validation (T12 - Task Gate)', () => {
+    it('تسليم مهمة HIGH من الديسكتوب بالـ ٣ صور والبيانات → isValid: true بدون 422', () => {
+      const desktopPayload = {
+        evidence: {
+          changeType: 'BUG_FIX',
+          commitOrPath: 'fix(desktop): approval gate evidence uploads',
+          numbersBeforeAfter: '0/3 → 3/3 attachments uploaded',
+          notTestedScope: 'None - tested via desktop suite',
+          beforeAttachmentId: 'att-desktop-before-1',
+          afterAttachmentId: 'att-desktop-after-2',
+          proofAttachmentId: 'att-desktop-proof-3'
+        }
+      };
+      const existingAttachments = [
+        { id: 'att-desktop-before-1', fileName: 'before.png' },
+        { id: 'att-desktop-after-2', fileName: 'after.png' },
+        { id: 'att-desktop-proof-3', fileName: 'proof.pdf' }
+      ];
+
+      const result = validateDeliveryEvidence(desktopPayload, existingAttachments, { priority: 'HIGH' });
+      expect(result.isValid).toBe(true);
+      expect(result.missingFields).toHaveLength(0);
+      expect(result.sanitizedEvidence.beforeAttachmentId).toBe('att-desktop-before-1');
+      expect(result.sanitizedEvidence.afterAttachmentId).toBe('att-desktop-after-2');
+      expect(result.sanitizedEvidence.proofAttachmentId).toBe('att-desktop-proof-3');
+    });
+
+    it('تسليم مهمة HIGH من الديسكتوب بدون صورة بعد → isValid: false مع توضيح النقص', () => {
+      const desktopPayloadMissingAfter = {
+        evidence: {
+          changeType: 'BUG_FIX',
+          commitOrPath: 'fix(desktop): approval gate',
+          numbersBeforeAfter: '1/3',
+          notTestedScope: 'None',
+          beforeAttachmentId: 'att-desktop-before-1'
+        }
+      };
+
+      const result = validateDeliveryEvidence(desktopPayloadMissingAfter, [], { priority: 'HIGH' });
+      expect(result.isValid).toBe(false);
+      expect(result.missingFields).toContain('صورة بعد');
+    });
+
+    it('تسليم مهمة MEDIUM أو LOW من الديسكتوب يعمل بسلاسة دون إلزام بالصور', () => {
+      const mediumPayload = {
+        evidence: {
+          changeType: 'FEATURE',
+          commitOrPath: 'feat(desktop): quick task'
+        }
+      };
+      const mediumResult = validateDeliveryEvidence(mediumPayload, [], { priority: 'MEDIUM' });
+      expect(mediumResult.isValid).toBe(true);
+
+      const lowPayload = { evidence: {} };
+      const lowResult = validateDeliveryEvidence(lowPayload, [], { priority: 'LOW' });
+      expect(lowResult.isValid).toBe(true);
+    });
+  });
 });

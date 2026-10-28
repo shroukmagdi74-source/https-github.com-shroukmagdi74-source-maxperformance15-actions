@@ -94,6 +94,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     originalName: string;
     mimeType?: string;
   }) => ipcRenderer.invoke('tasks:upload-attachment', data),
+  deleteTaskAttachment: (attachmentId: string) =>
+    ipcRenderer.invoke('tasks:delete-attachment', { attachmentId }),
   fetchAttachment: (url: string) =>
     ipcRenderer.invoke('tasks:fetch-attachment', { url }),
   captureDesktopSnippet: () =>
