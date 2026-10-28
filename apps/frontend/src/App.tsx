@@ -353,6 +353,9 @@ const InstagramSettings = React.lazy(
 const CompanySettingsPage = React.lazy(
   () => import("./pages/settings/CompanySettings"),
 );
+const SidebarSettings = React.lazy(
+  () => import("./pages/settings/SidebarSettings"),
+);
 const PageEngagementStats = React.lazy(
   () => import("./pages/PageEngagementStats"),
 );
@@ -4405,10 +4408,26 @@ const AppContent = () => {
                   }
                 />
                 <Route
+                  path="/settings/sidebar"
+                  element={
+                    <Layout>
+                      <SidebarSettings />
+                    </Layout>
+                  }
+                />
+                <Route
                   path="/settings/company"
                   element={
                     <Layout>
                       <CompanySettingsPage />
+                    </Layout>
+                  }
+                />
+                <Route
+                  path="/settings/sidebar"
+                  element={
+                    <Layout>
+                      <SidebarSettings />
                     </Layout>
                   }
                 />
@@ -6738,6 +6757,14 @@ const AppContent = () => {
                   element={
                     <Layout>
                       <Settings />
+                    </Layout>
+                  }
+                />
+                <Route
+                  path="/settings/sidebar"
+                  element={
+                    <Layout>
+                      <SidebarSettings />
                     </Layout>
                   }
                 />

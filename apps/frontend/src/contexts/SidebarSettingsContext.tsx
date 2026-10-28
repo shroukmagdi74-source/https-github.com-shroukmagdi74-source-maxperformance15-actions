@@ -115,12 +115,13 @@ export const SidebarSettingsProvider: React.FC<{ children: React.ReactNode }> = 
     setIsLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get<{ success: boolean; data: { settings: Record<string, unknown> } }>(
+      const res = await apiClient.get<{ success: boolean; data: { settings?: unknown } }>(
         "/settings/sidebar",
         { _skipErrorToast: true } as Record<string, unknown>,
       );
-      if (res.data?.success && res.data?.data?.settings) {
-        setSettings(res.data.data.settings as unknown as SidebarManagementData);
+      if (res.data?.success && res.data?.data) {
+        const raw = res.data.data.settings !== undefined ? res.data.data.settings : res.data.data;
+        setSettings(raw as unknown as SidebarManagementData);
       }
     } catch (err: unknown) {
       const status =
@@ -139,11 +140,12 @@ export const SidebarSettingsProvider: React.FC<{ children: React.ReactNode }> = 
     }
   }, []);
 
-  const updateSettings = useCallback(async (partial: Partial<SidebarManagementData>): Promise<boolean> => {
+  const updateSettings = useCallback(async (partial: any): Promise<boolean> => {
     try {
+      const payload = Array.isArray(partial) ? partial : (partial?.items || partial?.settings || partial);
       const res = await apiClient.put<{ success: boolean; data: SidebarManagementData }>(
         "/settings/sidebar",
-        { settings: partial },
+        payload,
       );
       if (res.data?.success) {
         setSettings(res.data.data);

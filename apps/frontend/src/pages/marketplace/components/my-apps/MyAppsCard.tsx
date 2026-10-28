@@ -110,8 +110,8 @@ export const MyAppsCard: React.FC<MyAppsCardProps> = ({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <h3 dir="auto" className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate" title={installed.app.name}>
-              {installed.app.name}
+            <h3 dir="auto" className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate" title={installed.customName || installed.app.name}>
+              {installed.customName || installed.app.name}
             </h3>
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">

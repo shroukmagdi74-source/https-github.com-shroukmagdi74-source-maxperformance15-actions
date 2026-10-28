@@ -13,13 +13,6 @@ import { isSidebarPathActive } from "./matchSidebarPath";
 import { CompanyLogo } from "../../ui/CompanyLogo";
 import { useRoutePrefetch } from "../../../hooks/useRoutePrefetch";
 import { useSidebarNavLink } from "./useSidebarNavLink";
-import { apiClient } from "../../../services/apiClient";
-
-interface SidebarPreferences {
-  hidden: string[];
-  order: string[];
-}
-
 
 interface ClassicSidebarProps {
   isCollapsed: boolean;
@@ -148,78 +141,8 @@ const ClassicSidebar: React.FC<ClassicSidebarProps> = ({
   const searchInputId = useId();
   const prefetch = useRoutePrefetch();
 
-  // تفضيلات القائمة الجانبية (إخفاء وترتيب العناصر) - قراءة لمرة واحدة مع التخزين المؤقت
-  const [sidebarPrefs, setSidebarPrefs] = useState<SidebarPreferences | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    apiClient
-      .get<{ success?: boolean; data?: SidebarPreferences }>("/company/sidebar-preferences")
-      .then((res) => {
-        if (!isMounted) return;
-        const data = res?.data?.data || res?.data;
-        if (data && (Array.isArray(data.hidden) || Array.isArray(data.order))) {
-          setSidebarPrefs({
-            hidden: Array.isArray(data.hidden) ? data.hidden : [],
-            order: Array.isArray(data.order) ? data.order : []
-          });
-        }
-      })
-      .catch(() => {
-        // في حالة فشل الـ API يتم عرض القائمة كاملة (fail-open) بدون أي رسالة خطأ
-        if (isMounted) {
-          setSidebarPrefs({ hidden: [], order: [] });
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // تطبيق التفضيلات: ترتيب عناصر المستوى الأول وإخفاء العناصر المحددة
-  const processedSections = useMemo(() => {
-    if (!sidebarPrefs || (!sidebarPrefs.hidden?.length && !sidebarPrefs.order?.length)) {
-      return sections;
-    }
-
-    const hiddenSet = new Set(sidebarPrefs.hidden);
-    const orderMap = new Map(sidebarPrefs.order.map((id, index) => [id, index]));
-
-    return sections
-      .filter((section) => !hiddenSet.has(section.id))
-      .map((section) => {
-        // فلترة عناصر المستوى الأول المخفية
-        const visibleItems = section.items.filter((item) => {
-          const itemId = item.id || item.to;
-          return !hiddenSet.has(itemId) && !hiddenSet.has(item.to);
-        });
-
-        // لو مفيش ترتيب مخصص
-        if (orderMap.size === 0) {
-          return { ...section, items: visibleItems };
-        }
-
-        // تطبيق order على عناصر المستوى الأول فقط
-        const sortedItems = [...visibleItems].sort((a, b) => {
-          const aId = a.id || a.to;
-          const bId = b.id || b.to;
-          const aPos = orderMap.has(aId)
-            ? (orderMap.get(aId) as number)
-            : orderMap.has(a.to)
-            ? (orderMap.get(a.to) as number)
-            : 9999;
-          const bPos = orderMap.has(bId)
-            ? (orderMap.get(bId) as number)
-            : orderMap.has(b.to)
-            ? (orderMap.get(b.to) as number)
-            : 9999;
-          return aPos - bPos;
-        });
-
-        return { ...section, items: sortedItems };
-      });
-  }, [sections, sidebarPrefs]);
+  // تفضيلات القائمة الجانبية تُدار مركزياً عبر SidebarSettingsContext ومدمجة بالفعل في sections
+  const processedSections = sections;
 
   const activeSectionIds = useMemo(() => {
     const set = new Set<string>();

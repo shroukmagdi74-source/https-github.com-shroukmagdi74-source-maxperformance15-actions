@@ -629,5 +629,103 @@ describe("storefrontSeoService", () => {
 
     expect(updated).toContain('<meta name="robots" content="noindex, follow" />');
   });
+
+  test("part 1: product page metadata sets clean entityName without store suffix while title keeps suffix", () => {
+    const metadata = buildStorefrontSeoMetadata({
+      pathname: "/product/sswan",
+      currentUrl: "https://swan.maxp.online/product/sswan",
+      company: { name: "Swan" },
+      templateContent: {
+        settings: {
+          seo: {
+            titleTemplate: "%s | {{store}}",
+          },
+        },
+      },
+      product: {
+        name: "كوتشي الاسكوتش من سوان",
+        price: 399,
+        currency: "EGP",
+        slug: "sswan",
+      },
+    });
+
+    // Clean entity name has no store suffix
+    expect(metadata.entityName).toBe("كوتشي الاسكوتش من سوان");
+    // <title> keeps the store suffix
+    expect(metadata.title).toBe("كوتشي الاسكوتش من سوان | Swan");
+
+    const html = `<!DOCTYPE html><html><head><title>Old</title></head><body><div id="root"></div></body></html>`;
+    const updated = injectStorefrontSeoTags(html, metadata);
+
+    // og:title uses clean entityName
+    expect(updated).toContain('<meta property="og:title" content="كوتشي الاسكوتش من سوان" />');
+    // <title> still carries store suffix
+    expect(updated).toContain('<title>كوتشي الاسكوتش من سوان | Swan</title>');
+
+    // Product JSON-LD schema is present and keeps clean name and offers
+    expect(metadata.jsonLd).toMatchObject({
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: "كوتشي الاسكوتش من سوان",
+      offers: {
+        "@type": "Offer",
+        price: 399,
+        priceCurrency: "EGP",
+      },
+    });
+  });
+
+  test("part 1: category page metadata sets clean entityName without store suffix while title keeps suffix", () => {
+    const metadata = buildStorefrontSeoMetadata({
+      pathname: "/collections/shoes",
+      currentUrl: "https://swan.maxp.online/collections/shoes",
+      company: { name: "Swan" },
+      templateContent: {
+        settings: {
+          seo: {
+            titleTemplate: "%s | {{store}}",
+          },
+        },
+      },
+      category: {
+        name: "أحذية رياضية",
+        slug: "shoes",
+      },
+    });
+
+    expect(metadata.entityName).toBe("أحذية رياضية");
+    expect(metadata.title).toBe("أحذية رياضية | Swan");
+
+    const html = `<!DOCTYPE html><html><head><title>Old</title></head><body></body></html>`;
+    const updated = injectStorefrontSeoTags(html, metadata);
+
+    expect(updated).toContain('<meta property="og:title" content="أحذية رياضية" />');
+    expect(updated).toContain('<title>أحذية رياضية | Swan</title>');
+  });
+
+  test("part 1: route fallback for product/category returns entityName without store suffix", () => {
+    const metadata = buildStorefrontSeoMetadata({
+      pathname: "/product/sswan",
+      currentUrl: "https://swan.maxp.online/product/sswan",
+      company: { name: "Swan" },
+      templateContent: {
+        settings: {
+          seo: {
+            titleTemplate: "%s | {{store}}",
+          },
+        },
+      },
+    });
+
+    expect(metadata.entityName).toBe("sswan");
+    expect(metadata.title).toBe("sswan | Swan");
+
+    const html = `<!DOCTYPE html><html><head><title>Old</title></head><body></body></html>`;
+    const updated = injectStorefrontSeoTags(html, metadata);
+
+    expect(updated).toContain('<meta property="og:title" content="sswan" />');
+    expect(updated).toContain('<title>sswan | Swan</title>');
+  });
 });
 

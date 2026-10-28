@@ -105,7 +105,7 @@ export const MyAppsTable: React.FC<MyAppsTableProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="font-bold text-sm text-foreground truncate group-hover:text-primary">{installed.app.name}</h4>
+                  <h4 className="font-bold text-sm text-foreground truncate group-hover:text-primary" title={installed.customName || installed.app.name}>{installed.customName || installed.app.name}</h4>
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
                     <SystemIcon size={10} className="text-primary/70" />
                     <span>{systemHub.nameAr}</span>
