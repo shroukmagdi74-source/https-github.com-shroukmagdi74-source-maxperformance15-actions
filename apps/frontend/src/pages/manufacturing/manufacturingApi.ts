@@ -1792,6 +1792,28 @@ export const manufacturingApi = {
     return res.data;
   },
 
+  generateSampleShareLink: async (
+    id: string,
+    kind: 'CUSTOMER' | 'FACTORY',
+    expiresAt?: string | null
+  ): Promise<SampleShareLink> => {
+    const res = await apiClient.post(`/manufacturing/sample-orders/${id}/share-links`, { kind, expiresAt });
+    return res.data?.data;
+  },
+
+  listSampleShareLinks: async (id: string): Promise<SampleShareLink[]> => {
+    const res = await apiClient.get(`/manufacturing/sample-orders/${id}/share-links`);
+    return res.data?.data || [];
+  },
+
+  revokeSampleShareLink: async (
+    id: string,
+    kind: 'CUSTOMER' | 'FACTORY'
+  ): Promise<{ success: boolean; message?: string; revoked?: boolean; alreadyRevoked?: boolean }> => {
+    const res = await apiClient.post(`/manufacturing/sample-orders/${id}/share-links/${kind}/revoke`);
+    return res.data;
+  },
+
 
   // ==========================================================================
   // Wave 6: Stage Templates & Sets Library
@@ -2213,3 +2235,92 @@ export const customerPortalApi = {
     return res.data?.data;
   },
 };
+
+export interface SampleShareLink {
+  id: string;
+  kind: 'CUSTOMER' | 'FACTORY';
+  token: string;
+  url: string;
+  expiresAt?: string | null;
+  revokedAt?: string | null;
+  views: number;
+  lastViewedAt?: string | null;
+  factoryAckAt?: string | null;
+  factoryAckBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PublicSampleShareData {
+  kind: 'CUSTOMER' | 'FACTORY';
+  sampleNumber: string;
+  productName: string;
+  brandName?: string | null;
+  size?: string | null;
+  color?: string | null;
+  plannedQuantity: number;
+  status: string;
+  statusLabel: string;
+  dueDate?: string | null;
+  expectedDeliveryAt?: string | null;
+  company: {
+    name: string;
+    logo?: string | null;
+  };
+  attachments: {
+    id: string;
+    url: string;
+    fileName: string;
+    kind: string;
+  }[];
+  designNotes?: string | null;
+  resultNotes?: string | null;
+  createdAt?: string;
+  stages?: {
+    sequence: number;
+    name: string;
+    status: string;
+    startedAt?: string | null;
+    completedAt?: string | null;
+  }[];
+  money?: {
+    totalAmount?: number | null;
+    depositAmount?: number | null;
+    paidAmount?: number | null;
+    remaining?: number | null;
+    currency: string;
+  } | null;
+  timeline?: {
+    key?: string;
+    title: string;
+    status: string;
+    date?: string | null;
+    notes?: string | null;
+  }[];
+  ack?: {
+    at?: string | null;
+    by?: string | null;
+  };
+}
+
+export const publicSampleShareApi = {
+  get: async (token: string): Promise<PublicSampleShareData> => {
+    const res = await apiClient.get(`/public/sample-share/${token}`, {
+      _skipAuthHeader: true,
+      _skipAuthRefresh: true,
+      _skipErrorToast: true,
+    } as any);
+    return res.data?.data;
+  },
+
+  factoryAck: async (token: string, form: FormData): Promise<{ success: boolean; data: any; message?: string }> => {
+    const res = await apiClient.post(`/public/sample-share/${token}/factory-ack`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      _skipAuthHeader: true,
+      _skipAuthRefresh: true,
+      _skipErrorToast: true,
+    } as any);
+    return res.data;
+  },
+};
+
