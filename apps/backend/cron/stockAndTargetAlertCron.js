@@ -23,7 +23,9 @@ const start = () => {
 
     isTickRunning = true;
     try {
-      const result = await stockAndTargetAlertService.runDueChecks();
+      const result = await stockAndTargetAlertService.runDueChecks({
+        dryRun: process.env.STOCK_TARGET_ALERT_DRYRUN === "true",
+      });
       if (result.targetAlertsSent > 0 || result.stockAlertsSent > 0) {
         console.log(
           `✅ [STOCK-TARGET-ALERT-CRON] Checked ${result.checkedCompanies} companies. Sent: ${result.targetAlertsSent} target alerts, ${result.stockAlertsSent} stock alerts.`,

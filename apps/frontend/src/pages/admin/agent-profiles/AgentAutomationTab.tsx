@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { AgentItem, tryApiFetch } from "./types";
 import { ShippingFollowUpSection } from "./sections/ShippingFollowUpSection";
+import { GoalsStockSection } from "./sections/GoalsStockSection";
 
 interface AgentAutomationTabProps {
   agent: AgentItem | null;
@@ -27,10 +28,14 @@ interface AlertItem {
 }
 
 interface RunSummary {
-  scanned: number;
-  alerts: number;
-  tickets: number;
-  errors: any[];
+  scanned?: number;
+  alerts?: number;
+  tickets?: number;
+  checkedCompanies?: number;
+  targetAlertsSent?: number;
+  stockAlertsSent?: number;
+  skipped?: number | string;
+  errors?: any[];
 }
 
 export const AgentAutomationTab: React.FC<AgentAutomationTabProps> = ({ agent }) => {
@@ -45,7 +50,9 @@ export const AgentAutomationTab: React.FC<AgentAutomationTabProps> = ({ agent })
   // Determine slug from templateSlug or fallback
   const slug =
     agent?.templateSlug ||
-    (agent?.role?.toUpperCase() === "SHIPPING" ? "shipping-agent" : "shipping-agent");
+    (agent?.role?.toUpperCase() === "STOCK_TARGET_MONITOR" || (agent as any)?.slug === "stock-target-monitor-agent"
+      ? "stock-target-monitor-agent"
+      : "shipping-agent");
 
   const loadAlerts = async () => {
     setLoadingAlerts(true);
@@ -138,9 +145,13 @@ export const AgentAutomationTab: React.FC<AgentAutomationTabProps> = ({ agent })
           <div className="space-y-1">
             <div className="font-semibold">اكتمل التشغيل بنجاح!</div>
             <div className="flex flex-wrap gap-4 text-xs opacity-90">
-              <span>الطلبات المفحوصة: <b>{runSummary.scanned}</b></span>
-              <span>التنبيهات الصادرة: <b>{runSummary.alerts}</b></span>
-              <span>التذاكر المنشأة: <b>{runSummary.tickets}</b></span>
+              {runSummary.scanned !== undefined && <span>الطلبات المفحوصة: <b>{runSummary.scanned}</b></span>}
+              {runSummary.checkedCompanies !== undefined && <span>الشركات المفحوصة: <b>{runSummary.checkedCompanies}</b></span>}
+              {runSummary.alerts !== undefined && <span>التنبيهات الصادرة: <b>{runSummary.alerts}</b></span>}
+              {runSummary.targetAlertsSent !== undefined && <span>تنبيهات التارجت: <b>{runSummary.targetAlertsSent}</b></span>}
+              {runSummary.stockAlertsSent !== undefined && <span>تنبيهات المخزون: <b>{runSummary.stockAlertsSent}</b></span>}
+              {runSummary.tickets !== undefined && <span>التذاكر المنشأة: <b>{runSummary.tickets}</b></span>}
+              {runSummary.skipped !== undefined && <span>تم التخطي: <b>{String(runSummary.skipped)}</b></span>}
               {Array.isArray(runSummary.errors) && runSummary.errors.length > 0 && (
                 <span className="text-destructive font-medium">
                   أخطاء: {runSummary.errors.length}
@@ -159,9 +170,9 @@ export const AgentAutomationTab: React.FC<AgentAutomationTabProps> = ({ agent })
       )}
 
       {/* Dynamic Section Based on Agent Template */}
-      {slug === "shipping-agent" ? (
-        <ShippingFollowUpSection slug={slug} />
-      ) : (
+      {slug === "shipping-agent" && <ShippingFollowUpSection slug={slug} />}
+      {slug === "stock-target-monitor-agent" && <GoalsStockSection slug={slug} />}
+      {slug !== "shipping-agent" && slug !== "stock-target-monitor-agent" && (
         <div className="p-8 text-center border border-dashed rounded-xl text-muted-foreground text-sm space-y-2 bg-card/40">
           <Layers className="size-8 mx-auto text-muted-foreground/60" />
           <div className="font-medium text-foreground">قسم التشغيل التلقائي لهذا الوكيل</div>

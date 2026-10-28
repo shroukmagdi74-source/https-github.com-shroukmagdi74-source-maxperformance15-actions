@@ -321,5 +321,14 @@
     "restoreFailed": "Failed to restore agent.",
     "restoreBtn": "Restore Agent",
     "deleteBtn": "Permanently Delete"
+  },
+  "automation": {
+    "title": "Agent Automation & Follow-up",
+    "desc": "Trigger immediate follow-up tasks manually or configure periodic scheduled checks.",
+    "runNow": "Run Now",
+    "running": "Running...",
+    "runSuccess": "Automation completed successfully!",
+    "goalsTitle": "Sales Targets & Stock Depletion Monitoring",
+    "goalsDesc": "Periodic tracking of daily and weekly order goals with proactive alerts when stock hits critical thresholds."
   }
 }

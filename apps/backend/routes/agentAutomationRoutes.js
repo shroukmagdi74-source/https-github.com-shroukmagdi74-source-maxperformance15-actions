@@ -3,6 +3,7 @@ const router = express.Router();
 const verifyToken = require('../utils/verifyToken');
 const { requireDbPermission } = require('../middleware/rbacMiddleware');
 const shippingFollowUpService = require('../services/shippingFollowUpService');
+const stockAndTargetAlertService = require('../services/stockAndTargetAlertService');
 const { getSharedPrismaClient } = require('../services/sharedDatabase');
 
 router.use(verifyToken.authenticateToken, requireDbPermission('ai.automation.manage'));
@@ -124,17 +125,15 @@ router.post('/:slug/run', async (req, res) => {
       return res.json({ success: true, summary });
     }
 
-    // stock-target-monitor-agent runner handled by T20
-    return res.json({
-      success: true,
-      summary: {
-        checkedCompanies: 1,
-        targetAlertsSent: 0,
-        stockAlertsSent: 0,
-        skipped: 'T20_RUNNER',
-        errors: [],
-      },
-    });
+    if (slug === 'stock-target-monitor-agent') {
+      const dryRun = req.body?.dryRun;
+      const summary = await stockAndTargetAlertService.runDueChecks({
+        companyId,
+        dryRun,
+        force: true,
+      });
+      return res.json({ success: true, summary });
+    }
   } catch (err) {
     console.error('❌ [agentAutomationRoutes] POST /:slug/run error:', err);
     return res.status(500).json({ success: false, error: err.message });
@@ -160,13 +159,8 @@ router.get('/:slug', async (req, res) => {
     }
 
     if (slug === 'stock-target-monitor-agent') {
-      const prisma = getSharedPrismaClient();
-      const comp = await prisma.company.findUnique({
-        where: { id: companyId },
-        select: { settings: true },
-      });
-      const parsed = shippingFollowUpService._parseSettings(comp?.settings);
-      return res.json({ success: true, slug, settings: parsed.order_targets || {} });
+      const settings = await stockAndTargetAlertService.getSettings(companyId);
+      return res.json({ success: true, slug, settings });
     }
   } catch (err) {
     console.error('❌ [agentAutomationRoutes] GET /:slug error:', err);
@@ -213,6 +207,52 @@ router.put('/:slug', async (req, res) => {
       }
 
       const settings = await shippingFollowUpService.updateSettings(companyId, payload);
+      return res.json({ success: true, settings });
+    }
+
+    if (slug === 'stock-target-monitor-agent') {
+      if (payload.min_stock_threshold !== undefined) {
+        const threshold = Number(payload.min_stock_threshold);
+        if (isNaN(threshold) || threshold <= 0) {
+          return res.status(400).json({ success: false, error: 'الحد الأدنى للمخزون يجب أن يكون أكبر من صفر' });
+        }
+      }
+
+      if (payload.milestones !== undefined) {
+        if (!Array.isArray(payload.milestones) || payload.milestones.length === 0) {
+          return res.status(400).json({ success: false, error: 'مراحل التنبيه لا يمكن أن تكون فارغة' });
+        }
+      }
+
+      if (payload.daily_orders !== undefined) {
+        const dailyOrders = Number(payload.daily_orders);
+        if (isNaN(dailyOrders) || dailyOrders < 0) {
+          return res.status(400).json({ success: false, error: 'تارجت الأوردرات اليومي غير صالح' });
+        }
+      }
+
+      if (payload.weekly_orders !== undefined) {
+        const weeklyOrders = Number(payload.weekly_orders);
+        if (isNaN(weeklyOrders) || weeklyOrders < 0) {
+          return res.status(400).json({ success: false, error: 'تارجت الأوردرات الأسبوعي غير صالح' });
+        }
+      }
+
+      if (payload.daily_revenue !== undefined) {
+        const dailyRev = Number(payload.daily_revenue);
+        if (isNaN(dailyRev) || dailyRev < 0) {
+          return res.status(400).json({ success: false, error: 'تارجت الإيراد اليومي غير صالح' });
+        }
+      }
+
+      if (payload.weekly_revenue !== undefined) {
+        const weeklyRev = Number(payload.weekly_revenue);
+        if (isNaN(weeklyRev) || weeklyRev < 0) {
+          return res.status(400).json({ success: false, error: 'تارجت الإيراد الأسبوعي غير صالح' });
+        }
+      }
+
+      const settings = await stockAndTargetAlertService.updateSettings(companyId, payload);
       return res.json({ success: true, settings });
     }
 
