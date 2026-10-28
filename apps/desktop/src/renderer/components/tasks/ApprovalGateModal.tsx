@@ -78,9 +78,42 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
     }
   }, [task.evidence]);
 
+  const taskAttachments = useMemo(() => {
+    return Array.isArray(task.taskAttachments)
+      ? task.taskAttachments
+      : Array.isArray(task.attachments)
+      ? task.attachments
+      : [];
+  }, [task.taskAttachments, task.attachments]);
+
   const hasValidEvidence = Boolean(
-    (task.hasEvidence && !task.missingEvidence) || evidenceObj
+    (task.hasEvidence && !task.missingEvidence) ||
+    evidenceObj ||
+    taskAttachments.length > 0
   );
+
+  const [previewImgUrl, setPreviewImgUrl] = useState<string | null>(null);
+
+  const resolveAttachmentUrl = (rawPath: string) => {
+    if (!rawPath) return '';
+    if (rawPath.startsWith('data:') || rawPath.startsWith('blob:')) return rawPath;
+    const cleanRaw = rawPath.trim();
+    if (cleanRaw.startsWith('http://') || cleanRaw.startsWith('https://')) return cleanRaw;
+    let base = 'https://maxp.online';
+    let normalized = cleanRaw.replace(/\\/g, '/');
+    if (!normalized.startsWith('/')) normalized = '/' + normalized;
+    if (!normalized.startsWith('/uploads/')) {
+      if (normalized.startsWith('/tasks/')) normalized = '/uploads' + normalized;
+      else normalized = '/uploads/tasks' + normalized;
+    }
+    return base + normalized;
+  };
+
+  const isImgAttachment = (att: any) => {
+    if (att.fileType?.startsWith('image/')) return true;
+    const name = att.originalName || att.fileName || att.filePath || '';
+    return /\.(png|jpe?g|webp|gif|svg)$/i.test(name);
+  };
 
   const [checklist, setChecklist] = useState(initialChecklist);
   const [returnMode, setReturnMode] = useState(false);
@@ -343,6 +376,50 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
                   </div>
                 )}
               </div>
+            ) : taskAttachments.length > 0 ? (
+              <div style={styles.evidenceDataWrap}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#10b981', fontWeight: 600, fontSize: 12, marginBottom: 8 }}>
+                  <CheckCircle2 size={14} />
+                  <span>تم إرفاق دليل إنجاز معتمد ({taskAttachments.length} صور / ملفات)</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+                  {taskAttachments.map((att: any, idx: number) => {
+                    const fullUrl = resolveAttachmentUrl(att.filePath || '');
+                    const isImg = isImgAttachment(att);
+                    const label = att.originalName || att.fileName || `إثبات ${idx + 1}`;
+                    return (
+                      <div
+                        key={att.id || idx}
+                        onClick={() => isImg && setPreviewImgUrl(fullUrl)}
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: 6,
+                          overflow: 'hidden',
+                          cursor: isImg ? 'pointer' : 'default',
+                        }}
+                        title={label}
+                      >
+                        {isImg ? (
+                          <div style={{ height: 65, position: 'relative', backgroundColor: '#000' }}>
+                            <img src={fullUrl} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <div style={{ position: 'absolute', bottom: 3, left: 3, backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: 3 }}>
+                              <ImageIcon size={10} color="#fff" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ height: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Paperclip size={14} color="#94a3b8" />
+                          </div>
+                        )}
+                        <div style={{ padding: '4px 6px', fontSize: 10, color: 'var(--text-secondary, #cbd5e1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {label}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
               <div style={styles.noEvidenceBox}>
                 <AlertTriangle size={24} color="#f59e0b" style={{ margin: '0 auto 6px' }} />
@@ -502,6 +579,51 @@ export const ApprovalGateModal: React.FC<ApprovalGateModalProps> = ({
             </button>
           </div>
         </div>
+        {previewImgUrl && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 3000,
+              backgroundColor: 'rgba(0, 0, 0, 0.88)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 20,
+            }}
+            onClick={() => setPreviewImgUrl(null)}
+          >
+            <div style={{ position: 'relative', maxWidth: '90%', maxHeight: '90%' }} onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setPreviewImgUrl(null)}
+                style={{
+                  position: 'absolute',
+                  top: -34,
+                  right: 0,
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: '#fff',
+                  borderRadius: '50%',
+                  width: 26,
+                  height: 26,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={15} />
+              </button>
+              <img
+                src={previewImgUrl}
+                alt="معاينة إثبات التسليم"
+                style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: 6, objectFit: 'contain' }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

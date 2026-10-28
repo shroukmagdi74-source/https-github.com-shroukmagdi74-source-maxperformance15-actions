@@ -25,6 +25,9 @@ import {
   Eye,
   EyeOff,
   Maximize2,
+  UploadCloud,
+  Camera,
+  Plus,
 } from 'lucide-react';
 import { TaskDescriptionRenderer } from './TaskDescriptionRenderer';
 import { AcceptanceCriteriaChecklist } from './AcceptanceCriteriaChecklist';
@@ -87,6 +90,25 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [copiedTitle, setCopiedTitle] = useState(false);
   const [localWatching, setLocalWatching] = useState<boolean | null>(null);
 
+  const [localAttachments, setLocalAttachments] = useState<any[]>(() => {
+    return task?.taskAttachments || task?.attachments || [];
+  });
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccessMsg, setUploadSuccessMsg] = useState<string | null>(null);
+  const [previewImgUrl, setPreviewImgUrl] = useState<string | null>(null);
+
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const bottomFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (task) {
+      setLocalAttachments(task.taskAttachments || task.attachments || []);
+      setUploadError(null);
+      setUploadSuccessMsg(null);
+    }
+  }, [task?.id, task?.taskAttachments, task?.attachments]);
+
   const safeCopy = async (text: string) => {
     try {
       if (window.electronAPI?.copyToClipboard) {
@@ -117,13 +139,19 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // Close on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !isRevisionModalOpen) {
-        onClose();
+      if (e.key === 'Escape') {
+        if (previewImgUrl) {
+          setPreviewImgUrl(null);
+          return;
+        }
+        if (isOpen && !isRevisionModalOpen) {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isRevisionModalOpen, onClose]);
+  }, [isOpen, isRevisionModalOpen, previewImgUrl, onClose]);
 
   if (!isOpen || !task) return null;
 
@@ -151,7 +179,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const isRunning = !isCompleted && !isInReview && (activeTaskId === task.id || isMultiRunning);
   const currentElapsed = isMultiRunning && activeTaskIds ? activeTaskIds[task.id] : activeRunnerSeconds;
 
-  const attachments = task.taskAttachments || task.attachments || [];
+  const attachments = localAttachments;
   const watchers = task.taskWatchers || task.watchers || [];
   const isWatching = currentUserId
     ? watchers.some((w: any) => (w.userId || w.id || w.user?.id) === currentUserId)
@@ -251,6 +279,139 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     return /\.(png|jpe?g|webp|gif|svg)$/i.test(name);
   };
 
+  const handleImageClick = (url: string) => {
+    if (onOpenImage) {
+      onOpenImage(url);
+    } else {
+      setPreviewImgUrl(url);
+    }
+  };
+
+  const handleUploadFiles = async (files: FileList | File[]) => {
+    if (!files || files.length === 0 || !task?.id) return;
+    if (!window.electronAPI?.uploadTaskAttachment) {
+      alert('خاصية رفع الملفات غير متاحة في البيئة الحالية');
+      return;
+    }
+
+    setUploadingImage(true);
+    setUploadError(null);
+    setUploadSuccessMsg(null);
+
+    let successCount = 0;
+    try {
+      const fileArray = Array.from(files);
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+
+        if (file.size && file.size > 20 * 1024 * 1024) {
+          throw new Error(`حجم الملف "${file.name}" يتجاوز الحد الأقصى المسموح (20 ميجابايت)`);
+        }
+
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const originalName = file.name || `proof-${Date.now()}-${i + 1}.png`;
+        const mimeType = file.type || 'image/png';
+
+        const res = await window.electronAPI.uploadTaskAttachment({
+          taskId: task.id,
+          base64Data,
+          originalName,
+          mimeType,
+        });
+
+        if (res?.success && res.attachment) {
+          successCount++;
+          const newAtt = res.attachment;
+          setLocalAttachments((prev) => [newAtt, ...prev]);
+
+          if (!task.taskAttachments) task.taskAttachments = [];
+          task.taskAttachments.unshift(newAtt);
+          task.hasEvidence = true;
+          task.missingEvidence = false;
+        } else {
+          throw new Error(res?.error || 'فشل في حفظ المرفق على الخادم');
+        }
+      }
+
+      if (successCount > 0) {
+        audioAlerts.playTaskComplete();
+        setUploadSuccessMsg(`تم رفع ${successCount} صورة بنجاح كدليل إنجاز للمهمة ✅`);
+        setTimeout(() => setUploadSuccessMsg(null), 4000);
+      }
+    } catch (err: any) {
+      console.error('[TaskDetailDrawer] Upload error:', err);
+      setUploadError(err?.message || 'حدث خطأ أثناء رفع الصور');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (bottomFileInputRef.current) bottomFileInputRef.current.value = '';
+    }
+  };
+
+  const handleCaptureSnippet = async () => {
+    if (!window.electronAPI?.captureDesktopSnippet) {
+      alert('يمكنك أخذ لقطة شاشة باستخدام (Win + Shift + S) ثم الضغط على Ctrl + V للصقها مباشرة هنا!');
+      return;
+    }
+    setUploadingImage(true);
+    setUploadError(null);
+    try {
+      const res = await window.electronAPI.captureDesktopSnippet();
+      if (res?.dataUrl) {
+        const uploadRes = await window.electronAPI.uploadTaskAttachment({
+          taskId: task.id,
+          base64Data: res.dataUrl,
+          originalName: `screenshot-${Date.now()}.png`,
+          mimeType: 'image/png',
+        });
+        if (uploadRes?.success && uploadRes.attachment) {
+          setLocalAttachments((prev) => [uploadRes.attachment, ...prev]);
+          if (!task.taskAttachments) task.taskAttachments = [];
+          task.taskAttachments.unshift(uploadRes.attachment);
+          task.hasEvidence = true;
+          task.missingEvidence = false;
+          audioAlerts.playTaskComplete();
+          setUploadSuccessMsg('تم التقاط وحفظ لقطة الشاشة كدليل إنجاز ✅');
+          setTimeout(() => setUploadSuccessMsg(null), 4000);
+        } else {
+          setUploadError(uploadRes?.error || 'فشل في حفظ لقطة الشاشة على الخادم');
+        }
+      } else if (res?.error) {
+        setUploadError(res.error);
+      }
+    } catch (err: any) {
+      console.warn('[CaptureSnippet] Error:', err);
+      setUploadError(err?.message || 'تعذر التقاط لقطة الشاشة');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleContainerPaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+
+    if (files.length > 0) {
+      e.preventDefault();
+      await handleUploadFiles(files);
+    }
+  };
+
   // Fixed Bottom Write Bar comment submit
   const handleSendComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -292,6 +453,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         <div
           style={drawerStyles.drawer}
           onClick={(e) => e.stopPropagation()}
+          onPaste={handleContainerPaste}
           dir="rtl"
         >
           {/* SECTION 1: FIXED STICKY HEADER */}
@@ -715,6 +877,186 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </div>
             )}
 
+            {/* SECTION: PROOF OF WORK & DELIVERY EVIDENCE (دليل إثبات الإنجاز والصور) */}
+            <div
+              style={{
+                ...drawerStyles.cardSection,
+                border: attachments.length > 0
+                  ? '1px solid rgba(16, 185, 129, 0.35)'
+                  : '1px solid rgba(59, 130, 246, 0.3)',
+                backgroundColor: attachments.length > 0
+                  ? 'rgba(16, 185, 129, 0.04)'
+                  : 'rgba(59, 130, 246, 0.03)',
+              }}
+            >
+              <div style={drawerStyles.sectionHeaderRow}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <Camera size={14} color={attachments.length > 0 ? '#10b981' : 'var(--accent-blue)'} />
+                  <span style={{ ...drawerStyles.sectionTitle, color: 'var(--text-primary)', fontWeight: 700 }}>
+                    دليل إثبات الإنجاز والصور المرفقة (Proof of Work)
+                  </span>
+                  {attachments.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        color: '#10b981',
+                        padding: '1px 6px',
+                        borderRadius: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 3,
+                      }}
+                    >
+                      <CheckCircle2 size={10} />
+                      {attachments.length} صور
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      backgroundColor: 'var(--accent-blue)',
+                      border: 'none',
+                      borderRadius: 4,
+                      color: '#ffffff',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '4px 9px',
+                      cursor: uploadingImage ? 'default' : 'pointer',
+                      opacity: uploadingImage ? 0.6 : 1,
+                      transition: 'opacity 120ms ease',
+                    }}
+                    title="رفع صور أو سكرين شوت يثبت إنجاز المهمة لتمريرها للاعتماد"
+                  >
+                    {uploadingImage ? <Loader2 size={12} className="spin" /> : <Plus size={12} />}
+                    <span>{uploadingImage ? 'جاري الرفع...' : 'رفع صور الإنجاز'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCaptureSnippet}
+                    disabled={uploadingImage}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: 4,
+                      color: 'var(--text-secondary)',
+                      fontSize: 11,
+                      padding: '4px 8px',
+                      cursor: 'pointer',
+                    }}
+                    title="التقاط لقطة شاشة سريعة (أو اضغط Win+Shift+S ثم Ctrl+V)"
+                  >
+                    <Camera size={11} />
+                    <span>لقطة شاشة</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Success & Error alerts */}
+              {uploadSuccessMsg && (
+                <div style={{ fontSize: 11, color: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '6px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckCircle2 size={13} />
+                  <span>{uploadSuccessMsg}</span>
+                </div>
+              )}
+              {uploadError && (
+                <div style={{ fontSize: 11, color: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.1)', padding: '6px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertTriangle size={13} />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+
+              {/* Gallery or Drop Zone */}
+              {attachments.length > 0 ? (
+                <div>
+                  <div style={drawerStyles.attachGallery}>
+                    {attachments.map((att: any, idx: number) => {
+                      const rawPath = att.filePath || '';
+                      const fullUrl = resolveAttachmentUrl(rawPath);
+                      const isImg = isImgAttachment(att);
+                      const label = att.originalName || att.fileName || `إثبات ${idx + 1}`;
+
+                      return (
+                        <div
+                          key={att.id || att.fileName || idx}
+                          onClick={() => handleImageClick(fullUrl)}
+                          style={drawerStyles.attCard}
+                          title={`معاينة وتكبير: ${label}`}
+                        >
+                          {isImg ? (
+                            <div style={drawerStyles.imgWrap}>
+                              <img
+                                src={fullUrl}
+                                alt={label}
+                                style={drawerStyles.thumbImg}
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).style.opacity = '0.3';
+                                }}
+                              />
+                              <div style={drawerStyles.imgOverlay}>
+                                <ImageIcon size={10} color="#ffffff" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={drawerStyles.docThumb}>
+                              <Paperclip size={14} color="var(--text-muted)" />
+                            </div>
+                          )}
+                          <div style={drawerStyles.attInfo}>
+                            <span style={drawerStyles.thumbName}>{label}</span>
+                            {att.fileSize && (
+                              <span style={drawerStyles.thumbSize}>
+                                {Math.round(att.fileSize / 1024)} KB
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p style={{ fontSize: 11, color: '#10b981', margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle2 size={12} />
+                    <span>تم تسجيل صور الإنجاز — تظهر للمشرف في بوابة الاعتماد كدليل تسليم لتمرير المهمة.</span>
+                  </p>
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    border: '1px dashed rgba(255, 255, 255, 0.16)',
+                    borderRadius: 6,
+                    padding: '16px 12px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    transition: 'all 120ms ease',
+                  }}
+                  title="انقر لرفع صور أو سكرين شوت"
+                >
+                  <UploadCloud size={24} color="var(--accent-blue)" style={{ margin: '0 auto 6px' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
+                    اضغط هنا لرفع صور أو سكرين شوت يثبت إنجاز المهمة
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                    يدعم أيضاً لصق الصور فوراً بـ (Ctrl + V) بعد أخذ لقطة شاشة
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* AI BRIEF (وصف الذكاء الاصطناعي) */}
             {task.aiDescription ? (
               <div
@@ -951,12 +1293,42 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
           {/* FIXED BOTTOM COMMENT WRITE-BAR */}
           <div style={drawerStyles.fixedBottomBar}>
+            {uploadingImage && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, fontSize: 11, color: 'var(--accent-blue)' }}>
+                <Loader2 size={12} className="spin" />
+                <span>جاري رفع الصورة وإرفاقها بالمهمة...</span>
+              </div>
+            )}
             <form onSubmit={handleSendComment} style={drawerStyles.bottomForm}>
+              <button
+                type="button"
+                onClick={() => bottomFileInputRef.current?.click()}
+                disabled={uploadingImage}
+                style={{
+                  height: 36,
+                  width: 36,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: 6,
+                  color: 'var(--accent-blue)',
+                  cursor: uploadingImage ? 'default' : 'pointer',
+                  flexShrink: 0,
+                  transition: 'background-color 100ms ease',
+                }}
+                title="إرفاق صورة أو سكرين شوت للمهمة"
+              >
+                <Camera size={15} />
+              </button>
+
               <input
                 type="text"
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
-                placeholder="اكتب ملاحظة أو تعليقاً على المهمة… (اضغط Enter للإرسال)"
+                onPaste={handleContainerPaste}
+                placeholder="اكتب ملاحظة أو تعليقاً على المهمة… (يدعم لصق الصور بـ Ctrl+V)"
                 style={drawerStyles.bottomInput}
                 disabled={sendingComment}
               />
@@ -990,6 +1362,83 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           }}
           task={task}
         />
+      )}
+
+      {/* Hidden File Inputs for Image Upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          if (e.target.files) handleUploadFiles(e.target.files);
+        }}
+      />
+      <input
+        ref={bottomFileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          if (e.target.files) handleUploadFiles(e.target.files);
+        }}
+      />
+
+      {/* Image Preview Lightbox Modal */}
+      {previewImgUrl && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 3000,
+            backgroundColor: 'rgba(0, 0, 0, 0.88)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+          onClick={() => setPreviewImgUrl(null)}
+        >
+          <div style={{ position: 'relative', maxWidth: '90%', maxHeight: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setPreviewImgUrl(null)}
+              style={{
+                position: 'absolute',
+                top: -36,
+                right: 0,
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                border: 'none',
+                color: '#ffffff',
+                borderRadius: '50%',
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+              title="إغلاق المعاينة"
+            >
+              <X size={16} />
+            </button>
+            <img
+              src={previewImgUrl}
+              alt="معاينة إثبات المهمة"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '85vh',
+                borderRadius: 8,
+                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.8)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                objectFit: 'contain',
+              }}
+            />
+          </div>
+        </div>
       )}
     </>
   );
