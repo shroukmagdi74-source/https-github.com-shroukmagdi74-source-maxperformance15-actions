@@ -37,6 +37,7 @@ const {
   getStoredFacebookOAuthConfig,
   saveFacebookOAuthConfig,
   buildFacebookBackendCallbackUrl,
+  getFacebookAppKeyConfig,
 } = require("../config/facebookAppConfig");
 
 // Facebook OAuth Configuration — single source of truth: facebook-oauth-config.json (managed via /super-admin/facebook-oauth)
@@ -387,8 +388,12 @@ const getRequestedFrontendOrigin = (req) =>
   normalizeRequestedFrontendOrigin(req.get("origin")) ||
   normalizeRequestedFrontendOrigin(req.get("referer"));
 
-const buildFacebookOAuthState = ({ companyId, userId, type, returnOrigin, popup }) => {
+const buildFacebookOAuthState = ({ companyId, userId, type, returnOrigin, popup, appKey }) => {
   const nonce = Math.random().toString(36).substring(7) + Date.now().toString(36);
+  const resolvedKey = String(appKey || "primary").trim().toLowerCase();
+  const appConfig = getFacebookAppKeyConfig(resolvedKey);
+  const signingSecret = appConfig.appSecret || getFacebookOAuthConfig().appSecret;
+
   const stateParts = [
     companyId,
     userId,
@@ -407,23 +412,32 @@ const buildFacebookOAuthState = ({ companyId, userId, type, returnOrigin, popup 
     stateParts.push("popup");
   }
 
+  if (resolvedKey) {
+    stateParts.push(`app=${resolvedKey}`);
+  }
+
   const payload = stateParts.join("|");
-  const hmac = crypto.createHmac('sha256', getFacebookOAuthConfig().appSecret).update(payload).digest('hex').substring(0, 16);
+  const hmac = crypto.createHmac('sha256', signingSecret).update(payload).digest('hex').substring(0, 16);
   return Buffer.from(payload + "|hmac=" + hmac).toString("base64");
 };
 
 /**
  * Ads OAuth state — signed JWT-style payload (base64url(payload).signature).
- * The payload carries { cid, uid, ts, type: "ads", returnOrigin } and the
+ * The payload carries { cid, uid, ts, type: "ads", returnOrigin, appKey } and the
  * signature is an HMAC-SHA256 over the encoded payload using the app secret.
  * Callbacks reject unsigned or forged states BEFORE exchanging the code.
  */
-const buildAdsOAuthState = ({ companyId, userId, returnOrigin }) => {
+const buildAdsOAuthState = ({ companyId, userId, returnOrigin, appKey }) => {
+  const resolvedKey = String(appKey || "primary").trim().toLowerCase();
+  const appConfig = getFacebookAppKeyConfig(resolvedKey);
+  const signingSecret = appConfig.appSecret || getFacebookOAuthConfig().appSecret;
+
   const payload = {
     cid: companyId,
     uid: userId,
     ts: Date.now(),
     type: "ads",
+    appKey: resolvedKey,
   };
   if (returnOrigin) {
     payload.returnOrigin = returnOrigin;
@@ -431,7 +445,7 @@ const buildAdsOAuthState = ({ companyId, userId, returnOrigin }) => {
 
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = crypto
-    .createHmac("sha256", getFacebookOAuthConfig().appSecret)
+    .createHmac("sha256", signingSecret)
     .update(encoded)
     .digest("hex");
 
@@ -462,18 +476,24 @@ const decodeAdsOAuthState = (state) => {
     return { ok: false, reason: "malformed" };
   }
 
+  const appKey = payload.appKey || payload.app || "primary";
+  const appConfig = getFacebookAppKeyConfig(appKey);
+  const candidateSecrets = [appConfig.appSecret, getFacebookOAuthConfig().appSecret].filter(Boolean);
+
   let signatureValid = false;
-  try {
-    const expected = crypto
-      .createHmac("sha256", getFacebookOAuthConfig().appSecret)
-      .update(encoded)
-      .digest("hex");
-    signatureValid = crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expected),
-    );
-  } catch (error) {
-    signatureValid = false;
+  for (const secret of candidateSecrets) {
+    try {
+      const expected = crypto
+        .createHmac("sha256", secret)
+        .update(encoded)
+        .digest("hex");
+      if (crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+        signatureValid = true;
+        break;
+      }
+    } catch {
+      signatureValid = false;
+    }
   }
 
   if (!signatureValid) {
@@ -489,6 +509,7 @@ const decodeAdsOAuthState = (state) => {
       type: payload.type || "ads",
       returnOrigin: payload.returnOrigin || payload.returnTo || payload.origin,
       popup: Boolean(payload.popup),
+      appKey: appKey || "primary",
     },
   };
 };
@@ -497,17 +518,37 @@ const decodeFacebookOAuthState = (state, fallbackType) => {
   const normalizedState = decodeURIComponent(state).replace(/ /g, "+");
   const decodedState = Buffer.from(normalizedState, "base64").toString("utf8");
 
-  // Strip HMAC suffix if present and verify
-  let hmacValid = false;
+  // Determine app key first if present in the state
+  let appKey = "primary";
   let strippedState = decodedState;
   const hmacIdx = decodedState.lastIndexOf('|hmac=');
+  let sig = null;
   if (hmacIdx !== -1) {
-    const sig = decodedState.substring(hmacIdx + 6);
+    sig = decodedState.substring(hmacIdx + 6);
     strippedState = decodedState.substring(0, hmacIdx);
-    try {
-      const expected = crypto.createHmac('sha256', getFacebookOAuthConfig().appSecret).update(strippedState).digest('hex').substring(0, 16);
-      hmacValid = crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
-    } catch { hmacValid = false; }
+  }
+
+  if (strippedState.includes("|")) {
+    const parts = strippedState.split("|");
+    const appPart = parts.find((p) => p.startsWith("app="));
+    if (appPart) {
+      appKey = appPart.replace("app=", "").trim().toLowerCase();
+    }
+  }
+
+  let hmacValid = false;
+  if (sig) {
+    const appConfig = getFacebookAppKeyConfig(appKey);
+    const candidateSecrets = [appConfig.appSecret, getFacebookOAuthConfig().appSecret].filter(Boolean);
+    for (const secret of candidateSecrets) {
+      try {
+        const expected = crypto.createHmac('sha256', secret).update(strippedState).digest('hex').substring(0, 16);
+        if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+          hmacValid = true;
+          break;
+        }
+      } catch { /* ignore */ }
+    }
   }
 
   if (strippedState.includes("|")) {
@@ -523,6 +564,8 @@ const decodeFacebookOAuthState = (state, fallbackType) => {
         type = val;
       } else if (val === "popup") {
         popup = true;
+      } else if (val.startsWith("app=")) {
+        appKey = val.replace("app=", "").trim().toLowerCase();
       } else if (val && !returnOrigin && !val.startsWith("hmac=")) {
         returnOrigin = val;
       }
@@ -536,9 +579,7 @@ const decodeFacebookOAuthState = (state, fallbackType) => {
         if (!isNaN(parsedTs)) {
           ts = parsedTs;
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     }
 
     const stateData = {
@@ -548,6 +589,7 @@ const decodeFacebookOAuthState = (state, fallbackType) => {
       type,
       returnOrigin,
       popup,
+      appKey: appKey || "primary",
     };
 
     return { raw: decodedState, stateData, hmacValid };
@@ -563,11 +605,12 @@ const decodeFacebookOAuthState = (state, fallbackType) => {
         type: parsedState.type || fallbackType,
         returnOrigin:
           parsedState.returnOrigin || parsedState.returnTo || parsedState.origin,
+        appKey: parsedState.appKey || parsedState.app || "primary",
       },
-      hmacValid: false,
+      hmacValid,
     };
   } catch {
-    return { raw: decodedState, stateData: {}, hmacValid: false };
+    return { raw: decodedState, stateData: { appKey: "primary" }, hmacValid: false };
   }
 };
 
@@ -1332,7 +1375,9 @@ router.get(
   verifyToken.requireRole(["OWNER", "MANAGER", "COMPANY_ADMIN", "SUPER_ADMIN"]),
   async (req, res) => {
     try {
-      const { appId } = getFacebookOAuthConfig();
+      const requestedAppKey = (req.query.app || req.query.facebookAppKey || req.query.appKey || "primary").trim().toLowerCase();
+      const appConfig = getFacebookAppKeyConfig(requestedAppKey);
+      const appId = appConfig.appId || getFacebookOAuthConfig().appId;
       const { companyId, popup } = req.query;
       const returnOrigin = getRequestedFrontendOrigin(req);
 
@@ -1365,6 +1410,7 @@ router.get(
         companyId,
         userId: req.user.id,
         returnOrigin,
+        appKey: requestedAppKey,
       });
 
       const authUrl =
@@ -1399,7 +1445,9 @@ router.get(
  */
 router.get("/authorize", verifyToken.authenticateToken, async (req, res) => {
   try {
-    const { appId } = getFacebookOAuthConfig();
+    const requestedAppKey = (req.query.app || req.query.facebookAppKey || req.query.appKey || "primary").trim().toLowerCase();
+    const appConfig = getFacebookAppKeyConfig(requestedAppKey);
+    const appId = appConfig.appId || getFacebookOAuthConfig().appId;
     const { companyId, popup } = req.query;
     const returnOrigin = getRequestedFrontendOrigin(req);
 
@@ -1435,6 +1483,7 @@ router.get("/authorize", verifyToken.authenticateToken, async (req, res) => {
       userId: req.user.id,
       returnOrigin,
       popup: popup === "true",
+      appKey: requestedAppKey,
     });
 
     const authType =
@@ -1860,6 +1909,7 @@ const handleAdsOAuthCallback = async ({
           timezone: account.timezone,
           accessToken: userAccessToken,
           connectionSourceId: source.id,
+          facebookAppKey: callbackAppKey,
           isActive: true,
         },
         create: {
@@ -1871,6 +1921,7 @@ const handleAdsOAuthCallback = async ({
           timezone: account.timezone,
           accessToken: userAccessToken,
           connectionSourceId: source.id,
+          facebookAppKey: callbackAppKey,
           isActive: true,
         },
       });
@@ -1925,8 +1976,6 @@ router.get("/callback", async (req, res) => {
   let callbackRedirectType = "page";
 
   try {
-    const { appId, appSecret } = getFacebookOAuthConfig();
-    const { code, state, error } = req.query;
     const {
       decodedState: callbackDecodedState,
       redirectBaseUrl: resolvedRedirectBaseUrl,
@@ -1934,6 +1983,11 @@ router.get("/callback", async (req, res) => {
       stateData: callbackStateData,
       hmacValid: callbackHmacValid,
     } = resolveOAuthCallbackContext(state);
+
+    const callbackAppKey = (callbackStateData?.appKey || req.query?.app || req.query?.facebookAppKey || req.query?.appKey || "primary").trim().toLowerCase();
+    const appConfig = getFacebookAppKeyConfig(callbackAppKey);
+    const appId = appConfig.appId || getFacebookOAuthConfig().appId;
+    const appSecret = appConfig.appSecret || getFacebookOAuthConfig().appSecret;
     
     isPopup = callbackStateData?.popup === true;
     if (resolvedRedirectBaseUrl) callbackRedirectBaseUrl = resolvedRedirectBaseUrl;
@@ -2229,6 +2283,7 @@ router.get("/callback", async (req, res) => {
               facebookUserName: facebookUserName || undefined,
               facebookUserEmail: facebookUserEmail || undefined,
               status: "connected",
+              facebookAppKey: callbackAppKey,
               lastSyncedAt: new Date(),
               connectedByUserId: userId || undefined,
               updatedAt: new Date(),
@@ -2240,6 +2295,7 @@ router.get("/callback", async (req, res) => {
               facebookUserEmail,
               accessToken: userAccessToken,
               status: "connected",
+              facebookAppKey: callbackAppKey,
               connectedByUserId: userId || null,
               connectedAt: new Date(),
               updatedAt: new Date(),
@@ -2334,6 +2390,7 @@ router.get("/callback", async (req, res) => {
           pageAccessToken: page.access_token,
           pageName: page.name,
           status: "connected",
+          facebookAppKey: callbackAppKey,
           connectedAt: new Date(),
           disconnectedAt: null,
           companyId: companyId,
@@ -2346,6 +2403,7 @@ router.get("/callback", async (req, res) => {
           pageName: page.name,
           pageAccessToken: page.access_token,
           status: "connected",
+          facebookAppKey: callbackAppKey,
           connectedAt: new Date(),
           updatedAt: new Date(),
           companyId: companyId,
@@ -3125,7 +3183,9 @@ router.get("/debug", verifyToken.authenticateToken, async (req, res) => {
  */
 router.get(["/pixel-authorize", "/auth"], verifyToken.authenticateToken, async (req, res) => {
   try {
-    const { appId } = getFacebookOAuthConfig();
+    const requestedAppKey = (req.query?.app || req.query?.facebookAppKey || req.query?.appKey || "primary").trim().toLowerCase();
+    const appConfig = getFacebookAppKeyConfig(requestedAppKey);
+    const appId = appConfig.appId || getFacebookOAuthConfig().appId;
     const companyId = req.query?.companyId || req.user?.companyId;
     const returnOrigin = getRequestedFrontendOrigin(req);
 
@@ -3161,6 +3221,7 @@ router.get(["/pixel-authorize", "/auth"], verifyToken.authenticateToken, async (
       userId: req.user.id,
       type: "pixel",
       returnOrigin,
+      appKey: requestedAppKey,
     });
 
     const authUrl =
@@ -3197,8 +3258,6 @@ router.get("/pixel-callback", async (req, res) => {
   let callbackRedirectType = "pixel";
 
   try {
-    const { appId, appSecret } = getFacebookOAuthConfig();
-    const { code, state, error } = req.query;
     const {
       decodedState: callbackDecodedState,
       redirectBaseUrl: resolvedRedirectBaseUrl,
@@ -3206,6 +3265,11 @@ router.get("/pixel-callback", async (req, res) => {
       stateData: callbackStateData,
       hmacValid: callbackHmacValid,
     } = resolveOAuthCallbackContext(state, "pixel");
+
+    const callbackAppKey = (callbackStateData?.appKey || req.query?.app || req.query?.facebookAppKey || req.query?.appKey || "primary").trim().toLowerCase();
+    const appConfig = getFacebookAppKeyConfig(callbackAppKey);
+    const appId = appConfig.appId || getFacebookOAuthConfig().appId;
+    const appSecret = appConfig.appSecret || getFacebookOAuthConfig().appSecret;
 
     if (resolvedRedirectBaseUrl) callbackRedirectBaseUrl = resolvedRedirectBaseUrl;
     if (resolvedRedirectType) callbackRedirectType = resolvedRedirectType;
@@ -3997,3 +4061,7 @@ router.post("/refresh-token", verifyToken.authenticateToken, async (req, res) =>
 
 module.exports = router;
 module.exports.exchangeForLongLivedFacebookToken = exchangeForLongLivedFacebookToken;
+module.exports.buildFacebookOAuthState = buildFacebookOAuthState;
+module.exports.decodeFacebookOAuthState = decodeFacebookOAuthState;
+module.exports.buildAdsOAuthState = buildAdsOAuthState;
+module.exports.decodeAdsOAuthState = decodeAdsOAuthState;

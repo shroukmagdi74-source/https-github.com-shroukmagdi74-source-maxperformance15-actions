@@ -124,10 +124,16 @@ const getFacebookConfigId = () =>
   getFacebookOAuthConfig().configId;
 
 /**
+ * فحص ما إذا كان تطبيق Growth مفعل
+ * @returns {boolean}
+ */
+const isGrowthActive = () => process.env.META_GROWTH_ACTIVE !== "false";
+
+/**
  * جلب إعدادات تطبيق فيسبوك بحسب المفتاح ('primary' أو 'growth')
- * مع التراجع التلقائي إلى primary إذا لم يكن growth مضبوطاً
+ * مع التراجع التلقائي إلى primary إذا لم يكن growth مضبوطاً أو إذا كان معطلاً
  * @param {string} [key='primary']
- * @returns {{ appId: string, appSecret: string, loginConfigId: string }}
+ * @returns {{ appId: string, appSecret: string, loginConfigId: string, webhookVerifyToken: string }}
  */
 const getFacebookAppKeyConfig = (key = "primary") => {
   const normalizedKey = String(key || "primary").trim().toLowerCase();
@@ -136,12 +142,21 @@ const getFacebookAppKeyConfig = (key = "primary") => {
     appId: primaryOAuth.appId,
     appSecret: primaryOAuth.appSecret,
     loginConfigId: primaryOAuth.configId,
+    webhookVerifyToken: primaryOAuth.facebookWebhookVerifyToken,
   };
 
   if (normalizedKey === "growth") {
+    if (!isGrowthActive()) {
+      return primaryConfig;
+    }
+
     const growthAppId = chooseCredential(process.env.FACEBOOK_GROWTH_APP_ID);
     const growthAppSecret = chooseCredential(process.env.FACEBOOK_GROWTH_APP_SECRET);
     const growthLoginConfigId = normalizeCredential(process.env.FACEBOOK_GROWTH_LOGIN_CONFIG_ID);
+    const growthWebhookVerifyToken = chooseCredential(
+      process.env.FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN,
+      process.env.FACEBOOK_GROWTH_VERIFY_TOKEN
+    );
 
     // الرجوع إلى primary كـ fallback إذا لم يكن معرف تطبيق النمو مضبوطاً
     if (!growthAppId || isPlaceholderFacebookCredential(growthAppId)) {
@@ -152,10 +167,72 @@ const getFacebookAppKeyConfig = (key = "primary") => {
       appId: growthAppId,
       appSecret: growthAppSecret || primaryConfig.appSecret,
       loginConfigId: growthLoginConfigId || primaryConfig.loginConfigId,
+      webhookVerifyToken: growthWebhookVerifyToken || primaryConfig.webhookVerifyToken,
     };
   }
 
   return primaryConfig;
+};
+
+/**
+ * جلب قائمة كافة أسرار التطبيقات المهيأة للتحقق من تواقيع الويب هوك (Primary + Growth)
+ * @returns {Array<{ key: string, appSecret: string, appId: string }>}
+ */
+const getAllFacebookAppSecrets = () => {
+  const primaryConfig = getFacebookAppKeyConfig("primary");
+  const secrets = [];
+
+  if (primaryConfig.appSecret && !isPlaceholderFacebookCredential(primaryConfig.appSecret)) {
+    secrets.push({
+      key: "primary",
+      appId: primaryConfig.appId,
+      appSecret: primaryConfig.appSecret,
+    });
+  }
+
+  if (isGrowthActive()) {
+    const growthConfig = getFacebookAppKeyConfig("growth");
+    if (
+      growthConfig.appSecret &&
+      growthConfig.appSecret !== primaryConfig.appSecret &&
+      !isPlaceholderFacebookCredential(growthConfig.appSecret)
+    ) {
+      secrets.push({
+        key: "growth",
+        appId: growthConfig.appId,
+        appSecret: growthConfig.appSecret,
+      });
+    }
+  }
+
+  return secrets;
+};
+
+/**
+ * جلب رموز التحقق المقبولة لـ Webhook Verification من التطبيقين
+ * @returns {Set<string>}
+ */
+const getFacebookWebhookVerifyTokens = () => {
+  const primaryOAuth = getFacebookOAuthConfig();
+  const growthConfig = getFacebookAppKeyConfig("growth");
+
+  const tokens = [
+    process.env.FACEBOOK_VERIFY_TOKEN,
+    process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN,
+    primaryOAuth.facebookWebhookVerifyToken,
+    primaryOAuth.whatsappWebhookVerifyToken,
+    growthConfig.webhookVerifyToken,
+    process.env.FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN,
+    process.env.FACEBOOK_GROWTH_VERIFY_TOKEN,
+    "61d94df61ed00ab77e2a7e2c15458d7ce9ec8abc4520a6a83f0b483829617314",
+    "simple_chat_verify_token_2025",
+  ];
+
+  return new Set(
+    tokens
+      .filter((t) => typeof t === "string" && t.trim() !== "")
+      .map((t) => t.trim())
+  );
 };
 
 module.exports = {
@@ -163,12 +240,15 @@ module.exports = {
   FACEBOOK_OAUTH_CONFIG_PATH,
   FACEBOOK_LOGIN_CONFIG_ID,
   buildFacebookBackendCallbackUrl,
+  getAllFacebookAppSecrets,
   getFacebookAppKeyConfig,
   getFacebookAppSecret,
   getFacebookConfigId,
   getFacebookOAuthConfig,
   getFacebookRedirectUri,
+  getFacebookWebhookVerifyTokens,
   getStoredFacebookOAuthConfig,
+  isGrowthActive,
   isPlaceholderFacebookCredential,
   saveFacebookOAuthConfig,
 };

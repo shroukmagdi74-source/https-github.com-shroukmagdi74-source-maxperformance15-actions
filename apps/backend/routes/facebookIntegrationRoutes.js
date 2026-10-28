@@ -2,8 +2,14 @@ const express = require('express');
 const router = express.Router();
 const facebookIntegration = require('../controller/facebookIntegration');
 const facebookPublishController = require('../controller/facebookPublishController');
+const superAdminPlatformController = require('../controller/superAdminPlatformController');
 const verifyToken = require('../utils/verifyToken');
 const { checkAppAccess } = require('../middleware/checkAppAccess');
+
+// Super Admin Meta Apps Registry (Primary + Growth)
+router.get('/facebook/apps', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN']), superAdminPlatformController.getMetaApps);
+router.post('/facebook/apps', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN']), superAdminPlatformController.upsertMetaApp);
+router.patch('/facebook/apps/:key/toggle', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN']), superAdminPlatformController.toggleMetaAppStatus);
 
 // Place specific routes before parameterized routes
 router.post('/facebook/publish', verifyToken.authenticateToken, checkAppAccess('crm-basic'), facebookPublishController.createPost);

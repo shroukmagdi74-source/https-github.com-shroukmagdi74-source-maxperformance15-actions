@@ -6,9 +6,10 @@ const { isPermissionError, getPermissionErrorMessage } = require('../utils/dbPer
 const { recordSentMessageStat } = require('../utils/statsRecorder');
 const {
   shouldStrictlyEnforceFacebookWebhookSignature,
-  verifyMetaWebhookSignature
+  verifyMetaWebhookSignature,
+  verifyMetaWebhookSignatureAgainstApps
 } = require('../utils/webhookSignature');
-const { getFacebookAppSecret } = require('../config/facebookAppConfig');
+const { getFacebookAppSecret, getFacebookWebhookVerifyTokens } = require('../config/facebookAppConfig');
 const whatsappMetaWebhookController = require('./whatsappMetaWebhookController');
 
 // ⚠️ CRITICAL: Always use safeQuery() instead of direct prisma calls
@@ -83,7 +84,37 @@ const extractMessageMediaUrl = (msg) => {
 
 // Simple in-memory storage for tracking processed messages
 const processedMessages = new Map();
-const inFlightMessages = new Set(); // 🆕 Track in-flight messages without blocking retries on crash
+const inFlightMessages = new Set();
+
+const isWebhookEventDuplicate = async (channel, externalMessageId, appKey = 'primary') => {
+  if (!externalMessageId) return false;
+  if (processedMessages.has(externalMessageId) || inFlightMessages.has(externalMessageId)) {
+    return true;
+  }
+
+  try {
+    const prisma = getSharedPrismaClient();
+    if (prisma?.webhookEventDedupe?.create) {
+      await prisma.webhookEventDedupe.create({
+        data: {
+          channel: channel || 'facebook',
+          externalMessageId: String(externalMessageId),
+          appKey: appKey || 'primary'
+        }
+      });
+      processedMessages.set(externalMessageId, Date.now());
+      return false;
+    }
+  } catch (err) {
+    if (err.code === 'P2002' || err.message?.includes('Unique constraint') || err.message?.includes('duplicate key')) {
+      processedMessages.set(externalMessageId, Date.now());
+      return true;
+    }
+  }
+
+  processedMessages.set(externalMessageId, Date.now());
+  return false;
+}; // 🆕 Track in-flight messages without blocking retries on crash
 const processedComments = new Map(); // 🆕 Track processed comments
 let lastWebhookPageId = null;
 
@@ -183,18 +214,7 @@ const getWebhook = async (req, res) => {
   const challenge = req.query['hub.challenge'];
 
   if (mode && token) {
-    const { getFacebookOAuthConfig } = require('../config/facebookAppConfig');
-    const fbConfig = getFacebookOAuthConfig();
-    const validVerifyTokens = new Set(
-      [
-        process.env.FACEBOOK_VERIFY_TOKEN,
-        process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN,
-        fbConfig.facebookWebhookVerifyToken,
-        fbConfig.whatsappWebhookVerifyToken,
-        '61d94df61ed00ab77e2a7e2c15458d7ce9ec8abc4520a6a83f0b483829617314',
-        'simple_chat_verify_token_2025'
-      ].filter((t) => typeof t === 'string' && t.trim() !== '')
-    );
+    const validVerifyTokens = getFacebookWebhookVerifyTokens();
 
     if (mode === 'subscribe' && validVerifyTokens.has(token)) {
       console.log('✅ [WEBHOOK] Facebook webhook verified successfully');
@@ -213,10 +233,7 @@ const postWebhook = async (req, res) => {
     return whatsappMetaWebhookController.postWebhook(req, res);
   }
 
-  const signatureCheck = verifyMetaWebhookSignature(
-    req,
-    String(getFacebookAppSecret() || '').trim()
-  );
+  const signatureCheck = verifyMetaWebhookSignatureAgainstApps(req);
 
   if (!signatureCheck.ok) {
     const statusCode = signatureCheck.reason === 'missing_raw_body' ? 400 : 401;
@@ -294,6 +311,10 @@ const postWebhook = async (req, res) => {
       // Process each entry in the webhook
       for (const entry of body?.entry || []) {
         try {
+          const entryId = entry?.id;
+          const eventAppId = entry?.messaging?.[0]?.message?.app_id || entry?.changes?.[0]?.value?.app_id || signatureCheck.appId || 'default';
+          const eventAppKey = signatureCheck.matchedApp || 'primary';
+          console.log(`📥 [WEBHOOK-EVENT] entryId=${entryId} | app_id=${eventAppId} | appKey=${eventAppKey}`);
 
           // NEW: Check if this page still exists in our database AND is connected
           // If not, ignore the webhook event to prevent processing orphaned events
@@ -391,7 +412,8 @@ const postWebhook = async (req, res) => {
                     // Deduplication check
                     const messageId = webhookEvent.message?.mid;
                     if (messageId) {
-                      if (processedMessages.has(messageId) || inFlightMessages.has(messageId)) {
+                      const isDup = await isWebhookEventDuplicate('facebook', messageId, eventAppKey);
+                      if (isDup || inFlightMessages.has(messageId)) {
                         continue;
                       }
                       inFlightMessages.add(messageId);
@@ -1073,9 +1095,15 @@ async function handlePageReply(webhookEvent, pageId = null) {
         typeof pageReplyMessage.metadata === 'string' ? pageReplyMessage.metadata.includes('"source":"ai_reply"') : pageReplyMessage.metadata?.source === 'ai_reply'
       ));
 
-    const { DEFAULT_FACEBOOK_APP_ID } = require('../config/facebookAppConfig');
+    const { DEFAULT_FACEBOOK_APP_ID, getFacebookAppKeyConfig } = require('../config/facebookAppConfig');
+    const growthAppConfig = getFacebookAppKeyConfig('growth');
     const webhookAppId = webhookEvent.message?.app_id ? String(webhookEvent.message.app_id) : null;
-    const isOurAppEcho = !!(webhookAppId && (webhookAppId === DEFAULT_FACEBOOK_APP_ID || webhookAppId === process.env.FACEBOOK_APP_ID));
+    const isOurAppEcho = !!(webhookAppId && (
+      webhookAppId === DEFAULT_FACEBOOK_APP_ID ||
+      webhookAppId === process.env.FACEBOOK_APP_ID ||
+      webhookAppId === growthAppConfig.appId ||
+      webhookAppId === process.env.FACEBOOK_GROWTH_APP_ID
+    ));
 
     if (isAiReply || isSystemMessage || isOurAppEcho) {
       console.log(`🤖 [HUMAN-HANDOVER] Skipped handover pause for msg ${messageId}: sent by AI/System (isAi=${isAiReply}, isSystem=${isSystemMessage}, isOurApp=${isOurAppEcho})`);

@@ -1,4 +1,9 @@
-const { resolveFacebookAppKeyForPage, getOAuthConfigForPage } = require('../../services/facebookAppResolver');
+const {
+  resolveFacebookAppKeyForPage,
+  resolveFacebookAppKeyForConnection,
+  resolveFacebookAppKeyForAdAccount,
+  getOAuthConfigForPage
+} = require('../../services/facebookAppResolver');
 const facebookAppConfig = require('../../config/facebookAppConfig');
 const sharedDatabase = require('../../services/sharedDatabase');
 
@@ -51,5 +56,56 @@ describe('facebookAppResolver', () => {
     expect(config.key).toBe('growth');
     expect(config.appId).toBe('growth-app-111');
     expect(config.appSecret).toBe('growth-secret-222');
+  });
+
+  test('resolveFacebookAppKeyForConnection returns stored app key or primary fallback', async () => {
+    const mockPrisma = {
+      facebookAccountConnection: {
+        findFirst: jest.fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ facebookAppKey: 'growth' })
+      }
+    };
+    jest.spyOn(sharedDatabase, 'getSharedPrismaClient').mockReturnValue(mockPrisma);
+
+    const fallback = await resolveFacebookAppKeyForConnection('conn-1');
+    expect(fallback).toBe('primary');
+
+    const growth = await resolveFacebookAppKeyForConnection('conn-2');
+    expect(growth).toBe('growth');
+  });
+
+  test('resolveFacebookAppKeyForAdAccount returns stored app key or primary fallback', async () => {
+    const mockPrisma = {
+      facebookAdAccount: {
+        findFirst: jest.fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ facebookAppKey: 'growth' })
+      }
+    };
+    jest.spyOn(sharedDatabase, 'getSharedPrismaClient').mockReturnValue(mockPrisma);
+
+    const fallback = await resolveFacebookAppKeyForAdAccount('ad-1');
+    expect(fallback).toBe('primary');
+
+    const growth = await resolveFacebookAppKeyForAdAccount('ad-2');
+    expect(growth).toBe('growth');
+  });
+
+  test('featureRequiresGrowth gates features requiring growth with arabic message and REAUTH_REQUIRED', () => {
+    const { featureRequiresGrowth } = require('../../services/facebookAppResolver');
+    
+    // Normal feature allowed for any key
+    expect(featureRequiresGrowth('basic_messaging', 'primary')).toEqual({ allowed: true });
+
+    // Growth feature blocked on primary
+    const blocked = featureRequiresGrowth('growth_ad_management', 'primary');
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.code).toBe('REAUTH_REQUIRED');
+    expect(blocked.message).toContain('اربط الصفحة تاني لتفعيل الميزة');
+
+    // Growth feature allowed on growth
+    const allowed = featureRequiresGrowth('growth_ad_management', 'growth');
+    expect(allowed.allowed).toBe(true);
   });
 });

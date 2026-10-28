@@ -85,4 +85,117 @@ exports.getMarketplaceStats = async (req, res) => {
   }
 };
 
+/**
+ * @route GET /api/v1/super-admin/platform/meta-apps
+ * @desc جلب قائمة تطبيقات فيسبوك (Primary + Growth) بدون كشف الأسرار
+ * @access Super Admin
+ */
+exports.getMetaApps = async (req, res) => {
+  try {
+    const metaAppRegistry = require('../services/metaAppRegistryService');
+    const apps = await metaAppRegistry.getSafeAppsList();
+    return res.json({
+      success: true,
+      data: apps
+    });
+  } catch (error) {
+    console.error('❌ Error fetching meta apps:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'فشل في جلب قائمة تطبيقات فيسبوك',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @route POST /api/v1/super-admin/platform/meta-apps
+ * @desc إضافة أو تحديث تطبيق فيسبوك في السجل (Primary أو Growth)
+ * @access Super Admin
+ */
+exports.upsertMetaApp = async (req, res) => {
+  try {
+    const metaAppRegistry = require('../services/metaAppRegistryService');
+    const { key, appId, appSecretRef, configId, webhookVerifyTokenRef, isActive } = req.body || {};
+
+    if (!key || !['primary', 'growth'].includes(String(key).trim().toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        message: 'مفتاح التطبيق غير صالح (يجب أن يكون primary أو growth)'
+      });
+    }
+
+    if (!appId || typeof appId !== 'string' || !appId.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'معرّف التطبيق (App ID) مطلوب'
+      });
+    }
+
+    if (!appSecretRef || typeof appSecretRef !== 'string' || !appSecretRef.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'مرجع السر (appSecretRef) مطلوب — ممنوع تخزين السكرت كنص مباشر'
+      });
+    }
+
+    const updated = await metaAppRegistry.upsertApp({
+      key,
+      appId,
+      appSecretRef,
+      configId,
+      webhookVerifyTokenRef,
+      isActive: isActive !== false
+    });
+
+    return res.json({
+      success: true,
+      message: `تم حفظ تطبيق ${key} بنجاح`,
+      data: updated
+    });
+  } catch (error) {
+    console.error('❌ Error upserting meta app:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'فشل في حفظ تطبيق فيسبوك',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @route PATCH /api/v1/super-admin/platform/meta-apps/:key/toggle
+ * @desc تفعيل أو تعطيل تطبيق فيسبوك
+ * @access Super Admin
+ */
+exports.toggleMetaAppStatus = async (req, res) => {
+  try {
+    const metaAppRegistry = require('../services/metaAppRegistryService');
+    const { key } = req.params;
+    const { isActive } = req.body || {};
+
+    const normalizedKey = String(key || '').trim().toLowerCase();
+    if (!['primary', 'growth'].includes(normalizedKey)) {
+      return res.status(400).json({
+        success: false,
+        message: 'مفتاح التطبيق غير صالح (يجب أن يكون primary أو growth)'
+      });
+    }
+
+    const updated = await metaAppRegistry.toggleAppStatus(normalizedKey, Boolean(isActive));
+    return res.json({
+      success: true,
+      message: `تم ${Boolean(isActive) ? 'تفعيل' : 'تعطيل'} تطبيق ${normalizedKey} بنجاح`,
+      data: updated
+    });
+  } catch (error) {
+    console.error('❌ Error toggling meta app status:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'فشل في تعديل حالة تطبيق فيسبوك',
+      error: error.message
+    });
+  }
+};
+
 module.exports = exports;

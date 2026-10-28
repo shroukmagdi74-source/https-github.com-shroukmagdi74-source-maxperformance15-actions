@@ -140,14 +140,15 @@ const getFacebookAppConfig = async (req, res) => {
 
         // استخدام الـ resolver لتحديد إعدادات التطبيق (primary أو growth) بناءً على الصفحة أو المفتاح
         const targetPageId = req.query.pageId || req.query.page_id;
+        const requestedKey = req.query.app || req.query.facebookAppKey || req.query.appKey;
         const fbConfig = targetPageId
             ? await getOAuthConfigForPage(targetPageId)
-            : (req.query.facebookAppKey ? getFacebookAppKeyConfig(req.query.facebookAppKey) : getFacebookOAuthConfig());
+            : (requestedKey ? getFacebookAppKeyConfig(requestedKey) : getFacebookOAuthConfig());
 
         const config = {
             appId: fbConfig.appId || 'your-facebook-app-id',
             webhookUrl: `${envConfig.backendUrl}/api/v1/webhook`,
-            verifyToken: process.env.FACEBOOK_VERIFY_TOKEN || 'simple_chat_verify_token_2025',
+            verifyToken: fbConfig.webhookVerifyToken || process.env.FACEBOOK_VERIFY_TOKEN || 'simple_chat_verify_token_2025',
             requiredPermissions: [
                 'pages_messaging',
                 'pages_read_engagement',
@@ -318,7 +319,7 @@ const connectFacebookPage = async (req, res) => {
                         connectedAt: new Date(),
                         disconnectedAt: null, // Clear disconnection timestamp
                         companyId: companyId,
-                        facebookAppKey: req.body.facebookAppKey || existingPage.facebookAppKey || 'primary'
+                        facebookAppKey: req.body.app || req.body.facebookAppKey || existingPage.facebookAppKey || 'primary'
                     }
                 });
                 ////console.log(`📝 [FACEBOOK-CONNECT] ${isReconnection ? 'Reconnected' : 'Updated'} existing page in database`);
@@ -333,7 +334,7 @@ const connectFacebookPage = async (req, res) => {
                         status: 'connected',
                         connectedAt: new Date(),
                         companyId: companyId,
-                        facebookAppKey: req.body.facebookAppKey || 'primary'
+                        facebookAppKey: req.body.app || req.body.facebookAppKey || 'primary'
                     }
                 });
                 ////console.log('➕ [FACEBOOK-CONNECT] Created new page in database');
