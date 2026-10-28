@@ -248,10 +248,10 @@ describe("Ticket PERM-1: Studio Permissions & Optimistic Concurrency Lock (#46)"
       );
 
       const publishBtn = screen.getByTestId("studio-publish-button");
-      expect(publishBtn).toBeDisabled();
+      expect(publishBtn.hasAttribute("disabled")).toBe(true);
 
       const saveBtn = screen.getByTestId("studio-save-button");
-      expect(saveBtn).toBeDisabled();
+      expect(saveBtn.hasAttribute("disabled")).toBe(true);
     });
 
     it("2.3 StorefrontStudioShell renders viewer banner when rendered with a viewer user", () => {
@@ -275,7 +275,7 @@ describe("Ticket PERM-1: Studio Permissions & Optimistic Concurrency Lock (#46)"
       expect(viewerBanner.textContent).toContain("أنت في وضع المشاهدة");
 
       const publishBtn = screen.getByTestId("studio-publish-button");
-      expect(publishBtn).toBeDisabled();
+      expect(publishBtn.hasAttribute("disabled")).toBe(true);
     });
   });
 
