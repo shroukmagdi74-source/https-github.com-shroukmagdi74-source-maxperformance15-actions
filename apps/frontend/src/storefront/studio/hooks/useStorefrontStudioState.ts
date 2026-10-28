@@ -3,6 +3,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { useStudioHistory } from "./useStudioHistory";
+import { STUDIO_HISTORY_MAX_STEPS } from "../utils/studioHistoryTimeline";
 import { STOREFRONT_THEME_PRESETS } from "../../themes";
 import { resolveStorefrontTheme } from "../../engine/themeResolver";
 import { useCartStore } from "../../store/useCartStore";
@@ -205,8 +206,11 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     redo: rawRedo,
     canUndo,
     canRedo,
+    steps: historySteps,
+    currentStepIndex: currentHistoryStepIndex,
+    jumpToStep: rawJumpToHistoryStep,
   } = useStudioHistory<Record<string, unknown>>(externalDesignTokens, {
-    maxHistory: 30,
+    maxSteps: STUDIO_HISTORY_MAX_STEPS,
     onChange,
   });
 
@@ -238,6 +242,19 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     }
     return next;
   }, [rawRedo, onSave]);
+
+  // UNDO-1: jump straight to a recorded step (same persistence semantics as undo/redo).
+  const handleJumpToHistoryStep = useCallback(
+    (stepId: number) => {
+      const target = rawJumpToHistoryStep(stepId);
+      if (target !== undefined) {
+        currentDesignTokensRef.current = target;
+        onSave();
+      }
+      return target;
+    },
+    [rawJumpToHistoryStep, onSave]
+  );
 
   // Keyboard Shortcuts (Ctrl+S, Ctrl+Z, Ctrl+Y)
   useEffect(() => {
@@ -2171,6 +2188,9 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
     canRedo,
     undo: handleUndo,
     redo: handleRedo,
+    historySteps,
+    currentHistoryStepIndex,
+    jumpToHistoryStep: handleJumpToHistoryStep,
     handleDesignTokensChange,
     handleDragEnd,
     handleMoveSection,

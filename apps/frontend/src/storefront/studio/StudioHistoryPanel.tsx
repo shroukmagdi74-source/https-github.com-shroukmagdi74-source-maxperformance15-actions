@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   ClockIcon,
   XMarkIcon,
   ArrowPathIcon,
   ArrowUturnLeftIcon,
+  ArrowsUpDownIcon,
+  ListBulletIcon,
   EyeIcon,
   ExclamationTriangleIcon,
   DocumentDuplicateIcon,
@@ -17,12 +19,21 @@ import {
   type StorefrontSettings,
 } from "../../services/storefrontSettingsService";
 import { toast } from "sonner";
+import {
+  formatRelativeTimeAr,
+  STUDIO_HISTORY_MAX_STEPS,
+  type StudioHistoryStepView,
+} from "./utils/studioHistoryTimeline";
 
 interface StudioHistoryPanelProps {
   isOpen: boolean;
   onClose: () => void;
   companyId?: string;
   onRestoreSuccess?: (restoredSettings: StorefrontSettings) => void;
+  /** UNDO-1: in-session undo steps (current step first-class). */
+  steps?: StudioHistoryStepView[];
+  currentStepIndex?: number;
+  onJumpToStep?: (stepId: number) => void;
 }
 
 export const formatArabicDateTime = (dateStr: string): string => {
@@ -64,6 +75,9 @@ export const StudioHistoryPanel: React.FC<StudioHistoryPanelProps> = ({
   onClose,
   companyId,
   onRestoreSuccess,
+  steps,
+  currentStepIndex,
+  onJumpToStep,
 }) => {
   const [revisions, setRevisions] = useState<StorefrontSettingsRevisionSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -71,6 +85,29 @@ export const StudioHistoryPanel: React.FC<StudioHistoryPanelProps> = ({
   const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
   const [confirmingRevision, setConfirmingRevision] = useState<StorefrontSettingsRevisionSummary | null>(null);
   const [restoring, setRestoring] = useState<boolean>(false);
+
+  // UNDO-1 — in-session steps tab (HIST-1 revisions stay untouched as the second tab).
+  const hasStepsTab = Array.isArray(steps);
+  const [activeTab, setActiveTab] = useState<"steps" | "versions">(hasStepsTab ? "steps" : "versions");
+  const [newestFirst, setNewestFirst] = useState<boolean>(true);
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setActiveTab(hasStepsTab ? "steps" : "versions");
+    setNow(Date.now());
+  }, [isOpen, hasStepsTab]);
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== "steps") return;
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, [isOpen, activeTab]);
+
+  const orderedSteps = useMemo(() => {
+    const list = steps ? [...steps] : [];
+    return newestFirst ? list.reverse() : list;
+  }, [steps, newestFirst]);
 
   const fetchRevisions = useCallback(async () => {
     setLoading(true);
@@ -158,8 +195,14 @@ export const StudioHistoryPanel: React.FC<StudioHistoryPanelProps> = ({
             <ClockIcon className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-white">سجل الإصدارات</h2>
-            <p className="text-[11px] text-[#9ba0a8]">آخر 30 حفظ للمتجر مع إمكانية الاسترجاع</p>
+            <h2 className="text-sm font-bold text-white">
+              {activeTab === "steps" ? "سجل الخطوات" : "سجل الإصدارات"}
+            </h2>
+            <p data-testid="studio-history-subtitle" className="text-[11px] text-[#9ba0a8]">
+              {activeTab === "steps"
+                ? `${steps?.length ?? 0} خطوة في الجلسة (حد أقصى ${STUDIO_HISTORY_MAX_STEPS}) — اقفز لأي خطوة`
+                : "آخر 30 حفظ للمتجر مع إمكانية الاسترجاع"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -183,9 +226,150 @@ export const StudioHistoryPanel: React.FC<StudioHistoryPanelProps> = ({
         </div>
       </div>
 
+      {/* 1b. Tabs — UNDO-1 steps vs HIST-1 versions */}
+      <div className="flex items-center gap-1 border-b border-[#2a2d33] bg-[#17181c] px-3 py-2">
+        {hasStepsTab && (
+          <button
+            type="button"
+            data-testid="studio-history-tab-steps"
+            data-active={activeTab === "steps" ? "true" : "false"}
+            onClick={() => setActiveTab("steps")}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-bold transition-colors ${
+              activeTab === "steps"
+                ? "bg-[#2b6cf6]/20 text-[#60a5fa]"
+                : "text-[#9ba0a8] hover:bg-[#282b31] hover:text-white"
+            }`}
+          >
+            <ListBulletIcon className="h-3.5 w-3.5" />
+            <span>الخطوات</span>
+          </button>
+        )}
+        <button
+          type="button"
+          data-testid="studio-history-tab-versions"
+          data-active={activeTab === "versions" ? "true" : "false"}
+          onClick={() => setActiveTab("versions")}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-bold transition-colors ${
+            activeTab === "versions"
+              ? "bg-[#2b6cf6]/20 text-[#60a5fa]"
+              : "text-[#9ba0a8] hover:bg-[#282b31] hover:text-white"
+          }`}
+        >
+          <ClockIcon className="h-3.5 w-3.5" />
+          <span>الإصدارات</span>
+        </button>
+      </div>
+
       {/* 2. Content */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-        {loading && revisions.length === 0 ? (
+        {activeTab === "steps" ? (
+          <div data-testid="studio-history-steps" className="space-y-2.5">
+            {orderedSteps.length === 0 ? (
+              <div
+                data-testid="studio-history-steps-empty"
+                className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[#2a2d33] bg-[#1d1f24]/50 p-6 text-center text-[#9ba0a8]"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#2a2d33]/50 text-[#7e848d]">
+                  <ListBulletIcon className="h-6 w-6" />
+                </div>
+                <p className="text-xs font-semibold text-[#c3c7cd]">
+                  مفيش خطوات لسه — أول تعديل هيظهر هنا
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <span data-testid="studio-history-steps-count" className="text-[11px] text-[#9ba0a8]">
+                    {orderedSteps.length} من {STUDIO_HISTORY_MAX_STEPS} خطوة
+                    {typeof currentStepIndex === "number" && currentStepIndex >= 0
+                      ? ` · الحالية ${currentStepIndex + 1}/${orderedSteps.length}`
+                      : ""}
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="studio-history-steps-order"
+                    data-order={newestFirst ? "newest" : "oldest"}
+                    onClick={() => setNewestFirst((prev) => !prev)}
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[#9ba0a8] hover:bg-[#282b31] hover:text-white transition-colors"
+                  >
+                    <ArrowsUpDownIcon className="h-3.5 w-3.5" />
+                    <span>{newestFirst ? "الأحدث أولاً" : "الأقدم أولاً"}</span>
+                  </button>
+                </div>
+
+                {orderedSteps.map((step) => (
+                  <div
+                    key={step.id}
+                    data-testid="undo-step-row"
+                    data-step-id={step.id}
+                    data-step-index={step.index}
+                    data-current={step.isCurrent ? "true" : "false"}
+                    data-future={step.isFuture ? "true" : "false"}
+                    className={`rounded-xl border p-2.5 transition-all duration-150 ${
+                      step.isCurrent
+                        ? "border-[#2b6cf6]/60 bg-[#1e232d]"
+                        : step.isFuture
+                        ? "border-[#2a2d33] bg-[#1a1b20] opacity-70"
+                        : "border-[#2a2d33] bg-[#1d1f24] hover:border-[#383c44]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center rounded-md bg-[#2a2d33] px-1.5 py-0.5 text-[10px] font-black text-[#9ba0a8] font-mono">
+                            #{step.index + 1}
+                          </span>
+                          <span
+                            data-testid="undo-step-label"
+                            className={`text-xs font-bold ${
+                              step.isCurrent
+                                ? "text-white"
+                                : step.isFuture
+                                ? "text-[#7e848d]"
+                                : "text-[#e8eaee]"
+                            }`}
+                          >
+                            {step.label}
+                          </span>
+                          {step.isCurrent && (
+                            <span
+                              data-testid="undo-step-current-badge"
+                              className="rounded-md bg-[#2b6cf6] px-1.5 py-0.5 text-[10px] font-bold text-white"
+                            >
+                              الحالية
+                            </span>
+                          )}
+                          {step.isFuture && (
+                            <span className="rounded-md bg-[#2a2d33] px-1.5 py-0.5 text-[10px] text-[#9ba0a8]">
+                              لاحقة
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          data-testid="undo-step-time"
+                          className="mt-1 block text-[10px] text-[#7e848d]"
+                        >
+                          {formatRelativeTimeAr(step.at, now)}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        data-testid={`undo-jump-${step.id}`}
+                        onClick={() => onJumpToStep?.(step.id)}
+                        disabled={step.isCurrent || !onJumpToStep}
+                        title={step.isCurrent ? "إنت بالفعل على الخطوة دي" : "قفز للحالة بعد الخطوة دي"}
+                        className="flex shrink-0 items-center gap-1 rounded-md bg-[#2b6cf6]/15 px-2 py-1 text-[11px] font-bold text-[#60a5fa] transition-colors hover:bg-[#2b6cf6] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#2b6cf6]/15 disabled:hover:text-[#60a5fa]"
+                      >
+                        <ArrowUturnLeftIcon className="h-3.5 w-3.5" />
+                        <span>قفز</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        ) : loading && revisions.length === 0 ? (
           <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-[#9ba0a8]">
             <ArrowPathIcon className="h-6 w-6 animate-spin text-[#60a5fa]" />
             <span className="text-xs">جاري تحميل سجل الإصدارات…</span>

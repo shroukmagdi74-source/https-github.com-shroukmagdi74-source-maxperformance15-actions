@@ -638,6 +638,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     canRedo,
     undo,
     redo,
+    historySteps,
+    currentHistoryStepIndex,
+    jumpToHistoryStep,
     handleDesignTokensChange,
     handleDragEnd,
     handleMoveSection,
@@ -2374,6 +2377,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         companyId={companyId}
+        steps={historySteps}
+        currentStepIndex={currentHistoryStepIndex}
+        onJumpToStep={jumpToHistoryStep}
         onRestoreSuccess={(restoredSettings) => {
           if (restoredSettings.designTokens) {
             onChange(restoredSettings.designTokens as Record<string, unknown>);
