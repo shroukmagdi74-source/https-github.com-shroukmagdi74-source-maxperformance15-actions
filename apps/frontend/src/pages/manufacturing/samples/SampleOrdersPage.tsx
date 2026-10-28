@@ -12,7 +12,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { ManufacturingHeader } from '../ManufacturingHeader';
-import { manufacturingApi, SampleOrder, SampleOrderStatus } from '../manufacturingApi';
+import { manufacturingApi, SampleOrder, SampleOrderStatus, PartnerFactory } from '../manufacturingApi';
 import { SampleMetricsBar } from './SampleMetricsBar';
 import { SampleStatusBadge, MaterialSourceBadge } from './SampleStatusBadge';
 import { CreateSampleModal } from './CreateSampleModal';
@@ -35,11 +35,23 @@ export const SampleOrdersPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [materialFilter, setMaterialFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
+  const [factories, setFactories] = useState<PartnerFactory[]>([]);
+  const [factoryFilter, setFactoryFilter] = useState<string>('ALL');
+  const [overdueOnly, setOverdueOnly] = useState<boolean>(false);
 
   // Modals & Drawer
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedSample, setSelectedSample] = useState<SampleOrder | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    manufacturingApi
+      .listPartnerFactories()
+      .then((res: any) => {
+        setFactories(Array.isArray(res) ? res : (res?.items || []));
+      })
+      .catch(() => {});
+  }, []);
 
   const customerFilterOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -67,6 +79,8 @@ export const SampleOrdersPage: React.FC = () => {
       const res = await manufacturingApi.listSampleOrders({
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
         materialSource: materialFilter !== 'ALL' ? materialFilter : undefined,
+        partnerFactoryId: factoryFilter !== 'ALL' ? factoryFilter : undefined,
+        overdue: overdueOnly ? true : undefined,
         search: searchTerm.trim() || undefined,
       });
       setSamples(res.items || []);
@@ -85,7 +99,7 @@ export const SampleOrdersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, materialFilter, searchTerm, searchParams, selectedSample?.id]);
+  }, [statusFilter, materialFilter, factoryFilter, overdueOnly, searchTerm, searchParams, selectedSample?.id]);
 
   useEffect(() => {
     fetchSamples();
@@ -184,6 +198,36 @@ export const SampleOrdersPage: React.FC = () => {
                 ))}
               </select>
             </div>
+
+            {/* Factory Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">المصنع:</span>
+              <select
+                value={factoryFilter}
+                onChange={(e) => setFactoryFilter(e.target.value)}
+                className="px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none text-foreground"
+              >
+                <option value="ALL">جميع المصانع</option>
+                {factories.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Overdue Filter */}
+            <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-foreground select-none px-2 py-1 rounded-lg border border-border/80 hover:bg-muted/50 transition-colors">
+              <input
+                type="checkbox"
+                checked={overdueOnly}
+                onChange={(e) => setOverdueOnly(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-primary w-3.5 h-3.5"
+              />
+              <span className={overdueOnly ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-muted-foreground'}>
+                متأخرة فقط
+              </span>
+            </label>
           </div>
 
           {/* Search Input */}
@@ -217,9 +261,10 @@ export const SampleOrdersPage: React.FC = () => {
                   <th className="py-3 px-4">رقم العينة</th>
                   <th className="py-3 px-4">المنتج والمواصفة</th>
                   <th className="py-3 px-4">العميل / البراند</th>
+                  <th className="py-3 px-4">المصنع / الاستلام</th>
                   <th className="py-3 px-4">مصدر الخامة</th>
                   <th className="py-3 px-4">الكمية والمقاس</th>
-                  <th className="py-3 px-4">التكلفة / السعر</th>
+                  <th className="py-3 px-4">المدفوع / المتبقي</th>
                   <th className="py-3 px-4">المراحل</th>
                   <th className="py-3 px-4">الحالة</th>
                   <th className="py-3 px-4 text-left">إجراءات</th>
@@ -228,7 +273,7 @@ export const SampleOrdersPage: React.FC = () => {
               <tbody className="divide-y divide-border/60">
                 {displayedSamples.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-muted-foreground">
+                    <td colSpan={10} className="py-12 text-center text-muted-foreground">
                       <FlaskConical className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
                       <p className="font-medium">لا توجد أوامر عينات مطابقة للمعايير المحددة</p>
                       <button
@@ -282,6 +327,26 @@ export const SampleOrdersPage: React.FC = () => {
                         )}
                       </td>
 
+                      {/* Partner Factory & Expected Delivery */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="font-medium text-foreground">
+                          {s.partnerFactory?.name || <span className="text-muted-foreground">بدون مصنع</span>}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <Calendar className="w-3 h-3 shrink-0" />
+                          <span>
+                            {s.expectedDeliveryAt
+                              ? new Date(s.expectedDeliveryAt).toLocaleDateString('ar-EG')
+                              : '—'}
+                          </span>
+                          {s.isOverdue && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                              متأخر {s.overdueDays ? `${s.overdueDays} يوم` : ''}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
                       {/* Material Source */}
                       <td className="py-3 px-4 whitespace-nowrap">
                         <MaterialSourceBadge source={s.materialSource} />
@@ -297,9 +362,24 @@ export const SampleOrdersPage: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Fee */}
-                      <td className="py-3 px-4 whitespace-nowrap font-medium tabular-nums">
-                        {s.fee ? `${Number(s.fee).toLocaleString()} ج.م` : '-'}
+                      {/* Paid / Remaining */}
+                      <td className="py-3 px-4 whitespace-nowrap tabular-nums">
+                        {(() => {
+                          const total = s.totalAmount !== null && s.totalAmount !== undefined ? Number(s.totalAmount) : (s.fee !== null && s.fee !== undefined ? Number(s.fee) : null);
+                          const paid = Number(s.paidAmount || 0);
+                          const remaining = s.remaining !== undefined ? Number(s.remaining) : (total !== null ? total - paid : 0);
+                          if (total === null) return <span className="text-muted-foreground">—</span>;
+                          return (
+                            <div>
+                              <div className="font-semibold text-foreground">
+                                {paid.toLocaleString()} / {total.toLocaleString()} ج.م
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                المتبقي: <span className={remaining > 0 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-emerald-600 font-medium'}>{remaining.toLocaleString()} ج.م</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Stages Progress */}

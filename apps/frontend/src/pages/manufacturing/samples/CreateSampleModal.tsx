@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Shirt, Calendar, DollarSign, Tag, User } from 'lucide-react';
-import { manufacturingApi, BillOfMaterials, SampleMaterialSource } from '../manufacturingApi';
+import { manufacturingApi, BillOfMaterials, SampleMaterialSource, PartnerFactory } from '../manufacturingApi';
 import { CustomerPicker } from './CustomerPicker';
 
 interface CreateSampleModalProps {
@@ -24,9 +24,16 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
   const [color, setColor] = useState('أسود');
   const [materialSource, setMaterialSource] = useState<SampleMaterialSource>('CUSTOMER');
   const [fee, setFee] = useState<string>('2500');
+  const [totalAmount, setTotalAmount] = useState<string>('2500');
+  const [depositAmount, setDepositAmount] = useState<string>('0');
+  const [partnerFactoryId, setPartnerFactoryId] = useState<string>('');
+  const [expectedDeliveryAt, setExpectedDeliveryAt] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>('');
   const [designNotes, setDesignNotes] = useState('');
   const [bomId, setBomId] = useState<string>('');
+
+  // Factories list
+  const [factories, setFactories] = useState<PartnerFactory[]>([]);
 
   // BOMs list for optional linking
   const [boms, setBoms] = useState<BillOfMaterials[]>([]);
@@ -44,6 +51,13 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
         .listBoms()
         .then((res: any) => {
           setBoms(Array.isArray(res) ? res : (res?.items || []));
+        })
+        .catch(() => {});
+
+      manufacturingApi
+        .listPartnerFactories()
+        .then((res: any) => {
+          setFactories(Array.isArray(res) ? res : (res?.items || []));
         })
         .catch(() => {});
     }
@@ -93,6 +107,10 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
         color: color.trim() || undefined,
         materialSource,
         fee: fee ? Number(fee) : undefined,
+        totalAmount: totalAmount !== '' ? Number(totalAmount) : undefined,
+        depositAmount: depositAmount !== '' ? Number(depositAmount) : 0,
+        partnerFactoryId: partnerFactoryId || undefined,
+        expectedDeliveryAt: expectedDeliveryAt || undefined,
         dueDate: dueDate || undefined,
         designNotes: designNotes.trim() || undefined,
         bomId: bomId || undefined,
@@ -267,12 +285,95 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
                   type="number"
                   step="0.01"
                   value={fee}
-                  onChange={(e) => setFee(e.target.value)}
+                  onChange={(e) => {
+                    setFee(e.target.value);
+                    setTotalAmount(e.target.value);
+                  }}
                   placeholder="2500"
                   className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none tabular-nums"
                 />
                 <DollarSign className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
               </div>
+            </div>
+          </div>
+
+          {/* Row: Partner Factory & Expected Delivery Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                المصنع المنفذ <span className="text-muted-foreground text-[10px]">(المصانع الشريكة)</span>
+              </label>
+              <select
+                value={partnerFactoryId}
+                onChange={(e) => setPartnerFactoryId(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+              >
+                <option value="">بدون مصنع</option>
+                {factories.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} {f.code ? `(${f.code})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">موعد استلام العينة من المصنع</label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={expectedDeliveryAt}
+                  onChange={(e) => setExpectedDeliveryAt(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                />
+                <Calendar className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Row: Financials (Total, Deposit, Calculated Remaining) */}
+          <div className="p-3.5 rounded-xl bg-muted/20 border border-border/70 space-y-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">إجمالي العينة</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={totalAmount}
+                    onChange={(e) => setTotalAmount(e.target.value)}
+                    placeholder="2500"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none tabular-nums"
+                  />
+                  <DollarSign className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">العربون</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    placeholder="500"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none tabular-nums"
+                  />
+                  <DollarSign className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-border/50 flex justify-between items-center text-xs">
+              <span className="text-muted-foreground">المتبقي بعد العربون:</span>
+              <span className="font-bold text-foreground tabular-nums">
+                {(() => {
+                  const tot = Number(totalAmount || 0);
+                  const dep = Number(depositAmount || 0);
+                  return Math.max(0, tot - dep).toLocaleString();
+                })()} ج.م
+              </span>
             </div>
           </div>
 
@@ -307,7 +408,7 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">موعد التسليم المتوقع</label>
+              <label className="block text-xs font-semibold text-foreground mb-1">موعد تسليم العينة للعميل</label>
               <div className="relative">
                 <input
                   type="date"
