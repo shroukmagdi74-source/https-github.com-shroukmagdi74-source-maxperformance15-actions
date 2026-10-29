@@ -122,6 +122,12 @@ jobs:
         run: node scripts/check-customer-portal-routing.js
         continue-on-error: false
 
+      # ⚡ Storefront Performance & Anti-Regression Guard
+      # حظر قطعي لأي تراجع في سرعة المتجر، كاش الـ Redis، ضغط الصور، أو كود الاستوديو
+      - name: Storefront Performance & Anti-Regression Guard
+        run: node scripts/guard-storefront-performance.js
+        continue-on-error: false
+
       # 🔍 Intelligent Component Change Detection
       # Uses github.event.before to inspect ALL commits in a push
       - name: Check Component Changes
@@ -369,6 +375,13 @@ jobs:
         if: steps.diff-check.outputs.fe-needed == 'true'
         working-directory: ./apps/frontend
         run: node scripts/check-entry-chunks.cjs
+        continue-on-error: false
+
+      # ⚡ Storefront Performance & Dedupe Unit Tests
+      - name: Storefront Dedupe & Image Optimization Tests
+        if: steps.diff-check.outputs.fe-needed == 'true'
+        working-directory: ./apps/frontend
+        run: node node_modules/vitest/vitest.mjs run src/storefront/__tests__/storefrontPerfDedupeAndImages.test.tsx
         continue-on-error: false
 
       - name: Check i18n Consistency (AR vs EN)
