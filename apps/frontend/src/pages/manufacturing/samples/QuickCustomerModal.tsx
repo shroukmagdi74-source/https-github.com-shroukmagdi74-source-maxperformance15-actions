@@ -127,8 +127,18 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({ isOpen, 
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        {/* Form Body — rendered as a div, NOT a <form>: this modal is mounted inside the
+            sample-creation <form>, and nested forms are invalid HTML (the browser drops the
+            inner one, so the save button used to submit the outer sample form instead). */}
+        <div
+          className="p-5 space-y-4"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void handleSubmit(e as unknown as React.FormEvent);
+            }
+          }}
+        >
           {error && (
             <div
               className={`p-3 rounded-lg text-xs flex flex-col gap-2 ${
@@ -221,7 +231,8 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({ isOpen, 
               إلغاء
             </button>
             <button
-              type="submit"
+              type="button"
+              onClick={handleSubmit as any}
               disabled={loading || resolvingExisting}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition shadow-xs disabled:opacity-50"
             >
@@ -229,7 +240,7 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({ isOpen, 
               <span>حفظ العميل واختياره</span>
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
