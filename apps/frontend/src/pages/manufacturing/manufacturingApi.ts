@@ -887,7 +887,7 @@ export interface SampleOrderAttachment {
   uploadedAt: string;
 }
 
-export interface CreateSampleOrderInput extends Omit<Partial<SampleOrder>, 'stages'> {
+export interface CreateSampleOrderInput extends Omit<Partial<SampleOrder>, 'stages' | 'expenses'> {
   stages?: Array<{
     name: string;
     sequence?: number;
@@ -897,6 +897,30 @@ export interface CreateSampleOrderInput extends Omit<Partial<SampleOrder>, 'stag
     templateSetId?: string | null;
     templateId?: string | null;
   }>;
+  expenses?: Array<{
+    name: string;
+    amount: number;
+    catalogId?: string | null;
+  }>;
+}
+
+export interface SampleExpenseCatalogItem {
+  id: string;
+  companyId: string;
+  name: string;
+  defaultAmount: number | string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SampleOrderExpense {
+  id: string;
+  sampleOrderId: string;
+  catalogId?: string | null;
+  name: string;
+  amount: number | string;
+  createdAt: string;
 }
 
 export interface SamplePayment {
@@ -955,6 +979,10 @@ export interface SampleOrder {
   isOverdue?: boolean;
   overdueDays?: number;
   payments?: SamplePayment[];
+  expenses?: SampleOrderExpense[];
+  expensesTotal?: number;
+  componentsTotal?: number;
+  totalCost?: number;
   status: SampleOrderStatus;
   dueDate?: string | null;
   designNotes?: string | null;
@@ -1885,6 +1913,18 @@ export const manufacturingApi = {
     const res = await apiClient.delete(`/manufacturing/sample-orders/${id}/payments/${paymentId}`);
     return res.data?.data;
   },
+
+  // ===== T07: Recurring Expenses Catalog & Order Expenses =====
+  listExpenseCatalog: async (params?: { includeInactive?: boolean | string }): Promise<SampleExpenseCatalogItem[]> => {
+    const res = await apiClient.get('/manufacturing/sample-expense-catalog', { params });
+    return res.data?.data || [];
+  },
+  createExpenseCatalogItem: async (data: { name: string; defaultAmount: number }) => (await apiClient.post('/manufacturing/sample-expense-catalog', data)).data?.data,
+  updateExpenseCatalogItem: async (id: string, data: Partial<{ name: string; defaultAmount: number; isActive: boolean }>) => (await apiClient.patch(`/manufacturing/sample-expense-catalog/${id}`, data)).data?.data,
+  archiveExpenseCatalogItem: async (id: string) => (await apiClient.delete(`/manufacturing/sample-expense-catalog/${id}`)).data,
+  addSampleExpense: async (sampleId: string, data: { name: string; amount: number; catalogId?: string | null }) => (await apiClient.post(`/manufacturing/sample-orders/${sampleId}/expenses`, data)).data?.data,
+  updateSampleExpense: async (sampleId: string, expenseId: string, data: Partial<{ name: string; amount: number }>) => (await apiClient.patch(`/manufacturing/sample-orders/${sampleId}/expenses/${expenseId}`, data)).data?.data,
+  deleteSampleExpense: async (sampleId: string, expenseId: string) => (await apiClient.delete(`/manufacturing/sample-orders/${sampleId}/expenses/${expenseId}`)).data,
 
 
   // ==========================================================================

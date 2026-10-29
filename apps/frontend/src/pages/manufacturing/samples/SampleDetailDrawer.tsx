@@ -73,6 +73,12 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
   // File upload
   const [uploadingFile, setUploadingFile] = useState(false);
 
+  // Sample expense management state
+  const [isAddingExpense, setIsAddingExpense] = useState(false);
+  const [expenseNameInput, setExpenseNameInput] = useState('');
+  const [expenseAmountInput, setExpenseAmountInput] = useState('');
+  const [expenseSubmitting, setExpenseSubmitting] = useState(false);
+
   if (!isOpen || !sample) return null;
 
   const handleStageStatusChange = async (stage: SampleOrderStage, newStatus: string) => {
@@ -108,6 +114,38 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
       setActionError(err?.response?.data?.message || err?.message || 'فشل إضافة المرحلة');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddExpense = async () => {
+    if (!sample || !expenseNameInput.trim()) return;
+    const amt = Number(expenseAmountInput) || 0;
+    if (amt < 0) return;
+    setExpenseSubmitting(true);
+    try {
+      await manufacturingApi.addSampleExpense(sample.id, {
+        name: expenseNameInput.trim(),
+        amount: amt,
+      });
+      setExpenseNameInput('');
+      setExpenseAmountInput('');
+      setIsAddingExpense(false);
+      onRefresh();
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || err?.message || 'فشل في إضافة المصروف');
+    } finally {
+      setExpenseSubmitting(false);
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    if (!sample) return;
+    if (!window.confirm('هل أنت متأكد من حذف هذا المصروف؟')) return;
+    try {
+      await manufacturingApi.deleteSampleExpense(sample.id, expenseId);
+      onRefresh();
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || err?.message || 'فشل في حذف المصروف');
     }
   };
 
@@ -517,6 +555,89 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
                   <span className="text-muted-foreground">سعر / تكلفة العينة:</span>
                   <span className="font-bold text-foreground tabular-nums">
                     {sample.fee ? `${sample.fee} ج.م` : 'غير محدد'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-b pb-2">
+                  <span className="text-muted-foreground">المصاريف ({sample.expenses?.length || 0}):</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold tabular-nums">
+                      {Number(sample.expensesTotal || 0).toLocaleString()} ج.م
+                    </span>
+                    {sample.status !== 'CONVERTED' && !isAddingExpense && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingExpense(true)}
+                        className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary hover:bg-primary/20 flex items-center gap-0.5"
+                        title="إضافة مصروف للعينة"
+                      >
+                        <Plus className="w-2.5 h-2.5" />
+                        <span>إضافة</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {isAddingExpense && (
+                  <div className="p-2 rounded bg-muted/40 border border-border/70 space-y-2 mb-1">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="اسم المصروف (مثال: شحن)"
+                        value={expenseNameInput}
+                        onChange={(e) => setExpenseNameInput(e.target.value)}
+                        className="px-2 py-1 text-xs rounded border border-border bg-background"
+                      />
+                      <input
+                        type="number"
+                        placeholder="المبلغ (ج.م)"
+                        min="0"
+                        value={expenseAmountInput}
+                        onChange={(e) => setExpenseAmountInput(e.target.value)}
+                        className="px-2 py-1 text-xs rounded border border-border bg-background"
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingExpense(false)}
+                        className="px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="button"
+                        disabled={expenseSubmitting || !expenseNameInput.trim()}
+                        onClick={handleAddExpense}
+                        className="px-2 py-0.5 text-[11px] font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        {expenseSubmitting ? 'جاري الإضافة...' : 'حفظ'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {sample.expenses?.map((ex) => (
+                  <div key={ex.id} className="flex justify-between items-center text-[11px] text-muted-foreground pr-2 border-b pb-1">
+                    <span className="flex items-center gap-1.5">
+                      {sample.status !== 'CONVERTED' && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExpense(ex.id)}
+                          className="hover:text-rose-600 p-0.5 rounded transition-colors"
+                          title="حذف هذا المصروف"
+                        >
+                          <Trash2 className="w-3 h-3 text-muted-foreground hover:text-rose-600" />
+                        </button>
+                      )}
+                      <span>· {ex.name}</span>
+                    </span>
+                    <span className="tabular-nums font-medium text-foreground">{Number(ex.amount).toLocaleString()} ج.م</span>
+                  </div>
+                ))}
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-muted-foreground">التكلفة الإجمالية للعينة:</span>
+                  <span className="font-bold text-foreground tabular-nums">
+                    {Number(sample.totalCost || 0).toLocaleString()} ج.م
                   </span>
                 </div>
                 <div className="flex justify-between border-b pb-2">

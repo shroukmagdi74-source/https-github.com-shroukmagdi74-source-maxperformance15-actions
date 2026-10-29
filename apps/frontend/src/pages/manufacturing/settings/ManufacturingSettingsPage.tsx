@@ -17,6 +17,7 @@ import {
   AccountOption,
 } from '../manufacturingApi';
 import { SettingsGlMappingCard } from './components/SettingsGlMappingCard';
+import { SettingsExpenseCatalogCard } from './components/SettingsExpenseCatalogCard';
 
 export const ManufacturingSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<ManufacturingSettings | null>(null);
@@ -309,6 +310,9 @@ export const ManufacturingSettingsPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* 2.5 كتالوج المصاريف المتكررة (T07) */}
+            <SettingsExpenseCatalogCard />
 
             {/* 3. GL Accounts Mapping */}
             <SettingsGlMappingCard
