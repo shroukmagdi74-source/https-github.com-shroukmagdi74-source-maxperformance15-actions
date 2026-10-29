@@ -1,0 +1,63 @@
+name: Studio Regression Tests
+
+# STUDIO-REG-1 — dedicated guard for the storefront studio suites.
+# Deliberately SEPARATE from deploy.yml: this workflow can fail (and block a
+# merge through branch protection) without ever touching the production deploy
+# pipeline.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/frontend/src/storefront/**'
+      - 'apps/frontend/scripts/run-studio-tests.mjs'
+      - 'apps/frontend/scripts/vitest.storefront.config.ts'
+      - 'apps/frontend/package.json'
+      - '.github/workflows/studio-tests.yml'
+  pull_request:
+    branches:
+      - main
+      - staging
+    paths:
+      - 'apps/frontend/src/storefront/**'
+      - 'apps/frontend/scripts/run-studio-tests.mjs'
+      - 'apps/frontend/scripts/vitest.storefront.config.ts'
+      - 'apps/frontend/package.json'
+      - '.github/workflows/studio-tests.yml'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "20"
+
+concurrency:
+  group: studio-tests-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  studio-regression:
+    name: Studio suites (vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ./apps/frontend
+        run: npm ci
+
+      - name: Run studio regression guard
+        working-directory: ./apps/frontend
+        run: node scripts/run-studio-tests.mjs

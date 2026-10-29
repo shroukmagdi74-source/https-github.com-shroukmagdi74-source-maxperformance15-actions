@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import RelatedProducts from '../sections/RelatedProducts';
+import { StorefrontTestProviders } from './setup/storefrontTestSetup';
 
 const useDeferredSectionActivationMock = vi.hoisted(() =>
   vi.fn(() => ({
@@ -101,8 +102,9 @@ describe('Elessi complete-set related products', () => {
 
   it('does not render a zero compare price as a sale price', () => {
     render(
-      <MemoryRouter initialEntries={['/product/kotshy-soan']}>
-        <Routes>
+      <StorefrontTestProviders>
+        <MemoryRouter initialEntries={['/product/kotshy-soan']}>
+          <Routes>
           <Route
             path="/product/:id"
             element={
@@ -113,19 +115,23 @@ describe('Elessi complete-set related products', () => {
             }
           />
         </Routes>
-      </MemoryRouter>,
+        </MemoryRouter>
+      </StorefrontTestProviders>,
     );
 
     expect(screen.getByText('كوتشي اسكوتش فلات')).toBeInTheDocument();
+    // LOCALE-1: whole EGP amounts drop the redundant `.00` suffix.
     expect(screen.queryByText(/EGP\s*0\.00/)).not.toBeInTheDocument();
-    expect(screen.getByText(/EGP\s*280\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/EGP\s*550\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/^EGP\s*0$/)).not.toBeInTheDocument();
+    expect(screen.getByText(/EGP\s*280$/)).toBeInTheDocument();
+    expect(screen.getByText(/EGP\s*550$/)).toBeInTheDocument();
   });
 
   it('reserves space and prewarms recommendations before the complete-set rail enters view', () => {
     const { container } = render(
-      <MemoryRouter initialEntries={['/product/kotshy-soan']}>
-        <Routes>
+      <StorefrontTestProviders>
+        <MemoryRouter initialEntries={['/product/kotshy-soan']}>
+          <Routes>
           <Route
             path="/product/:id"
             element={
@@ -136,7 +142,8 @@ describe('Elessi complete-set related products', () => {
             }
           />
         </Routes>
-      </MemoryRouter>,
+        </MemoryRouter>
+      </StorefrontTestProviders>,
     );
 
     expect(container.querySelector('section')?.className).toContain('min-h-[44rem]');

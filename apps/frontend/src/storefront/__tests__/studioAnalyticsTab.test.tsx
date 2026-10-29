@@ -25,7 +25,13 @@ describe('Studio Inspector Analytics Tab (AN-1)', () => {
       json: async () => emptyResponse,
     });
 
-    render(<StudioInspectorAnalyticsTab companyId="company-123" activePageKey="home" />);
+    render(
+      <StudioInspectorAnalyticsTab
+        companyId="company-123"
+        activePageKey="home"
+        initialSubView="traffic"
+      />
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('analytics-total-views').textContent).toBe('0');
@@ -59,7 +65,13 @@ describe('Studio Inspector Analytics Tab (AN-1)', () => {
       json: async () => mockData,
     });
 
-    render(<StudioInspectorAnalyticsTab companyId="company-123" activePageKey="home" />);
+    render(
+      <StudioInspectorAnalyticsTab
+        companyId="company-123"
+        activePageKey="home"
+        initialSubView="traffic"
+      />
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('analytics-total-views').textContent).toBe('250');
@@ -87,7 +99,7 @@ describe('Studio Inspector Analytics Tab (AN-1)', () => {
     });
     global.fetch = fetchMock;
 
-    render(<StudioInspectorAnalyticsTab companyId="company-123" />);
+    render(<StudioInspectorAnalyticsTab companyId="company-123" initialSubView="traffic" />);
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import React from "react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, renderHook, act } from "@testing-library/react";
+import { render, screen, fireEvent, renderHook, act, within } from "@testing-library/react";
 
 import { generateResponsiveSectionRules } from "../studio/StudioResponsiveAIGenerator";
 import { StudioCanvasRuler } from "../studio/StudioCanvasRuler";
@@ -14,6 +16,11 @@ import { StudioTopBar } from "../studio/StudioTopBar";
 import { StudioPropertyInspector } from "../studio/StudioPropertyInspector";
 import { useStorefrontStudioState } from "../studio/hooks/useStorefrontStudioState";
 import { resolveStorefrontTheme } from "../engine/themeResolver";
+
+// STUDIO-REG-1: assertions track the CURRENT studio surface (waves A/B added
+// components/templates/themes/header-footer/compliance/variables tools, the
+// animation/i18n/analytics inspector tabs and the breakpoint editor).
+const STUDIO_CSS_PATH = resolve(process.cwd(), "src/storefront/studio/storefront-studio.css");
 
 describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
   describe("StudioResponsiveAIGenerator", () => {
@@ -35,20 +42,30 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
   describe("StudioCanvasRuler", () => {
     it("renders the pixel marks and active width badge", () => {
       render(<StudioCanvasRuler deviceMode="desktop" />);
-      expect(screen.getByText("1200px*")).toBeDefined();
-      expect(screen.getByText("0")).toBeDefined();
+
+      // Badge renders `<span>{activeWidth}px</span>` — no trailing asterisk.
+      expect(screen.getByText("1200px")).toBeDefined();
+      const ruler = screen.getByRole("region", { name: "مسطرة قياس الكانفس" });
+      const ticks = within(ruler).getAllByText(/^\d+$/);
+      expect(ticks).toHaveLength(13);
+      expect(ticks[0].textContent).toBe("0");
+      expect(ticks[ticks.length - 1].textContent).toBe("1200");
       expect(screen.getByText("100")).toBeDefined();
-      expect(screen.getByText("1200")).toBeDefined();
     });
 
     it("adjusts active width badge for mobile breakpoint", () => {
       render(<StudioCanvasRuler deviceMode="mobile" />);
-      expect(screen.getByText("375px*")).toBeDefined();
+
+      expect(screen.getByText("375px")).toBeDefined();
+      const ruler = screen.getByRole("region", { name: "مسطرة قياس الكانفس" });
+      const ticks = within(ruler).getAllByText(/^\d+$/);
+      expect(ticks).toHaveLength(9);
+      expect(ticks[ticks.length - 1].textContent).toBe("375");
     });
   });
 
   describe("StudioLeftRail", () => {
-    it("renders the 8 Pro Studio navigation tools including AI and settings", () => {
+    it("renders the 13 Pro Studio navigation tools including AI and settings", () => {
       const onSelectTab = vi.fn();
       render(
         <StudioLeftRail
@@ -59,16 +76,29 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
         />
       );
 
-      expect(screen.getByTitle("إضافة")).toBeDefined();
-      expect(screen.getByTitle("طبقات")).toBeDefined();
-      expect(screen.getByTitle("صفحات")).toBeDefined();
-      expect(screen.getByTitle("وسائط")).toBeDefined();
-      expect(screen.getByTitle("أنماط")).toBeDefined();
-      expect(screen.getByTitle("كود")).toBeDefined();
-      expect(screen.getByTitle("Responsive AI")).toBeDefined();
-      expect(screen.getByTitle("إعدادات المتجر")).toBeDefined();
+      const rail = screen.getByRole("toolbar", { name: "شريط أدوات الاستوديو" });
+      // 11 panel tools + responsive AI + store settings.
+      expect(within(rail).getAllByRole("button")).toHaveLength(13);
 
-      fireEvent.click(screen.getByTitle("طبقات"));
+      for (const title of [
+        "إضافة",
+        "مكوّنات",
+        "قوالب",
+        "الثيمات",
+        "الهيكل",
+        "صفحات",
+        "الهيدر والفوتر",
+        "امتثال",
+        "وسائط",
+        "أنماط",
+        "متغيرات",
+        "قواعد التجاوب الذكية",
+        "إعدادات المتجر",
+      ]) {
+        expect(screen.getByTitle(title)).toBeDefined();
+      }
+
+      fireEvent.click(screen.getByTitle("الهيكل"));
       expect(onSelectTab).toHaveBeenCalledWith("layers");
     });
   });
@@ -84,14 +114,44 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
         />
       );
 
+      expect(screen.getByText("إضافة عناصر وأقسام")).toBeDefined();
       expect(screen.getByText("العناصر الأساسية")).toBeDefined();
-      expect(screen.getByText("عنوان")).toBeDefined();
-      expect(screen.getByText("صورة")).toBeDefined();
+
+      // 13 quick elements (the quick grid grew with container/loop/marquee/lottie).
+      for (const label of [
+        "حاوية",
+        "تكرار",
+        "عنوان",
+        "نص",
+        "بانر رئيسي",
+        "صورة",
+        "زر",
+        "أيقونة",
+        "فاصل",
+        "مسافة",
+        "فيديو",
+        "شريط متحرك",
+        "أنيميشن Lottie",
+      ]) {
+        expect(screen.getByText(label)).toBeDefined();
+      }
+      // 13 quick elements + 7 commerce + 4 cart + 5 presets are all draggable.
+      expect(document.querySelectorAll("[data-studio-draggable]").length).toBe(13 + 7 + 4 + 5);
+
+      // Dynamic commerce + cart groups (COMM-1 / CHECKOUT-1).
+      expect(screen.getByText("عناصر المنتج والتجارة (ديناميكي)")).toBeDefined();
+      expect(screen.getByText("عناصر السلة والشيك أوت (ديناميكي)")).toBeDefined();
+
       expect(screen.getByText("أقسام جاهزة ✦")).toBeDefined();
       expect(screen.getByText("شبكة منتجات")).toBeDefined();
 
+      // "عنوان" quick element adds a `heading` section (was `richtext`).
       fireEvent.click(screen.getByText("عنوان"));
-      expect(onAdd).toHaveBeenCalledWith("richtext");
+      expect(onAdd).toHaveBeenCalledWith("heading");
+
+      // Ready preset keeps adding its own section type.
+      fireEvent.click(screen.getByText("شبكة منتجات"));
+      expect(onAdd).toHaveBeenCalledWith("featured-products");
     });
   });
 
@@ -135,12 +195,23 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
         />
       );
 
-      expect(screen.getByText("1200")).toBeDefined();
-      expect(screen.getByText("768")).toBeDefined();
-      expect(screen.getByText("375")).toBeDefined();
-      expect(screen.getByText("نشر")).toBeDefined();
+      const desktopBtn = screen.getByTitle("سطح المكتب (1200px)");
+      const tabletBtn = screen.getByTitle("شاشة تابلت (768px)");
+      const mobileBtn = screen.getByTitle("هاتف جوال (375px)");
 
-      fireEvent.click(screen.getByTitle("هاتف جوال (375px)"));
+      expect(desktopBtn.textContent).toContain("1200");
+      expect(tabletBtn.textContent).toContain("768");
+      expect(mobileBtn.textContent).toContain("375");
+
+      // Exactly three breakpoint buttons carry a pixel title.
+      const pixelButtons = screen
+        .getAllByRole("button")
+        .filter((button) => /\(\d+px\)/.test(button.getAttribute("title") || ""));
+      expect(pixelButtons).toHaveLength(3);
+
+      expect(screen.getByTestId("studio-publish-button").textContent).toContain("نشر");
+
+      fireEvent.click(mobileBtn);
       expect(onDeviceChange).toHaveBeenCalledWith("mobile");
     });
 
@@ -184,7 +255,7 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
   });
 
   describe("StudioPropertyInspector", () => {
-    it("renders the 4 inspector tabs and responds to tab switching", () => {
+    it("renders the 7 inspector tabs and responds to tab switching", () => {
       const onUpdate = vi.fn();
       render(
         <StudioPropertyInspector
@@ -195,19 +266,26 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
         />
       );
 
-      expect(screen.getByText("تصميم")).toBeDefined();
-      expect(screen.getByText("تخطيط")).toBeDefined();
-      expect(screen.getByText("محتوى")).toBeDefined();
-      expect(screen.getByText("تجاوب")).toBeDefined();
+      const designTab = screen.getByRole("button", { name: /^تصميم$/ });
+      const tabStrip = designTab.parentElement as HTMLElement;
+      // design · layout · animation · content · interactions · i18n · analytics
+      expect(within(tabStrip).getAllByRole("button")).toHaveLength(7);
+
+      for (const label of ["تصميم", "تخطيط", "حركة", "محتوى", "تجاوب", "اللغة", "الأداء"]) {
+        expect(within(tabStrip).getByRole("button", { name: new RegExp(`^${label}$`) })).toBeDefined();
+      }
 
       // Switch to Content Tab
-      fireEvent.click(screen.getByText("محتوى"));
+      fireEvent.click(within(tabStrip).getByRole("button", { name: /^محتوى$/ }));
       expect(screen.getByDisplayValue("عنوان تجريبي")).toBeDefined();
 
-      // Switch to Interactions / Responsive Tab
-      fireEvent.click(screen.getByText("تجاوب"));
-      expect(screen.getByText("قواعد التجاوب الذكية")).toBeDefined();
-      expect(screen.getByText(/قواعد التجاوب الذكية قيد التجهيز/)).toBeDefined();
+      // Interactions tab now hosts the honest AI capability panel (the old
+      // "قواعد التجاوب الذكية … قيد التجهيز" placeholder is gone).
+      fireEvent.click(within(tabStrip).getByRole("button", { name: /^تجاوب$/ }));
+      expect(screen.getByTestId("ai-capabilities-panel")).toBeDefined();
+      expect(screen.getByText("قدرات مساعد المتجر (AI)")).toBeDefined();
+      expect(screen.getByText("2 مفعّلة · 3 قريباً")).toBeDefined();
+      expect(document.querySelectorAll("[data-capability-id]")).toHaveLength(5);
     });
   });
 
@@ -251,7 +329,7 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
       expect((homeSections[6] as any).type).toBe("newsletter");
     });
 
-    it("strictly appends a new section to all existing sections [A..G] -> [A..G, X] and supports undo", () => {
+    it("strictly appends a new section after the overridden page sections and supports undo", () => {
       let currentTokens: Record<string, unknown> = {
         pages: {
           home: {
@@ -293,38 +371,58 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
         })
       );
 
-      // Verify initial active sections count is 7 (reconciled, includes newsletter)
-      expect(result.current.activeSections).toHaveLength(7);
-      expect(result.current.activeSections[6].type).toBe("newsletter");
+      // The studio canvas treats `pageOverrides` as authoritative for the page
+      // (it diverges from `pages`: the theme-level newsletter is not overridden).
+      // => the editor works on the 6 overridden sections, NOT on the 7 that
+      // `resolveStorefrontTheme` renders live (see the case above).
+      expect(result.current.activeSections.map((s: any) => s.type)).toEqual([
+        "hero-banner",
+        "promo-strip",
+        "featured-collections",
+        "featured-products",
+        "offer-bento",
+        "features-bar",
+      ]);
 
       // Action: Add new section "hero-banner"
       act(() => {
         result.current.handleAddSection("hero-banner");
       });
 
-      // Verify append: exactly 8 sections
+      // Verify append: exactly one section added at the end, nothing reordered.
       const savedPages = (currentTokens.pages as any).home.sections;
       const savedOverrides = (currentTokens.pageOverrides as any).home.sections;
 
-      expect(savedPages).toHaveLength(8);
-      expect(savedOverrides).toHaveLength(8);
-      expect(savedPages[6].type).toBe("newsletter");
-      expect(savedPages[7].type).toBe("hero-banner");
-      expect(savedOverrides[6].type).toBe("newsletter");
-      expect(savedOverrides[7].type).toBe("hero-banner");
+      expect(savedPages).toHaveLength(7);
+      expect(savedOverrides).toHaveLength(7);
+      expect(savedPages[5].type).toBe("features-bar");
+      expect(savedPages[6].type).toBe("hero-banner");
+      expect(savedPages.map((s: any) => s.type)).toEqual(savedOverrides.map((s: any) => s.type));
 
-      // Verify undo: restores exact 7 sections
+      // Verify undo: restores the exact previous section list
       act(() => {
         result.current.undo();
       });
 
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.activeSections.map((s: any) => s.type)).toEqual([
+        "hero-banner",
+        "promo-strip",
+        "featured-collections",
+        "featured-products",
+        "offer-bento",
+        "features-bar",
+      ]);
+
+      // Undo restores the exact pre-edit tokens: `pages` keeps its 7 sections
+      // (newsletter included), `pageOverrides` keeps its 6.
       const undoPages = (currentTokens.pages as any).home.sections;
       const undoOverrides = (currentTokens.pageOverrides as any).home.sections;
 
       expect(undoPages).toHaveLength(7);
-      expect(undoOverrides).toHaveLength(7);
       expect(undoPages[6].type).toBe("newsletter");
-      expect(undoOverrides[6].type).toBe("newsletter");
+      expect(undoOverrides).toHaveLength(6);
+      expect(undoOverrides[5].type).toBe("features-bar");
     });
   });
 
@@ -371,7 +469,7 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
 
   describe("StudioSortableSection Resting Borders & Drag Feedback (Ticket 1B)", () => {
     it("renders resting hairline inset border and hover section label pill when unselected", () => {
-      render(
+      const { container } = render(
         <StudioSortableSection
           id="section-1"
           index={0}
@@ -390,10 +488,19 @@ describe("Storefront Pro Studio (Design 3 - Wix Studio 2026)", () => {
         </StudioSortableSection>
       );
 
-      // Resting border container with zero layout shift inset shadow
-      const restingBorder = document.querySelector(".shadow-\\[inset_0_0_0_1px_rgba\\(15\\,23\\,42\\,0\\.08\\)\\]");
-      expect(restingBorder).toBeDefined();
-      expect((restingBorder as HTMLElement)?.className).toContain("studio-section-hairline");
+      // The resting hairline moved from an inline Tailwind shadow class to the
+      // scoped `.studio-section-hairline` overlay (no layout shift).
+      const restingBorder = container.querySelector(".studio-section-hairline") as HTMLElement;
+      expect(restingBorder).not.toBeNull();
+      expect(restingBorder.className).toContain("absolute");
+      expect(restingBorder.className).toContain("inset-0");
+      expect(restingBorder.className).toContain("pointer-events-none");
+
+      // The visual contract (1px inset hairline + 2px hover outline) lives in CSS.
+      const studioCss = readFileSync(STUDIO_CSS_PATH, "utf8");
+      expect(studioCss).toContain(".studio-section-hairline");
+      expect(studioCss).toMatch(/box-shadow:\s*inset 0 0 0 1px rgba\(15, 23, 42, 0\.08\)/);
+      expect(studioCss).toMatch(/\.group:hover \.studio-section-hairline \{[\s\S]*inset 0 0 0 2px/);
 
       // Section hover label pill with Arabic text
       expect(screen.getByText("قسم البطل الرئيسي")).toBeDefined();
