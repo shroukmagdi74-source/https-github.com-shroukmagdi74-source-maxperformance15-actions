@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
 
@@ -35,6 +36,20 @@ function clearStorefrontHtmlCache() {
   cachedIndexHtmlMtimeMs = null;
   cachedIndexHtmlSize = null;
   htmlPageCache.clear();
+}
+
+function invalidateCompanyStorefrontHtmlCache(companyId) {
+  if (!companyId) {
+    htmlPageCache.clear();
+    return;
+  }
+
+  const prefix = `${companyId}:`;
+  for (const key of htmlPageCache.keys()) {
+    if (key.startsWith(prefix)) {
+      htmlPageCache.delete(key);
+    }
+  }
 }
 
 const buildCompatibleSelect = (prisma, modelName, desiredFields) => {
@@ -89,7 +104,6 @@ const loadIndexHtml = async () => {
 function alignCspWithInlineScripts(res, htmlContent) {
   try {
     if (!htmlContent) return;
-    const crypto = require("crypto");
     const scriptMatches = [...htmlContent.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
     const inlineHashes = [];
     for (const m of scriptMatches) {
@@ -119,21 +133,7 @@ function alignCspWithInlineScripts(res, htmlContent) {
   } catch (_) {}
 }
 
-exports.handleStorefrontShell = async (req, res, next) => {
-  if (!isHtmlRouteRequest(req)) {
-    return next();
-  }
-
-  if (!req.companyId || !req.company) {
-    return next();
-  }
-
-  // The landing builder embeds the live storefront page as an iframe.
-  // Frame protection stays on, scoped to the platform admin origin
-  // instead of hard-deny, so only the merchant's own editor can embed.
-  const platformAdminOrigin =
-    process.env.PLATFORM_ADMIN_ORIGIN || "https://maxp.online";
-  res.removeHeader("X-Frame-Options");
+function adjustCspFrameAncestors(res, platformAdminOrigin) {
   const existingCsp = res.getHeader("Content-Security-Policy");
   const adjustedCsp = (Array.isArray(existingCsp)
     ? existingCsp
@@ -151,12 +151,34 @@ exports.handleStorefrontShell = async (req, res, next) => {
   if (adjustedCsp.length) {
     res.setHeader("Content-Security-Policy", adjustedCsp);
   }
+}
+
+exports.handleStorefrontShell = async (req, res, next) => {
+  if (!isHtmlRouteRequest(req)) {
+    return next();
+  }
+
+  if (!req.companyId || !req.company) {
+    return next();
+  }
+
+  // The landing builder embeds the live storefront page as an iframe.
+  // Frame protection stays on, scoped to the platform admin origin
+  // instead of hard-deny, so only the merchant's own editor can embed.
+  const platformAdminOrigin =
+    process.env.PLATFORM_ADMIN_ORIGIN || "https://maxp.online";
+  res.removeHeader("X-Frame-Options");
 
   const cacheKey = `${req.companyId}:${req.path}`;
   const cached = htmlPageCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < HTML_CACHE_TTL_MS) {
-    // Dynamic CSP alignment for inline scripts (e.g. JSON-LD metadata)
-    alignCspWithInlineScripts(res, cached.html);
+  if (cached && cached.expiresAt > Date.now()) {
+    if (cached.cspHeader) {
+      res.setHeader("Content-Security-Policy", cached.cspHeader);
+    } else if (res.getHeader("Content-Security-Policy")) {
+      adjustCspFrameAncestors(res, platformAdminOrigin);
+      alignCspWithInlineScripts(res, cached.html);
+      cached.cspHeader = res.getHeader("Content-Security-Policy") || null;
+    }
 
     res.set("Content-Type", "text/html; charset=utf-8");
     res.set("X-HTML-Cache", "HIT");
@@ -168,6 +190,8 @@ exports.handleStorefrontShell = async (req, res, next) => {
     res.set("Expires", "0");
     return res.status(200).send(cached.html);
   }
+
+  adjustCspFrameAncestors(res, platformAdminOrigin);
 
   try {
     const prisma = await getSharedPrismaClientAsync();
@@ -669,9 +693,12 @@ exports.handleStorefrontShell = async (req, res, next) => {
       const oldestKey = htmlPageCache.keys().next().value;
       if (oldestKey) htmlPageCache.delete(oldestKey);
     }
+    const now = Date.now();
     htmlPageCache.set(cacheKey, {
       html,
-      timestamp: Date.now(),
+      timestamp: now,
+      expiresAt: now + HTML_CACHE_TTL_MS,
+      cspHeader: res.getHeader("Content-Security-Policy") || null,
     });
 
     res.set("X-HTML-Cache", "MISS");
@@ -689,4 +716,5 @@ exports.handleStorefrontShell = async (req, res, next) => {
 };
 
 module.exports.clearStorefrontHtmlCache = clearStorefrontHtmlCache;
+module.exports.invalidateCompanyStorefrontHtmlCache = invalidateCompanyStorefrontHtmlCache;
 module.exports.loadIndexHtml = loadIndexHtml;

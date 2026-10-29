@@ -266,6 +266,40 @@ export const prefetchStorefrontBootstrapData = async (): Promise<void> => {
       )
     : null;
 
+  const syncScopeQueryCache = (targetScope: string) => {
+    if (!targetScope || targetScope === initialStorefrontScope) {
+      return;
+    }
+
+    const prefetchedSettings =
+      queryClient.getQueryData<StorefrontSettings>(initialSettingsQueryKey);
+    if (prefetchedSettings) {
+      queryClient.setQueryData(
+        getStorefrontSettingsQueryKey(
+          targetScope,
+          previewThemeId,
+          previewSource,
+        ),
+        prefetchedSettings,
+      );
+    }
+
+    if (productPathKey && productQueryKey) {
+      const prefetchedProduct = queryClient.getQueryData<Product>(productQueryKey);
+      if (prefetchedProduct) {
+        queryClient.setQueryData(
+          getStorefrontProductQueryKey(
+            productPathKey,
+            targetScope,
+            isPreviewMode,
+            themeCatalogPreviewKey,
+          ),
+          prefetchedProduct,
+        );
+      }
+    }
+  };
+
   // Run settings prefetch and product prefetch concurrently
   const settingsPromise = queryClient
     .prefetchQuery({
@@ -274,6 +308,7 @@ export const prefetchStorefrontBootstrapData = async (): Promise<void> => {
       staleTime: 5 * 60 * 1000,
     })
     .then(() => {
+      syncScopeQueryCache(getStorefrontScope());
       const prefetchedSettings =
         queryClient.getQueryData<StorefrontSettings>(initialSettingsQueryKey);
       const themeId =
@@ -287,8 +322,9 @@ export const prefetchStorefrontBootstrapData = async (): Promise<void> => {
     ? queryClient.prefetchQuery({
         queryKey: productQueryKey,
         queryFn: () => fetchStorefrontProduct(productPathKey, isPreviewMode),
-        staleTime: 0,
+        staleTime: isPreviewMode ? 0 : 60 * 1000,
       }).then(() => {
+        syncScopeQueryCache(getStorefrontScope());
         const product = queryClient.getQueryData<Product>(productQueryKey);
         const primaryImage = getPrimaryProductImage(product);
         if (primaryImage) {
@@ -300,33 +336,7 @@ export const prefetchStorefrontBootstrapData = async (): Promise<void> => {
   await Promise.all([settingsPromise, productPromise]);
 
   const resolvedStorefrontScope = getStorefrontScope();
-  if (resolvedStorefrontScope !== initialStorefrontScope) {
-    const prefetchedSettings = queryClient.getQueryData(initialSettingsQueryKey);
-    if (prefetchedSettings) {
-      queryClient.setQueryData(
-        getStorefrontSettingsQueryKey(
-          resolvedStorefrontScope,
-          previewThemeId,
-          previewSource,
-        ),
-        prefetchedSettings,
-      );
-    }
-    if (productPathKey && productQueryKey) {
-      const prefetchedProduct = queryClient.getQueryData(productQueryKey);
-      if (prefetchedProduct) {
-        queryClient.setQueryData(
-          getStorefrontProductQueryKey(
-            productPathKey,
-            resolvedStorefrontScope,
-            isPreviewMode,
-            themeCatalogPreviewKey,
-          ),
-          prefetchedProduct,
-        );
-      }
-    }
-  }
+  syncScopeQueryCache(resolvedStorefrontScope);
 
   const prefetchedSettings =
     queryClient.getQueryData<StorefrontSettings>(initialSettingsQueryKey) ||

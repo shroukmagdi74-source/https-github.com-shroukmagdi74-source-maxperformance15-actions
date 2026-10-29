@@ -637,11 +637,8 @@ try {
 }
 
 
-// Static serving for uploads (task attachments, images, documents)
-const uploadsStaticPath = path.resolve(__dirname, 'uploads');
-if (fs.existsSync(uploadsStaticPath)) {
-  app.use('/uploads', express.static(uploadsStaticPath, { maxAge: '7d', fallthrough: true }));
-}
+// NOTE: /uploads is intentionally served exclusively via the security +
+// resolveOptimizedUploadVariant middleware below (do not mount premature express.static here).
 
 // ─────────────────────────────────────────────────────────────────────────
 // Platform Partner Attribution Window

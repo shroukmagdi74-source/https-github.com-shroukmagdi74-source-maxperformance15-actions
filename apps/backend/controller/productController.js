@@ -54,6 +54,32 @@ const {
 } = require('../utils/merchantAccountScope');
 const { syncProductToInventory, syncProductVariantsStock } = require('../services/inventorySyncService');
 const redisCacheService = require('../services/redisCacheService');
+const { invalidateCompanyStorefrontHtmlCache } = require('./storefrontHtmlController');
+
+const invalidateStorefrontProductCaches = async (companyId, productId = null, options = {}) => {
+  try {
+    const tasks = [];
+    if (companyId) {
+      tasks.push(redisCacheService.delPattern(`public_products:${companyId}:*`));
+      tasks.push(redisCacheService.delPattern(`public_product_detail:${companyId}:*`));
+      tasks.push(redisCacheService.delPattern(`public_shipping_quote_v1:${companyId}:*`));
+      if (options.includeCategories) {
+        tasks.push(redisCacheService.del(`public_categories:${companyId}`));
+        tasks.push(redisCacheService.delPattern(`public_categories:${companyId}*`));
+      }
+      invalidateCompanyStorefrontHtmlCache(companyId);
+    }
+    if (productId) {
+      tasks.push(redisCacheService.del(`product_demand_signals:${productId}`));
+      tasks.push(redisCacheService.del(`amazon_affiliate_prod:${productId}`));
+    }
+    if (tasks.length > 0) {
+      await Promise.allSettled(tasks);
+    }
+  } catch (cacheErr) {
+    console.warn('⚠️ [PRODUCT-CACHE] Failed to invalidate storefront caches:', cacheErr?.message);
+  }
+};
 
 // 🔤 Arabic to Franco mapping for slug generation
 const arabicToFranco = {
@@ -957,6 +983,8 @@ const createNewCategory = async (req, res) => {
       }
     });
 
+    await invalidateStorefrontProductCaches(companyId, null, { includeCategories: true });
+
     //console.log(`✅ [server] Created category: ${newCategory.name} for company ${companyId}`);
     res.status(201).json({
       success: true,
@@ -1082,6 +1110,8 @@ const updateCategory = async (req, res) => {
       data
     });
 
+    await invalidateStorefrontProductCaches(companyId, null, { includeCategories: true });
+
     res.json({
       success: true,
       data: updatedCategory
@@ -1132,6 +1162,8 @@ const moveCategoryProducts = async (req, res) => {
       where: { categoryId: id, companyId },
       data: { categoryId: targetCategoryId }
     });
+
+    await invalidateStorefrontProductCaches(companyId, null, { includeCategories: true });
 
     res.json({
       success: true,
@@ -1206,6 +1238,8 @@ const deleteCategory = async (req, res) => {
     await getSharedPrismaClient().category.delete({
       where: { id }
     });
+
+    await invalidateStorefrontProductCaches(companyId, null, { includeCategories: true });
 
     //console.log(`✅ [server] Deleted category: ${existingCategory.name}`);
     res.json({
@@ -2029,9 +2063,8 @@ const updateSingleProduct = async (req, res) => {
       console.error(`❌ Failed to sync product update for ${product.id}:`, err.message);
     });
 
-    // Invalidate public and storefront product Redis caches immediately
-    redisCacheService.delPattern(`public_products:${companyId}:*`).catch(() => {});
-    redisCacheService.del(`product_demand_signals:${product.id}`).catch(() => {});
+    // Invalidate public and storefront product Redis & HTML caches immediately
+    await invalidateStorefrontProductCaches(companyId, product.id);
 
     //console.log(`✅ [server] Product updated: ${product.name}`);
     res.json({
@@ -2103,6 +2136,8 @@ const deleteSingleProduct = async (req, res) => {
         deletedAt: new Date(),
       }
     });
+
+    await invalidateStorefrontProductCaches(companyId, id);
 
     //console.log(`✅ [server] Product deleted: ${id}`);
     res.json({
@@ -2195,6 +2230,8 @@ const restoreProduct = async (req, res) => {
       }
     });
 
+    await invalidateStorefrontProductCaches(companyId, id);
+
     res.json({
       success: true,
       message: 'تمت استعادة المنتج بنجاح'
@@ -2241,6 +2278,8 @@ const permanentDeleteProduct = async (req, res) => {
     await getSharedPrismaClient().product.delete({
       where: { id: id }
     });
+
+    await invalidateStorefrontProductCaches(companyId, id);
 
     res.json({
       success: true,
@@ -2592,6 +2631,8 @@ const createProduct = async (req, res) => {
         console.error('[PRODUCT-CREATE] auto-send trigger error:', err.message);
     }
 
+    await invalidateStorefrontProductCaches(companyId, product.id);
+
     res.json({
       success: true,
       data: decorateProductWithWorkflow(product),
@@ -2869,6 +2910,8 @@ const duplicateProduct = async (req, res) => {
       await refreshProductRetrievalArtifacts(hydratedProduct.id, companyId);
     }
 
+    await invalidateStorefrontProductCaches(companyId, duplicatedProduct.id);
+
     res.status(201).json({
       success: true,
       data: decorateProductWithWorkflow({
@@ -2956,6 +2999,8 @@ const deleteImageFromOneProduct = async (req, res) => {
         mainImage: resolvedMedia.mainImage
       }
     });
+
+    await invalidateStorefrontProductCaches(product.companyId || req.user?.companyId, id);
 
     //console.log(`✅ [IMAGE-DELETE] Successfully removed image from product ${id}`);
     //console.log(`📊 [IMAGE-DELETE] Final images array:`, currentImages);
@@ -3056,6 +3101,7 @@ const uploadProductImages = async (req, res) => {
     const fullUrls = newImageUrls.map(url => `${req.protocol}://${req.get('host')}${url}`);
 
     await refreshProductRetrievalArtifacts(id, companyId);
+    await invalidateStorefrontProductCaches(companyId, id);
 
     res.json({
       success: true,
@@ -3198,6 +3244,8 @@ const updateProductWorkflow = async (req, res) => {
         );
       });
 
+    await invalidateStorefrontProductCaches(companyId, product.id);
+
     res.json({
       success: true,
       message: WORKFLOW_ACTION_MESSAGES[action] || 'تم تحديث حالة المنتج',
@@ -3286,6 +3334,8 @@ const addImageToProduct = async (req, res) => {
         mainImage: resolvedMedia.mainImage
       }
     });
+
+    await invalidateStorefrontProductCaches(product.companyId || req.user?.companyId, id);
 
     //console.log(`✅ [IMAGE-ADD] Successfully added image to product ${id}`);
     //console.log(`📊 [IMAGE-ADD] Final images array:`, currentImages);
@@ -3419,6 +3469,8 @@ const createProductVariant = async (req, res) => {
       }).catch(err => console.error('⚠️ [PRODUCT] Failed to sync variant stock on create:', err.message));
     }
 
+    await invalidateStorefrontProductCaches(companyId, id);
+
     res.status(201).json({
       success: true,
       data: variant,
@@ -3537,6 +3589,8 @@ const addImageToVariantFromBody = async (req, res) => {
       }
     });
 
+    await invalidateStorefrontProductCaches(companyId, id);
+
     res.json({
       success: true,
       message: 'تم إضافة الصورة بنجاح',
@@ -3632,6 +3686,8 @@ const addImageToVariant = async (req, res) => {
         images: mergedImages.length > 0 ? JSON.stringify(mergedImages) : null
       }
     });
+
+    await invalidateStorefrontProductCaches(companyId, id);
 
     res.json({
       success: true,
@@ -3729,6 +3785,8 @@ const deleteImageFromVariant = async (req, res) => {
         images: sanitizedImages.length > 0 ? JSON.stringify(sanitizedImages) : null
       }
     });
+
+    await invalidateStorefrontProductCaches(companyId, id);
 
     res.json({
       success: true,
@@ -3895,6 +3953,8 @@ const updateProductVariant = async (req, res) => {
       }).catch(err => console.error('⚠️ [PRODUCT] Failed to sync variant stock on update:', err.message));
     }
 
+    await invalidateStorefrontProductCaches(companyId, id);
+
     res.json({
       success: true,
       data: updatedVariant,
@@ -3970,6 +4030,8 @@ const deleteProductVariant = async (req, res) => {
       userName: req.user?.name,
     }).catch(err => console.error('⚠️ [PRODUCT] Failed to sync variant stock on delete:', err.message));
 
+    await invalidateStorefrontProductCaches(companyId, id);
+
     res.json({
       success: true,
       message: 'تم حذف المتغير بنجاح'
@@ -4036,6 +4098,8 @@ const deleteAllProducts = async (req, res) => {
     });
 
     console.log(`   ✅ Deleted ${deletedProducts.count} products`);
+
+    await invalidateStorefrontProductCaches(companyId);
 
     res.json({
       success: true,
@@ -4183,6 +4247,8 @@ const bulkUpdateVisibility = async (req, res) => {
       data: { isHidden: Boolean(isHidden) },
     });
 
+    await invalidateStorefrontProductCaches(companyId);
+
     res.json({ success: true, data: { count: result.count } });
   } catch (err) {
     console.error('Bulk visibility update error:', err);
@@ -4221,6 +4287,8 @@ const bulkUpdateAffiliateVisibility = async (req, res) => {
       where: { id: { in: productIds }, companyId },
       data,
     });
+
+    await invalidateStorefrontProductCaches(companyId);
 
     res.json({ success: true, data: { count: result.count } });
   } catch (err) {
@@ -4266,6 +4334,8 @@ const bulkUpdateTrackInventory = async (req, res) => {
 
     // Swan use-case: 96 product bulk fix — log for audit
     console.log(`✅ [BULK-TRACK-INVENTORY] company=${companyId} trackInventory=${trackInventory} products=${productResult.count} variants=${variantCount}`);
+
+    await invalidateStorefrontProductCaches(companyId);
 
     res.json({ success: true, data: { productsUpdated: productResult.count, variantsUpdated: variantCount, trackInventory: Boolean(trackInventory) } });
   } catch (err) {

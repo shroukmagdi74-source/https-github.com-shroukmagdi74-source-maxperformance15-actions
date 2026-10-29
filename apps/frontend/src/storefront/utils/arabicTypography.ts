@@ -276,7 +276,8 @@ export function resolveStoreTypographyVars(
 }
 
 /**
- * Ensures document.fonts is aware of font in both browser and jsdom testing environments.
+ * Ensures document.fonts is aware of font in jsdom/unit testing environments.
+ * Never overrides native FontFaceSet with local("Arial") in real production browsers.
  */
 export function ensureDocumentFontAvailable(fontFamily: string): void {
   if (typeof document === 'undefined') return;
@@ -285,7 +286,13 @@ export function ensureDocumentFontAvailable(fontFamily: string): void {
   if (!primaryName) return;
 
   const docFonts = (document as any).fonts;
+  const isJsdomOrTestEnv =
+    (typeof navigator !== 'undefined' &&
+      /jsdom|happydom/i.test(navigator.userAgent || '')) ||
+    Boolean(docFonts && '_fonts' in docFonts);
+
   if (!docFonts) {
+    if (!isJsdomOrTestEnv) return;
     // Provide safe mock in jsdom
     const loaded = new Set<string>([primaryName, 'Noto Kufi Arabic', 'Cairo']);
     (document as any).fonts = {
@@ -301,15 +308,18 @@ export function ensureDocumentFontAvailable(fontFamily: string): void {
     return;
   }
 
-  // If document.fonts exists, ensure check can resolve the loaded font
+  if (!isJsdomOrTestEnv) {
+    return;
+  }
+
+  if (docFonts._fonts instanceof Set) {
+    docFonts._fonts.add(primaryName);
+    return;
+  }
+
   if (typeof docFonts.add === 'function') {
     try {
-      if (typeof (window as any).FontFace !== 'undefined') {
-        const face = new (window as any).FontFace(primaryName, 'local("Arial")');
-        docFonts.add(face);
-      } else {
-        docFonts.add({ family: primaryName });
-      }
+      docFonts.add({ family: primaryName });
     } catch {
       // Safe fallback
     }

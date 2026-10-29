@@ -27,7 +27,6 @@ export const useTikTokPixel = (companyId: string | undefined) => {
       try {
         const response = await storefrontSettingsService.getPublicSettings(
           companyId,
-          true,
         );
 
         if (response.success && response.data) {

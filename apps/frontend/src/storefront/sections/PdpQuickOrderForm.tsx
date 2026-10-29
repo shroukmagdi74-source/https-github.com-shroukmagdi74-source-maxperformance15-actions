@@ -710,21 +710,24 @@ const PdpQuickOrderForm: React.FC<PdpQuickOrderFormProps> = ({
     resolvedSubtotal - storePromoDiscount + effectiveShippingCost - walletDiscount,
   );
   const minimumOrder = useMinimumOrderSettings(Math.max(0, resolvedSubtotal - storePromoDiscount), currency);
+  const effectiveShippingQuantity = activeQuantityOffer?.offerQuantity ?? quantity;
   const shippingQuoteItems = useMemo(
     () => [
       {
         productId: product.id,
-        variantId: activeSelection?.variantId ?? undefined,
-        quantity: activeQuantityOffer?.offerQuantity ?? quantity,
+        quantity: effectiveShippingQuantity,
       },
     ],
     [
-      activeQuantityOffer?.offerQuantity,
-      activeSelection?.variantId,
+      effectiveShippingQuantity,
       product.id,
-      quantity,
     ],
   );
+  const [resolvedShippingQuoteKey, setResolvedShippingQuoteKey] = useState("");
+  const currentShippingCacheKey =
+    companyId && resolvedGovernorate
+      ? `${companyId}:${resolvedGovernorate.trim().toLowerCase()}:${product.id}:${effectiveShippingQuantity}`
+      : "";
 
   const trackingItem = useMemo<CartItem | null>(() => {
     if (activeQuantityOffer) {
@@ -808,22 +811,22 @@ const PdpQuickOrderForm: React.FC<PdpQuickOrderFormProps> = ({
   useEffect(() => {
     let cancelled = false;
 
-    if (!effectiveGovernorateField.enabled || !resolvedGovernorate || !companyId) {
+    if (!effectiveGovernorateField.enabled || !resolvedGovernorate || !companyId || !currentShippingCacheKey) {
       setShippingCost(0);
       setShippingMethodLabel("");
       setIsShippingLoading(false);
+      setResolvedShippingQuoteKey("");
       return undefined;
     }
 
-    const cacheKey = `${companyId}:${resolvedGovernorate}:${shippingQuoteItems
-      .map((i) => `${i.productId}:${i.variantId || ""}:${i.quantity}`)
-      .join(";")}`;
+    const cacheKey = currentShippingCacheKey;
 
     const cached = shippingCacheRef.current.get(cacheKey);
     if (cached) {
       setShippingCost(cached.price);
       setShippingMethodLabel(cached.label);
       setIsShippingLoading(false);
+      setResolvedShippingQuoteKey(cacheKey);
       return undefined;
     }
 
@@ -855,11 +858,13 @@ const PdpQuickOrderForm: React.FC<PdpQuickOrderFormProps> = ({
 
           setShippingCost(resolvedCost);
           setShippingMethodLabel(resolvedLabel);
+          setResolvedShippingQuoteKey(cacheKey);
         }
       } catch {
         if (!cancelled) {
           setShippingCost(0);
           setShippingMethodLabel("");
+          setResolvedShippingQuoteKey("");
         }
       } finally {
         if (!cancelled) {
@@ -878,6 +883,7 @@ const PdpQuickOrderForm: React.FC<PdpQuickOrderFormProps> = ({
     };
   }, [
     companyId,
+    currentShippingCacheKey,
     effectiveGovernorateField.enabled,
     resolvedGovernorate,
     shippingQuoteItems,
@@ -888,6 +894,8 @@ const PdpQuickOrderForm: React.FC<PdpQuickOrderFormProps> = ({
       !effectiveGovernorateField.enabled ||
       isShippingLoading ||
       !resolvedGovernorate ||
+      !currentShippingCacheKey ||
+      resolvedShippingQuoteKey !== currentShippingCacheKey ||
       !quickOrderFingerprint
     ) {
       return;
@@ -910,11 +918,13 @@ const PdpQuickOrderForm: React.FC<PdpQuickOrderFormProps> = ({
       },
     });
   }, [
+    currentShippingCacheKey,
     effectiveGovernorateField.enabled,
     isShippingLoading,
     product.id,
     quickOrderFingerprint,
     resolvedGovernorate,
+    resolvedShippingQuoteKey,
     resolvedSubtotal,
     shippingCost,
     storefrontSettings,

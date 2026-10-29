@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { storefrontFetch } from '../../utils/storefrontApi';
@@ -343,6 +343,8 @@ const RelatedProducts: React.FC<RelatedProductsProps> = ({ section, settings }) 
     rootMargin: isElessiCompleteSet ? '1800px 0px' : '420px 0px',
   });
   const { product, isLoading: productLoading } = useProduct(id);
+  const viewElementRef = useRef<HTMLElement | null>(null);
+  const [hasEnteredViewport, setHasEnteredViewport] = useState(false);
   const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const previewDataset = useMemo(
@@ -712,7 +714,40 @@ const RelatedProducts: React.FC<RelatedProductsProps> = ({ section, settings }) 
   };
 
   useEffect(() => {
-    if (!crossSellEnabled || !product?.id || shouldShowLoading || relatedProducts.length === 0) {
+    setHasEnteredViewport(false);
+  }, [product?.id]);
+
+  useEffect(() => {
+    if (hasEnteredViewport) return undefined;
+    if (typeof window === 'undefined') return undefined;
+    if (typeof window.IntersectionObserver !== 'function') {
+      setHasEnteredViewport(true);
+      return undefined;
+    }
+    const element = viewElementRef.current;
+    if (!element) return undefined;
+
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting || entry.intersectionRatio > 0)) {
+          setHasEnteredViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px 0px' },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasEnteredViewport, product?.id, relatedProducts.length, shouldShowLoading]);
+
+  useEffect(() => {
+    if (
+      !hasEnteredViewport ||
+      !crossSellEnabled ||
+      !product?.id ||
+      shouldShowLoading ||
+      relatedProducts.length === 0
+    ) {
       return;
     }
 
@@ -729,6 +764,7 @@ const RelatedProducts: React.FC<RelatedProductsProps> = ({ section, settings }) 
   }, [
     apiRecommendations.length,
     crossSellEnabled,
+    hasEnteredViewport,
     product?.id,
     relatedProducts.length,
     shouldShowLoading,
@@ -740,7 +776,12 @@ const RelatedProducts: React.FC<RelatedProductsProps> = ({ section, settings }) 
 
   return (
     <section
-      ref={sectionRef as React.RefObject<HTMLElement>}
+      ref={(node) => {
+        if (sectionRef && 'current' in sectionRef) {
+          (sectionRef as React.MutableRefObject<HTMLElement | null>).current = node;
+        }
+        viewElementRef.current = node;
+      }}
       className={`w-full border-t ${isElessiCompleteSet ? 'min-h-[44rem] md:min-h-[45rem]' : ''} ${isWomenFashionClosetPairings ? 'py-8 md:py-12' : 'py-12 md:py-16'} ${
         isElessiOrganicRelated
           ? 'border-[#eadfcd] bg-[linear-gradient(180deg,#fffefb_0%,#f8f1e8_42%,#ffffff_100%)]'

@@ -2,10 +2,25 @@ const {
   getSharedPrismaClientAsync,
   safeQuery,
 } = require('../services/sharedDatabase');
+const redisCacheService = require('../services/redisCacheService');
+const companyCacheService = require('../services/companyCacheService');
 const {
   isPlaceholderPhone,
   isPlaceholderEmail,
 } = require('../utils/placeholderContact');
+
+const PUBLIC_FOOTER_SETTINGS_CACHE_TTL = 300;
+const getPublicFooterSettingsCacheKey = (companyId) =>
+  `public_footer_settings_v1:${companyId}`;
+
+async function invalidateFooterSettingsCache(companyId) {
+  if (!companyId) return;
+  try {
+    await redisCacheService.del(getPublicFooterSettingsCacheKey(companyId));
+  } catch (err) {
+    console.warn('⚠️ [REDIS] Failed to invalidate public footer settings cache:', err?.message);
+  }
+}
 
 /**
  * Footer Settings Controller
@@ -66,6 +81,8 @@ exports.getFooterSettings = async (req, res) => {
           }
         })
       );
+
+      await invalidateFooterSettingsCache(companyId);
     }
 
     res.json({
@@ -146,6 +163,8 @@ exports.updateFooterSettings = async (req, res) => {
       });
     }
 
+    await invalidateFooterSettingsCache(companyId);
+
     res.json({
       success: true,
       message: 'تم تحديث إعدادات الفوتر بنجاح',
@@ -214,6 +233,8 @@ exports.resetFooterSettings = async (req, res) => {
       }
     });
 
+    await invalidateFooterSettingsCache(companyId);
+
     res.json({
       success: true,
       message: 'تم إعادة تعيين إعدادات الفوتر بنجاح',
@@ -236,7 +257,6 @@ exports.getPublicFooterSettings = async (req, res) => {
   try {
     // Use company from middleware (set by getCompanyFromSubdomain) or fallback to params
     const companyId = req.company?.id || req.params?.companyId;
-    const prisma = await getPrisma();
 
     if (!companyId) {
       return res.status(400).json({
@@ -248,19 +268,34 @@ exports.getPublicFooterSettings = async (req, res) => {
     // Determine if companyId is actually a slug or an ID
     // CUIDs are exactly 25 chars starting with 'c', slugs are shorter alphanumeric strings
     let actualCompanyId = companyId;
-    const looksLikeSlug = !/^c[a-z0-9]{24}$/.test(companyId);
+    const looksLikeSlug = !req.company?.id && !/^c[a-z0-9]{24}$/.test(companyId);
 
     if (looksLikeSlug) {
-      const company = await prisma.company.findFirst({
-        where: { OR: [{ slug: companyId }, { id: companyId }] },
-        select: { id: true }
+      const company = await companyCacheService.getCompanyLookup('footer_ref', companyId, async () => {
+        const prisma = await getPrisma();
+        return prisma.company.findFirst({
+          where: { OR: [{ slug: companyId }, { id: companyId }] },
+          select: { id: true, slug: true }
+        });
       });
 
-      if (company) {
+      if (company?.id) {
         actualCompanyId = company.id;
       }
     }
 
+    const cacheKey = getPublicFooterSettingsCacheKey(actualCompanyId);
+    try {
+      const cached = await redisCacheService.get(cacheKey);
+      if (cached) {
+        res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        return res.json(cached);
+      }
+    } catch (cacheErr) {
+      console.warn('⚠️ [REDIS] public footer settings cache lookup failed:', cacheErr?.message);
+    }
+
+    const prisma = await getPrisma();
     const settings = await prisma.footerSettings.findUnique({
       where: { companyId: actualCompanyId },
       select: {
@@ -278,6 +313,7 @@ exports.getPublicFooterSettings = async (req, res) => {
       }
     });
 
+    let responsePayload;
     if (!settings) {
       // Return default settings if not configured
       const company = await prisma.company.findUnique({
@@ -285,7 +321,7 @@ exports.getPublicFooterSettings = async (req, res) => {
         select: { name: true, email: true, phone: true, address: true }
       });
 
-      return res.json({
+      responsePayload = {
         success: true,
         data: {
           aboutStore: `نحن ${company?.name || 'متجر'} نقدم أفضل المنتجات والخدمات لعملائنا الكرام`,
@@ -300,13 +336,22 @@ exports.getPublicFooterSettings = async (req, res) => {
           copyrightText: `© ${new Date().getFullYear()} ${company?.name || 'المتجر'}. جميع الحقوق محفوظة`,
           showCopyright: true
         }
-      });
+      };
+    } else {
+      responsePayload = {
+        success: true,
+        data: settings
+      };
     }
 
-    res.json({
-      success: true,
-      data: settings
-    });
+    try {
+      await redisCacheService.set(cacheKey, responsePayload, PUBLIC_FOOTER_SETTINGS_CACHE_TTL);
+    } catch (_) {
+      // non-blocking cache write
+    }
+
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    return res.json(responsePayload);
   } catch (error) {
     console.error('Error fetching public footer settings:', error);
     res.status(500).json({

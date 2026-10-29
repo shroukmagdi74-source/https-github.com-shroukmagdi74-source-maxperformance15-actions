@@ -2,6 +2,7 @@ import React from 'react';
 import type { ProductVariant } from '../hooks/useProducts';
 import { canonicalizeAttributeKey, getVariantAttributeLabel, getVariantAttributes } from '../utils/variants';
 import {
+  buildOptimizedStorefrontImageUrl,
   buildStorefrontImageCandidates,
   normalizeStorefrontImageValue,
 } from '../utils/productImages';
@@ -1000,7 +1001,8 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
                         <div className="relative w-full aspect-square sm:aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-neutral-800">
                           {thumbnailImage ? (
                             <img
-                              src={thumbnailImage}
+                              src={buildOptimizedStorefrontImageUrl(thumbnailImage, { width: 120, quality: 75 })}
+                              decoding="async"
                               alt={`${displayKey} ${option}`}
                               loading="lazy"
                               className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"

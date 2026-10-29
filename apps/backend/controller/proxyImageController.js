@@ -5,6 +5,10 @@ const { getSharedPrismaClient } = require("../services/sharedDatabase");
 const sharp = require("sharp");
 const { getMetaGraphApiVersion } = require("../config/metaApi");
 const { decryptField } = require("../utils/fieldEncryption");
+const {
+  isOptimizableUploadImage,
+  resolveOptimizedUploadVariant,
+} = require("../utils/uploadImageOptimizer");
 
 const FACEBOOK_GRAPH_API_VERSION = getMetaGraphApiVersion();
 const META_GRAPH_API_BASE_URL = (
@@ -321,7 +325,7 @@ const sendBufferWithRange = (req, res, buffer, contentType, statusCode = 200) =>
   res.setHeader("Content-Type", contentType);
 
   const totalLength = buffer.length;
-  const rangeHeader = req.headers.range;
+  const rangeHeader = req.headers?.range;
 
   if (rangeHeader && typeof rangeHeader === "string" && rangeHeader.startsWith("bytes=")) {
     const rangeParts = rangeHeader.replace(/bytes=/, "").split("-");
@@ -374,9 +378,63 @@ const sendLocalFileResponse = async (req, res, filePath, transformOptions) => {
     ".mp4": "video/mp4",
   };
   const originalContentType = mimeMap[ext] || "application/octet-stream";
-  const shouldTransform =
-    transformOptions?.shouldTransform && isTransformableContentType(originalContentType);
+  const hasExplicitTransform = Boolean(transformOptions?.shouldTransform);
 
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  res.setHeader("Accept-Ranges", "bytes");
+
+  if (isOptimizableUploadImage(filePath)) {
+    try {
+      const resolvedVariant = await resolveOptimizedUploadVariant({
+        sourceFilePath: filePath,
+        query: hasExplicitTransform
+          ? {
+              w: transformOptions?.width,
+              q: transformOptions?.quality,
+              format: transformOptions?.format,
+            }
+          : {},
+        acceptHeader: req.headers?.accept || "",
+      });
+
+      if (resolvedVariant?.filePath) {
+        const variantContentType = resolvedVariant.contentType || "image/webp";
+        res.setHeader("Content-Type", variantContentType);
+        if (hasExplicitTransform) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          res.setHeader(
+            "Cache-Control",
+            "public, max-age=604800, stale-while-revalidate=2592000",
+          );
+          res.setHeader("Vary", "Accept");
+        }
+
+        if ((req.method || "").toUpperCase() === "HEAD") {
+          return res.status(200).end();
+        }
+
+        const variantBuffer = await fs.promises.readFile(resolvedVariant.filePath);
+        return sendBufferWithRange(req, res, variantBuffer, variantContentType, 200);
+      }
+    } catch (variantError) {
+      console.warn(
+        "⚠️ [IMAGE-PROXY] Optimized local variant resolution failed, falling back:",
+        {
+          filePath,
+          message: variantError?.message,
+        },
+      );
+    }
+  }
+
+  const shouldTransform =
+    hasExplicitTransform && isTransformableContentType(originalContentType);
+
+  if (!hasExplicitTransform && (ext === ".jpg" || ext === ".jpeg" || ext === ".png")) {
+    res.setHeader("Vary", "Accept");
+  }
   res.setHeader(
     "Content-Type",
     shouldTransform ? `image/${transformOptions.format}` : originalContentType,
@@ -387,9 +445,6 @@ const sendLocalFileResponse = async (req, res, filePath, transformOptions) => {
       ? "public, max-age=604800, stale-while-revalidate=2592000"
       : "public, max-age=3600, stale-while-revalidate=86400",
   );
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-  res.setHeader("Accept-Ranges", "bytes");
 
   if ((req.method || "").toUpperCase() === "HEAD") {
     return res.status(200).end();
@@ -524,11 +579,109 @@ const archiveBufferToLocal = async (
   }
 };
 
-const sendRemoteResponse = async (req, res, response, transformOptions) => {
+const PROXY_CACHE_DIR = path.resolve(__dirname, "../uploads/.proxy-cache");
+const PROXY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MODULE_LOAD_TIME_MS = Date.now();
+
+const buildRemoteProxyCachePath = (url, transformOptions) => {
+  if (!url || !transformOptions?.shouldTransform || !transformOptions?.format) {
+    return null;
+  }
+
+  const rawKey = `${url}|w=${transformOptions.width || 0}|q=${transformOptions.quality || 0}|fmt=${transformOptions.format || ""}`;
+  const hash = crypto.createHash("sha1").update(rawKey).digest("hex");
+  return path.join(PROXY_CACHE_DIR, `${hash}.${transformOptions.format}`);
+};
+
+const readRemoteProxyCache = async (url, transformOptions) => {
+  const cachePath = buildRemoteProxyCachePath(url, transformOptions);
+  if (!cachePath) {
+    return null;
+  }
+
+  try {
+    const stats = await fs.promises.stat(cachePath);
+    if (!stats.isFile() || stats.size <= 0) {
+      return null;
+    }
+
+    if (
+      process.env.NODE_ENV === "test" &&
+      process.env.PROXY_CACHE_PERSIST_ACROSS_RUNS !== "1" &&
+      stats.mtimeMs < MODULE_LOAD_TIME_MS
+    ) {
+      return null;
+    }
+
+    if (Date.now() - stats.mtimeMs > PROXY_CACHE_TTL_MS) {
+      return null;
+    }
+
+    return await fs.promises.readFile(cachePath);
+  } catch {
+    return null;
+  }
+};
+
+const writeRemoteProxyCache = async (url, transformOptions, buffer) => {
+  const cachePath = buildRemoteProxyCachePath(url, transformOptions);
+  if (!cachePath || !buffer?.length) {
+    return;
+  }
+
+  const tempPath = `${cachePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await fs.promises.mkdir(PROXY_CACHE_DIR, { recursive: true });
+    await fs.promises.writeFile(tempPath, buffer);
+    try {
+      await fs.promises.rename(tempPath, cachePath);
+    } catch (renameErr) {
+      if (!fs.existsSync(cachePath)) {
+        throw renameErr;
+      }
+    }
+  } catch (err) {
+    console.warn("⚠️ [IMAGE-PROXY] Remote proxy cache write failed:", err?.message);
+  } finally {
+    try {
+      if (fs.existsSync(tempPath)) {
+        await fs.promises.unlink(tempPath);
+      }
+    } catch {}
+  }
+};
+
+const sendCachedRemoteTransformResponse = (req, res, cachedBuffer, transformOptions) => {
+  const transformedContentType = `image/${transformOptions.format}`;
+  res.setHeader("Content-Type", transformedContentType);
+  res.setHeader(
+    "Cache-Control",
+    "public, max-age=604800, stale-while-revalidate=2592000",
+  );
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  res.setHeader("Accept-Ranges", "bytes");
+
+  if ((req.method || "").toUpperCase() === "HEAD") {
+    return res.status(200).end();
+  }
+
+  return sendBufferWithRange(req, res, cachedBuffer, transformedContentType, 200);
+};
+
+const sendRemoteResponse = async (
+  req,
+  res,
+  response,
+  transformOptions,
+  sourceUrl = null,
+) => {
   let contentType = response.headers.get("content-type") || "";
   const cacheControl = response.headers.get("cache-control");
+  const rawSourceUrl =
+    sourceUrl || (typeof req.query?.url === "string" ? req.query.url.trim() : "");
 
-  const targetUrl = req.query.url ? String(req.query.url).toLowerCase() : "";
+  const targetUrl = rawSourceUrl ? String(rawSourceUrl).toLowerCase() : "";
   const isAudioRequested =
     req.query.media === "audio" ||
     req.query.type === "audio" ||
@@ -551,16 +704,27 @@ const sendRemoteResponse = async (req, res, response, transformOptions) => {
     else if (!contentType) contentType = "image/jpeg";
   }
 
-  res.setHeader(
-    "Cache-Control",
-    cacheControl || "public, max-age=3600, stale-while-revalidate=86400",
-  );
+  const defaultCacheControl =
+    cacheControl || "public, max-age=3600, stale-while-revalidate=86400";
+  res.setHeader("Cache-Control", defaultCacheControl);
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   res.setHeader("Accept-Ranges", "bytes");
 
   if ((req.method || "").toUpperCase() === "HEAD") {
-    res.setHeader("Content-Type", contentType);
+    const headShouldTransform =
+      !isAudioRequested &&
+      transformOptions?.shouldTransform &&
+      isTransformableContentType(contentType);
+    if (headShouldTransform) {
+      res.setHeader(
+        "Cache-Control",
+        "public, max-age=604800, stale-while-revalidate=2592000",
+      );
+      res.setHeader("Content-Type", `image/${transformOptions.format}`);
+    } else {
+      res.setHeader("Content-Type", contentType);
+    }
     return res.status(200).end();
   }
 
@@ -620,6 +784,13 @@ const sendRemoteResponse = async (req, res, response, transformOptions) => {
       responseBuffer,
       transformOptions,
     );
+    res.setHeader(
+      "Cache-Control",
+      "public, max-age=604800, stale-while-revalidate=2592000",
+    );
+    if (rawSourceUrl) {
+      await writeRemoteProxyCache(rawSourceUrl, transformOptions, transformedBuffer);
+    }
     return sendBufferWithRange(
       req,
       res,
@@ -634,6 +805,8 @@ const sendRemoteResponse = async (req, res, response, transformOptions) => {
       format: transformOptions.format,
       message: error?.message,
     });
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", defaultCacheControl);
     return sendBufferWithRange(req, res, responseBuffer, contentType, 200);
   }
 };
@@ -1430,6 +1603,21 @@ const proxyImage = async (req, res) => {
         );
       }
 
+      if (transformOptions?.shouldTransform && !messageId) {
+        const cachedBuffer = await readRemoteProxyCache(
+          candidateUrl,
+          transformOptions,
+        );
+        if (cachedBuffer) {
+          return sendCachedRemoteTransformResponse(
+            req,
+            res,
+            cachedBuffer,
+            transformOptions,
+          );
+        }
+      }
+
       const response = await fetchRemoteAsset(candidateUrl);
       if (!response) {
         console.warn("⚠️ [IMAGE-PROXY] Remote fetch blocked (disallowed target):", {
@@ -1438,7 +1626,13 @@ const proxyImage = async (req, res) => {
         continue;
       }
       if (response.ok) {
-        return sendRemoteResponse(req, res, response, transformOptions);
+        return sendRemoteResponse(
+          req,
+          res,
+          response,
+          transformOptions,
+          candidateUrl,
+        );
       }
 
       lastFailureStatus = response.status || lastFailureStatus;

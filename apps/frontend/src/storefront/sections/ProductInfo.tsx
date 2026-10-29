@@ -24,6 +24,7 @@ import { getVariantAttributes } from '../utils/variants';
 import { useStorefrontTheme } from '../engine/ThemeProvider';
 import { useStorefrontFacebookTracking } from '../hooks/useStorefrontFacebookTracking';
 import {
+  buildOptimizedStorefrontImageUrl,
   buildStorefrontImageCandidates,
   getPrimaryProductImage,
 } from '../utils/productImages';
@@ -6920,7 +6921,9 @@ const ProductInfo: React.FC<ProductInfoProps> = ({ section, settings: sectionSet
         <>
           {brandSpotlight?.image ? (
             <img
-              src={brandSpotlight.image}
+              src={buildOptimizedStorefrontImageUrl(brandSpotlight.image, { width: 320, quality: 76 })}
+              loading="lazy"
+              decoding="async"
               alt={spotlightTitle}
               className="h-5 w-5 rounded-full border border-[#ead8ca] object-cover"
             />
@@ -8026,7 +8029,9 @@ const ProductInfo: React.FC<ProductInfoProps> = ({ section, settings: sectionSet
                  </div>
                  <div className="aspect-[4/5] overflow-hidden rounded-[2rem]">
                     <img 
-                      src={selectedPrimaryImage || '/placeholder-meat.jpg'} 
+                      src={buildOptimizedStorefrontImageUrl(selectedPrimaryImage || '/placeholder-meat.jpg', { width: 320, quality: 76 })}
+                      loading="lazy"
+                      decoding="async"
                       alt={product.name}
                       className="h-full w-full object-cover transition-transform duration-1000 hover:scale-105"
                     />

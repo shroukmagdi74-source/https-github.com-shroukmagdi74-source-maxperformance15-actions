@@ -4,11 +4,34 @@ const {
   getSharedPrismaClientAsync,
   executeWithRetry,
 } = require('../services/sharedDatabase');
+const crypto = require('crypto');
+const redisCacheService = require('../services/redisCacheService');
 const {
   resolveShippingClass,
   resolveShippingClassConfig,
   calculateShippingClassSurcharge,
 } = require('../utils/shippingClassUtils');
+
+const PUBLIC_SHIPPING_QUOTE_CACHE_TTL = 300;
+
+const buildPublicShippingItemsHash = (quoteItems = []) => {
+  if (!Array.isArray(quoteItems) || quoteItems.length === 0) {
+    return 'empty';
+  }
+  const canonical = [...quoteItems]
+    .map((item) => `${item.productId}:${item.variantId || ''}:${item.quantity}`)
+    .sort()
+    .join('|');
+  return crypto.createHash('sha1').update(canonical).digest('hex');
+};
+
+const buildPublicShippingQuoteCacheKey = (companyId, governorate, quoteItems = []) => {
+  const normalizedGovKey = encodeURIComponent(
+    normalizeGovernorateValue(governorate) || String(governorate || '').trim().toLowerCase()
+  );
+  const itemsHash = buildPublicShippingItemsHash(quoteItems);
+  return `public_shipping_quote_v1:${companyId}:${normalizedGovKey}:${itemsHash}`;
+};
 // const prisma = getSharedPrismaClient(); // ❌ Removed to prevent early loading issues
 
 /**
@@ -1070,18 +1093,38 @@ const companyZoneSyncTimestamps = new Map();
 const inFlightCompanySyncs = new Map();
 const ZONE_SYNC_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours TTL per company
 
+const invalidateCompanyShippingQuoteCache = async (companyId = null) => {
+  try {
+    if (!companyId) {
+      await Promise.allSettled([
+        redisCacheService.delPattern('public_shipping_quote_v1:*'),
+        redisCacheService.delPattern('shipping_has_active_zones_v1:*'),
+      ]);
+      return;
+    }
+    await Promise.allSettled([
+      redisCacheService.delPattern(`public_shipping_quote_v1:${companyId}:*`),
+      redisCacheService.del(`shipping_has_active_zones_v1:${companyId}`),
+    ]);
+  } catch (err) {
+    console.warn('⚠️ [REDIS] Failed to invalidate public shipping quote cache:', err?.message);
+  }
+};
+
 const invalidateCompanyShippingZoneSync = (companyId = null) => {
   if (!companyId) {
     companyZoneSyncTimestamps.clear();
   } else {
     companyZoneSyncTimestamps.delete(companyId);
   }
+  invalidateCompanyShippingQuoteCache(companyId).catch(() => {});
 };
 
 const resetCanonicalShippingSyncCache = () => {
   canonicalSeedDataSynced = false;
   companyZoneSyncTimestamps.clear();
   inFlightCompanySyncs.clear();
+  invalidateCompanyShippingQuoteCache(null).catch(() => {});
 };
 
 const syncCanonicalShippingData = async (companyId = null, options = {}) => {
@@ -1228,6 +1271,9 @@ const syncCanonicalShippingData = async (companyId = null, options = {}) => {
 
       markCanonicalGovernorateStorageAvailability(prisma, 'available');
       companyZoneSyncTimestamps.set(syncKey, Date.now());
+      if (force) {
+        await invalidateCompanyShippingQuoteCache(companyId);
+      }
     } catch (error) {
       if (isCanonicalGovernorateStorageError(error)) {
         markCanonicalGovernorateStorageAvailability(prisma, 'unavailable');
@@ -1439,6 +1485,7 @@ const createShippingZone = async (req, res) => {
     }));
 
     await syncCanonicalShippingData(companyId, { force: true });
+    await invalidateCompanyShippingQuoteCache(companyId);
 
     const zone = await runShippingQuery((prisma) => findShippingZoneWithCanonicalFallback(prisma, {
       where: {
@@ -1589,6 +1636,7 @@ const updateShippingZone = async (req, res) => {
     }));
 
     await syncCanonicalShippingData(companyId, { force: true });
+    await invalidateCompanyShippingQuoteCache(companyId);
 
     const zone = await runShippingQuery((prisma) => findShippingZoneWithCanonicalFallback(prisma, {
       where: {
@@ -1644,6 +1692,7 @@ const deleteShippingZone = async (req, res) => {
     });
 
     invalidateCompanyShippingZoneSync(companyId);
+    await invalidateCompanyShippingQuoteCache(companyId);
 
     res.json({
       success: true,
@@ -1693,6 +1742,7 @@ const toggleZoneStatus = async (req, res) => {
     });
 
     invalidateCompanyShippingZoneSync(companyId);
+    await invalidateCompanyShippingQuoteCache(companyId);
 
     res.json({
       success: true,
@@ -1879,9 +1929,57 @@ const calculatePublicShippingCost = async (req, res) => {
       });
     }
 
-    await syncCanonicalShippingData(companyId);
+    const quoteCacheKey = buildPublicShippingQuoteCacheKey(companyId, governorate, quoteItems);
+    try {
+      const cachedQuotePayload = await redisCacheService.get(quoteCacheKey);
+      if (cachedQuotePayload) {
+        return res.json(cachedQuotePayload);
+      }
+    } catch (cacheErr) {
+      console.warn('⚠️ [REDIS] public shipping quote cache lookup failed:', cacheErr?.message);
+    }
 
     const prisma = await getSharedPrismaClientAsync();
+
+    const lastSync = companyZoneSyncTimestamps.get(companyId);
+    const isSyncFresh = Boolean(lastSync && Date.now() - lastSync < ZONE_SYNC_TTL_MS);
+
+    if (!isSyncFresh) {
+      const activeZonesKey = `shipping_has_active_zones_v1:${companyId}`;
+      let hasActiveZones = false;
+      try {
+        const cachedHasZones = await redisCacheService.get(activeZonesKey);
+        if (cachedHasZones === true) {
+          hasActiveZones = true;
+        }
+      } catch (_) {}
+
+      if (!hasActiveZones && typeof prisma?.shippingZone?.findFirst === 'function') {
+        try {
+          const activeZone = await prisma.shippingZone.findFirst({
+            where: { companyId, isActive: true },
+            select: { id: true },
+          });
+          if (activeZone?.id) {
+            hasActiveZones = true;
+            redisCacheService.set(activeZonesKey, true, PUBLIC_SHIPPING_QUOTE_CACHE_TTL).catch(() => {});
+          }
+        } catch (_) {}
+      }
+
+      if (hasActiveZones) {
+        if (process.env.NODE_ENV !== 'test') {
+          setImmediate(() => {
+            syncCanonicalShippingData(companyId).catch((err) => {
+              console.warn('⚠️ [SHIPPING-SYNC] Background canonical sync error:', err?.message);
+            });
+          });
+        }
+      } else {
+        await syncCanonicalShippingData(companyId);
+      }
+    }
+
     const shippingClassCounts = await buildShippingClassCountsForQuote(
       prisma,
       companyId,
@@ -1895,7 +1993,7 @@ const calculatePublicShippingCost = async (req, res) => {
 
     if (quote.zoneId) {
       console.log('[calculatePublicShippingCost] Matched zone:', quote.zoneId);
-      return res.json({
+      const matchedPayload = {
         success: true,
         data: {
           zoneId: quote.zoneId,
@@ -1906,11 +2004,15 @@ const calculatePublicShippingCost = async (req, res) => {
           governorate: quote.governorate,
           methods: quote.methods,
         }
-      });
+      };
+      try {
+        await redisCacheService.set(quoteCacheKey, matchedPayload, PUBLIC_SHIPPING_QUOTE_CACHE_TTL);
+      } catch (_) {}
+      return res.json(matchedPayload);
     }
 
     // No matching zone found - return 0 instead of error
-    res.json({
+    const unmatchedPayload = {
       success: true,
       data: {
         zoneId: null,
@@ -1920,7 +2022,11 @@ const calculatePublicShippingCost = async (req, res) => {
         methods: []
       },
       message: 'لم يتم العثور على منطقة شحن مطابقة'
-    });
+    };
+    try {
+      await redisCacheService.set(quoteCacheKey, unmatchedPayload, PUBLIC_SHIPPING_QUOTE_CACHE_TTL);
+    } catch (_) {}
+    res.json(unmatchedPayload);
   } catch (error) {
     console.error('Error calculating public shipping cost:', error);
     res.status(500).json({

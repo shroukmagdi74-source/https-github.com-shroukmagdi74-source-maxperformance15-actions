@@ -19,7 +19,7 @@ import {
   InformationCircleIcon,
   QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
-import { STOREFRONT_ICONS } from '../../studio/StudioIconPicker';
+import { STOREFRONT_ICONS } from '../../studio/utils/storefrontIcons';
 
 export interface IconElementSettings {
   name?: string;

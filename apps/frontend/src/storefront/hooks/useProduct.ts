@@ -10,6 +10,7 @@ import { Product, normalizeStorefrontProduct } from './useProducts';
 import { resolveLegacyProductSlugAlias } from '../utils/productSlugAliases';
 
 let _globalPresentationSlug: string | null = null;
+const inflightStorefrontProductPromises = new Map<string, Promise<Product>>();
 
 export const setGlobalPresentationSlug = (slug: string | null) => {
   _globalPresentationSlug = slug;
@@ -240,16 +241,11 @@ const getActivePreviewThemeId = (): string => {
   return fromTheme || fromPreviewTheme || fromMarketplace || '';
 };
 
-export const fetchStorefrontProduct = async (
+const executeFetchStorefrontProduct = async (
   idOrSlug: string,
-  isPreviewMode = resolveStorefrontProductPreviewMode(),
-  presentationSlug?: string,
+  isPreviewMode: boolean,
+  resolvedPresentationSlug: string | undefined,
 ): Promise<Product> => {
-  const resolvedPresentationSlug = presentationSlug || getGlobalPresentationSlug();
-  if (!idOrSlug) {
-    throw new Error('Product ID or Slug is required');
-  }
-
   const activeThemeId = getActivePreviewThemeId();
   const isExplicitPreview = idOrSlug.startsWith('preview:');
   const previewThemeFromSlug = isExplicitPreview
@@ -341,6 +337,40 @@ export const fetchStorefrontProduct = async (
   }
 };
 
+export const fetchStorefrontProduct = async (
+  idOrSlug: string,
+  isPreviewMode = resolveStorefrontProductPreviewMode(),
+  presentationSlug?: string,
+): Promise<Product> => {
+  const resolvedPresentationSlug = presentationSlug || getGlobalPresentationSlug() || undefined;
+  if (!idOrSlug) {
+    throw new Error('Product ID or Slug is required');
+  }
+
+  const normalizedSlugKey = idOrSlug.startsWith('preview:')
+    ? idOrSlug.trim()
+    : resolveProductSlugForStorefrontRequest(idOrSlug) || idOrSlug.trim();
+  const dedupeKey = `${normalizedSlugKey}:${isPreviewMode}:${resolvedPresentationSlug || ''}`;
+
+  const inflight = inflightStorefrontProductPromises.get(dedupeKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const requestPromise = executeFetchStorefrontProduct(
+    idOrSlug,
+    isPreviewMode,
+    resolvedPresentationSlug,
+  ).finally(() => {
+    if (inflightStorefrontProductPromises.get(dedupeKey) === requestPromise) {
+      inflightStorefrontProductPromises.delete(dedupeKey);
+    }
+  });
+
+  inflightStorefrontProductPromises.set(dedupeKey, requestPromise);
+  return requestPromise;
+};
+
 interface UseProductOptions {
   enabled?: boolean;
   presentationSlug?: string;
@@ -376,7 +406,7 @@ export const useProduct = (
     queryKey,
     queryFn: () => fetchStorefrontProduct(requestIdOrSlug!, isPreviewMode, presentationSlug),
     enabled: Boolean(requestIdOrSlug) && (options.enabled ?? true),
-    staleTime: 0,
+    staleTime: isPreviewMode ? 0 : 60 * 1000,
     placeholderData: () => {
       if (!requestIdOrSlug) return undefined;
       const cached = queryClient.getQueryData<Product>(queryKey);

@@ -128,7 +128,7 @@ describe('Storefront Ticket 5C — Independent Element Primitives', () => {
       const img = link?.querySelector('img');
       expect(img).toBeTruthy();
       expect(img?.getAttribute('src')).toBe(
-        'https://images.unsplash.com/photo-1523275335684-37898b6baf30',
+        '/api/proxy-image?url=https%3A%2F%2Fimages.unsplash.com%2Fphoto-1523275335684-37898b6baf30&w=960&q=78&format=webp',
       );
       expect(img?.getAttribute('alt')).toBe('ساعة يد عصرية');
     });

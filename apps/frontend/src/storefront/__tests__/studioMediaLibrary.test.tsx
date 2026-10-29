@@ -113,7 +113,7 @@ describe('MEDIA-1: Media Library, Icons & Srcset/WebP', () => {
 
     const img = container.querySelector('img');
     expect(img).toBeTruthy();
-    expect(img?.getAttribute('src')).toBe('/uploads/storefront/hero-banner.webp');
+    expect(img?.getAttribute('src')).toBe('/api/proxy-image?url=%2Fuploads%2Fstorefront%2Fhero-banner.webp&w=960&q=78&format=webp');
     expect(img?.getAttribute('alt')).toBe('بانر المتجر الصيفي');
 
     // Assert: srcset has all 3 widths
@@ -172,7 +172,7 @@ describe('MEDIA-1: Media Library, Icons & Srcset/WebP', () => {
       />
     );
     const img = c1.querySelector('img');
-    expect(img?.getAttribute('src')).toBe('/uploads/products/regular.jpg');
+    expect(img?.getAttribute('src')).toBe('/api/proxy-image?url=%2Fuploads%2Fproducts%2Fregular.jpg&w=960&q=78&format=webp');
     expect(img?.getAttribute('srcset')).toBeNull();
 
     // Missing src -> renders placeholder

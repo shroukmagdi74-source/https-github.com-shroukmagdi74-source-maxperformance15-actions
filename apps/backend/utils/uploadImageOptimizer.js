@@ -18,7 +18,7 @@ const OPTIMIZABLE_EXTENSIONS = new Set([
   '.avif',
 ]);
 
-const SUPPORTED_FORMATS = new Set(['webp', 'avif']);
+const SUPPORTED_FORMATS = new Set(['webp', 'avif', 'jpeg']);
 
 const clampInteger = (value, min, max) => {
   if (value === undefined || value === null || value === '') {
@@ -96,7 +96,7 @@ const isVariantFresh = (sourceFilePath, variantFilePath) => {
 const writeOptimizedVariant = async (sourceFilePath, variantFilePath, options) => {
   fs.mkdirSync(path.dirname(variantFilePath), { recursive: true });
 
-  const tempFilePath = `${variantFilePath}.tmp-${process.pid}-${Date.now()}`;
+  const tempFilePath = `${variantFilePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     try {
     const pipeline = sharp(sourceFilePath, { sequentialRead: true })
@@ -112,6 +112,12 @@ const writeOptimizedVariant = async (sourceFilePath, variantFilePath, options) =
           quality: Math.min(options.quality, 62),
           effort: 4,
           chromaSubsampling: '4:2:0',
+        });
+        break;
+      case 'jpeg':
+        pipeline.jpeg({
+          quality: options.quality,
+          mozjpeg: true,
         });
         break;
       case 'webp':
@@ -158,7 +164,11 @@ const resolveOptimizedUploadVariant = async ({
   }
 
   const contentType =
-    options.format === 'avif' ? 'image/avif' : 'image/webp';
+    options.format === 'avif'
+      ? 'image/avif'
+      : options.format === 'jpeg'
+        ? 'image/jpeg'
+        : 'image/webp';
 
   return {
     filePath: variantFilePath,
@@ -168,12 +178,14 @@ const resolveOptimizedUploadVariant = async ({
 };
 
 const COMMON_PREGEN_VARIANTS = [
+  { width: 120, quality: 75, format: 'webp' }, // Gallery / drawer micro-thumbnails
   { width: 160, quality: 75, format: 'webp' }, // Thumbnail for table rows, cart items, mini cards
   { width: 320, quality: 75, format: 'webp' }, // Small mobile cards
   { width: 420, quality: 75, format: 'webp' }, // Catalog preload target
-  { width: 560, quality: 76, format: 'webp' }, // Default Storefront product image
-  { width: 720, quality: 78, format: 'webp' }, // Mobile hero / large card
-  { width: 960, quality: 80, format: 'webp' }, // Desktop PDP hero / zoom
+  { width: 520, quality: 78, format: 'webp' }, // Mobile PDP hero / catalog card
+  { width: 640, quality: 78, format: 'webp' }, // Tablet / 2x mobile card
+  { width: 720, quality: 78, format: 'webp' }, // Mobile retina PDP hero / large card
+  { width: 960, quality: 78, format: 'webp' }, // Desktop PDP hero fallback
 ];
 
 const pregenerateCommonUploadVariants = async (sourceFilePath) => {

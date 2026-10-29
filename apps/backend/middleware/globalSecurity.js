@@ -11,16 +11,15 @@ const { getJwtSecret, isMissingAuthSecretError } = require('../utils/jwtSecret')
 const tenantContext = require('../services/tenantContext');
 const { hasStaticFileExtension } = require('../services/storefrontSeoService');
 
-const LOG_FILE = 'e:/max_p_new/max_p_new/backend/debug_auth.log';
+const isAuthDebugEnabled = () => process.env.DEBUG_AUTH === 'true';
 
-const debugLogToFile = (msg) => {
-  const timestamp = new Date().toISOString();
-  try {
-    fs.appendFileSync(LOG_FILE, `[${timestamp}] ${msg}\n`);
-  } catch (e) {
-    // Silent fail if needed, but we want to see this
+const logAuthDebug = (msg) => {
+  if (isAuthDebugEnabled()) {
+    console.log(msg);
   }
 };
+
+const debugLogToFile = logAuthDebug;
 
 // Security logging system
 class SecurityLogger {
@@ -890,17 +889,19 @@ const globalAuthentication = async (req, res, next) => {
 
     const isPublic = isPublicRoute(method, path);
     const isPublicStorefrontShell = isPublicStorefrontShellRequest(req);
-    const logMsg = `[SECURITY] ${method} ${path} | Public: ${isPublic} | StorefrontShell: ${isPublicStorefrontShell} | Auth: ${req.headers.authorization ? 'YES' : 'NO'}`;
-    console.log(logMsg);
-    debugLogToFile(logMsg);
+    if (isAuthDebugEnabled()) {
+      logAuthDebug(
+        `[SECURITY] ${method} ${path} | Public: ${isPublic} | StorefrontShell: ${isPublicStorefrontShell} | Auth: ${req.headers.authorization ? 'YES' : 'NO'}`
+      );
+    }
 
     if (isPublic) {
-      debugLogToFile(`[PUBLIC] Skipping auth for: ${path}`);
+      logAuthDebug(`[PUBLIC] Skipping auth for: ${path}`);
       return next();
     }
 
     if (isPublicStorefrontShell) {
-      debugLogToFile(`[PUBLIC-STOREFRONT] Skipping auth for storefront shell: ${path}`);
+      logAuthDebug(`[PUBLIC-STOREFRONT] Skipping auth for storefront shell: ${path}`);
       return next();
     }
 
@@ -975,7 +976,7 @@ const globalAuthentication = async (req, res, next) => {
       };
       req.companyId = companyId;
 
-      console.log(`✅ [SECURITY] AI Service Auth Success on ${path}`);
+      logAuthDebug(`✅ [SECURITY] AI Service Auth Success on ${path}`);
       return tenantContext.run(companyId, () => next());
     }
 
@@ -996,7 +997,7 @@ const globalAuthentication = async (req, res, next) => {
       };
       req.companyId = companyId;
 
-      console.log(`✅ [SECURITY] Manager API Auth Success on ${path} (company: ${companyId})`);
+      logAuthDebug(`✅ [SECURITY] Manager API Auth Success on ${path} (company: ${companyId})`);
       return tenantContext.run(companyId, () => next());
     }
 
@@ -1058,7 +1059,7 @@ const globalAuthentication = async (req, res, next) => {
       try {
         const cached = getCachedUserCompany(userId);
         if (cached && cached.user) {
-          console.log(`[SECURITY-CACHE] Cache hit for user ${userId}`);
+          logAuthDebug(`[SECURITY-CACHE] Cache hit for user ${userId}`);
           if (cached.user.companyId) activeCompanyId = cached.user.companyId;
         } else {
           const { getSharedPrismaClient } = require('../services/sharedDatabase');
@@ -1080,7 +1081,7 @@ const globalAuthentication = async (req, res, next) => {
       companyId: activeCompanyId
     };
 
-    console.log(`✅ [SECURITY] Auth Success: ${decoded.email} on ${path}`);
+    logAuthDebug(`✅ [SECURITY] Auth Success: ${decoded.email} on ${path}`);
     next();
 
   } catch (error) {
@@ -1117,11 +1118,13 @@ const globalCompanyIsolation = async (req, res, next) => {
         req.user.companyId = fallbackCompanyId;
         req.companyId = fallbackCompanyId;
       } else {
-        console.log('🚨 [GLOBAL-SEC-DEBUG] Missing user or companyId in globalCompanyIsolation');
-        console.log('UserData:', req.user ? JSON.stringify(req.user) : 'No User');
-        console.log('Headers:', JSON.stringify(req.headers['x-company-id']));
-        console.log('Query:', JSON.stringify(req.query));
-        console.log('Fallback derived:', fallbackCompanyId);
+        if (isAuthDebugEnabled()) {
+          logAuthDebug('🚨 [GLOBAL-SEC-DEBUG] Missing user or companyId in globalCompanyIsolation');
+          logAuthDebug(`UserData: ${req.user ? JSON.stringify(req.user) : 'No User'}`);
+          logAuthDebug(`Headers: ${JSON.stringify(req.headers['x-company-id'])}`);
+          logAuthDebug(`Query: ${JSON.stringify(req.query)}`);
+          logAuthDebug(`Fallback derived: ${fallbackCompanyId}`);
+        }
 
         securityLogger.log('company_isolation_failure', {
           ip,
@@ -1136,13 +1139,13 @@ const globalCompanyIsolation = async (req, res, next) => {
     if (!req.user || (!req.user.companyId && req.user.role !== 'SUPER_ADMIN')) {
       if (fallbackCompanyId) {
         if (!isExpectedPublicFallback) {
-          console.log('✅ [GLOBAL-SEC-DEBUG] Recovered companyId from fallback:', fallbackCompanyId);
+          logAuthDebug(`✅ [GLOBAL-SEC-DEBUG] Recovered companyId from fallback: ${fallbackCompanyId}`);
         }
         if (!req.user) req.user = {};
         req.user.companyId = fallbackCompanyId;
         req.companyId = fallbackCompanyId;
       } else if (req.user?.role !== 'SUPER_ADMIN') {
-        console.log('❌ [GLOBAL-SEC-DEBUG] Failed to recover companyId. Returning 403.');
+        logAuthDebug('❌ [GLOBAL-SEC-DEBUG] Failed to recover companyId. Returning 403.');
         return res.status(403).json({
           success: false,
           message: 'معرف الشركة مطلوب للوصول لهذا المورد',

@@ -346,11 +346,16 @@ export const StorefrontThemeProvider: React.FC<{
 
   }, [theme, scoped, activePageKey]);
 
+  const resolvedPageVars = React.useMemo(() => {
+    return theme ? resolvePageStyleVars(theme, activePageKey) : ({} as ResolvedPageStyleVars);
+  }, [theme, activePageKey]);
+
   // Dynamically load only the Google Fonts required by the active theme
   useEffect(() => {
     if (!theme?.tokens?.typography) return;
 
     const { headingFont, bodyFont } = theme.tokens.typography;
+    const storeFontFamily = resolvedPageVars['--store-font-family'];
     const fontsToLoad = new Set<string>();
 
     const extractFontFamily = (fontStack: string): string | null => {
@@ -366,6 +371,10 @@ export const StorefrontThemeProvider: React.FC<{
     }
     if (bodyFont) {
       const font = extractFontFamily(bodyFont);
+      if (font) fontsToLoad.add(font);
+    }
+    if (storeFontFamily) {
+      const font = extractFontFamily(storeFontFamily);
       if (font) fontsToLoad.add(font);
     }
 
@@ -393,11 +402,11 @@ export const StorefrontThemeProvider: React.FC<{
       linkEl.href = href;
       document.head.appendChild(linkEl);
     }
-  }, [theme?.tokens?.typography?.headingFont, theme?.tokens?.typography?.bodyFont]);
-
-  const resolvedPageVars = React.useMemo(() => {
-    return theme ? resolvePageStyleVars(theme, activePageKey) : ({} as ResolvedPageStyleVars);
-  }, [theme, activePageKey]);
+  }, [
+    theme?.tokens?.typography?.headingFont,
+    theme?.tokens?.typography?.bodyFont,
+    resolvedPageVars['--store-font-family'],
+  ]);
 
   if (!theme) {
     return <StorefrontSkeleton />;

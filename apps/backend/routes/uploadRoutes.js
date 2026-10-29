@@ -2,10 +2,96 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const verifyToken = require("../utils/verifyToken");
 const { pregenerateCommonUploadVariants } = require("../utils/uploadImageOptimizer");
 const { processStorefrontImage } = require("../services/storefrontImageService");
+
+const RASTER_OPTIMIZABLE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg']);
+
+const optimizeUploadedRasterImage = async (req, file, targetDir, urlPrefix) => {
+  const originalFilename = file.filename;
+  const originalFilePath = file.path || path.join(targetDir, originalFilename);
+  const originalUrl = `${urlPrefix}/${originalFilename}`;
+  const rawExtension = path.extname(originalFilename);
+  const ext = rawExtension.toLowerCase();
+  const isImageMime =
+    typeof file.mimetype === 'string' && file.mimetype.startsWith('image/');
+
+  if (!isImageMime || !RASTER_OPTIMIZABLE_EXTENSIONS.has(ext)) {
+    return {
+      filename: originalFilename,
+      size: file.size,
+      url: originalUrl,
+      fullUrl: `${req.protocol}://${req.get('host')}${originalUrl}`,
+      filePath: originalFilePath,
+    };
+  }
+
+  const baseName = path.basename(originalFilename, rawExtension);
+  const webpFilename = `${baseName}.webp`;
+  const webpFilePath = path.join(targetDir, webpFilename);
+  const tempFilePath = `${webpFilePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  try {
+    const pipeline = sharp(originalFilePath, { sequentialRead: true })
+      .rotate()
+      .resize(1600, null, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .webp({
+        quality: 82,
+        effort: 4,
+      });
+
+    const outputInfo = await pipeline.toFile(tempFilePath);
+    pipeline.destroy();
+
+    fs.renameSync(tempFilePath, webpFilePath);
+
+    if (webpFilePath !== originalFilePath && fs.existsSync(originalFilePath)) {
+      try {
+        fs.unlinkSync(originalFilePath);
+      } catch (unlinkErr) {
+        setTimeout(() => {
+          fs.promises.unlink(originalFilePath).catch(() => {});
+        }, 150);
+      }
+    }
+
+    const finalSize = outputInfo?.size ?? fs.statSync(webpFilePath).size;
+    const finalUrl = `${urlPrefix}/${webpFilename}`;
+
+    return {
+      filename: webpFilename,
+      size: finalSize,
+      url: finalUrl,
+      fullUrl: `${req.protocol}://${req.get('host')}${finalUrl}`,
+      filePath: webpFilePath,
+    };
+  } catch (error) {
+    if (fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch {}
+    }
+
+    console.warn(
+      `[UPLOAD] WebP conversion skipped for ${originalFilename}, keeping original:`,
+      error.message,
+    );
+
+    return {
+      filename: originalFilename,
+      size: file.size,
+      url: originalUrl,
+      fullUrl: `${req.protocol}://${req.get('host')}${originalUrl}`,
+      filePath: originalFilePath,
+    };
+  }
+};
 
 const router = express.Router();
 
@@ -116,7 +202,7 @@ router.post('/', taskUpload.single('file'), (req, res) => {
 });
 
 // Upload single image
-router.post('/single', upload.single('image'), (req, res) => {
+router.post('/single', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -125,10 +211,15 @@ router.post('/single', upload.single('image'), (req, res) => {
       });
     }
 
-    const imageUrl = `/uploads/products/${req.file.filename}`;
-    const filePath = req.file.path || path.join(productsDir, req.file.filename);
+    const optimized = await optimizeUploadedRasterImage(
+      req,
+      req.file,
+      productsDir,
+      '/uploads/products',
+    );
+    const finalFilePath = optimized.filePath;
     setImmediate(() => {
-      pregenerateCommonUploadVariants(filePath).catch((err) => {
+      pregenerateCommonUploadVariants(finalFilePath).catch((err) => {
         console.warn('[UPLOAD] Background variant generation failed:', err.message);
       });
     });
@@ -136,11 +227,11 @@ router.post('/single', upload.single('image'), (req, res) => {
     res.json({
       success: true,
       data: {
-        filename: req.file.filename,
+        filename: optimized.filename,
         originalName: req.file.originalname,
-        size: req.file.size,
-        url: imageUrl,
-        fullUrl: `${req.protocol}://${req.get('host')}${imageUrl}`
+        size: optimized.size,
+        url: optimized.url,
+        fullUrl: optimized.fullUrl
       }
     });
   } catch (error) {
@@ -153,7 +244,7 @@ router.post('/single', upload.single('image'), (req, res) => {
 });
 
 // Upload multiple images
-router.post('/multiple', upload.array('images', 10), (req, res) => {
+router.post('/multiple', upload.array('images', 10), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -162,22 +253,29 @@ router.post('/multiple', upload.array('images', 10), (req, res) => {
       });
     }
 
-    const uploadedFiles = req.files.map(file => {
-      const filePath = file.path || path.join(productsDir, file.filename);
-      setImmediate(() => {
-        pregenerateCommonUploadVariants(filePath).catch((err) => {
-          console.warn('[UPLOAD] Background variant generation failed:', err.message);
+    const uploadedFiles = await Promise.all(
+      req.files.map(async (file) => {
+        const optimized = await optimizeUploadedRasterImage(
+          req,
+          file,
+          productsDir,
+          '/uploads/products',
+        );
+        const finalFilePath = optimized.filePath;
+        setImmediate(() => {
+          pregenerateCommonUploadVariants(finalFilePath).catch((err) => {
+            console.warn('[UPLOAD] Background variant generation failed:', err.message);
+          });
         });
-      });
-      const imageUrl = `/uploads/products/${file.filename}`;
-      return {
-        filename: file.filename,
-        originalName: file.originalname,
-        size: file.size,
-        url: imageUrl,
-        fullUrl: `${req.protocol}://${req.get('host')}${imageUrl}`
-      };
-    });
+        return {
+          filename: optimized.filename,
+          originalName: file.originalname,
+          size: optimized.size,
+          url: optimized.url,
+          fullUrl: optimized.fullUrl
+        };
+      }),
+    );
 
     //console.log(`${uploadedFiles.length} images uploaded successfully`);
 
@@ -352,7 +450,7 @@ const mediaUpload = multer({
 });
 
 // Upload single media file (image, video, or audio)
-router.post('/media', mediaUpload.single('media'), (req, res) => {
+router.post('/media', mediaUpload.single('media'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -361,15 +459,29 @@ router.post('/media', mediaUpload.single('media'), (req, res) => {
       });
     }
 
-    const mediaUrl = `/uploads/media/${req.file.filename}`;
     const isVideo = req.file.mimetype.startsWith('video/');
     const isAudio = req.file.mimetype.startsWith('audio/');
     const mediaType = isVideo ? 'video' : (isAudio ? 'audio' : 'image');
 
+    let finalFilename = req.file.filename;
+    let finalSize = req.file.size;
+    let mediaUrl = `/uploads/media/${req.file.filename}`;
+    let fullUrl = `${req.protocol}://${req.get('host')}${mediaUrl}`;
+
     if (!isVideo && !isAudio) {
-      const filePath = req.file.path || path.join(mediaDir, req.file.filename);
+      const optimized = await optimizeUploadedRasterImage(
+        req,
+        req.file,
+        mediaDir,
+        '/uploads/media',
+      );
+      finalFilename = optimized.filename;
+      finalSize = optimized.size;
+      mediaUrl = optimized.url;
+      fullUrl = optimized.fullUrl;
+      const finalFilePath = optimized.filePath;
       setImmediate(() => {
-        pregenerateCommonUploadVariants(filePath).catch((err) => {
+        pregenerateCommonUploadVariants(finalFilePath).catch((err) => {
           console.warn('[UPLOAD] Background media variant generation failed:', err.message);
         });
       });
@@ -378,11 +490,11 @@ router.post('/media', mediaUpload.single('media'), (req, res) => {
     res.json({
       success: true,
       data: {
-        filename: req.file.filename,
+        filename: finalFilename,
         originalName: req.file.originalname,
-        size: req.file.size,
+        size: finalSize,
         url: mediaUrl,
-        fullUrl: `${req.protocol}://${req.get('host')}${mediaUrl}`,
+        fullUrl,
         type: mediaType
       }
     });
@@ -396,7 +508,7 @@ router.post('/media', mediaUpload.single('media'), (req, res) => {
 });
 
 // Upload image for conversation
-router.post('/conversation-image', conversationUpload.single('image'), (req, res) => {
+router.post('/conversation-image', conversationUpload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -405,18 +517,27 @@ router.post('/conversation-image', conversationUpload.single('image'), (req, res
       });
     }
 
-    const imageUrl = `/uploads/conversations/${req.file.filename}`;
-
-    //console.log('Conversation image uploaded successfully:', imageUrl);
+    const optimized = await optimizeUploadedRasterImage(
+      req,
+      req.file,
+      conversationsDir,
+      '/uploads/conversations',
+    );
+    const finalFilePath = optimized.filePath;
+    setImmediate(() => {
+      pregenerateCommonUploadVariants(finalFilePath).catch((err) => {
+        console.warn('[UPLOAD] Background conversation variant generation failed:', err.message);
+      });
+    });
 
     res.json({
       success: true,
       data: {
-        filename: req.file.filename,
+        filename: optimized.filename,
         originalName: req.file.originalname,
-        size: req.file.size,
-        url: imageUrl,
-        fullUrl: `${req.protocol}://${req.get('host')}${imageUrl}`,
+        size: optimized.size,
+        url: optimized.url,
+        fullUrl: optimized.fullUrl,
         type: 'image'
       }
     });

@@ -2,6 +2,7 @@ import React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Sparkles, X } from "lucide-react";
 import type { ProductVariant } from "../hooks/useProducts";
+import { buildOptimizedStorefrontImageUrl } from "../utils/productImages";
 import VariantSelector from "./VariantSelector";
 import QuantitySelector from "./QuantitySelector";
 
@@ -87,7 +88,9 @@ const MobileVariantSheet: React.FC<MobileVariantSheetProps> = ({
                 <div className="flex h-[86px] w-[86px] shrink-0 items-center justify-center overflow-hidden rounded-[0.35rem] border border-[#ede2d7] bg-white">
                   {imageUrl ? (
                     <img
-                      src={imageUrl}
+                      src={buildOptimizedStorefrontImageUrl(imageUrl, { width: 160, quality: 75 })}
+                      loading="lazy"
+                      decoding="async"
                       alt={productName}
                       className="h-full w-full object-cover"
                     />

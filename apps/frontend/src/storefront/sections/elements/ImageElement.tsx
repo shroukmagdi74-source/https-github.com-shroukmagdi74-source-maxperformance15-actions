@@ -1,6 +1,7 @@
 import React from 'react';
 import { PhotoIcon } from '@heroicons/react/24/outline';
 import { buildMediaObjectStyle } from './mediaObjectFit';
+import { buildOptimizedStorefrontImageUrl } from '../../utils/productImages';
 
 export interface ImageElementWebpVariants {
   480?: string;
@@ -164,7 +165,7 @@ const ImageElement: React.FC<ImageElementProps> = ({ section, settings: directSe
 
     return (
       <img
-        src={src}
+        src={buildOptimizedStorefrontImageUrl(src, { width: 960, quality: 78 })}
         srcSet={computedSrcSet}
         sizes={sizes}
         alt={alt}

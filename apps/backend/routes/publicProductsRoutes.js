@@ -221,14 +221,13 @@ async function loadConvertedProductPayload(prisma, companyId, slugOrId, req) {
     return null;
   }
 
-  const demandSignals = await getProductDemandSignals(prisma, {
-    companyId,
-    productId: target.id,
-  });
-
-  const affiliatePricing = req
-    ? await resolveAffiliateProductPricing(prisma, req, target.id)
-    : null;
+  const [demandSignals, affiliatePricing] = await Promise.all([
+    getProductDemandSignals(prisma, {
+      companyId,
+      productId: target.id,
+    }),
+    req ? resolveAffiliateProductPricing(prisma, req, target.id) : Promise.resolve(null),
+  ]);
 
   const presImages = presentation.images ? JSON.parse(presentation.images) : [];
   const formatted = formatProductResponse({
@@ -359,15 +358,63 @@ function countProductQuantityInItems(rawItems, productId) {
   }, 0);
 }
 
-async function getConversionSuiteSocialProofSettings(prisma, companyId) {
-  const defaults = {
-    activeCartWindowHours: DEFAULT_ACTIVE_CART_WINDOW_HOURS,
-    recentPurchaseWindowHours: DEFAULT_RECENT_PURCHASE_WINDOW_HOURS,
-    waitlistFallbackLimit: DEFAULT_WAITLIST_FALLBACK_LIMIT,
-  };
+const SOCIAL_PROOF_TOGGLE_KEYS = Object.freeze([
+  'purchaseFomo',
+  'purchaseFomoEnabled',
+  'socialProof',
+  'socialProofBadges',
+  'soldCount',
+  'showSoldCount',
+  'activeCartCount',
+  'showActiveCartCount',
+  'recentPurchases',
+  'showRecentPurchases',
+]);
 
-  if (!companyId) {
-    return defaults;
+function areAllSocialProofFlagsDisabled(settings) {
+  if (!isRecord(settings)) {
+    return false;
+  }
+
+  if (settings.enabled === false || settings.socialProofEnabled === false) {
+    return true;
+  }
+
+  const candidateRecords = [
+    settings,
+    isRecord(settings.features) ? settings.features : null,
+    isRecord(settings.socialProof) ? settings.socialProof : null,
+    isRecord(settings.modules) ? settings.modules : null,
+  ].filter(Boolean);
+
+  const explicitBooleans = [];
+  for (const record of candidateRecords) {
+    for (const key of SOCIAL_PROOF_TOGGLE_KEYS) {
+      if (typeof record[key] === 'boolean') {
+        explicitBooleans.push(record[key]);
+      }
+    }
+  }
+
+  return explicitBooleans.length > 0 && explicitBooleans.every((flag) => flag === false);
+}
+
+async function getConversionSuiteAppLookup(prisma, companyId) {
+  if (!companyId || typeof prisma?.companyApp?.findFirst !== 'function') {
+    return { installed: false, settings: {} };
+  }
+
+  const cacheKey = `conversion_suite_app:${companyId}`;
+  try {
+    const cached = await redisCacheService.get(cacheKey);
+    if (cached && typeof cached === 'object' && typeof cached.installed === 'boolean') {
+      return {
+        installed: cached.installed,
+        settings: isRecord(cached.settings) ? cached.settings : {},
+      };
+    }
+  } catch (err) {
+    console.warn('⚠️ [REDIS] conversion-suite app cache lookup failed:', err?.message);
   }
 
   const companyApp = await prisma.companyApp.findFirst({
@@ -383,10 +430,38 @@ async function getConversionSuiteSocialProofSettings(prisma, companyId) {
     },
   });
 
-  const settings = parseJsonRecord(companyApp?.settings);
+  const payload = {
+    installed: Boolean(companyApp),
+    settings: parseJsonRecord(companyApp?.settings),
+  };
+
+  try {
+    await redisCacheService.set(cacheKey, payload, 300);
+  } catch (err) {
+    // non-blocking cache write
+  }
+
+  return payload;
+}
+
+async function getConversionSuiteSocialProofSettings(prisma, companyId) {
+  const defaults = {
+    enabled: false,
+    activeCartWindowHours: DEFAULT_ACTIVE_CART_WINDOW_HOURS,
+    recentPurchaseWindowHours: DEFAULT_RECENT_PURCHASE_WINDOW_HOURS,
+    waitlistFallbackLimit: DEFAULT_WAITLIST_FALLBACK_LIMIT,
+  };
+
+  if (!companyId) {
+    return defaults;
+  }
+
+  const { installed, settings } = await getConversionSuiteAppLookup(prisma, companyId);
   const thresholds = isRecord(settings.thresholds) ? settings.thresholds : {};
+  const enabled = installed && !areAllSocialProofFlagsDisabled(settings);
 
   return {
+    enabled,
     activeCartWindowHours: clampNumber(
       thresholds.purchaseFomoCartWindowHours,
       1,
@@ -1196,6 +1271,37 @@ async function getProductDemandSignals(prisma, { companyId, productId }) {
   }
 
   const socialProofSettings = await getConversionSuiteSocialProofSettings(prisma, companyId);
+  if (!socialProofSettings.enabled) {
+    const emptyResult = {
+      soldCount: 0,
+      orderCount: 0,
+      backInStockRequests: 0,
+      activeCartCount: 0,
+      activeCartUnits: 0,
+      recentOrderCount: 0,
+      recentOrderUnits: 0,
+      socialProof: {
+        soldCount: 0,
+        orderCount: 0,
+        recentPurchases: 0,
+        backInStockRequests: 0,
+        activeCartCount: 0,
+        activeCartUnits: 0,
+        recentOrderCount: 0,
+        recentOrderUnits: 0,
+        purchaseFomoCount: 0,
+        purchaseFomoSource: null,
+        activeCartWindowHours: socialProofSettings.activeCartWindowHours,
+        recentPurchaseWindowHours: socialProofSettings.recentPurchaseWindowHours,
+        waitlistFallbackLimit: socialProofSettings.waitlistFallbackLimit,
+      },
+    };
+    try {
+      await redisCacheService.set(cacheKey, emptyResult, 300);
+    } catch (_) {}
+    return emptyResult;
+  }
+
   const activeCartWindowStart = new Date(
     Date.now() - socialProofSettings.activeCartWindowHours * 60 * 60 * 1000,
   );
@@ -1237,6 +1343,10 @@ async function getProductDemandSignals(prisma, { companyId, productId }) {
           { checkoutStartedAt: { gte: activeCartWindowStart } },
         ],
       },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      take: 250,
       select: {
         cartId: true,
         items: true,
@@ -1255,6 +1365,10 @@ async function getProductDemandSignals(prisma, { companyId, productId }) {
           status: 'DUPLICATE_ORDER',
         },
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 250,
       select: {
         id: true,
         items: true,
@@ -1447,20 +1561,7 @@ async function getConversionSuiteRecommendationSettings(prisma, companyId) {
     return defaults;
   }
 
-  const companyApp = await prisma.companyApp.findFirst({
-    where: {
-      companyId,
-      status: { in: ['TRIAL', 'ACTIVE'] },
-      app: {
-        slug: 'conversion-suite',
-      },
-    },
-    select: {
-      settings: true,
-    },
-  });
-
-  const settings = parseJsonRecord(companyApp?.settings);
+  const { settings } = await getConversionSuiteAppLookup(prisma, companyId);
   const thresholds = isRecord(settings.thresholds) ? settings.thresholds : {};
 
   return {
@@ -1990,11 +2091,77 @@ router.get('/:id/volume-discounts', async (req, res) => {
   }
 });
 
+async function resolveProductAmazonBuyUrl(prisma, companyId, productId) {
+  if (!productId || typeof prisma?.amazonAffiliateProduct?.findFirst !== 'function') {
+    return null;
+  }
+
+  const cacheKey = `amazon_affiliate_prod:${productId}`;
+  try {
+    const cached = await redisCacheService.get(cacheKey);
+    if (cached && typeof cached === 'object' && Object.prototype.hasOwnProperty.call(cached, 'amazonBuyUrl')) {
+      return cached.amazonBuyUrl || null;
+    }
+  } catch (err) {
+    console.warn('⚠️ [REDIS] amazon affiliate product cache lookup failed:', err?.message);
+  }
+
+  const amazonLink = await prisma.amazonAffiliateProduct.findFirst({
+    where: { productId },
+  });
+
+  let amazonBuyUrl = null;
+  if (amazonLink) {
+    const amazonSettings = typeof prisma?.amazonAffiliateSettings?.findUnique === 'function'
+      ? await prisma.amazonAffiliateSettings.findUnique({
+          where: { companyId },
+        })
+      : null;
+    amazonBuyUrl = buildAffiliateUrl({
+      asin: amazonLink.asin,
+      associateTag: amazonSettings?.associateTag,
+      marketplace: amazonLink.marketplace,
+    });
+  }
+
+  try {
+    await redisCacheService.set(
+      cacheKey,
+      { exists: Boolean(amazonLink), amazonBuyUrl: amazonBuyUrl || null },
+      300,
+    );
+  } catch (_) {
+    // non-blocking cache write
+  }
+
+  return amazonBuyUrl;
+}
+
 router.get('/:id/:presentationSlug', async (req, res) => {
   try {
     const { id, presentationSlug } = req.params;
     const isPreview =
       req.query.preview === '1' || req.query.productPreview === '1';
+    const hasAffiliateOverride = Boolean(
+      req.query.ref || req.query.affiliate || req.cookies?.affiliateCode,
+    );
+    const detailCacheKey =
+      !isPreview && !hasAffiliateOverride && req.companyId
+        ? `public_product_detail:${req.companyId}:${encodeURIComponent(String(id).trim().toLowerCase())}:${encodeURIComponent(String(presentationSlug).trim())}`
+        : null;
+
+    if (detailCacheKey) {
+      try {
+        const cachedPayload = await redisCacheService.get(detailCacheKey);
+        if (cachedPayload) {
+          res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+          return res.json(cachedPayload);
+        }
+      } catch (cacheErr) {
+        console.warn('⚠️ [REDIS] public product presentation cache lookup failed:', cacheErr?.message);
+      }
+    }
+
     const orConditions = buildProductLookupOrConditions(id);
 
     const prisma = await getPrisma();
@@ -2062,11 +2229,13 @@ router.get('/:id/:presentationSlug', async (req, res) => {
       });
     }
 
-    const demandSignals = await getProductDemandSignals(prisma, {
-      companyId: req.companyId,
-      productId: product.id,
-    });
-    const affiliatePricing = await resolveAffiliateProductPricing(prisma, req, product.id);
+    const [demandSignals, affiliatePricing] = await Promise.all([
+      getProductDemandSignals(prisma, {
+        companyId: req.companyId,
+        productId: product.id,
+      }),
+      resolveAffiliateProductPricing(prisma, req, product.id),
+    ]);
 
     const presImages = presentation.images ? JSON.parse(presentation.images) : [];
     const formattedProduct = formatProductResponse({
@@ -2086,16 +2255,28 @@ router.get('/:id/:presentationSlug', async (req, res) => {
     };
     result.canonicalSlug = product.slug;
 
-    if (isPreview) {
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    } else {
-      res.set('Cache-Control', 'public, no-cache, must-revalidate');
-    }
-
-    res.json({
+    const responsePayload = {
       success: true,
       data: result,
-    });
+    };
+
+    if (detailCacheKey) {
+      try {
+        await redisCacheService.set(detailCacheKey, responsePayload, 120);
+      } catch (_) {
+        // non-blocking cache write
+      }
+    }
+
+    if (isPreview) {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    } else if (hasAffiliateOverride) {
+      res.set('Cache-Control', 'private, no-cache, must-revalidate');
+    } else {
+      res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+    }
+
+    res.json(responsePayload);
   } catch (error) {
     console.error('❌ [PUBLIC-PRODUCTS] GET /:id/:presentationSlug error:', error);
     res.status(500).json({
@@ -2110,6 +2291,26 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     const isPreview =
       req.query.preview === '1' || req.query.productPreview === '1';
+    const hasAffiliateOverride = Boolean(
+      req.query.ref || req.query.affiliate || req.cookies?.affiliateCode,
+    );
+    const detailCacheKey =
+      !isPreview && !hasAffiliateOverride && req.companyId
+        ? `public_product_detail:${req.companyId}:${encodeURIComponent(String(id).trim().toLowerCase())}`
+        : null;
+
+    if (detailCacheKey) {
+      try {
+        const cachedPayload = await redisCacheService.get(detailCacheKey);
+        if (cachedPayload) {
+          res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+          return res.json(cachedPayload);
+        }
+      } catch (cacheErr) {
+        console.warn('⚠️ [REDIS] public product detail cache lookup failed:', cacheErr?.message);
+      }
+    }
+
     const orConditions = buildProductLookupOrConditions(id);
 
     const prisma = await getPrisma();
@@ -2142,40 +2343,42 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    const demandSignals = await getProductDemandSignals(prisma, {
-      companyId: req.companyId,
-      productId: product.id,
-    });
-    const affiliatePricing = await resolveAffiliateProductPricing(prisma, req, product.id);
-    const amazonLink = await prisma.amazonAffiliateProduct.findFirst({
-      where: { productId: product.id },
-    });
-    let amazonBuyUrl = null;
-    if (amazonLink) {
-      const amazonSettings = await prisma.amazonAffiliateSettings.findUnique({
-        where: { companyId: req.companyId },
-      });
-      amazonBuyUrl = buildAffiliateUrl({
-        asin: amazonLink.asin,
-        associateTag: amazonSettings?.associateTag,
-        marketplace: amazonLink.marketplace,
-      });
-    }
+    const [demandSignals, affiliatePricing, amazonBuyUrl] = await Promise.all([
+      getProductDemandSignals(prisma, {
+        companyId: req.companyId,
+        productId: product.id,
+      }),
+      resolveAffiliateProductPricing(prisma, req, product.id),
+      resolveProductAmazonBuyUrl(prisma, req.companyId, product.id),
+    ]);
+
     const formattedProduct = formatProductResponse({
       ...product,
       ...demandSignals,
       amazonBuyUrl,
     });
 
-    if (isPreview) {
-      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    } else {
-      res.set('Cache-Control', 'public, no-cache, must-revalidate');
-    }
-    res.json({
+    const responsePayload = {
       success: true,
       data: applyAffiliatePricing(formattedProduct, affiliatePricing),
-    });
+    };
+
+    if (detailCacheKey) {
+      try {
+        await redisCacheService.set(detailCacheKey, responsePayload, 120);
+      } catch (_) {
+        // non-blocking cache write
+      }
+    }
+
+    if (isPreview) {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    } else if (hasAffiliateOverride) {
+      res.set('Cache-Control', 'private, no-cache, must-revalidate');
+    } else {
+      res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+    }
+    res.json(responsePayload);
   } catch (error) {
     console.error('❌ [PUBLIC-PRODUCTS] GET /:id error:', error);
     res.status(500).json({

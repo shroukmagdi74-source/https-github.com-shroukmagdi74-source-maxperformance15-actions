@@ -12,6 +12,11 @@ const COMPANY_SELECT = {
   isActive: true,
 };
 
+const PLATFORM_BASE_DOMAINS = new Set([
+  'maxp.online',
+  'mokhtarelhenawy.online',
+]);
+
 const normalizeHostname = (value) =>
   String(value || '').split(':')[0].trim().toLowerCase();
 
@@ -24,6 +29,38 @@ const isLocalHostname = (hostname) =>
   hostname.endsWith('.lvh.me') ||
   hostname.endsWith('.local') ||
   /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
+
+const isPlatformSubdomainOrApex = (hostname, configuredMainDomain) => {
+  const normalized = normalizeHostname(hostname);
+  if (!normalized) return false;
+
+  const baseDomains = new Set(PLATFORM_BASE_DOMAINS);
+  const normalizedMain = normalizeHostname(configuredMainDomain);
+  if (normalizedMain) {
+    baseDomains.add(normalizedMain);
+  }
+
+  for (const domain of baseDomains) {
+    if (normalized === domain || normalized.endsWith(`.${domain}`)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const shouldLookupCustomDomain = (exactHostname, configuredMainDomain) => {
+  if (!exactHostname || !exactHostname.includes('.')) {
+    return false;
+  }
+  if (isLocalHostname(exactHostname)) {
+    return false;
+  }
+  if (isPlatformSubdomainOrApex(exactHostname, configuredMainDomain)) {
+    return false;
+  }
+  return true;
+};
 
 const inferSubdomainSlug = (hostname, configuredMainDomain) => {
   const normalizedHostname = normalizeHostname(hostname);
@@ -111,7 +148,7 @@ const pruneStoreShadowCacheIfNeeded = () => {
   }
 };
 
-const resolveStoreShadowAndLog = async (req, company, getPrisma, exactHostname, inferredSlug, matchedBareSlug) => {
+const resolveStoreShadowAndLog = async (req, company, getPrisma, exactHostname, inferredSlug, matchedBareSlug, mainDomain) => {
   try {
     const rawHostHeader = req.headers['x-subdomain'] || req.headers['host'];
     const hostKey = normalizeHostname(rawHostHeader) || 'unknown';
@@ -129,8 +166,8 @@ const resolveStoreShadowAndLog = async (req, company, getPrisma, exactHostname, 
         const prisma = await getPrisma();
         let store = null;
 
-        // 1. Store.customDomain = normalized hostname
-        if (exactHostname && !isLocalHostname(exactHostname) && prisma?.store) {
+        // 1. Store.customDomain = normalized hostname (skip for platform subdomains / local / bare slugs)
+        if (exactHostname && shouldLookupCustomDomain(exactHostname, mainDomain) && prisma?.store) {
           store = await prisma.store.findUnique({
             where: { customDomain: exactHostname },
             select: { id: true, companyId: true },
@@ -182,6 +219,7 @@ const extractSubdomainMiddleware = async (req, res, next) => {
     let exactHostname = null;
     let inferredSlug = null;
     let matchedBareSlug = null;
+    const mainDomain = process.env.MAIN_DOMAIN || 'mokhtarelhenawy.online';
     const getPrisma = async () => {
       if (!prisma) {
         prisma = await getSharedPrismaClientAsync();
@@ -206,20 +244,21 @@ const extractSubdomainMiddleware = async (req, res, next) => {
       }
 
       // 1. محاولة البحث أولاً بالدومين الكامل (Custom Domain)
-      // هذا يغطي الحالات مثل my-store.com أو www.my-store.com
+      // يتم تخطي هذا الاستعلام إذا كان النطاق فرعياً تابعاً لمنصة MaxP لتجنب استعلامات غير ضرورية
       exactHostname = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
 
-      company = await companyCacheService.getCompanyLookup('customDomain', exactHostname, async () => {
-        const prisma = await getPrisma();
-        return prisma.company.findUnique({
-          where: { customDomain: exactHostname },
-          select: COMPANY_SELECT,
+      if (shouldLookupCustomDomain(exactHostname, mainDomain)) {
+        company = await companyCacheService.getCompanyLookup('customDomain', exactHostname, async () => {
+          const prisma = await getPrisma();
+          return prisma.company.findUnique({
+            where: { customDomain: exactHostname },
+            select: COMPANY_SELECT,
+          });
         });
-      });
+      }
 
       // 2. إذا لم ينجح، جرب الـ Subdomain (Slug)
       if (!company) {
-        const mainDomain = process.env.MAIN_DOMAIN || 'mokhtarelhenawy.online';
         inferredSlug = inferSubdomainSlug(hostname, mainDomain);
 
         if (inferredSlug) {
@@ -344,7 +383,7 @@ const extractSubdomainMiddleware = async (req, res, next) => {
       req.companyId = company.id;
 
       // [STORE-SHADOW] Shadow resolution & rate-limited log (zero decision alteration)
-      await resolveStoreShadowAndLog(req, company, getPrisma, exactHostname, inferredSlug, matchedBareSlug);
+      await resolveStoreShadowAndLog(req, company, getPrisma, exactHostname, inferredSlug, matchedBareSlug, mainDomain);
 
       // ✅ تفعيل سياق الشركة لقاعدة البيانات (RLS)
       const tenantContext = require('../services/tenantContext');
@@ -375,5 +414,6 @@ const requireCompany = (req, res, next) => {
 module.exports = {
   extractSubdomainMiddleware,
   requireCompany,
-  inferSubdomainSlug
+  inferSubdomainSlug,
+  shouldLookupCustomDomain,
 };

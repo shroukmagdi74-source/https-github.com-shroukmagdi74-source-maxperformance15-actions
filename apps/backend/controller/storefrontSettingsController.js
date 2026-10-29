@@ -12,8 +12,40 @@ const {
 const FacebookConversionsService = require('../services/facebookConversionsService');
 const { getMetaGraphApiVersion } = require('../config/metaApi');
 const redisCacheService = require('../services/redisCacheService');
+const companyCacheService = require('../services/companyCacheService');
+const { shouldLookupCustomDomain } = require('../middleware/subdomainMiddleware');
+const { invalidateCompanyStorefrontHtmlCache } = require('./storefrontHtmlController');
 const { isPlaceholderPhone } = require('../utils/placeholderContact');
 const storefrontSettingsRevisionService = require('../services/storefrontSettingsRevisionService');
+
+const PUBLIC_STOREFRONT_SETTINGS_CACHE_TTL = 300;
+const getPublicStorefrontSettingsCacheKey = (companyId) =>
+  `public_storefront_settings_v1:${companyId}`;
+
+const PUBLIC_COMPANY_LOOKUP_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  customDomain: true,
+  email: true,
+  logo: true,
+  currency: true,
+  settings: true,
+  isActive: true,
+};
+
+const invalidateStorefrontSettingsCaches = async (companyId) => {
+  if (!companyId) return;
+  try {
+    await Promise.allSettled([
+      redisCacheService.del(`storefront_settings:${companyId}`),
+      redisCacheService.del(getPublicStorefrontSettingsCacheKey(companyId)),
+    ]);
+    invalidateCompanyStorefrontHtmlCache(companyId);
+  } catch (err) {
+    console.error('⚠️ [REDIS] failed to invalidate settings cache:', err);
+  }
+};
 
 const DEFAULT_THEME_ID = DEFAULT_STOREFRONT_THEME_ID || 'modern-minimal';
 const DEFAULT_SUPPORTED_LANGUAGES = 'ar,en';
@@ -798,11 +830,7 @@ const updateSettings = async (req, res) => {
       console.error('⚠️ [STOREFRONT-SETTINGS] Error creating revision on update:', revErr);
     }
 
-    try {
-      await redisCacheService.del(`storefront_settings:${companyId}`);
-    } catch (err) {
-      console.error('⚠️ [REDIS] failed to invalidate settings cache:', err);
-    }
+    await invalidateStorefrontSettingsCaches(companyId);
 
     return res.json({
       success: true,
@@ -852,11 +880,7 @@ const resetSettings = async (req, res) => {
       })
     );
 
-    try {
-      await redisCacheService.del(`storefront_settings:${companyId}`);
-    } catch (err) {
-      console.error('⚠️ [REDIS] failed to invalidate settings cache:', err);
-    }
+    await invalidateStorefrontSettingsCaches(companyId);
 
     return res.json({
       success: true,
@@ -1449,6 +1473,8 @@ const addPixel = async (req, res) => {
       })
     );
 
+    await invalidateStorefrontSettingsCaches(companyId);
+
     return res.json({
       success: true,
       message: 'تم إضافة Pixel بنجاح',
@@ -1542,6 +1568,8 @@ const updatePixel = async (req, res) => {
       })
     );
 
+    await invalidateStorefrontSettingsCaches(companyId);
+
     return res.json({
       success: true,
       message: 'تم تحديث Pixel بنجاح',
@@ -1619,6 +1647,8 @@ const deletePixel = async (req, res) => {
         }
       })
     );
+
+    await invalidateStorefrontSettingsCaches(companyId);
 
     return res.json({
       success: true,
@@ -1914,6 +1944,8 @@ const createFacebookPixel = async (req, res) => {
       })
     );
 
+    await invalidateStorefrontSettingsCaches(companyId);
+
     return res.json({
       success: true,
       message: 'تم إنشاء Pixel بنجاح',
@@ -1991,32 +2023,47 @@ const getClarityAnalytics = async (req, res) => {
   }
 };
 
+const lookupActivePublicCompany = async (type, value, fetchFn) => {
+  const company = await companyCacheService.getCompanyLookup(type, value, fetchFn);
+  if (!company || company.isActive === false) {
+    return null;
+  }
+  return company;
+};
+
 const resolvePublicCompany = async (req) => {
   if (req.company?.id) {
     return req.company;
   }
+
+  const mainDomain = process.env.MAIN_DOMAIN || 'mokhtarelhenawy.online';
 
   // 1. Query parameters (?company=slug, ?slug=slug, ?companySlug=slug, ?companyId=id)
   const queryCompany = req.query?.company || req.query?.slug || req.query?.companySlug;
   const queryCompanyId = req.query?.companyId;
 
   if (queryCompanyId && typeof queryCompanyId === 'string') {
-    const byId = await runStorefrontSettingsQuery((prisma) =>
-      prisma.company.findFirst({
-        where: { id: queryCompanyId.trim(), isActive: true },
-        select: { id: true, name: true, slug: true, customDomain: true, currency: true },
-      })
+    const cleanId = queryCompanyId.trim();
+    const byId = await lookupActivePublicCompany('id', cleanId, () =>
+      runStorefrontSettingsQuery((prisma) =>
+        prisma.company.findFirst({
+          where: { id: cleanId, isActive: true },
+          select: PUBLIC_COMPANY_LOOKUP_SELECT,
+        })
+      )
     );
     if (byId) return byId;
   }
 
   if (queryCompany && typeof queryCompany === 'string') {
     const cleanSlug = queryCompany.trim().toLowerCase();
-    const bySlug = await runStorefrontSettingsQuery((prisma) =>
-      prisma.company.findFirst({
-        where: { slug: cleanSlug, isActive: true },
-        select: { id: true, name: true, slug: true, customDomain: true, currency: true },
-      })
+    const bySlug = await lookupActivePublicCompany('slug', cleanSlug, () =>
+      runStorefrontSettingsQuery((prisma) =>
+        prisma.company.findFirst({
+          where: { slug: cleanSlug, isActive: true },
+          select: PUBLIC_COMPANY_LOOKUP_SELECT,
+        })
+      )
     );
     if (bySlug) return bySlug;
   }
@@ -2030,11 +2077,13 @@ const resolvePublicCompany = async (req) => {
     const cleanHeader = headerSlug.split(':')[0].trim().toLowerCase();
     const candidateSlug = cleanHeader.includes('.') ? cleanHeader.split('.')[0] : cleanHeader;
     if (candidateSlug && candidateSlug !== 'www' && candidateSlug !== 'localhost') {
-      const byHeader = await runStorefrontSettingsQuery((prisma) =>
-        prisma.company.findFirst({
-          where: { slug: candidateSlug, isActive: true },
-          select: { id: true, name: true, slug: true, customDomain: true, currency: true },
-        })
+      const byHeader = await lookupActivePublicCompany('slug', candidateSlug, () =>
+        runStorefrontSettingsQuery((prisma) =>
+          prisma.company.findFirst({
+            where: { slug: candidateSlug, isActive: true },
+            select: PUBLIC_COMPANY_LOOKUP_SELECT,
+          })
+        )
       );
       if (byHeader) return byHeader;
     }
@@ -2042,11 +2091,14 @@ const resolvePublicCompany = async (req) => {
 
   const headerCompanyId = req.headers['x-company-id'];
   if (headerCompanyId && typeof headerCompanyId === 'string') {
-    const byHeaderId = await runStorefrontSettingsQuery((prisma) =>
-      prisma.company.findFirst({
-        where: { id: headerCompanyId.trim(), isActive: true },
-        select: { id: true, name: true, slug: true, customDomain: true, currency: true },
-      })
+    const cleanHeaderId = headerCompanyId.trim();
+    const byHeaderId = await lookupActivePublicCompany('id', cleanHeaderId, () =>
+      runStorefrontSettingsQuery((prisma) =>
+        prisma.company.findFirst({
+          where: { id: cleanHeaderId, isActive: true },
+          select: PUBLIC_COMPANY_LOOKUP_SELECT,
+        })
+      )
     );
     if (byHeaderId) return byHeaderId;
   }
@@ -2057,22 +2109,28 @@ const resolvePublicCompany = async (req) => {
     const hostname = host.split(':')[0].trim().toLowerCase();
     const exactHostname = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
 
-    const byCustomDomain = await runStorefrontSettingsQuery((prisma) =>
-      prisma.company.findFirst({
-        where: { customDomain: exactHostname, isActive: true },
-        select: { id: true, name: true, slug: true, customDomain: true, currency: true },
-      })
-    );
-    if (byCustomDomain) return byCustomDomain;
+    if (shouldLookupCustomDomain(exactHostname, mainDomain)) {
+      const byCustomDomain = await lookupActivePublicCompany('customDomain', exactHostname, () =>
+        runStorefrontSettingsQuery((prisma) =>
+          prisma.company.findFirst({
+            where: { customDomain: exactHostname, isActive: true },
+            select: PUBLIC_COMPANY_LOOKUP_SELECT,
+          })
+        )
+      );
+      if (byCustomDomain) return byCustomDomain;
+    }
 
     const parts = hostname.split('.');
     if (parts.length >= 3 && parts[0] !== 'www') {
       const subdomain = parts[0];
-      const bySubdomain = await runStorefrontSettingsQuery((prisma) =>
-        prisma.company.findFirst({
-          where: { slug: subdomain, isActive: true },
-          select: { id: true, name: true, slug: true, customDomain: true, currency: true },
-        })
+      const bySubdomain = await lookupActivePublicCompany('slug', subdomain, () =>
+        runStorefrontSettingsQuery((prisma) =>
+          prisma.company.findFirst({
+            where: { slug: subdomain, isActive: true },
+            select: PUBLIC_COMPANY_LOOKUP_SELECT,
+          })
+        )
       );
       if (bySubdomain) return bySubdomain;
     }
@@ -2090,6 +2148,17 @@ const getPublicSettings = async (req, res) => {
         success: false,
         message: 'Company not found',
       });
+    }
+
+    const cacheKey = getPublicStorefrontSettingsCacheKey(company.id);
+    try {
+      const cachedPayload = await redisCacheService.get(cacheKey);
+      if (cachedPayload) {
+        res.set('Cache-Control', 'public, max-age=60');
+        return res.json(cachedPayload);
+      }
+    } catch (cacheErr) {
+      console.warn('⚠️ [REDIS] public storefront settings cache lookup failed:', cacheErr?.message);
     }
 
     const settings = await runStorefrontSettingsQuery((prisma) =>
@@ -2115,9 +2184,7 @@ const getPublicSettings = async (req, res) => {
       (typeof rawTokens.themeId === 'string' && rawTokens.themeId.trim()) ||
       DEFAULT_THEME_ID;
 
-    res.set('Cache-Control', 'public, max-age=60');
-
-    return res.json({
+    const responsePayload = {
       success: true,
       data: {
         themeId,
@@ -2125,7 +2192,17 @@ const getPublicSettings = async (req, res) => {
         storeName: company.name,
         designTokens: safeDesignTokens,
       },
-    });
+    };
+
+    try {
+      await redisCacheService.set(cacheKey, responsePayload, PUBLIC_STOREFRONT_SETTINGS_CACHE_TTL);
+    } catch (_) {
+      // non-blocking cache write
+    }
+
+    res.set('Cache-Control', 'public, max-age=60');
+
+    return res.json(responsePayload);
   } catch (error) {
     console.error('❌ [STOREFRONT-SETTINGS] Failed to get public settings:', error);
     return res.status(500).json({
@@ -2229,6 +2306,8 @@ const restoreRevision = async (req, res) => {
     }
 
     const company = await getCompanyContext(companyId);
+
+    await invalidateStorefrontSettingsCaches(companyId);
 
     return res.json({
       success: true,

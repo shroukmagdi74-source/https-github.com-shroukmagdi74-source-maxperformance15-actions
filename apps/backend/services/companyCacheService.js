@@ -15,6 +15,9 @@ const redisCacheService = require('./redisCacheService');
 const COMPANY_CACHE_TTL = Number(
   process.env.COMPANY_CACHE_TTL_SECONDS || 60
 );
+const COMPANY_NEGATIVE_CACHE_TTL = Number(
+  process.env.COMPANY_NEGATIVE_CACHE_TTL_SECONDS || 300
+);
 
 /**
  * مفتاح cache موحّد حسب نوع البحث
@@ -33,14 +36,22 @@ function companyIndexKey(companyId) {
 
 /**
  * جلب الشركة مع cache — لو مش موجود يتنفّذ fetchFn ويخزّن النتيجة
+ * (بما في ذلك تخزين النتائج السلبية null بـ sentinel لمدة 300 ثانية)
  * @param {string} type  customDomain | slug | id
  * @param {string} value قيمة البحث
  * @param {() => Promise<any>} fetchFn الجالب الأصلي من DB
  */
 async function getCompanyLookup(type, value, fetchFn) {
+  if (!value) return null;
+
   const key = companyLookupKey(type, value);
   const cached = await redisCacheService.get(key);
-  if (cached) return cached;
+  if (cached) {
+    if (cached.__notFound === true) {
+      return null;
+    }
+    return cached;
+  }
 
   const company = await fetchFn();
   if (company && company.id) {
@@ -49,12 +60,14 @@ async function getCompanyLookup(type, value, fetchFn) {
     // فهرس عكسي للـ invalidation
     const indexKey = companyIndexKey(company.id);
     const existing = (await redisCacheService.get(indexKey)) || [];
-    if (!existing.includes(key)) {
+    if (Array.isArray(existing) && !existing.includes(key)) {
       existing.push(key);
       await redisCacheService.set(indexKey, existing, COMPANY_CACHE_TTL * 10);
     }
+  } else if (company === null || company === undefined) {
+    await redisCacheService.set(key, { __notFound: true }, COMPANY_NEGATIVE_CACHE_TTL);
   }
-  return company;
+  return company ?? null;
 }
 
 /**
@@ -68,7 +81,9 @@ async function invalidateCompanyCache(companyId, extraKeys = []) {
   if (companyId) {
     const indexKey = companyIndexKey(companyId);
     const keys = (await redisCacheService.get(indexKey)) || [];
-    for (const k of keys) toDelete.add(k);
+    if (Array.isArray(keys)) {
+      for (const k of keys) toDelete.add(k);
+    }
     toDelete.add(indexKey);
   }
 

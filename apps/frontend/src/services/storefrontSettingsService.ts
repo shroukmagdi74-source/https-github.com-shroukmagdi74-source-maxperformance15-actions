@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import { storefrontFetch } from "../utils/storefrontApi";
+import { getCompanyId, storefrontFetch } from "../utils/storefrontApi";
 
 export interface StorefrontSettings {
   id: string;
@@ -302,8 +302,28 @@ export const normalizePublicSettingsPayload = (
   );
 };
 
+const PUBLIC_SETTINGS_CACHE_TTL_MS = 60 * 1000;
 const cachedStorefrontSettings: Record<string, StorefrontSettings> = {};
 const inflightStorefrontPromises: Record<string, Promise<{ data: StorefrontSettings }>> = {};
+const cachedPublicStorefrontSettings = new Map<
+  string,
+  { value: { success: boolean; data: StorefrontSettings }; expiresAt: number }
+>();
+const inflightPublicStorefrontPromises = new Map<
+  string,
+  Promise<{ success: boolean; data: StorefrontSettings }>
+>();
+
+const resolvePublicSettingsCacheKey = (companyId?: string): string => {
+  const trimmed = typeof companyId === "string" ? companyId.trim() : "";
+  if (trimmed) return `company:${trimmed}`;
+  const scopedCompanyId = getCompanyId();
+  if (scopedCompanyId) return `company:${scopedCompanyId}`;
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    return `host:${window.location.hostname.toLowerCase()}`;
+  }
+  return "host:default";
+};
 
 export const storefrontSettingsService = {
   getSettings: async (
@@ -383,6 +403,8 @@ export const storefrontSettingsService = {
     const cacheKey = companyId || "current";
     delete cachedStorefrontSettings[cacheKey];
     delete inflightStorefrontPromises[cacheKey];
+    cachedPublicStorefrontSettings.clear();
+    inflightPublicStorefrontPromises.clear();
     const response = await apiClient.put(
       "/storefront-settings",
       data,
@@ -404,6 +426,8 @@ export const storefrontSettingsService = {
     const cacheKey = companyId || "current";
     delete cachedStorefrontSettings[cacheKey];
     delete inflightStorefrontPromises[cacheKey];
+    cachedPublicStorefrontSettings.clear();
+    inflightPublicStorefrontPromises.clear();
     const response = await apiClient.post(
       "/storefront-settings/reset",
       {},
@@ -423,46 +447,139 @@ export const storefrontSettingsService = {
     companyId?: string,
     forceRefresh = false,
   ): Promise<{ success: boolean; data: StorefrontSettings }> => {
-    try {
-      const response = await apiClient.get("/storefront-settings/public", {
-        params: companyId ? { companyId, company: companyId } : undefined,
-        _skipErrorToast: true,
-        _skipAuthRefresh: true,
-      } as any);
-      const payload = response?.data?.data || response?.data;
-      if (payload) {
-        const normalized = normalizePublicSettingsPayload(payload, companyId || "");
-        return {
-          success: true,
-          data: normalized,
-        };
+    const trimmedCompanyId = typeof companyId === "string" ? companyId.trim() : "";
+    const cacheKey = resolvePublicSettingsCacheKey(trimmedCompanyId || undefined);
+    const hostKey =
+      typeof window !== "undefined" && window.location?.hostname
+        ? `host:${window.location.hostname.toLowerCase()}`
+        : "";
+    const now = Date.now();
+
+    if (!forceRefresh) {
+      const cached = cachedPublicStorefrontSettings.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return cached.value;
       }
-    } catch {
-      // Fallback to storefrontFetch
+
+      if (trimmedCompanyId && hostKey) {
+        const hostCached = cachedPublicStorefrontSettings.get(hostKey);
+        if (
+          hostCached &&
+          hostCached.expiresAt > now &&
+          hostCached.value.data?.companyId === trimmedCompanyId
+        ) {
+          return hostCached.value;
+        }
+      }
+
+      const existingInflight = inflightPublicStorefrontPromises.get(cacheKey);
+      if (existingInflight) {
+        return existingInflight;
+      }
+
+      if (trimmedCompanyId && hostKey) {
+        const hostInflight = inflightPublicStorefrontPromises.get(hostKey);
+        if (hostInflight) {
+          const hostResult = await hostInflight;
+          if (hostResult?.success && hostResult.data?.companyId === trimmedCompanyId) {
+            return hostResult;
+          }
+        }
+      }
     }
 
-    if (companyId) {
-      try {
-        const response = await storefrontFetch("/storefront/settings", {
-          companyId,
-          cache: forceRefresh ? "reload" : "default",
+    const storeResolvedPublicSettings = (result: {
+      success: boolean;
+      data: StorefrontSettings;
+    }) => {
+      if (!result.success) return result;
+      const expiresAt = Date.now() + PUBLIC_SETTINGS_CACHE_TTL_MS;
+      cachedPublicStorefrontSettings.set(cacheKey, { value: result, expiresAt });
+      if (result.data?.companyId) {
+        cachedPublicStorefrontSettings.set(`company:${result.data.companyId}`, {
+          value: result,
+          expiresAt,
         });
-        return {
-          success: Boolean(response?.success !== false),
-          data: normalizePublicSettingsPayload(response, companyId),
-        };
+      }
+      if (!trimmedCompanyId && hostKey) {
+        cachedPublicStorefrontSettings.set(hostKey, { value: result, expiresAt });
+      }
+      return result;
+    };
+
+    const requestPromise = (async (): Promise<{
+      success: boolean;
+      data: StorefrontSettings;
+    }> => {
+      try {
+        const response = await apiClient.get("/storefront-settings/public", {
+          params: trimmedCompanyId
+            ? { companyId: trimmedCompanyId, company: trimmedCompanyId }
+            : undefined,
+          _skipErrorToast: true,
+          _skipAuthRefresh: true,
+        } as any);
+        const payload = response?.data?.data || response?.data;
+        if (payload) {
+          const normalized = normalizePublicSettingsPayload(
+            payload,
+            trimmedCompanyId || "",
+          );
+          return storeResolvedPublicSettings({
+            success: true,
+            data: normalized,
+          });
+        }
       } catch {
-        // Fallback below
+        // Fallback to storefrontFetch
+      }
+
+      if (trimmedCompanyId) {
+        try {
+          const response = await storefrontFetch("/storefront/settings", {
+            companyId: trimmedCompanyId,
+            cache: forceRefresh ? "reload" : "default",
+          });
+          return storeResolvedPublicSettings({
+            success: Boolean(response?.success !== false),
+            data: normalizePublicSettingsPayload(response, trimmedCompanyId),
+          });
+        } catch {
+          // Fallback below
+        }
+      }
+
+      return {
+        success: false,
+        data: buildDefaultSettings(trimmedCompanyId || ""),
+      };
+    })();
+
+    inflightPublicStorefrontPromises.set(cacheKey, requestPromise);
+    try {
+      return await requestPromise;
+    } finally {
+      if (inflightPublicStorefrontPromises.get(cacheKey) === requestPromise) {
+        inflightPublicStorefrontPromises.delete(cacheKey);
       }
     }
-
-    return {
-      success: false,
-      data: buildDefaultSettings(companyId || ""),
-    };
   },
 
   clearCache: (companyId: string) => {
+    const trimmed = typeof companyId === "string" ? companyId.trim() : "";
+    if (trimmed) {
+      delete cachedStorefrontSettings[trimmed];
+      delete inflightStorefrontPromises[trimmed];
+      cachedPublicStorefrontSettings.delete(`company:${trimmed}`);
+      for (const [key, entry] of cachedPublicStorefrontSettings.entries()) {
+        if (entry.value.data?.companyId === trimmed) {
+          cachedPublicStorefrontSettings.delete(key);
+        }
+      }
+    } else {
+      cachedPublicStorefrontSettings.clear();
+      inflightPublicStorefrontPromises.clear();
+    }
     if (typeof window === "undefined") return;
     window.localStorage.removeItem(`storefront_settings_${companyId}`);
   },

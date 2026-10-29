@@ -19,6 +19,12 @@ const MAX_STRING_LENGTH = 200;
 
 const hasWindow = typeof window !== "undefined";
 const unavailableApps = new Set<string>();
+const seenDedupeKeys = new Set<string>();
+
+export const resetStorefrontAppUsageTrackingForTests = (): void => {
+  seenDedupeKeys.clear();
+  unavailableApps.clear();
+};
 
 const sanitizePrimitive = (value: unknown): Primitive | undefined => {
   if (value === null) {
@@ -92,18 +98,28 @@ const sanitizeMetadata = (
 };
 
 const hasSeenDedupeKey = (dedupeKey: string): boolean => {
+  if (seenDedupeKeys.has(dedupeKey)) {
+    return true;
+  }
+
   if (!hasWindow) {
     return false;
   }
 
   try {
-    return window.sessionStorage.getItem(`${STORAGE_PREFIX}${dedupeKey}`) === "1";
+    const persisted = window.sessionStorage.getItem(`${STORAGE_PREFIX}${dedupeKey}`) === "1";
+    if (persisted) {
+      seenDedupeKeys.add(dedupeKey);
+    }
+    return persisted;
   } catch {
     return false;
   }
 };
 
 const markDedupeKeySeen = (dedupeKey: string) => {
+  seenDedupeKeys.add(dedupeKey);
+
   if (!hasWindow) {
     return;
   }
@@ -187,8 +203,13 @@ export const trackStorefrontAppUsage = async ({
     return false;
   }
 
-  if (normalizedDedupeKey && hasSeenDedupeKey(normalizedDedupeKey)) {
-    return false;
+  if (normalizedDedupeKey) {
+    if (hasSeenDedupeKey(normalizedDedupeKey)) {
+      return false;
+    }
+    // Synchronously reserve the dedupeKey before awaiting network I/O
+    // so concurrent widget mounts never fire duplicate tracking POSTs.
+    seenDedupeKeys.add(normalizedDedupeKey);
   }
 
   try {
@@ -224,6 +245,9 @@ export const trackStorefrontAppUsage = async ({
 
     return Boolean(response?.tracked);
   } catch (error) {
+    if (normalizedDedupeKey) {
+      seenDedupeKeys.delete(normalizedDedupeKey);
+    }
     if (import.meta.env.DEV) {
       console.debug("Storefront app usage tracking failed:", error);
     }

@@ -1,4 +1,9 @@
-const Redis = require('ioredis');
+let Redis = null;
+try {
+    Redis = require('ioredis');
+} catch (e) {
+    Redis = null;
+}
 const redisConfig = require('../config/redis');
 
 class RedisCacheService {
@@ -14,15 +19,17 @@ class RedisCacheService {
 
     _initializeClient() {
         try {
-            // Skip Redis initialization if configuration is not available
-            if (!redisConfig) {
-                console.log('⚠️ [REDIS] Disabled - Configuration not found. Using local memory cache.');
+            // Skip Redis initialization if ioredis is not installed or configuration is not available
+            if (!Redis || !redisConfig) {
+                console.log('⚠️ [REDIS] Disabled - ' + (!Redis ? 'ioredis package not installed' : 'Configuration not found') + '. Using local memory cache.');
                 this.client = null;
                 this.isConnected = false;
                 return;
             }
 
-            this.client = new Redis(redisConfig);
+            this.client = redisConfig.url
+                ? new Redis(redisConfig.url, redisConfig)
+                : new Redis(redisConfig);
 
             this.client.on('connect', () => {
                 console.log('✅ [REDIS] Connected successfully');
@@ -35,13 +42,17 @@ class RedisCacheService {
                 this.isConnected = false;
             });
 
+            this.client.on('close', () => {
+                this.isConnected = false;
+            });
+
         } catch (error) {
             console.error('❌ [REDIS] Initialization Failed:', error);
         }
     }
 
     /**
-     * Get value from cache (Checks local cache if Redis is down)
+     * Get value from cache (Checks local cache ONLY if Redis is down/errored)
      * @param {string} key 
      * @returns {Promise<any|null>}
      */
@@ -53,19 +64,22 @@ class RedisCacheService {
         if (this.isConnected && this.client) {
             try {
                 const value = await this.client.get(key);
-                if (value) {
-                    try {
-                        return JSON.parse(value);
-                    } catch (e) {
-                        return value;
-                    }
+                if (value === null || value === undefined) {
+                    // Explicit Redis miss: purge stale per-worker localCache entry
+                    this.localCache.delete(key);
+                    return null;
+                }
+                try {
+                    return JSON.parse(value);
+                } catch (e) {
+                    return value;
                 }
             } catch (error) {
                 console.error(`❌ [REDIS] Get Error (${key}):`, error.message);
             }
         }
 
-        // 2. Fallback to local cache
+        // 2. Fallback to local cache ONLY when Redis is disconnected or throws an error
         const localValue = this.localCache.get(key);
         if (localValue && localValue.expiry > Date.now()) {
             return localValue.data;
@@ -133,7 +147,10 @@ class RedisCacheService {
     async delPattern(pattern) {
         if (!pattern) return false;
 
-        const regexPattern = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+        const escapedPattern = String(pattern)
+            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*/g, '.*');
+        const regexPattern = new RegExp(`^${escapedPattern}$`);
         for (const localKey of this.localCache.keys()) {
             if (regexPattern.test(localKey)) {
                 this.localCache.delete(localKey);
@@ -180,6 +197,7 @@ class RedisCacheService {
      * Clear all cache (Use carefully)
      */
     async flush() {
+        this.localCache.clear();
         if (!this.isConnected || !this.client) return false;
         try {
             await this.client.flushdb();

@@ -844,6 +844,16 @@ if (normalizedId.includes('SuperAdminAIKeyManager')) return 'route-ai-key-manage
               if (normalizedId.includes('/src/pages/procurement/')) return 'route-procurement';
               if (normalizedId.includes('/src/pages/shipments/')) return 'route-shipments';
               if (normalizedId.includes('/src/storefront/variants/')) return 'storefront-variants';
+              if (
+                normalizedId.includes('/src/storefront/sections/elements/elementTypography.ts') ||
+                normalizedId.includes('/src/storefront/studio/StudioTypes') ||
+                (normalizedId.includes('/src/storefront/studio/utils/') &&
+                  !/\/(?:studioPageTemplates|studioPageExportImport|a11yAudit|seoAudit|linkAudit|performanceScore|studioKeymap|studioPermissions|studioSearchReplace)\.tsx?$/.test(
+                    normalizedId,
+                  ))
+              ) {
+                return 'storefront-studio-runtime';
+              }
               // 2026-08 perf patch 3 REVERTED: per-section splitting caused circular
               // chunk TDZ runtime error ("Cannot access ... before initialization")
               // and broke storefront rendering. Sections stay in one chunk.

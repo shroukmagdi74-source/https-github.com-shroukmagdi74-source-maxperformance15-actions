@@ -343,6 +343,15 @@ const getMarketplacePreviewOrderHandler = async () => {
   }
 };
 
+const SHIPPING_QUOTE_CACHE_TTL_MS = 60 * 1000;
+const shippingQuoteCache = new Map<string, { payload: any; expiresAt: number }>();
+const inflightShippingQuotes = new Map<string, Promise<any>>();
+
+export const resetStorefrontShippingQuoteCacheForTests = () => {
+  shippingQuoteCache.clear();
+  inflightShippingQuotes.clear();
+};
+
 export const storefrontApi = {
   getProducts: async (params: QueryParams = {}) => {
     return storefrontFetch("/products", { query: params });
@@ -522,35 +531,61 @@ export const storefrontApi = {
           .filter((item) => item.productId)
       : [];
 
-    const url = buildUrl(
-      getApiBase(),
-      `/shipping-zones/public/${encodeURIComponent(companyId)}/calculate`,
-      normalizedItems.length > 0 ? undefined : { governorate },
-    );
-    const response = await fetch(url, {
-      method: normalizedItems.length > 0 ? "POST" : "GET",
-      credentials: "include",
-      headers:
-        normalizedItems.length > 0
-          ? {
-              "Content-Type": "application/json",
-            }
-          : undefined,
-      body:
-        normalizedItems.length > 0
-          ? JSON.stringify({
-              governorate,
-              items: normalizedItems,
-            })
-          : undefined,
-    });
-    const payload = await parseResponseBody(response);
-
-    if (!response.ok) {
-      throw createStorefrontError(response, payload);
+    const itemsKey = normalizedItems
+      .map((item) => `${item.productId}:${item.variantId || ""}:${item.quantity}`)
+      .join(";");
+    const cacheKey = `${companyId}:${String(governorate || "").trim().toLowerCase()}:${itemsKey}`;
+    const now = Date.now();
+    const cached = shippingQuoteCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.payload;
     }
 
-    return payload;
+    const existingInflight = inflightShippingQuotes.get(cacheKey);
+    if (existingInflight) {
+      return existingInflight;
+    }
+
+    const requestPromise = (async () => {
+      const url = buildUrl(
+        getApiBase(),
+        `/shipping-zones/public/${encodeURIComponent(companyId)}/calculate`,
+        normalizedItems.length > 0 ? undefined : { governorate },
+      );
+      const response = await fetch(url, {
+        method: normalizedItems.length > 0 ? "POST" : "GET",
+        credentials: "include",
+        headers:
+          normalizedItems.length > 0
+            ? {
+                "Content-Type": "application/json",
+              }
+            : undefined,
+        body:
+          normalizedItems.length > 0
+            ? JSON.stringify({
+                governorate,
+                items: normalizedItems,
+              })
+            : undefined,
+      });
+      const payload = await parseResponseBody(response);
+
+      if (!response.ok) {
+        throw createStorefrontError(response, payload);
+      }
+
+      shippingQuoteCache.set(cacheKey, {
+        payload,
+        expiresAt: Date.now() + SHIPPING_QUOTE_CACHE_TTL_MS,
+      });
+      return payload;
+    })().finally(() => {
+      inflightShippingQuotes.delete(cacheKey);
+    });
+
+    inflightShippingQuotes.set(cacheKey, requestPromise);
+    return requestPromise;
   },
 
   getTierProgress: async (phone: string) => {

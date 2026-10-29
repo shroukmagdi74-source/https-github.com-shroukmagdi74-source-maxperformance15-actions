@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Check, PackagePlus, Plus, ShoppingBag } from 'lucide-react';
@@ -620,8 +620,41 @@ const BoughtTogetherSection: React.FC<BoughtTogetherSectionProps> = ({
     });
   }, [recommendations]);
 
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [hasEnteredViewport, setHasEnteredViewport] = useState(false);
+
   useEffect(() => {
-    if (!product?.id || loading || recommendations.length === 0) {
+    setHasEnteredViewport(false);
+  }, [product?.id]);
+
+  useEffect(() => {
+    if (hasEnteredViewport) return undefined;
+    if (!boughtTogetherEnabled || productLoading || loading || !product?.id || recommendations.length === 0) {
+      return undefined;
+    }
+    if (typeof window === 'undefined') return undefined;
+    if (typeof window.IntersectionObserver !== 'function') {
+      setHasEnteredViewport(true);
+      return undefined;
+    }
+    const element = sectionRef.current;
+    if (!element) return undefined;
+
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting || entry.intersectionRatio > 0)) {
+          setHasEnteredViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px 0px' },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [boughtTogetherEnabled, hasEnteredViewport, loading, product?.id, productLoading, recommendations.length]);
+
+  useEffect(() => {
+    if (!hasEnteredViewport || !product?.id || loading || recommendations.length === 0) {
       return;
     }
 
@@ -635,7 +668,7 @@ const BoughtTogetherSection: React.FC<BoughtTogetherSectionProps> = ({
         variant: sectionVariant,
       },
     });
-  }, [loading, product?.id, recommendations.length, sectionVariant]);
+  }, [hasEnteredViewport, loading, product?.id, recommendations.length, sectionVariant]);
 
   const selectableRecommendations = useMemo(
     () => recommendations,
@@ -963,6 +996,7 @@ const BoughtTogetherSection: React.FC<BoughtTogetherSectionProps> = ({
 
   return (
     <section
+      ref={sectionRef}
       className={`w-full border-t border-border bg-background ${
         isCompactPairingRail ? 'py-8 md:py-12' : 'py-10 md:py-16'
       }`}

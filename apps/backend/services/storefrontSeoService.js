@@ -254,6 +254,202 @@ const extractImageList = (value) => {
   return [];
 };
 
+const OPTIMIZABLE_STOREFRONT_UPLOAD_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".avif",
+]);
+const PDP_IMAGE_PRELOAD_WIDTHS = [520, 720, 960, 1280];
+const PDP_IMAGE_PRELOAD_FALLBACK_WIDTH = 960;
+const PDP_IMAGE_PRELOAD_QUALITY = 78;
+const PDP_IMAGE_PRELOAD_FORMAT = "webp";
+const PDP_IMAGE_PRELOAD_SIZES =
+  "(max-width: 767px) 82vw, (min-width: 1024px) 50vw, 100vw";
+
+const isLocalDevHostname = (hostname = "") => {
+  const normalized = String(hostname || "").toLowerCase();
+  return (
+    !normalized ||
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "0.0.0.0" ||
+    normalized === "lvh.me" ||
+    normalized.startsWith("192.168.") ||
+    normalized.startsWith("10.") ||
+    normalized.startsWith("172.") ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".lvh.me") ||
+    normalized.endsWith(".test")
+  );
+};
+
+const hasOptimizableUploadPath = (pathname = "") => {
+  const normalizedPathname = String(pathname || "").toLowerCase();
+  if (!normalizedPathname.startsWith("/uploads/")) {
+    return false;
+  }
+
+  const ext = path.posix.extname(normalizedPathname);
+  return OPTIMIZABLE_STOREFRONT_UPLOAD_EXTENSIONS.has(ext);
+};
+
+const stripProxyTransformParams = (rawTarget, isAbsolute) => {
+  try {
+    const parsed = new URL(rawTarget, "https://storefront.local");
+    parsed.searchParams.delete("w");
+    parsed.searchParams.delete("q");
+    parsed.searchParams.delete("format");
+    return isAbsolute
+      ? parsed.toString()
+      : `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return rawTarget;
+  }
+};
+
+const resolveClientMatchedProductPreloadTarget = (product, currentUrl) => {
+  const candidates = [
+    ...extractImageList(product?.images),
+    product?.mainImage,
+    product?.image,
+  ];
+  const rawSelected = candidates.find((item) => trimToNull(item));
+  if (!rawSelected) {
+    return null;
+  }
+
+  let trimmed = rawSelected.trim();
+  if (trimmed.includes("/webhooks/uploads/")) {
+    trimmed = trimmed.replace(/\/webhooks\/uploads\//g, "/uploads/");
+  }
+
+  let pageOrigin = null;
+  let pageProtocol = "";
+  let pageHost = "";
+  if (currentUrl && typeof currentUrl === "string") {
+    try {
+      const pageUrl = new URL(currentUrl);
+      pageOrigin = pageUrl.origin;
+      pageProtocol = pageUrl.protocol;
+      pageHost = pageUrl.host;
+    } catch {}
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed);
+      if (!hasOptimizableUploadPath(parsed.pathname)) {
+        return null;
+      }
+      if (pageOrigin && parsed.host !== pageHost) {
+        return null;
+      }
+      if (parsed.protocol === "http:" && pageProtocol === "https:" && parsed.host === pageHost) {
+        parsed.protocol = "https:";
+      }
+      return stripProxyTransformParams(parsed.toString(), true);
+    } catch {
+      return null;
+    }
+  }
+
+  const cleanRel = trimmed.replace(/^\/+/, "");
+  const pathnameOnly = `/${cleanRel.split("?")[0].split("#")[0]}`;
+  if (!hasOptimizableUploadPath(pathnameOnly)) {
+    return null;
+  }
+
+  if (pageOrigin) {
+    const baseUploadUrl = `${pageOrigin}/${cleanRel}`;
+    const clientNormalized = !cleanRel.includes("?")
+      ? `${baseUploadUrl}?v=2`
+      : baseUploadUrl;
+    return stripProxyTransformParams(clientNormalized, true);
+  }
+
+  return stripProxyTransformParams(`/${cleanRel}`, false);
+};
+
+const buildProxyPreloadUrl = (proxyBaseUrl, targetUrl, width) => {
+  const params = new URLSearchParams();
+  params.set("url", targetUrl);
+  params.set("w", String(width));
+  params.set("q", String(PDP_IMAGE_PRELOAD_QUALITY));
+  params.set("format", PDP_IMAGE_PRELOAD_FORMAT);
+  return `${proxyBaseUrl}?${params.toString()}`;
+};
+
+const resolvePdpResponsiveImagePreload = (metadata) => {
+  if (!metadata?.image || typeof metadata.image !== "string") {
+    return null;
+  }
+
+  let pageOrigin = null;
+  let pageHostname = "";
+  if (metadata.url && typeof metadata.url === "string" && /^https?:\/\//i.test(metadata.url)) {
+    try {
+      const pageUrl = new URL(metadata.url);
+      pageOrigin = pageUrl.origin;
+      pageHostname = pageUrl.hostname;
+    } catch {}
+  }
+
+  let cleanTarget = trimToNull(metadata.preloadImageTarget);
+  if (!cleanTarget) {
+    const rawImage = metadata.image.trim();
+    if (/^https?:\/\//i.test(rawImage)) {
+      try {
+        const parsedImage = new URL(rawImage);
+        if (!hasOptimizableUploadPath(parsedImage.pathname)) {
+          return null;
+        }
+        if (pageOrigin && parsedImage.origin !== pageOrigin) {
+          return null;
+        }
+        if (!pageOrigin) {
+          pageOrigin = parsedImage.origin;
+          pageHostname = parsedImage.hostname;
+        }
+        cleanTarget = stripProxyTransformParams(parsedImage.toString(), true);
+      } catch {
+        return null;
+      }
+    } else {
+      const normalizedRel = rawImage.startsWith("/") ? rawImage : `/${rawImage}`;
+      const pathnameOnly = normalizedRel.split("?")[0].split("#")[0];
+      if (!hasOptimizableUploadPath(pathnameOnly)) {
+        return null;
+      }
+      if (pageOrigin) {
+        const fullTarget = `${pageOrigin}${normalizedRel}`;
+        cleanTarget = stripProxyTransformParams(fullTarget, true);
+      } else {
+        cleanTarget = stripProxyTransformParams(normalizedRel, false);
+      }
+    }
+  }
+
+  if (!cleanTarget) {
+    return null;
+  }
+
+  const proxyBaseUrl =
+    pageOrigin && !isLocalDevHostname(pageHostname)
+      ? `${pageOrigin}/api/proxy-image`
+      : "/api/proxy-image";
+
+  return {
+    src: buildProxyPreloadUrl(proxyBaseUrl, cleanTarget, PDP_IMAGE_PRELOAD_FALLBACK_WIDTH),
+    srcSet: PDP_IMAGE_PRELOAD_WIDTHS.map(
+      (width) => `${buildProxyPreloadUrl(proxyBaseUrl, cleanTarget, width)} ${width}w`,
+    ).join(", "),
+    sizes: PDP_IMAGE_PRELOAD_SIZES,
+  };
+};
+
 const resolveProductImage = (product, currentUrl) => {
   const candidates = [
     product?.mainImage,
@@ -590,6 +786,10 @@ const buildStorefrontSeoMetadata = ({
         ? `${productTitle} من ${storeName} — تسوق أونلاين. ${companyDescription}`
         : `${productTitle} من ${storeName} — تسوق أونلاين بأفضل جودة وسعر.`);
     image = resolveProductImage(productWithSeoOverrides, currentUrl) || defaultImage;
+    const preloadImageTarget = resolveClientMatchedProductPreloadTarget(
+      productWithSeoOverrides,
+      currentUrl,
+    );
     type = "product";
     sku = trimToNull(product.sku);
 
@@ -688,6 +888,7 @@ const buildStorefrontSeoMetadata = ({
       entityName,
       description,
       image,
+      ...(preloadImageTarget ? { preloadImageTarget } : {}),
       faviconUrl,
       siteName: storeName,
       url: canonicalUrl,
@@ -1080,16 +1281,21 @@ const injectStorefrontSeoTags = (html, metadata) => {
     }
   }
 
-  // Preload primary image for PDP
+  // Preload primary image for PDP using responsive WebP proxy URLs matching StorefrontBootstrap.primeImagePreload
   if (metadata.type === "product" && metadata.image) {
+    const responsivePreload = resolvePdpResponsiveImagePreload(metadata);
+    const preloadTag = responsivePreload
+      ? `<link rel="preload" as="image" href="${escapeHtml(responsivePreload.src)}" imagesrcset="${escapeHtml(responsivePreload.srcSet)}" imagesizes="${escapeHtml(responsivePreload.sizes)}" fetchpriority="high" />`
+      : `<link rel="preload" as="image" href="${escapeHtml(metadata.image)}" fetchpriority="high" />`;
+
     nextHtml = upsertTag(
       nextHtml,
       /<link[^>]+rel=["']preload["'][^>]+as=["']image["'][^>]*>/i,
-      `<link rel="preload" as="image" href="${escapeHtml(metadata.image)}" fetchpriority="high" />`,
+      preloadTag,
     );
   }
 
-  // Preload critical storefront settings API so browser fetches it concurrently with script chunks
+  // Preload critical storefront settings API aligned with storefrontFetch('/storefront/settings') (credentials: 'include')
   nextHtml = upsertTag(
     nextHtml,
     /<link[^>]+rel=["']preload["'][^>]+as=["']fetch["'][^>]*>/i,

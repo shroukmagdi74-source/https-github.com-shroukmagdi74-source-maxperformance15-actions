@@ -126,7 +126,8 @@ describe('VariantSelector', () => {
 
     const thumbnail = screen.getByRole('img', { name: 'اللون Red' });
     expect(thumbnail).toBeInTheDocument();
-    expect(thumbnail).toHaveAttribute('src', expect.stringContaining('/uploads/products/red-thumb.jpg'));
+    expect(thumbnail).toHaveAttribute('src', expect.stringContaining(encodeURIComponent('/uploads/products/red-thumb.jpg')));
+    expect(thumbnail).toHaveAttribute('src', expect.stringContaining('&w=120&q=75&format=webp'));
   });
 
   it('renders a dropdown selector when configured in variant settings', () => {
@@ -510,9 +511,12 @@ describe('VariantSelector', () => {
     const blackImg = screen.getByRole('img', { name: 'اللون اسود' });
     const beigeImg = screen.getByRole('img', { name: 'اللون بيج' });
 
-    expect(whiteImg).toHaveAttribute('src', expect.stringContaining('/uploads/products/sneaker-white.jpg'));
-    expect(blackImg).toHaveAttribute('src', expect.stringContaining('/uploads/products/sneaker-black.jpg'));
-    expect(beigeImg).toHaveAttribute('src', expect.stringContaining('/uploads/products/sneaker-beige.jpg'));
+    expect(whiteImg).toHaveAttribute('src', expect.stringContaining(encodeURIComponent('/uploads/products/sneaker-white.jpg')));
+    expect(whiteImg).toHaveAttribute('src', expect.stringContaining('&w=120&q=75&format=webp'));
+    expect(blackImg).toHaveAttribute('src', expect.stringContaining(encodeURIComponent('/uploads/products/sneaker-black.jpg')));
+    expect(blackImg).toHaveAttribute('src', expect.stringContaining('&w=120&q=75&format=webp'));
+    expect(beigeImg).toHaveAttribute('src', expect.stringContaining(encodeURIComponent('/uploads/products/sneaker-beige.jpg')));
+    expect(beigeImg).toHaveAttribute('src', expect.stringContaining('&w=120&q=75&format=webp'));
   });
 });
 

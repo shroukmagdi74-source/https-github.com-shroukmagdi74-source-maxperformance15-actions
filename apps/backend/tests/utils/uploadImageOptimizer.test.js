@@ -20,12 +20,24 @@ describe('uploadImageOptimizer', () => {
       parseUploadOptimizationQuery({
         width: '99999',
         quality: '10',
-        format: 'jpeg',
+        format: 'bmp',
       }),
     ).toEqual({
       width: 2400,
       quality: 40,
       format: 'webp',
+    });
+
+    expect(
+      parseUploadOptimizationQuery({
+        width: '600',
+        quality: '80',
+        format: 'jpeg',
+      }),
+    ).toEqual({
+      width: 600,
+      quality: 80,
+      format: 'jpeg',
     });
   });
 

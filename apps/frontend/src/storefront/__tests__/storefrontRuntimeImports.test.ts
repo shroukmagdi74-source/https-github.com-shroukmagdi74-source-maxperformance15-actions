@@ -261,4 +261,17 @@ describe("storefront runtime imports", () => {
     expect(khemetTheme.pages.shipping.sections).toHaveLength(2);
     expect(khemetTheme.pages.terms.sections).toHaveLength(2);
   });
+
+  it("decouples studio editor chunk from storefront runtime icons and removes 11-font CSS waterfall", () => {
+    const iconElementSource = readSource("src/storefront/sections/elements/IconElement.tsx");
+    const arabicFontsCss = readSource("src/storefront/styles/arabic-fonts.css");
+    const arabicTypographySource = readSource("src/storefront/utils/arabicTypography.ts");
+    const viteConfigSource = readSource("vite.config.ts");
+
+    expect(iconElementSource).toContain("../../studio/utils/storefrontIcons");
+    expect(iconElementSource).not.toContain("StudioIconPicker");
+    expect(arabicFontsCss).not.toContain("fonts.googleapis.com");
+    expect(arabicTypographySource).toContain("isJsdomOrTestEnv");
+    expect(viteConfigSource).toContain("storefront-studio-runtime");
+  });
 });
