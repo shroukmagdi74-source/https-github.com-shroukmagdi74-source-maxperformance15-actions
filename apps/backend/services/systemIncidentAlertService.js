@@ -724,33 +724,61 @@ class SystemIncidentAlertService {
 
         const waService = getWhatsAppNotificationService();
         let sent = false;
-        if (recipients.length > 0 && waService?.sendNotification) {
+        if (recipients.length > 0) {
             for (const phone of recipients) {
-                try {
-                    const res = await waService.sendNotification({
-                        companyId,
-                        recipientPhone: phone,
-                        recipientName: companyName || 'إدارة النظام',
-                        recipientType: 'ADMIN',
-                        category: 'SYSTEM',
-                        eventType: 'SYSTEM_INCIDENT',
-                        contentOverride: digestText,
-                        variables: {
-                            companyName,
-                            title: 'ملخص تنبيهات السيستم - آخر ساعة',
-                            incidentCount: String(queue.length)
-                        },
-                        deliveryStrategy: 'company',
-                        priority: 3
-                    });
-                    if (res && (res.success || res.sent || res.messageId)) {
-                        sent = true;
-                        console.log(`✅ [SYSTEM-INCIDENT] Hourly digest sent to ${phone} for company ${companyId}`);
-                    } else {
-                        console.error(`❌ [SYSTEM-INCIDENT] Digest send failed for ${phone}: reason=${res?.reason || 'unknown'} error=${res?.error || 'n/a'}`);
+                let sentToPhone = false;
+
+                // 1. محاولة الإرسال عبر WhatsAppNotificationService
+                if (waService?.sendNotification) {
+                    try {
+                        const res = await waService.sendNotification({
+                            companyId,
+                            recipientPhone: phone,
+                            recipientName: companyName || 'إدارة النظام',
+                            recipientType: 'ADMIN',
+                            category: 'SYSTEM',
+                            eventType: 'SYSTEM_INCIDENT',
+                            contentOverride: digestText,
+                            variables: {
+                                companyName,
+                                title: 'ملخص تنبيهات السيستم - آخر ساعة',
+                                incidentCount: String(queue.length)
+                            },
+                            deliveryStrategy: 'company',
+                            priority: 3
+                        });
+                        if (res && (res.success || res.sent || res.messageId)) {
+                            sentToPhone = true;
+                            sent = true;
+                            console.log(`✅ [SYSTEM-INCIDENT] Hourly digest sent to ${phone} for company ${companyId}`);
+                        } else {
+                            console.error(`❌ [SYSTEM-INCIDENT] Digest send failed for ${phone}: reason=${res?.reason || 'unknown'} error=${res?.error || 'n/a'}`);
+                        }
+                    } catch (digestErr) {
+                        console.error(`❌ [SYSTEM-INCIDENT] Digest send to ${phone} threw error:`, digestErr.message || digestErr);
                     }
-                } catch (digestErr) {
-                    console.error(`❌ [SYSTEM-INCIDENT] Digest send to ${phone} threw error:`, digestErr.message || digestErr);
+                }
+
+                // 2. إرسال مباشر بالجلسة الإدارية (Fallback)
+                if (!sentToPhone) {
+                    try {
+                        const directSent = await this.sendWhatsAppDirectViaSession({
+                            companyId,
+                            phone,
+                            alertText: digestText
+                        });
+                        if (directSent) {
+                            sentToPhone = true;
+                            sent = true;
+                            console.log(`✅ [SYSTEM-INCIDENT] Hourly digest sent directly via session to ${phone} for company ${companyId}`);
+                        }
+                    } catch (directErr) {
+                        console.error(`❌ [SYSTEM-INCIDENT] Direct session digest send failed to ${phone}:`, directErr.message || directErr);
+                    }
+                }
+
+                if (!sentToPhone && !waService) {
+                    sent = true;
                 }
             }
         } else {
