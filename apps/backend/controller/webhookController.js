@@ -275,9 +275,9 @@ const postWebhook = async (req, res) => {
       entry.messaging?.some(msg => msg.message?.text || msg.message?.attachments)
     );
 
-    // Check if webhook contains feed events (which may include comments)
+    // Check if webhook contains feed/comments events
     const hasFeedEvents = body?.entry?.some(entry =>
-      entry.changes?.some(change => change.field === 'feed' && change.value)
+      entry.changes?.some(change => (change.field === 'feed' || change.field === 'comments') && change.value)
     );
 
     // 🔍 Check for referral BEFORE skipping
@@ -451,9 +451,9 @@ const postWebhook = async (req, res) => {
             try {
               for (const change of entry.changes) {
                 try {
-                  if (change.field === 'feed' && change.value) {
+                  if ((change.field === 'feed' || change.field === 'comments') && change.value) {
                     // Check if this is a comment event
-                    if (change.value.item === 'comment') {
+                    if (change.value.item === 'comment' || change.field === 'comments') {
                       // NEW: Check if this comment is from our own page (our bot's reply)
                       if (isCommentFromOurPage(change.value, entry.id)) {
                         //console.log(`🤖 [COMMENT] Ignoring comment from our own page: ${change.value.comment_id}`);

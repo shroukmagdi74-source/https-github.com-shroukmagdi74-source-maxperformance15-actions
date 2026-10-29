@@ -31,8 +31,14 @@ function getPrismaClient() {
  */
 function resolveSecretFromRef(secretRef) {
   if (!secretRef || typeof secretRef !== 'string') return '';
-  const val = process.env[secretRef.trim()];
-  return typeof val === 'string' ? val.trim() : '';
+  const ref = secretRef.trim();
+  const val = process.env[ref];
+  if (typeof val === 'string' && val.trim()) return val.trim();
+  if (ref === 'FB_GROWTH_APP_SECRET') return (process.env.FACEBOOK_GROWTH_APP_SECRET || '').trim();
+  if (ref === 'FACEBOOK_GROWTH_APP_SECRET') return (process.env.FB_GROWTH_APP_SECRET || '').trim();
+  if (ref === 'FB_APP_SECRET') return (process.env.FACEBOOK_APP_SECRET || '').trim();
+  if (ref === 'FACEBOOK_APP_SECRET') return (process.env.FB_APP_SECRET || '').trim();
+  return '';
 }
 
 /**
@@ -42,8 +48,16 @@ function resolveSecretFromRef(secretRef) {
  */
 function resolveVerifyTokenFromRef(tokenRef) {
   if (!tokenRef || typeof tokenRef !== 'string') return '';
-  const val = process.env[tokenRef.trim()];
-  return typeof val === 'string' ? val.trim() : '';
+  const ref = tokenRef.trim();
+  const val = process.env[ref];
+  if (typeof val === 'string' && val.trim()) return val.trim();
+  if (ref === 'FB_GROWTH_VERIFY_TOKEN' || ref === 'FB_GROWTH_WEBHOOK_VERIFY_TOKEN') {
+    return (process.env.FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN || process.env.FACEBOOK_GROWTH_VERIFY_TOKEN || '').trim();
+  }
+  if (ref === 'FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN' || ref === 'FACEBOOK_GROWTH_VERIFY_TOKEN') {
+    return (process.env.FB_GROWTH_VERIFY_TOKEN || process.env.FB_GROWTH_WEBHOOK_VERIFY_TOKEN || '').trim();
+  }
+  return '';
 }
 
 /**
@@ -350,65 +364,37 @@ async function ensureSchema() {
 function getKnownScopesCatalog() {
   return [
     {
-      permission: 'pages_messaging',
-      category: 'Messenger',
-      description: 'إرسال واستقبال الرسائل عبر بوت الماسنجر',
+      permission: 'public_profile',
+      category: 'Authentication',
+      description: 'الملف الشخصي العام لحساب فيسبوك للمصادقة وتحديد هوية المستخدم',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'email',
+      category: 'Authentication',
+      description: 'البريد الإلكتروني الأساسي للمستخدم للتواصل وتأكيد الحساب',
       defaultAccessLevel: 'advanced',
       defaultStatus: 'approved'
     },
     {
       permission: 'pages_show_list',
       category: 'Pages',
-      description: 'عرض قائمة الصفحات التي يديرها المستخدم',
+      description: 'عرض قائمة الصفحات التي يديرها المستخدم لربطها بالمنصة',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_messaging',
+      category: 'Messenger',
+      description: 'إرسال واستقبال الرسائل عبر بوت الماسنجر ودعم العملاء الفوري',
       defaultAccessLevel: 'advanced',
       defaultStatus: 'approved'
     },
     {
       permission: 'pages_manage_metadata',
       category: 'Pages',
-      description: 'إدارة وتحديث بيانات واشتراكات ويب هوك الصفحة',
-      defaultAccessLevel: 'advanced',
-      defaultStatus: 'approved'
-    },
-    {
-      permission: 'pages_read_user_content',
-      category: 'Pages',
-      description: 'قراءة محتوى وتفاعل المستخدمين على الصفحة',
-      defaultAccessLevel: 'advanced',
-      defaultStatus: 'approved'
-    },
-    {
-      permission: 'pages_manage_engagement',
-      category: 'Pages',
-      description: 'التفاعل مع التعليقات والمنشورات',
-      defaultAccessLevel: 'advanced',
-      defaultStatus: 'approved'
-    },
-    {
-      permission: 'business_management',
-      category: 'Business',
-      description: 'الوصول إلى محافظ الأعمال (Business Portfolios) وصفحات NPE',
-      defaultAccessLevel: 'advanced',
-      defaultStatus: 'approved'
-    },
-    {
-      permission: 'ads_management',
-      category: 'Ads',
-      description: 'إنشاء وإدارة الحملات الإعلانية ومجموعات الإعلانات',
-      defaultAccessLevel: 'advanced',
-      defaultStatus: 'approved'
-    },
-    {
-      permission: 'ads_read',
-      category: 'Ads',
-      description: 'قراءة نتائج وإحصائيات الحسابات الإعلانية',
-      defaultAccessLevel: 'advanced',
-      defaultStatus: 'approved'
-    },
-    {
-      permission: 'pages_manage_ads',
-      category: 'Ads',
-      description: 'ربط الإعلانات بالصفحات كـ Ad Identity',
+      description: 'إدارة وتحديث بيانات واشتراكات ويب هوك الصفحة تلقائياً',
       defaultAccessLevel: 'advanced',
       defaultStatus: 'approved'
     },
@@ -421,12 +407,117 @@ function getKnownScopesCatalog() {
       note: 'Advanced Access غير معتمد حاليًا — لا يُطلب بالـ OAuth تجنبًا لحجب ظهور الصفحات'
     },
     {
+      permission: 'pages_manage_engagement',
+      category: 'Pages',
+      description: 'التفاعل مع التعليقات والمنشورات والردود التلقائية',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_read_user_content',
+      category: 'Pages',
+      description: 'قراءة محتوى وتفاعل المستخدمين على الصفحة وتحليل الاستفسارات',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_manage_posts',
+      category: 'Pages',
+      description: 'إنشاء وتعديل وحذف منشورات الصفحة ومزامنة منتجات المتجر',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'ads_read',
+      category: 'Ads',
+      description: 'قراءة نتائج وإحصائيات الحسابات والحملات الإعلانية',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'ads_management',
+      category: 'Ads',
+      description: 'إنشاء وإدارة الحملات الإعلانية والمجموعات الإعلانية تلقائياً',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_manage_ads',
+      category: 'Ads',
+      description: 'ربط الإعلانات بالصفحات كـ Ad Identity ونشر إعلانات الرسائل',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'business_management',
+      category: 'Business',
+      description: 'الوصول إلى محافظ الأعمال (Business Portfolios) وصفحات NPE',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'read_insights',
+      category: 'Insights',
+      description: 'قراءة إحصائيات وصول الصفحات والمنشورات وتقارير الأداء',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
       permission: 'leads_retrieval',
       category: 'Leads',
-      description: 'استرجاع بيانات نماذج العملاء المحتملين (Lead Gen)',
+      description: 'استرجاع بيانات نماذج العملاء المحتملين (Lead Gen) ومزامنتها فورياً',
       defaultAccessLevel: 'standard',
       defaultStatus: 'pending_review',
       note: 'يتطلب مراجعة Meta App Review لتفعيل الاسترجاع الفوري'
+    },
+    {
+      permission: 'catalog_management',
+      category: 'Catalog',
+      description: 'إدارة كتالوج المنتجات ومزامنتها مع فيسبوك وإنستجرام شوب',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'instagram_basic',
+      category: 'Instagram',
+      description: 'قراءة الملف التجاري لحساب إنستجرام والمنشورات والوسائط',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'instagram_manage_messages',
+      category: 'Instagram',
+      description: 'إدارة واستقبال والرد على رسائل الدايركت (IG Direct Messages)',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'instagram_manage_comments',
+      category: 'Instagram',
+      description: 'إدارة والرد على تعليقات منشورات إنستجرام تلقائياً',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'instagram_content_publish',
+      category: 'Instagram',
+      description: 'نشر الصور والفيديوهات والريلز على إنستجرام من لوحة التحكم',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'whatsapp_business_messaging',
+      category: 'WhatsApp',
+      description: 'إرسال واستقبال رسائل واتساب عبر Meta Cloud API الرسمية',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'whatsapp_business_management',
+      category: 'WhatsApp',
+      description: 'إدارة أرقام واتساب وحسابات WABA وقوالب الرسائل ورصيد المحفظة',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
     }
   ];
 }

@@ -362,8 +362,8 @@ const connectFacebookPage = async (req, res) => {
                     if (!isSubscribed) {
                         ////console.log('🔧 [FACEBOOK-CONNECT] Attempting to subscribe page to webhook...');
 
-                        const FULL_PAGE_WEBHOOK_FIELDS = 'messages,messaging_postbacks,messaging_referrals,message_attachments,feed,leadgen';
-                        const CORE_PAGE_WEBHOOK_FIELDS = 'messages,messaging_postbacks,messaging_referrals,message_attachments';
+                        const FULL_PAGE_WEBHOOK_FIELDS = 'messages,messaging_postbacks,messaging_referrals,message_attachments,message_deliveries,message_reads,feed,leadgen';
+                        const CORE_PAGE_WEBHOOK_FIELDS = 'messages,messaging_postbacks,messaging_referrals,message_attachments,message_deliveries,message_reads';
 
                         try {
                             const subscribeResponse = await axios.post(`https://graph.facebook.com/${getMetaGraphApiVersion()}/${pageId}/subscribed_apps`, {

@@ -150,12 +150,14 @@ const getFacebookAppKeyConfig = (key = "primary") => {
       return primaryConfig;
     }
 
-    const growthAppId = chooseCredential(process.env.FACEBOOK_GROWTH_APP_ID);
-    const growthAppSecret = chooseCredential(process.env.FACEBOOK_GROWTH_APP_SECRET);
-    const growthLoginConfigId = normalizeCredential(process.env.FACEBOOK_GROWTH_LOGIN_CONFIG_ID);
+    const growthAppId = chooseCredential(process.env.FACEBOOK_GROWTH_APP_ID, process.env.FB_GROWTH_APP_ID);
+    const growthAppSecret = chooseCredential(process.env.FACEBOOK_GROWTH_APP_SECRET, process.env.FB_GROWTH_APP_SECRET);
+    const growthLoginConfigId = normalizeCredential(process.env.FACEBOOK_GROWTH_LOGIN_CONFIG_ID || process.env.FB_GROWTH_LOGIN_CONFIG_ID);
     const growthWebhookVerifyToken = chooseCredential(
       process.env.FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN,
-      process.env.FACEBOOK_GROWTH_VERIFY_TOKEN
+      process.env.FACEBOOK_GROWTH_VERIFY_TOKEN,
+      process.env.FB_GROWTH_VERIFY_TOKEN,
+      process.env.FB_GROWTH_WEBHOOK_VERIFY_TOKEN
     );
 
     // الرجوع إلى primary كـ fallback إذا لم يكن معرف تطبيق النمو مضبوطاً
@@ -224,6 +226,8 @@ const getFacebookWebhookVerifyTokens = () => {
     growthConfig.webhookVerifyToken,
     process.env.FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN,
     process.env.FACEBOOK_GROWTH_VERIFY_TOKEN,
+    process.env.FB_GROWTH_WEBHOOK_VERIFY_TOKEN,
+    process.env.FB_GROWTH_VERIFY_TOKEN,
     "61d94df61ed00ab77e2a7e2c15458d7ce9ec8abc4520a6a83f0b483829617314",
     "simple_chat_verify_token_2025",
   ];

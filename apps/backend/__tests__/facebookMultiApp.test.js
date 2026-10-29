@@ -74,9 +74,18 @@ describe('Meta Multi-App Architecture (Primary + Growth)', () => {
     expect(messaging).toBeDefined();
     expect(messaging.category).toBe('Messenger');
 
-    const ads = result.permissions.find((p) => p.permission === 'ads_management');
-    expect(ads).toBeDefined();
-    expect(ads.category).toBe('Ads');
+    expect(result.permissions.length).toBe(22);
+
+    const requiredScopes = [
+      'public_profile', 'email', 'pages_show_list', 'pages_messaging', 'pages_manage_metadata',
+      'pages_read_engagement', 'pages_manage_engagement', 'pages_read_user_content', 'pages_manage_posts',
+      'ads_read', 'ads_management', 'pages_manage_ads', 'business_management', 'read_insights',
+      'leads_retrieval', 'catalog_management', 'instagram_basic', 'instagram_manage_messages',
+      'instagram_manage_comments', 'instagram_content_publish', 'whatsapp_business_messaging', 'whatsapp_business_management'
+    ];
+    for (const scope of requiredScopes) {
+      expect(result.permissions.some((p) => p.permission === scope)).toBe(true);
+    }
   });
 
   test('3. Error sanitization never exposes app secret', async () => {
