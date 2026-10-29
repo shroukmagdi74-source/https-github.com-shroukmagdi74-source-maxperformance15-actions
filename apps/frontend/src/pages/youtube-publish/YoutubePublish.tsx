@@ -190,10 +190,10 @@ export default function YoutubePublish() {
     formData.append("media", file);
 
     try {
-      const res = await apiClient.post("/uploads/media", formData, {
+      const res = await apiClient.post<any>("/uploads/media", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      const returnedUrl = res.data?.url || res.data?.mediaUrl || res.data?.data?.url;
+      const returnedUrl = (res.data as any)?.url || (res.data as any)?.mediaUrl || (res.data as any)?.data?.url;
       if (returnedUrl) {
         setMediaUrl(returnedUrl);
         toast.success("تم رفع ملف الفيديو بنجاح");
