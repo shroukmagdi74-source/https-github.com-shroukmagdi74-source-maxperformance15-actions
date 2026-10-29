@@ -43,6 +43,13 @@ async function saveApp(req, res) {
       });
     }
 
+    if (/^[a-f0-9]{32}$/i.test(String(appSecretRef).trim())) {
+      return res.status(400).json({
+        success: false,
+        error: 'ممنوع إدخال سر التطبيق الفعلي كنص خام! يجب إدخال اسم مرجع متغير البيئة (مثل FACEBOOK_APP_SECRET)'
+      });
+    }
+
     const normalizedKey = String(key).trim().toLowerCase();
     if (!['primary', 'growth'].includes(normalizedKey)) {
       return res.status(400).json({

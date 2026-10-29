@@ -234,6 +234,9 @@ async function upsertApp({ key, appId, appSecretRef, configId, webhookVerifyToke
  */
 async function toggleAppStatus(key, isActive) {
   const normalizedKey = String(key || PRIMARY_APP_KEY).trim().toLowerCase();
+  if (normalizedKey === PRIMARY_APP_KEY && !isActive) {
+    throw new Error('لا يمكن تعطيل تطبيق Primary لأنه التطبيق الأساسي للمنصة');
+  }
   const prisma = getPrismaClient();
 
   if (prisma?.facebookApp?.update) {
