@@ -73,9 +73,9 @@ router.get('/business-specialties/app-options', platformSpecialtyController.getM
 
 
 // Meta Apps Registry Management (Primary + Growth)
-router.get('/meta-apps', superAdminPlatformController.getMetaApps);
-router.post('/meta-apps', superAdminPlatformController.upsertMetaApp);
-router.patch('/meta-apps/:key/toggle', superAdminPlatformController.toggleMetaAppStatus);
+router.get(['/meta-apps', '/facebook-apps'], superAdminPlatformController.getMetaApps);
+router.post(['/meta-apps', '/facebook-apps'], superAdminPlatformController.upsertMetaApp);
+router.patch(['/meta-apps/:key/toggle', '/facebook-apps/:key/toggle'], superAdminPlatformController.toggleMetaAppStatus);
 
 // Platform Central Settings
 router.get('/settings/kashier', superAdminSettingsController.getKashierSettings);

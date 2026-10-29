@@ -7,7 +7,8 @@ import { Badge } from "../components/ui/badge";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import tokenManager from "../utils/tokenManager";
 import { buildApiUrl } from "../utils/urlHelper";
-import { Save, Eye, EyeOff, Info, Facebook, Copy, Check, ExternalLink, ShieldCheck, Key } from "lucide-react";
+import { Save, Eye, EyeOff, Info, Facebook, Copy, Check, ExternalLink, ShieldCheck, Key, Layers } from "lucide-react";
+import FacebookAppsManagement from "./super-admin/FacebookAppsManagement";
 
 const DEFAULT_VERIFY_TOKEN = "61d94df61ed00ab77e2a7e2c15458d7ce9ec8abc4520a6a83f0b483829617314";
 
@@ -29,6 +30,7 @@ const SuperAdminFacebookOAuth = () => {
   const [showSecret, setShowSecret] = useState(false);
   const [showWaSecret, setShowWaSecret] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
+  const [activeTab, setActiveTab] = useState("apps"); // 'apps' | 'legacy'
 
   const copyToClipboard = (text, key) => {
     navigator.clipboard.writeText(text);
@@ -123,6 +125,38 @@ const SuperAdminFacebookOAuth = () => {
       {error && <Alert variant="destructive" className="rounded-xl"><AlertDescription className="text-xs">{error}</AlertDescription></Alert>}
       {success && <Alert className="rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"><AlertDescription className="text-xs">{success}</AlertDescription></Alert>}
 
+      {/* Tab Selector */}
+      <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("apps")}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            activeTab === "apps"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Layers className="size-3.5" />
+          <span>سجل التطبيقين (Primary + Growth)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("legacy")}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            activeTab === "legacy"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Key className="size-3.5" />
+          <span>إعدادات OAuth & Webhook المباشرة</span>
+        </button>
+      </div>
+
+      {activeTab === "apps" ? (
+        <FacebookAppsManagement />
+      ) : (
+        <>
       {/* Meta Developer Integration Endpoints Strip */}
       <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 overflow-hidden shadow-xs">
         <div className="p-3 border-b border-blue-500/10 flex items-center justify-between">
@@ -360,6 +394,8 @@ const SuperAdminFacebookOAuth = () => {
           </Button>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

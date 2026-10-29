@@ -1782,6 +1782,7 @@ const handleAdsOAuthCallback = async ({
   userAccessToken,
   isPopup,
   callbackRedirectBaseUrl,
+  callbackAppKey = "primary",
 }) => {
   const normalizeAdAccountId = (adAccountId) => {
     if (adAccountId === undefined || adAccountId === null) {
@@ -2189,6 +2190,7 @@ router.get("/callback", async (req, res) => {
         userAccessToken,
         isPopup,
         callbackRedirectBaseUrl,
+        callbackAppKey,
       });
     } else {
       console.log("✅ Saved user access token to company");
