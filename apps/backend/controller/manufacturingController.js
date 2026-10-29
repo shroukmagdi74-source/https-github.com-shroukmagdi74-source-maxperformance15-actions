@@ -1120,6 +1120,96 @@ class ManufacturingController {
     }
   }
 
+  // ==========================================================================
+  // T07: Recurring Expenses Catalog & Order Expenses
+  // ==========================================================================
+
+  static async listExpenseCatalog(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.listExpenseCatalog(companyId, req.query);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async createExpenseCatalogItem(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.createExpenseCatalogItem(companyId, req.body);
+      res.status(201).json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async updateExpenseCatalogItem(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.updateExpenseCatalogItem(companyId, req.params.id, req.body);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async archiveExpenseCatalogItem(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.archiveExpenseCatalogItem(companyId, req.params.id);
+      res.json({ success: true, data, message: 'تم أرشفة بند المصروف من الكتالوج بنجاح' });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async addSampleExpense(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.addSampleExpense(
+        companyId,
+        req.user,
+        req.params.id,
+        req.body
+      );
+      res.status(201).json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async updateSampleExpense(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.updateSampleExpense(
+        companyId,
+        req.user,
+        req.params.id,
+        req.params.expenseId,
+        req.body
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async deleteSampleExpense(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.deleteSampleExpense(
+        companyId,
+        req.user,
+        req.params.id,
+        req.params.expenseId
+      );
+      res.json({ success: true, message: data.message || 'تم حذف بند المصروف بنجاح' });
+    } catch (error) {
+      res.status(error.statusCode || error.status || 400).json({ success: false, message: error.message });
+    }
+  }
+
 
   // ==========================================================================
   // Wave 6: Standard Production Stage Templates & Sets Library
