@@ -1,91 +1,110 @@
-# خطة الرجوع والتعافي لتطبيقات Meta (Meta Multi-App Rollback Plan)
-## التاسك: T13 — بنية تطبيقين فيسبوك (Primary + Growth)
+# خطة الرجوع المعيارية لبنية تطبيقي Meta (Multi-App Rollback Plan)
+**المهمة:** T13 (`3da37115-b24b-4407-81cb-2a70820928dd`)  
+**التاريخ:** 2026-10-29  
+**النطاق:** التحول الآمن من بنية التطبيقين (Primary + Growth) إلى التطبيق الأساسي الفردي (Primary) دون انقطاع الخدمة أو المساس باتصالات العملاء القائمة.
 
 ---
 
-### 1. الهدف من الخطة
-توفر هذه الوثيقة إجراءات تشغيلية واضحة وفورية للرجوع الكامل والآمن إلى تطبيق فيسبوك الأساسي (`Primary App`) وتعطيل تطبيق النمو (`Growth App`) عند حدوث أي خلل، دون المساس باتصالات العملاء القائمة أو إيقاف الويب هوك الأساسي.
+## 1. مبادئ خطة الرجوع
+1. **صفر تغيير على التوكنات القائمة:** التوكنات المسجلة للعملاء على تطبيق Primary لا تتطلب أي إعادة ترخيص (Re-auth) أو ترحيل بيانات.
+2. **عزل Growth التام:** أي تعطيل لتطبيق Growth لا يؤثر إطلاقًا على عمل تطبيق Primary (رسائل، ويب هوك، إعلانات، بيكسل).
+3. **التراجع التلقائي (Zero-Downtime Fallback):** الـ resolvers والـ wrappers مبرمجة للتراجع التلقائي إلى `primary` فور تعطيل `growth`.
 
 ---
 
-### 2. ضمانات التصميم وعدم التأثير (Zero Production Impact)
-1. **لا تغيير في التوكنات القائمة:** كافة توكنات العملاء القديمة مربوطة بالتطبيق الأساسي (`Primary`) وتحمل القيمة الافتراضية `facebookAppKey='primary'`.
-2. **عزل الأسرار:** لا توجد أسرار مشفرة أو نصوص حساسة مخزنة في قاعدة البيانات؛ جميعها تقرأ عبر المراجع `appSecretRef` من بيئة التشغيل أو الخزنة المشفرة.
-3. **التراجع التلقائي (Automatic Fallback):** في حال تعطل تطبيق Growth أو تم ضبطه على `isActive: false`، تعود جميع استدعاءات النظام والموجّهات تلقائياً إلى `Primary`.
+## 2. خطوات الرجوع الفورية (Step-by-Step Rollback)
 
----
+### الخطوة 1: تعطيل تطبيق Growth في السجل (Admin Toggle)
+يمكن تنفيذها فورًا وبدون إعادة تشغيل الخادم عبر شاشة السوبر أدمن أو من خلال استدعاء API المباشر:
 
-### 3. خطوات الرجوع الفوري (Instant Emergency Rollback)
-
-#### الخطوة 1: تعطيل تطبيق Growth برمجياً
-يمكن تنفيذ التعطيل بأحد طريقين:
-- **من لوحة تحكم السوبر أدمن:**
-  الانتقال إلى `/super-admin/meta-apps` وتحويل مفتاح التبديل (Toggle Switch) لتطبيق `Growth` إلى وضع الإيقاف (`معطل`).
-  أو إرسال الطلب:
-  ```http
-  PATCH /api/v1/super-admin/platform/meta-apps/growth/toggle
-  Content-Type: application/json
-  Authorization: Bearer <SUPER_ADMIN_TOKEN>
-
-  {
-    "isActive": false
-  }
-  ```
-- **من متغيرات البيئة (Environment Level):**
-  ضبط المتغير في ملف البيئة أو في إدارة السيرفر:
-  ```bash
-  META_GROWTH_ACTIVE=false
-  ```
-  وإعادة تشغيل خدمات الباك إند:
-  ```bash
-  pm2 reload maxp-backend
-  ```
-
-#### الخطوة 2: التحقق من التراجع التلقائي إلى Primary
-بمجرد التعطيل:
-- تعود الدالة `isGrowthActive()` بالقيمة `false`.
-- الدالة `getFacebookAppKeyConfig('growth')` تُرجع تلقائياً إعدادات التطبيق الأساسي (`primary`).
-- استدعاء `getFacebookWebhookVerifyTokens()` و `getAllFacebookAppSecrets()` يستبعد أسرار Growth ويتعامل مع Primary فقط.
-- تفحص خدمة `featureRequiresGrowth()` الميزات وتمنعها مع كود `REAUTH_REQUIRED` ورسالة عربية واضحة للعميل («اربط الصفحة تاني لتفعيل الميزة»).
-
-#### الخطوة 3: التحقق من قاعدة البيانات وتحويل أي صفحات تجريبية
-للتأكد من عدم بقاء أي صفحة مسجلة على تطبيق Growth:
-```sql
--- فحص عدد الصفحات المرتبطة بـ growth
-SELECT id, pageName, facebookAppKey FROM facebook_pages WHERE facebookAppKey = 'growth';
-
--- إعادة توجيهها للتطبيق الأساسي إذا لزم الأمر
-UPDATE facebook_pages SET facebookAppKey = 'primary' WHERE facebookAppKey = 'growth';
-
--- فحص اتصالات الحسابات
-UPDATE facebook_account_connections SET facebookAppKey = 'primary' WHERE facebookAppKey = 'growth';
-
--- فحص حسابات الإعلانات
-UPDATE facebook_ad_accounts SET facebookAppKey = 'primary' WHERE facebookAppKey = 'growth';
-```
-
-#### الخطوة 4: مسح أو تفريغ متغيرات Growth في السيرفر (اختياري)
-في حال الرغبة في إزالة المتغيرات بالكامل من السيرفر:
 ```bash
-unset FACEBOOK_GROWTH_APP_ID
-unset FACEBOOK_GROWTH_APP_SECRET
-unset FACEBOOK_GROWTH_LOGIN_CONFIG_ID
-unset FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN
+# تعطيل تطبيق Growth من خلال Super Admin API
+curl -X PATCH "http://127.0.0.1:3100/api/v1/super-admin/platform/meta-apps/growth/toggle" \
+  -H "Authorization: Bearer <SUPER_ADMIN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"isActive": false}'
+```
+
+أو مباشرة عبر قاعدة البيانات:
+```sql
+UPDATE facebook_apps 
+SET "isActive" = false, "updatedAt" = NOW() 
+WHERE key = 'growth';
+```
+
+**الأثر الفوري:**
+- أي طلب قادم برابط Growth يتحول تلقائيًا إلى Primary.
+- أي حدث ويب هوك موقّع بـ Primary يستمر بالعمل 100%.
+
+---
+
+### الخطوة 2: إيقاف متغيرات البيئة الخاصة بـ Growth (Environment Revert)
+في ملف `.env` على السيرفر (أو مدير المتغيرات في PM2 / Docker):
+
+```ini
+# إيقاف تفعيل تطبيق النمو
+META_GROWTH_ACTIVE="false"
+
+# تفريغ أو تعليق مفاتيح Growth
+# FACEBOOK_GROWTH_APP_ID=""
+# FACEBOOK_GROWTH_APP_SECRET=""
+# FACEBOOK_GROWTH_LOGIN_CONFIG_ID=""
+# FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN=""
+```
+
+ثم إعادة تشغيل الخدمات بسلاسة:
+```bash
+pm2 reload maxp-backend --update-env
 ```
 
 ---
 
-### 4. مصفوفة التحقق بعد الرجوع (Post-Rollback Verification)
-| الفحص | الأداة | النتيجة المتوقعة |
-|---|---|---|
-| فحص إعدادات التطبيق | `GET /api/v1/facebook/integration/facebook/config` | يرجع `appId` الخاص بالـ Primary |
-| فحص توقيع الويب هوك | إرسال طلب Webhook تجريبي بتوقيع Primary | `200 OK` |
-| فحص رسائل ماسنجر | إرسال رسالة من صفحة تجريبية | استلام ومعالجة طبيعية في الشات |
-| فحص صفحات وميزات Growth | طلب ميزة مقيدة مثل `growth_ad_management` | استجابة بـ `REAUTH_REQUIRED` |
+### الخطوة 3: التأكد من توجيه كافة الاتصالات إلى Primary
+التحقق من أن كافة الصفحات وحسابات الربط تقرأ إعدادات Primary:
+
+```sql
+-- فحص الاتصالات القائمة للتأكد من استقرارها
+SELECT "facebookAppKey", COUNT(*) 
+FROM facebook_pages 
+GROUP BY "facebookAppKey";
+
+-- في حال رغبة المشرف في تحويل أي صفحة كانت مسجلة كـ growth إلى primary:
+UPDATE facebook_pages 
+SET "facebookAppKey" = 'primary' 
+WHERE "facebookAppKey" = 'growth';
+
+UPDATE facebook_account_connections 
+SET "facebookAppKey" = 'primary' 
+WHERE "facebookAppKey" = 'growth';
+```
 
 ---
 
-### 5. جهة الاتصال والمسؤولية
-- مسؤول النظام: سوبر أدمن المنصة
-- تاريخ الاعتماد: 2026-10-28
-- التوثيق المرتبط: `C:/Users/ali wazery/maxp-qa/run-1028/briefs/T13.md`
+### الخطوة 4: التحقق من استقرار الويب هوك (Webhook Health Check)
+1. التأكد من استقبال أحداث Webhook بتوقيع Primary:
+   - يجب أن يُرجع `GET /api/v1/webhook` كود `200` مع الـ challenge عند إرسال `hub.verify_token` الأساسي.
+   - يجب أن تُقبل رسائل `POST /api/v1/webhook` الموقعة بـ `FACEBOOK_APP_SECRET` الأساسي بدون أدنى مشكلة.
+2. التحقق من سجلات الخادم:
+   ```bash
+   grep -E "\[WEBHOOK\]|\[WEBHOOK-EVENT\]" /var/log/maxp/backend.log | tail -n 50
+   ```
+
+---
+
+### الخطوة 5: التحقق من عدم تأثر حسابات وتوكنات العملاء القائمة (Zero-Impact Guarantee)
+- تشغيل استعلام التحقق من صحة التوكنات لـ `qa-lab` أو أي شركة تجريبية:
+```sql
+SELECT id, "pageId", "pageName", status, "facebookAppKey" 
+FROM facebook_pages 
+WHERE "companyId" = 'qa-lab';
+```
+- التأكد من استمرار عمل نشر المنشورات واستقبال رسائل ماسنجر للعملاء المتصلين سابقًا.
+
+---
+
+## 3. قائمة التحقق بعد الرجوع (Post-Rollback Checklist)
+- [ ] تطبيق Growth معطّل (`isActive: false` في جدول `facebook_apps`).
+- [ ] طلبات OAuth الافتراضية تولّد رابط تسجيل الدخول بمعرّف التطبيق الأساسي (`762328696481583`).
+- [ ] الويب هوك يستقبل الرسائل ويتحقق من التوقيع بالسر الأساسي بنجاح.
+- [ ] لا توجد استثناءات أو أخطاء `P2022` أو `UNKNOWN_META_APP` في سجلات النظام.
+- [ ] خدمة Gating ترجع رسالة التنبيه المناسبة لأي محاولة استخدام ميزات النمو المعطلة.

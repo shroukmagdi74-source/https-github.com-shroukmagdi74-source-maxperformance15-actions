@@ -139,7 +139,7 @@ const getFacebookAppKeyConfig = (key = "primary") => {
   const normalizedKey = String(key || "primary").trim().toLowerCase();
   const primaryOAuth = getFacebookOAuthConfig();
   const primaryConfig = {
-    appId: primaryOAuth.appId,
+    appId: primaryOAuth.appId || DEFAULT_FACEBOOK_APP_ID,
     appSecret: primaryOAuth.appSecret,
     loginConfigId: primaryOAuth.configId,
     webhookVerifyToken: primaryOAuth.facebookWebhookVerifyToken,

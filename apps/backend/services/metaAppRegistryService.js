@@ -237,6 +237,9 @@ async function toggleAppStatus(key, isActive) {
   const prisma = getPrismaClient();
 
   if (prisma?.facebookApp?.update) {
+    // The registry falls back to env defaults when the table is empty, so a toggle on a
+    // fresh install used to 500 ("No record was found for an update"). Seed first.
+    await ensureDefaultAppsSeeded();
     const updated = await prisma.facebookApp.update({
       where: { key: normalizedKey },
       data: { isActive: Boolean(isActive) }
