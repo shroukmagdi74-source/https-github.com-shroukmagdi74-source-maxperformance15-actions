@@ -660,7 +660,7 @@ const QuantityOffersPanel: React.FC<QuantityOffersPanelProps> = ({
           <p className={headerKickerClassName}>عروض الكميات</p>
         ) : null}
         <div className="flex items-center justify-between gap-2">
-          <h3 className={headerTitleClassName}>{title}</h3>
+          <h2 className={headerTitleClassName}>{title}</h2>
           {isSelectionRail ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10.5px] font-bold text-emerald-700 border border-emerald-200/60">
               ✓ خصومات فورية
@@ -1007,13 +1007,13 @@ const QuantityOffersPanel: React.FC<QuantityOffersPanelProps> = ({
                           {formatStorefrontCurrency(totals.offerTotal, currency)}
                         </span>
                         {totals.savings > 0 ? (
-                          <span className="text-xs text-muted-foreground line-through">
+                          <span className="text-xs text-foreground/60 line-through">
                             {formatStorefrontCurrency(totals.originalTotal, currency)}
                           </span>
                         ) : null}
                       </div>
                       {totals.savings > 0 ? (
-                        <span className="inline-flex items-center rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[11px] font-black shadow-xs">
+                        <span className="inline-flex items-center rounded-full bg-emerald-700 text-white px-2.5 py-0.5 text-[11px] font-black shadow-xs">
                           وفرت {formatStorefrontCurrency(totals.savings, currency)}
                         </span>
                       ) : null}

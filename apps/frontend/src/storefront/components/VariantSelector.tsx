@@ -981,7 +981,7 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
                         onClick={() => handleSelect(key, option)}
                         className={
                           isKhemetLuxeElessi && !isInlineCompact
-                            ? `group relative flex w-full flex-col overflow-hidden rounded-xl border-2 transition-all duration-200 p-0 cursor-pointer ${
+                            ? `group relative flex w-full flex-col overflow-hidden rounded-xl border-2 transition-[transform,border-color] duration-150 p-0 cursor-pointer ${
                                 isSelected
                                   ? 'border-[#1f4737] shadow-md ring-2 ring-[#1f4737]/25 scale-[1.02]'
                                   : 'border-[#e0d2c5] hover:border-[#b79d8e] hover:shadow-xs'
@@ -1124,7 +1124,7 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
                                   ? 'bg-[#1a3328] border-[#1a3328] text-white'
                                   : 'bg-transparent border-[#e9ebe5] text-[#1a3328]/40 hover:border-[#1a3328]/30'
                               }`
-                          : `rounded-xl border transition-all duration-200 flex items-center justify-center ${
+                          : `rounded-xl border transition-[transform,border-color,background-color] duration-150 flex items-center justify-center active:scale-[0.98] ${
                               isInlineCompact
                                 ? 'min-h-[2.4rem] w-full px-1 py-1.5 text-[11px] font-black'
                                 : isCompact

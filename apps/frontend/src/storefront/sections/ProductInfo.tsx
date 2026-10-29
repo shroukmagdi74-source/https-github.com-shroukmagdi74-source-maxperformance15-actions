@@ -3682,7 +3682,7 @@ const ProductInfo: React.FC<ProductInfoProps> = ({ section, settings: sectionSet
         <span className="px-2 py-0.5 rounded text-[10px] font-black bg-secondary text-secondary-foreground uppercase tracking-wider">
           {product.category?.name || (prefersArabicCopy ? 'منتج' : 'Technical')}
         </span>
-        <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
+        <span className="text-[10px] font-bold text-foreground/75 uppercase">
           {usesCommerceHeaderLabel
             ? prefersArabicCopy
               ? 'جاهز للشحن'
@@ -3745,7 +3745,7 @@ const ProductInfo: React.FC<ProductInfoProps> = ({ section, settings: sectionSet
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-2xl sm:text-3xl lg:text-4xl font-black text-foreground tabular-nums font-mono">{displayPrice}</span>
         {(originalPrice || productComparePriceDisplay) && (
-          <span className="text-base sm:text-lg lg:text-xl font-bold text-muted-foreground line-through decoration-red-400/70 decoration-2 opacity-70 tabular-nums font-mono">
+          <span className="text-base sm:text-lg lg:text-xl font-bold text-foreground/60 line-through decoration-red-500/80 decoration-2 tabular-nums font-mono">
             {originalPrice || productComparePriceDisplay}
           </span>
         )}

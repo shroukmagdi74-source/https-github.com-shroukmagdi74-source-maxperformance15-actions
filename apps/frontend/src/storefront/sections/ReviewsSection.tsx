@@ -49,6 +49,7 @@ const StarRating: React.FC<{ rating: number; size?: number }> = ({
 
 const ElessiAvatar: React.FC<{ label: string }> = ({ label }) => (
   <div
+    role="img"
     aria-label={label}
     className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ececec] text-[#b5b5b5]"
   >

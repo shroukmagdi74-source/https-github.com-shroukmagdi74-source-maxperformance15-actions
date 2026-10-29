@@ -178,8 +178,8 @@ const primeImagePreload = (imageUrl: string): void => {
   }
 
   const responsiveImage = buildResponsiveStorefrontImage(imageUrl, {
-    widths: [520, 720, 960, 1280],
-    fallbackWidth: 960,
+    widths: [420, 520, 720, 960, 1280],
+    fallbackWidth: 720,
     quality: 78,
     sizes: "(max-width: 767px) 82vw, (min-width: 1024px) 50vw, 100vw",
   });

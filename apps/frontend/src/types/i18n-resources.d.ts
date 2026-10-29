@@ -6206,6 +6206,7 @@ declare module 'react-i18next' {
           skillsJson: string;
           settings: string;
           guardrails: string;
+          automation: string;
           advanced: string;
           advancedFile: string;
         };
@@ -6481,6 +6482,15 @@ declare module 'react-i18next' {
           restoreFailed: string;
           restoreBtn: string;
           deleteBtn: string;
+        };
+        automation: {
+          title: string;
+          desc: string;
+          runNow: string;
+          running: string;
+          runSuccess: string;
+          goalsTitle: string;
+          goalsDesc: string;
         };
       };
       agentSkills: {

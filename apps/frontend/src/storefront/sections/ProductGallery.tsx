@@ -223,7 +223,7 @@ const OptimizedGalleryImage: React.FC<OptimizedGalleryImageProps> = ({
         mode === "thumb"
           ? undefined
           : mode === "hero"
-            ? [520, 720, 960, 1280]
+            ? [420, 520, 720, 960, 1280]
             : [320, 480, 640, 800, 1200]
       }
       responsiveSizes={resolveGalleryResponsiveSizes(mode, responsiveSizes)}
