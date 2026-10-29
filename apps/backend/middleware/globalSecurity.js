@@ -436,6 +436,10 @@ const PUBLIC_ROUTES = [
   'GET /api/v1/facebook-oauth/pixel-callback',
   'GET /api/v1/facebook-oauth/popup-close.js',
 
+  // YouTube OAuth routes (NO AUTHENTICATION - OAuth redirect / callback)
+  'GET /api/v1/youtube/auth/login',
+  'GET /api/v1/youtube/auth/callback',
+
   // Image proxy routes (للصور الخارجية)
   'GET /api/proxy-image',
   'GET /api/v1/proxy-image',
