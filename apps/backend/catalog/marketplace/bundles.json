@@ -8,6 +8,7 @@
     "monthlyPrice": 999,
     "yearlyPrice": 9990,
     "discount": 69,
+    "trialDays": 7,
     "isActive": true,
     "isFeatured": true,
     "appSlugs": [
@@ -27,11 +28,13 @@
     "monthlyPrice": 999,
     "yearlyPrice": null,
     "discount": 0,
+    "trialDays": 7,
     "isActive": true,
     "isFeatured": true,
     "appSlugs": [
       "unified-inbox",
-      "ai-chat-basic"
+      "ai-chat-basic",
+      "whatsapp-business"
     ],
     "createdAt": "2026-06-17T00:00:00.000Z",
     "updatedAt": "2026-06-17T00:00:00.000Z"
@@ -45,6 +48,7 @@
     "monthlyPrice": 399,
     "yearlyPrice": 3990,
     "discount": 27,
+    "trialDays": 7,
     "isActive": true,
     "isFeatured": true,
     "appSlugs": [
@@ -66,6 +70,7 @@
     "monthlyPrice": 999,
     "yearlyPrice": null,
     "discount": 37,
+    "trialDays": 7,
     "isActive": true,
     "isFeatured": true,
     "appSlugs": [
@@ -86,6 +91,7 @@
     "monthlyPrice": 299,
     "yearlyPrice": 2990,
     "discount": 26,
+    "trialDays": 7,
     "isActive": true,
     "isFeatured": true,
     "appSlugs": [
@@ -107,6 +113,7 @@
     "monthlyPrice": 249,
     "yearlyPrice": 2490,
     "discount": 86,
+    "trialDays": 7,
     "isActive": true,
     "isFeatured": true,
     "appSlugs": [
@@ -135,6 +142,7 @@
     "monthlyPrice": 399,
     "yearlyPrice": 3990,
     "discount": 40,
+    "trialDays": 7,
     "isActive": true,
     "isFeatured": true,
     "appSlugs": [

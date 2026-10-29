@@ -38,7 +38,6 @@ const makeUser = ({
     id: "c1",
     name: "Max Project",
     slug: "max-project",
-    plan: "PRO",
     role: companyRole,
   },
 });

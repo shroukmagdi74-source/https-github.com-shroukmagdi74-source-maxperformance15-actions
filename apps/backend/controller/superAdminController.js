@@ -6540,7 +6540,7 @@ const globalSearch = async (req, res) => {
     const run = (name, fn) => searchModel(fn, name);
 
     const [
-      companies, users, devProjects, devTasks, subscriptions, aiKeys, tickets,
+      companies, users, devProjects, devTasks, aiKeys, tickets,
       products, orders, customers, conversations, facebookPages,
       whatsappSessions, employees, competitors, coupons,
       categories, merchants, broadcastCampaigns, departments,
@@ -6597,16 +6597,6 @@ const globalSearch = async (req, res) => {
         select: { id: true, title: true, status: true, priority: true, projectId: true },
         take: isShortQuery ? 5 : 10,
         orderBy: { createdAt: "desc" },
-      })),
-      run('subscriptions', () => prisma.platformSubscription.findMany({
-        where: {
-          company: {
-            OR: ac('name', query),
-          },
-        },
-        select: { id: true, status: true, company: { select: { id: true, name: true, logo: true } } },
-        take: isShortQuery ? 5 : 10,
-        orderBy: { nextBillingDate: "asc" },
       })),
       run('aiKeys', () => prisma.aiKey.findMany({
         where: { OR: [...ac('name', query), ...ac('provider', query)] },
@@ -6874,10 +6864,6 @@ const globalSearch = async (req, res) => {
     if (devTasks.length) {
       const items = devTasks.map((t) => ({ id: t.id, title: t.title, subtitle: `#${t.status}`, status: t.status, link: "/super-admin/dev-tasks" }));
       results.push({ type: "tasks", icon: "BarChart3", items }); totalCount += items.length;
-    }
-    if (subscriptions.length) {
-      const items = subscriptions.map((s) => ({ id: s.id, title: `${s.company?.name || ""}`, subtitle: s.plan, status: s.status, link: "/super-admin/subscriptions" }));
-      results.push({ type: "subscriptions", icon: "DollarSign", items }); totalCount += items.length;
     }
     if (aiKeys.length) {
       const items = aiKeys.map((k) => ({ id: k.id, title: k.name, subtitle: k.provider, status: k.isActive ? "active" : "inactive", link: "/super-admin/ai-providers" }));

@@ -11,6 +11,7 @@
     "check:syntax": "node scripts/check_syntax.js && node scripts/check_requires.js",
     "check:requires": "node scripts/check_requires.js",
     "check:customer-intent": "node scripts/customer-intent-architecture-guard.js",
+    "check:legacy-plans": "node scripts/check-no-legacy-plans.js",
     "test:hotel-agent": "node scripts/test-hotel-agent.js",
     "prestart": "npm run schema:generate && npx prisma db push --schema=prisma/schema --accept-data-loss && npm run kill:ports",
     "start": "node server.js",

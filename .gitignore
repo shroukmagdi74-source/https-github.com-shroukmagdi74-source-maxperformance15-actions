@@ -158,6 +158,7 @@ backend/prisma/schema/restored.prisma
 
 # Diagnostic and Diagnostic Scripts
 check-*.js
+!apps/backend/scripts/check-no-legacy-plans.js
 backend/check_*.js
 backend/fix_*.js
 backend/inspect_db.js

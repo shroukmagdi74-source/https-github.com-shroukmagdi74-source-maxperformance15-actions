@@ -568,19 +568,16 @@ exports.lpActivate = async (req, res) => {
     const { bundleSlug } = req.body;
     if (!bundleSlug) return res.status(400).json({ success: false, message: 'bundleSlug مطلوب' });
 
+    const bundle = await marketplaceCatalogService.getBundleBySlug(bundleSlug, { onlyActive: true });
+    if (!bundle) return res.status(404).json({ success: false, message: 'الباقة غير موجودة' });
+
+    const trialDays = Number(bundle.trialDays ?? 7);
     const prisma = getSharedPrismaClient();
     const now = new Date();
-    const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const trialEndDate = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000);
     const nextBillingDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    let appSlugs;
-    if (bundleSlug === 'ai-inbox-bundle') {
-      appSlugs = ["ai-chat-basic", "unified-inbox", "whatsapp-business"];
-    } else {
-      const bundle = await marketplaceCatalogService.getBundleBySlug(bundleSlug, { onlyActive: true });
-      if (!bundle) return res.status(404).json({ success: false, message: 'الباقة غير موجودة' });
-      appSlugs = bundle.appSlugs || [];
-    }
+    const appSlugs = bundle.appSlugs || [];
 
     await prisma.$transaction(async (tx) => {
       await tx.platformSubscription.upsert({
@@ -613,7 +610,7 @@ exports.lpActivate = async (req, res) => {
       console.warn('[LP-ACTIVATE] Auto-create agent skipped (non-blocking):', e.message);
     }
 
-    res.json({ success: true, message: 'تم تفعيل الباقة مجاناً', data: { trialDays: 7, trialEndDate: trialEndDate.toISOString() } });
+    res.json({ success: true, message: 'تم تفعيل الباقة مجاناً', data: { trialDays, trialEndDate: trialEndDate.toISOString() } });
   } catch (error) {
     console.error('[LP-ACTIVATE] Error:', error);
     res.status(500).json({ success: false, message: 'خطأ أثناء التفعيل المجاني' });

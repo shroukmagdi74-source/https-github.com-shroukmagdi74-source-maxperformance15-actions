@@ -1,3 +1,4 @@
+// DEAD FILE — legacy verify schema
 model Company {
   id                              String                           @id
   name                            String

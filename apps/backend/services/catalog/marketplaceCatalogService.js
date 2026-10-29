@@ -135,6 +135,7 @@ class MarketplaceCatalogService {
       nameEn: bundle.nameEn || null,
       description: String(bundle.description || ""),
       monthlyPrice: Number(bundle.monthlyPrice || 0),
+      trialDays: Number(bundle.trialDays ?? 7),
       yearlyPrice: bundle.yearlyPrice === null || bundle.yearlyPrice === undefined ? null : Number(bundle.yearlyPrice),
       discount: Number(bundle.discount || 0),
       isActive: Boolean(bundle.isActive),
