@@ -1,8 +1,8 @@
 # تقرير إنجاز التيكت — STUDIO-REG-1: إصلاح اختبار المحرر القديم + حرس انحدار
 
 **التاريخ:** 2026-10-29 · **الريبو:** `C:\maxp-platform-13` · **الأولوية:** 🟠 P1 · **الحالة:** تم ✅ (مع بند متابعة واحد مفتوح — القسم 8)
-**Commit SHA:** `6fe3105133f6de64017fe97be8f2935d9dee004f`
-**CI Run:** `studio-tests` → [run 40802706232](https://github.com/shroukmagdi74-source/https-github.com-shroukmagdi74-source-maxperformance15-actions/actions/runs/40802706232)
+**Commit SHA:** `82c0eaf22ffc83f1e56337bf6d63acffe5a7687d` (الأساس: `6fe310513` + تثبيت استيراد الـsetup + تقرير)
+**CI Run:** `studio-tests` → [run 40803376902](https://github.com/shroukmagdi74-source/https-github.com-shroukmagdi74-source-maxperformance15-actions/actions/runs/40803376902) ✅ (والـrun السابق `40802706232` ✅)
 
 ---
 
