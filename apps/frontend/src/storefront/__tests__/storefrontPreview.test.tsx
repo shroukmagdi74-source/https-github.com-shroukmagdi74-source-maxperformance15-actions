@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { cleanup, configure, render, screen, waitFor } from "@testing-library/react";
@@ -29,13 +29,13 @@ import { formatStorefrontCurrency } from "../utils/currency";
  * Measured on this suite: a marketplace preview resolves its settings through
  * `buildPreviewStorefrontSettingsFallback` (two dynamic imports) and then the
  * runtime theme resolver loads the theme asset before the shell can paint.
- * Time-to-preview-banner measured here: ~1.0s warm and ~3.6s on the first case
- * of a worker (cold module graph). The 1s default therefore failed on timing,
+ * Time-to-preview-banner measured here: ~1.0s warm and ~3.5-5.5s on the first
+ * case of a worker (cold module graph, worse under parallel load). The 1s default failed on timing,
  * not on behaviour — every case below was verified to render the expected DOM
  * once given a realistic budget (banner link, seeded BiteRush/cafe carts,
  * split-panel hero copy). Assertions are unchanged; only the polling window is.
  */
-const PREVIEW_ASYNC_TIMEOUT = 5000;
+const PREVIEW_ASYNC_TIMEOUT = 8000;
 
 const createQueryClient = () =>
   new QueryClient({
@@ -48,6 +48,23 @@ const createQueryClient = () =>
   });
 
 describe("Storefront preview mode", () => {
+  // PREVIEW-1 — warm the preview module graph once per file. The first case of a
+  // worker used to pay ~3.6s just transforming/importing the preview banner,
+  // the theme presets and the marketplace sample data, which made the first
+  // assertion race its own budget on slower machines/CI.
+  beforeAll(async () => {
+    // A marketplace preview case costs 0.3-2.5s of pipeline plus the DOM work,
+    // and vitest's 5s per-test default is hit under load (measured: 5.2s).
+    // Give the cases room to finish their assertions instead of dying mid-await.
+    vi.setConfig({ testTimeout: 30000 });
+    await Promise.all([
+      import("../components/preview/StorefrontPreviewBanner"),
+      import("../preview/marketplaceSampleData"),
+      import("../preview/marketplacePreviewCart"),
+      import("../themes"),
+    ]);
+  });
+
   beforeEach(() => {
     configure({ asyncUtilTimeout: PREVIEW_ASYNC_TIMEOUT });
     localStorage.clear();
