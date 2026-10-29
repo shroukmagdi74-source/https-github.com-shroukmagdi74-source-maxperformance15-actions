@@ -1086,7 +1086,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             </div>
 
             {/* AI BRIEF (وصف الذكاء الاصطناعي) */}
-            {task.aiDescription ? (
+            {task.aiDescription || (canEditTask && onEdit) ? (
               <div
                 style={{
                   ...drawerStyles.cardSection,
@@ -1130,17 +1130,38 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     AI
                   </span>
                 </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    lineHeight: 1.6,
-                    color: 'var(--text-secondary)',
-                    whiteSpace: 'pre-wrap',
-                    fontFamily: 'monospace',
-                  }}
-                >
-                  {task.aiDescription}
-                </div>
+                {task.aiDescription ? (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      color: 'var(--text-secondary)',
+                      whiteSpace: 'pre-wrap',
+                      unicodeBidi: 'plaintext',
+                    }}
+                  >
+                    {task.aiDescription}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onEdit && onEdit(task)}
+                    aria-label="إضافة وصف الذكاء الاصطناعي"
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: 6,
+                      border: '1px dashed rgba(168, 85, 247, 0.4)',
+                      background: 'transparent',
+                      color: '#c084fc',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + إضافة وصف AI
+                  </button>
+                )}
               </div>
             ) : null}
 

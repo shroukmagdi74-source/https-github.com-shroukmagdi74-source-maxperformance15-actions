@@ -24,6 +24,7 @@ interface TaskCockpitMainContentProps {
   serverUrl?: string;
   onOpenImage?: (imgUrl: string) => void;
   onUpdateCriteria?: (updatedItems: any[], allCompleted: boolean) => Promise<void>;
+  onEdit?: (task: any) => void;
 }
 
 export const TaskCockpitMainContent: React.FC<TaskCockpitMainContentProps> = ({
@@ -34,6 +35,7 @@ export const TaskCockpitMainContent: React.FC<TaskCockpitMainContentProps> = ({
   serverUrl = 'https://maxp.online',
   onOpenImage,
   onUpdateCriteria,
+  onEdit,
 }) => {
   const [activeBottomTab, setActiveBottomTab] = useState<'comments' | 'activity'>('comments');
   const [copiedTitle, setCopiedTitle] = useState(false);
@@ -170,7 +172,7 @@ export const TaskCockpitMainContent: React.FC<TaskCockpitMainContentProps> = ({
       )}
 
       {/* 6. AI Brief (سياق الذكاء الاصطناعي) */}
-      {task.aiDescription && (
+      {(task.aiDescription || (canEditTask && onEdit)) && (
         <div style={styles.aiBriefCard}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-primary)' }}>
@@ -178,7 +180,28 @@ export const TaskCockpitMainContent: React.FC<TaskCockpitMainContentProps> = ({
             </span>
             <span style={styles.aiChip}>AI Prompt</span>
           </div>
-          <div style={styles.aiContent}>{task.aiDescription}</div>
+          {task.aiDescription ? (
+            <div style={styles.aiContent}>{task.aiDescription}</div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onEdit && onEdit(task)}
+              aria-label="إضافة وصف الذكاء الاصطناعي"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 6,
+                border: '1px dashed rgba(168, 85, 247, 0.4)',
+                background: 'transparent',
+                color: '#c084fc',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              + إضافة وصف AI
+            </button>
+          )}
         </div>
       )}
 

@@ -124,6 +124,7 @@ export const TaskCockpitPage: React.FC<TaskCockpitPageProps> = ({
       <div style={styles.workspaceBody}>
         {/* 70% Core Execution Canvas */}
         <TaskCockpitMainContent
+          onEdit={onEdit}
           task={task}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
