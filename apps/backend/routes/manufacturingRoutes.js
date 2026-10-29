@@ -174,6 +174,17 @@ router.get('/sample-orders/:id/payments', controller.listSamplePayments);
 router.post('/sample-orders/:id/payments', controller.createSamplePayment);
 router.delete('/sample-orders/:id/payments/:paymentId', controller.deleteSamplePayment);
 
+// كتالوج المصاريف المتكررة (T07)
+router.get('/sample-expense-catalog', controller.listExpenseCatalog);
+router.post('/sample-expense-catalog', controller.createExpenseCatalogItem);
+router.patch('/sample-expense-catalog/:id', controller.updateExpenseCatalogItem);
+router.delete('/sample-expense-catalog/:id', controller.archiveExpenseCatalogItem);
+
+// مصاريف العينة
+router.post('/sample-orders/:id/expenses', controller.addSampleExpense);
+router.patch('/sample-orders/:id/expenses/:expenseId', controller.updateSampleExpense);
+router.delete('/sample-orders/:id/expenses/:expenseId', controller.deleteSampleExpense);
+
 
 // ============================================================================
 // 10. Standard Production Stage Templates & Sets (مكتبة مراحل الإنتاج القياسية) (Wave 6)

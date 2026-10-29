@@ -21,6 +21,14 @@ const ManufacturingService = require('./manufacturingService');
 
 const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
 
+const normalizeExpenseName = (v) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, 100);
+const normalizeAmount = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0 || n > 10000000) return null;
+  return round2(n);
+};
+
 const httpErr = (code, msg) => {
   const e = new Error(msg);
   e.statusCode = code;
@@ -65,27 +73,25 @@ class ManufacturingSampleService {
    * Idempotent runtime DDL guard for PostgreSQL
    */
   static async ensureSchema() {
+    if (this._schemaEnsured) return;
     try {
       const prisma = getSharedPrismaClient();
       if (!prisma.$executeRawUnsafe) return;
 
-      await prisma.$executeRawUnsafe(`
-        DO $$ BEGIN
+      const stmts = [
+        `DO $$ BEGIN
           CREATE TYPE "SampleOrderStatus" AS ENUM ('DRAFT', 'IN_PROGRESS', 'APPROVED', 'REJECTED', 'CONVERTED');
         EXCEPTION WHEN duplicate_object THEN null;
-        END $$;
-
-        DO $$ BEGIN
+        END $$;`,
+        `DO $$ BEGIN
           CREATE TYPE "SampleMaterialSource" AS ENUM ('CUSTOMER', 'COMPANY');
         EXCEPTION WHEN duplicate_object THEN null;
-        END $$;
-
-        DO $$ BEGIN
+        END $$;`,
+        `DO $$ BEGIN
           CREATE TYPE "SampleFileKind" AS ENUM ('IMAGE', 'PDF', 'OTHER');
         EXCEPTION WHEN duplicate_object THEN null;
-        END $$;
-
-        CREATE TABLE IF NOT EXISTS "sample_orders" (
+        END $$;`,
+        `CREATE TABLE IF NOT EXISTS "sample_orders" (
           "id" TEXT PRIMARY KEY,
           "companyId" TEXT NOT NULL,
           "sampleNumber" TEXT NOT NULL,
@@ -109,15 +115,13 @@ class ManufacturingSampleService {
           "createdById" TEXT,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE UNIQUE INDEX IF NOT EXISTS "sample_orders_companyId_sampleNumber_key" ON "sample_orders"("companyId", "sampleNumber");
-        CREATE INDEX IF NOT EXISTS "sample_orders_companyId_status_idx" ON "sample_orders"("companyId", "status");
-        CREATE INDEX IF NOT EXISTS "sample_orders_companyId_customerId_idx" ON "sample_orders"("companyId", "customerId");
-        CREATE INDEX IF NOT EXISTS "sample_orders_companyId_productId_idx" ON "sample_orders"("companyId", "productId");
-        CREATE INDEX IF NOT EXISTS "sample_orders_companyId_convertedOrderId_idx" ON "sample_orders"("companyId", "convertedOrderId");
-
-        CREATE TABLE IF NOT EXISTS "sample_order_stages" (
+        );`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS "sample_orders_companyId_sampleNumber_key" ON "sample_orders"("companyId", "sampleNumber");`,
+        `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_status_idx" ON "sample_orders"("companyId", "status");`,
+        `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_customerId_idx" ON "sample_orders"("companyId", "customerId");`,
+        `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_productId_idx" ON "sample_orders"("companyId", "productId");`,
+        `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_convertedOrderId_idx" ON "sample_orders"("companyId", "convertedOrderId");`,
+        `CREATE TABLE IF NOT EXISTS "sample_order_stages" (
           "id" TEXT PRIMARY KEY,
           "sampleOrderId" TEXT NOT NULL,
           "name" TEXT NOT NULL,
@@ -131,12 +135,10 @@ class ManufacturingSampleService {
           "completedAt" TIMESTAMP(3),
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE INDEX IF NOT EXISTS "sample_order_stages_sampleOrderId_idx" ON "sample_order_stages"("sampleOrderId");
-        CREATE INDEX IF NOT EXISTS "sample_order_stages_sampleOrderId_sequence_idx" ON "sample_order_stages"("sampleOrderId", "sequence");
-
-        CREATE TABLE IF NOT EXISTS "sample_order_attachments" (
+        );`,
+        `CREATE INDEX IF NOT EXISTS "sample_order_stages_sampleOrderId_idx" ON "sample_order_stages"("sampleOrderId");`,
+        `CREATE INDEX IF NOT EXISTS "sample_order_stages_sampleOrderId_sequence_idx" ON "sample_order_stages"("sampleOrderId", "sequence");`,
+        `CREATE TABLE IF NOT EXISTS "sample_order_attachments" (
           "id" TEXT PRIMARY KEY,
           "sampleOrderId" TEXT NOT NULL,
           "fileName" TEXT NOT NULL,
@@ -144,22 +146,18 @@ class ManufacturingSampleService {
           "kind" "SampleFileKind" NOT NULL DEFAULT 'IMAGE',
           "uploadedBy" TEXT,
           "uploadedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE INDEX IF NOT EXISTS "sample_order_attachments_sampleOrderId_idx" ON "sample_order_attachments"("sampleOrderId");
-
-        ALTER TABLE "production_orders" ADD COLUMN IF NOT EXISTS "sourceSampleOrderId" TEXT;
-        CREATE INDEX IF NOT EXISTS "production_orders_companyId_sourceSampleOrderId_idx" ON "production_orders"("companyId", "sourceSampleOrderId");
-
-        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "partnerFactoryId" TEXT;
-        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "expectedDeliveryAt" TIMESTAMP(3);
-        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "totalAmount" DECIMAL(12,2);
-        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "depositAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;
-        ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "paidAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;
-        CREATE INDEX IF NOT EXISTS "sample_orders_companyId_partnerFactoryId_idx" ON "sample_orders"("companyId","partnerFactoryId");
-        CREATE INDEX IF NOT EXISTS "sample_orders_companyId_expectedDeliveryAt_idx" ON "sample_orders"("companyId","expectedDeliveryAt");
-
-        CREATE TABLE IF NOT EXISTS "sample_payments" (
+        );`,
+        `CREATE INDEX IF NOT EXISTS "sample_order_attachments_sampleOrderId_idx" ON "sample_order_attachments"("sampleOrderId");`,
+        `ALTER TABLE "production_orders" ADD COLUMN IF NOT EXISTS "sourceSampleOrderId" TEXT;`,
+        `CREATE INDEX IF NOT EXISTS "production_orders_companyId_sourceSampleOrderId_idx" ON "production_orders"("companyId", "sourceSampleOrderId");`,
+        `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "partnerFactoryId" TEXT;`,
+        `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "expectedDeliveryAt" TIMESTAMP(3);`,
+        `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "totalAmount" DECIMAL(12,2);`,
+        `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "depositAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;`,
+        `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "paidAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;`,
+        `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_partnerFactoryId_idx" ON "sample_orders"("companyId","partnerFactoryId");`,
+        `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_expectedDeliveryAt_idx" ON "sample_orders"("companyId","expectedDeliveryAt");`,
+        `CREATE TABLE IF NOT EXISTS "sample_payments" (
           "id" TEXT PRIMARY KEY,
           "companyId" TEXT NOT NULL,
           "sampleOrderId" TEXT NOT NULL,
@@ -172,12 +170,104 @@ class ManufacturingSampleService {
           "createdById" TEXT,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS "sample_payments_sampleOrderId_paidAt_idx" ON "sample_payments"("sampleOrderId","paidAt");
-        CREATE INDEX IF NOT EXISTS "sample_payments_companyId_paidAt_idx" ON "sample_payments"("companyId","paidAt");
-      `);
+        );`,
+        `CREATE INDEX IF NOT EXISTS "sample_payments_sampleOrderId_paidAt_idx" ON "sample_payments"("sampleOrderId","paidAt");`,
+        `CREATE INDEX IF NOT EXISTS "sample_payments_companyId_paidAt_idx" ON "sample_payments"("companyId","paidAt");`,
+        `CREATE TABLE IF NOT EXISTS "sample_expense_catalog" (
+          "id" TEXT PRIMARY KEY,
+          "companyId" TEXT NOT NULL,
+          "name" TEXT NOT NULL,
+          "defaultAmount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+          "isActive" BOOLEAN NOT NULL DEFAULT true,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS "sample_expense_catalog_companyId_name_key" ON "sample_expense_catalog"("companyId","name");`,
+        `CREATE INDEX IF NOT EXISTS "sample_expense_catalog_companyId_isActive_idx" ON "sample_expense_catalog"("companyId","isActive");`,
+        `CREATE TABLE IF NOT EXISTS "sample_order_expenses" (
+          "id" TEXT PRIMARY KEY,
+          "sampleOrderId" TEXT NOT NULL REFERENCES "sample_orders"("id") ON DELETE CASCADE,
+          "catalogId" TEXT REFERENCES "sample_expense_catalog"("id") ON DELETE SET NULL,
+          "name" TEXT NOT NULL,
+          "amount" DECIMAL(10,2) NOT NULL DEFAULT 0,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );`,
+        `CREATE INDEX IF NOT EXISTS "sample_order_expenses_sampleOrderId_idx" ON "sample_order_expenses"("sampleOrderId");`,
+        `CREATE INDEX IF NOT EXISTS "sample_order_expenses_catalogId_idx" ON "sample_order_expenses"("catalogId");`
+      ];
+
+      for (const stmt of stmts) {
+        try {
+          await prisma.$executeRawUnsafe(stmt);
+        } catch (e) {
+          // ignore individual duplicate/exists errors
+        }
+      }
+      this._schemaEnsured = true;
     } catch (err) {
       // In SQLite/test mock environments, silently ignore
+    }
+  }
+
+  /**
+   * إجماليات العينة: fee (يدوي) + مجموع المصاريف snapshot.
+   * ملاحظة T08: componentsTotal هيتضاف هنا — الكود ده جاهز ليه (Array.isArray guard).
+   */
+  static decorateTotals(sample) {
+    if (!sample) return sample;
+    const expenses = Array.isArray(sample.expenses) ? sample.expenses : [];
+    const components = Array.isArray(sample.components) ? sample.components : [];
+    const expensesTotal = round2(expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0));
+    const componentsTotal = round2(components.reduce((s, c) => s + (Number(c.totalCost) || 0), 0));
+    const baseFee = round2(sample.fee || 0);
+    return {
+      ...sample,
+      expensesTotal,
+      componentsTotal,
+      totalCost: round2(baseFee + expensesTotal + componentsTotal),
+    };
+  }
+
+  /**
+   * مزامنة بنود مصاريف العينة (snapshot + حفظ تلقائي في الكتالوج)
+   */
+  static async syncSampleExpenses(tx, companyId, sampleId, incomingExpenses) {
+    if (!Array.isArray(incomingExpenses)) return;
+    for (const ex of incomingExpenses) {
+      const exName = normalizeExpenseName(ex.name);
+
+      let catalogId = ex.catalogId ? String(ex.catalogId) : null;
+      let catalogRow = null;
+      if (catalogId) {
+        catalogRow = await tx.sampleExpenseCatalog.findFirst({ where: { id: catalogId, companyId } });
+        if (!catalogRow) catalogId = null;
+      }
+
+      const finalName = exName || normalizeExpenseName(catalogRow?.name);
+      const hasAmount = ex.amount !== undefined && ex.amount !== null && ex.amount !== '';
+      const amountSource = hasAmount
+        ? ex.amount
+        : (catalogRow ? catalogRow.defaultAmount : ex.defaultAmount);
+      const exAmount = normalizeAmount(amountSource);
+
+      if (!finalName || exAmount === null) {
+        const err = new Error('اسم المصروف ومبلغه مطلوبان (المبلغ رقم ≥ 0)');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (!catalogId && ex.saveToCatalog !== false) {
+        const existing = await tx.sampleExpenseCatalog.findFirst({ where: { companyId, name: finalName } });
+        const cat = existing || await tx.sampleExpenseCatalog.create({
+          data: { companyId, name: finalName, defaultAmount: exAmount },
+        });
+        catalogId = cat.id;
+      }
+
+      await tx.sampleOrderExpense.create({
+        data: { sampleOrderId: sampleId, catalogId, name: finalName, amount: exAmount },
+      });
     }
   }
 
@@ -263,6 +353,7 @@ class ManufacturingSampleService {
             partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
             customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
             bom: { select: { id: true, code: true, name: true } },
+            expenses: { orderBy: { createdAt: 'asc' } },
           },
           orderBy: { createdAt: 'desc' },
           skip,
@@ -279,6 +370,7 @@ class ManufacturingSampleService {
               stages: { orderBy: { sequence: 'asc' } },
               attachments: { orderBy: { uploadedAt: 'desc' } },
               customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+              expenses: { orderBy: { createdAt: 'asc' } },
             },
             orderBy: { createdAt: 'desc' },
             skip,
@@ -325,14 +417,14 @@ class ManufacturingSampleService {
     const enrichedItems = items.map((s) => {
       const received = s.sampleReceived === true;
       const overdueDays = overdueDaysOf(s, received);
-      return {
+      return this.decorateTotals({
         ...s,
         bom: s.bom || (s.bomId ? bomMap[s.bomId] || null : null),
         convertedOrder: s.convertedOrderId ? orderMap[s.convertedOrderId] || null : null,
         remaining: remainingOf(s),
         isOverdue: overdueDays > 0,
         overdueDays,
-      };
+      });
     });
 
     return {
@@ -364,6 +456,7 @@ class ManufacturingSampleService {
           payments: { orderBy: { paidAt: 'desc' } },
           customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
           bom: { select: { id: true, code: true, name: true } },
+          expenses: { orderBy: { createdAt: 'asc' } },
         },
       });
     } catch (err) {
@@ -376,6 +469,7 @@ class ManufacturingSampleService {
             partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
             payments: { orderBy: { paidAt: 'desc' } },
             customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+            expenses: { orderBy: { createdAt: 'asc' } },
           },
         });
       } else {
@@ -408,13 +502,13 @@ class ManufacturingSampleService {
 
     const received = sample.sampleReceived === true;
     const overdueDays = overdueDaysOf(sample, received);
-    return {
+    return this.decorateTotals({
       ...sample,
       convertedOrder,
       remaining: remainingOf(sample),
       isOverdue: overdueDays > 0,
       overdueDays,
-    };
+    });
   }
 
   /**
@@ -468,6 +562,7 @@ class ManufacturingSampleService {
     }
 
     // Retry loop for atomic sequence collision protection
+    const incomingExpenses = Array.isArray(data.expenses) ? data.expenses : [];
     let attempts = 0;
     while (attempts < 5) {
       try {
@@ -539,6 +634,9 @@ class ManufacturingSampleService {
             await tx.sampleOrder.update({ where: { id: sample.id }, data: { paidAmount: paid } });
           }
 
+          // مزامنة مصاريف العينة (T07)
+          await this.syncSampleExpenses(tx, companyId, sample.id, incomingExpenses);
+
           let createdRecord;
           try {
             createdRecord = await tx.sampleOrder.findFirst({
@@ -550,6 +648,7 @@ class ManufacturingSampleService {
                 payments: { orderBy: { paidAt: 'desc' } },
                 customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
                 bom: { select: { id: true, code: true, name: true } },
+                expenses: { orderBy: { createdAt: 'asc' } },
               },
             });
           } catch (err) {
@@ -562,6 +661,7 @@ class ManufacturingSampleService {
                   partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
                   payments: { orderBy: { paidAt: 'desc' } },
                   customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+                  expenses: { orderBy: { createdAt: 'asc' } },
                 },
               });
             } else {
@@ -578,12 +678,12 @@ class ManufacturingSampleService {
           }
           const received = createdRecord.sampleReceived === true;
           const overdueDays = overdueDaysOf(createdRecord, received);
-          return {
+          return this.decorateTotals({
             ...createdRecord,
             remaining: remainingOf(createdRecord),
             isOverdue: overdueDays > 0,
             overdueDays,
-          };
+          });
         });
       } catch (err) {
         if (err.code === 'P2002' && attempts < 5) {
@@ -682,22 +782,14 @@ class ManufacturingSampleService {
     if (data.designNotes !== undefined) updateData.designNotes = data.designNotes ? String(data.designNotes).trim() : null;
 
     let updatedRecord;
-    try {
-      updatedRecord = await prisma.sampleOrder.update({
-        where: { id },
-        data: updateData,
-        include: {
-          stages: { orderBy: { sequence: 'asc' } },
-          attachments: true,
-          partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
-          payments: { orderBy: { paidAt: 'desc' } },
-          customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
-          bom: { select: { id: true, code: true, name: true } },
-        },
-      });
-    } catch (err) {
-      if (err.message && err.message.includes("Unknown field 'bom'")) {
-        updatedRecord = await prisma.sampleOrder.update({
+    return await prisma.$transaction(async (tx) => {
+      if (data.expenses !== undefined) {
+        await tx.sampleOrderExpense.deleteMany({ where: { sampleOrderId: id } });
+        await this.syncSampleExpenses(tx, companyId, id, data.expenses);
+      }
+
+      try {
+        updatedRecord = await tx.sampleOrder.update({
           where: { id },
           data: updateData,
           include: {
@@ -706,30 +798,47 @@ class ManufacturingSampleService {
             partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
             payments: { orderBy: { paidAt: 'desc' } },
             customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+            bom: { select: { id: true, code: true, name: true } },
+            expenses: { orderBy: { createdAt: 'asc' } },
           },
         });
-      } else {
-        throw err;
+      } catch (err) {
+        if (err.message && err.message.includes("Unknown field 'bom'")) {
+          updatedRecord = await tx.sampleOrder.update({
+            where: { id },
+            data: updateData,
+            include: {
+              stages: { orderBy: { sequence: 'asc' } },
+              attachments: true,
+              partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+              payments: { orderBy: { paidAt: 'desc' } },
+              customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+              expenses: { orderBy: { createdAt: 'asc' } },
+            },
+          });
+        } else {
+          throw err;
+        }
       }
-    }
 
-    if (updatedRecord?.bomId && !updatedRecord.bom) {
-      try {
-        updatedRecord.bom = await prisma.billOfMaterials.findFirst({
-          where: { id: updatedRecord.bomId, companyId },
-          select: { id: true, code: true, name: true },
-        });
-      } catch (_) {}
-    }
+      if (updatedRecord?.bomId && !updatedRecord.bom) {
+        try {
+          updatedRecord.bom = await tx.billOfMaterials.findFirst({
+            where: { id: updatedRecord.bomId, companyId },
+            select: { id: true, code: true, name: true },
+          });
+        } catch (_) {}
+      }
 
-    const received = updatedRecord.sampleReceived === true;
-    const overdueDays = overdueDaysOf(updatedRecord, received);
-    return {
-      ...updatedRecord,
-      remaining: remainingOf(updatedRecord),
-      isOverdue: overdueDays > 0,
-      overdueDays,
-    };
+      const received = updatedRecord.sampleReceived === true;
+      const overdueDays = overdueDaysOf(updatedRecord, received);
+      return this.decorateTotals({
+        ...updatedRecord,
+        remaining: remainingOf(updatedRecord),
+        isOverdue: overdueDays > 0,
+        overdueDays,
+      });
+    });
   }
 
   /**
@@ -756,6 +865,9 @@ class ManufacturingSampleService {
     }
 
     await prisma.$transaction(async (tx) => {
+      if (tx.sampleOrderExpense) {
+        await tx.sampleOrderExpense.deleteMany({ where: { sampleOrderId: id } });
+      }
       await tx.sampleOrderStage.deleteMany({ where: { sampleOrderId: id } });
       await tx.sampleOrderAttachment.deleteMany({ where: { sampleOrderId: id } });
       await tx.sampleOrder.delete({ where: { id } });
@@ -932,7 +1044,7 @@ class ManufacturingSampleService {
 
     const resultNotes = data.resultNotes ? String(data.resultNotes).trim() : sample.resultNotes;
 
-    return await prisma.sampleOrder.update({
+    const updated = await prisma.sampleOrder.update({
       where: { id },
       data: {
         status: 'APPROVED',
@@ -941,8 +1053,10 @@ class ManufacturingSampleService {
       include: {
         stages: { orderBy: { sequence: 'asc' } },
         attachments: true,
+        expenses: { orderBy: { createdAt: 'asc' } },
       },
     });
+    return this.decorateTotals(updated);
   }
 
   /**
@@ -974,7 +1088,7 @@ class ManufacturingSampleService {
       throw err;
     }
 
-    return await prisma.sampleOrder.update({
+    const updated = await prisma.sampleOrder.update({
       where: { id },
       data: {
         status: 'REJECTED',
@@ -983,8 +1097,10 @@ class ManufacturingSampleService {
       include: {
         stages: { orderBy: { sequence: 'asc' } },
         attachments: true,
+        expenses: { orderBy: { createdAt: 'asc' } },
       },
     });
+    return this.decorateTotals(updated);
   }
 
   /**
@@ -998,6 +1114,7 @@ class ManufacturingSampleService {
       where: { id, companyId },
       include: {
         stages: { orderBy: { sequence: 'asc' } },
+        expenses: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -1080,6 +1197,7 @@ class ManufacturingSampleService {
       include: {
         stages: { orderBy: { sequence: 'asc' } },
         attachments: true,
+        expenses: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -1087,10 +1205,10 @@ class ManufacturingSampleService {
       success: true,
       message: 'تم تحويل العينة بنجاح إلى أمر تصنيع',
       order: createdOrder,
-      sampleOrder: {
+      sampleOrder: this.decorateTotals({
         ...updatedSample,
         convertedOrder: createdOrder,
-      },
+      }),
     };
   }
 
@@ -1165,17 +1283,11 @@ class ManufacturingSampleService {
         partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
         payments: { orderBy: { paidAt: 'desc' } },
         customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        expenses: { orderBy: { createdAt: 'asc' } },
       },
     });
 
-    const received = updated.sampleReceived === true;
-    const overdueDays = overdueDaysOf(updated, received);
-    return {
-      ...updated,
-      remaining: remainingOf(updated),
-      isOverdue: overdueDays > 0,
-      overdueDays,
-    };
+    return this.decorateTotals(updated);
   }
 
   /**
@@ -1250,17 +1362,11 @@ class ManufacturingSampleService {
           partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
           payments: { orderBy: { paidAt: 'desc' } },
           customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          expenses: { orderBy: { createdAt: 'asc' } },
         },
       });
 
-      const received = updated.sampleReceived === true;
-      const overdueDays = overdueDaysOf(updated, received);
-      return {
-        ...updated,
-        remaining: remainingOf(updated),
-        isOverdue: overdueDays > 0,
-        overdueDays,
-      };
+      return this.decorateTotals(updated);
     });
   }
 
@@ -1302,17 +1408,11 @@ class ManufacturingSampleService {
           partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
           payments: { orderBy: { paidAt: 'desc' } },
           customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          expenses: { orderBy: { createdAt: 'asc' } },
         },
       });
 
-      const received = updated.sampleReceived === true;
-      const overdueDays = overdueDaysOf(updated, received);
-      return {
-        ...updated,
-        remaining: remainingOf(updated),
-        isOverdue: overdueDays > 0,
-        overdueDays,
-      };
+      return this.decorateTotals(updated);
     });
   }
 
@@ -1332,6 +1432,209 @@ class ManufacturingSampleService {
       where: { sampleOrderId: id, companyId },
       orderBy: { paidAt: 'desc' },
     });
+  }
+
+  // ==========================================================================
+  // T07: Recurring Expenses Catalog & Order Expenses
+  // ==========================================================================
+
+  // ===== كتالوج المصاريف المتكررة =====
+
+  static async listExpenseCatalog(companyId, query = {}) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+    const includeInactive = String(query.includeInactive || '') === '1' || query.includeInactive === true || String(query.includeInactive) === 'true';
+    return await prisma.sampleExpenseCatalog.findMany({
+      where: { companyId, ...(includeInactive ? {} : { isActive: true }) },
+      orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  static async createExpenseCatalogItem(companyId, data = {}) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+    const name = normalizeExpenseName(data.name);
+    const amount = normalizeAmount(data.defaultAmount);
+    if (!name) { const e = new Error('اسم المصروف إلزامي'); e.statusCode = 400; throw e; }
+    if (amount === null) { const e = new Error('السعر الافتراضي لازم يكون رقم ≥ 0'); e.statusCode = 400; throw e; }
+    const dup = await prisma.sampleExpenseCatalog.findFirst({ where: { companyId, name } });
+    if (dup) { const e = new Error('اسم المصروف موجود بالفعل في الكتالوج'); e.statusCode = 409; throw e; }
+    return await prisma.sampleExpenseCatalog.create({ data: { companyId, name, defaultAmount: amount } });
+  }
+
+  static async updateExpenseCatalogItem(companyId, id, data = {}) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+    const item = await prisma.sampleExpenseCatalog.findFirst({ where: { id, companyId } });
+    if (!item) { const e = new Error('بند المصروف غير موجود'); e.statusCode = 404; throw e; }
+    const patch = {};
+    if (data.name !== undefined) {
+      const name = normalizeExpenseName(data.name);
+      if (!name) { const e = new Error('اسم المصروف إلزامي'); e.statusCode = 400; throw e; }
+      const dup = await prisma.sampleExpenseCatalog.findFirst({ where: { companyId, name, id: { not: id } } });
+      if (dup) { const e = new Error('اسم المصروف موجود بالفعل في الكتالوج'); e.statusCode = 409; throw e; }
+      patch.name = name;
+    }
+    if (data.defaultAmount !== undefined) {
+      const amount = normalizeAmount(data.defaultAmount);
+      if (amount === null) { const e = new Error('السعر الافتراضي لازم يكون رقم ≥ 0'); e.statusCode = 400; throw e; }
+      patch.defaultAmount = amount;
+    }
+    if (data.isActive !== undefined) patch.isActive = Boolean(data.isActive);
+    return await prisma.sampleExpenseCatalog.update({ where: { id }, data: patch });
+  }
+
+  static async archiveExpenseCatalogItem(companyId, id) {
+    // soft delete: البنود القديمة بتفضل مرتبطة (catalogId)، والكتالوج بيخفيها
+    return await this.updateExpenseCatalogItem(companyId, id, { isActive: false });
+  }
+
+  // ===== مصاريف العينة =====
+
+  static async addSampleExpense(companyId, user, sampleId, data = {}) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+
+    const sample = await prisma.sampleOrder.findFirst({
+      where: { id: sampleId, companyId },
+    });
+    if (!sample) {
+      const err = new Error('أمر العينة غير موجود');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (sample.status === 'CONVERTED') {
+      const err = new Error('لا يمكن إضافة مصاريف لعينة تم تحويلها بالفعل');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const exName = normalizeExpenseName(data.name);
+    let catalogId = data.catalogId ? String(data.catalogId) : null;
+    let catalogRow = null;
+    if (catalogId) {
+      catalogRow = await prisma.sampleExpenseCatalog.findFirst({ where: { id: catalogId, companyId } });
+      if (!catalogRow) catalogId = null;
+    }
+
+    const finalName = exName || normalizeExpenseName(catalogRow?.name);
+    const hasAmount = data.amount !== undefined && data.amount !== null && data.amount !== '';
+    const amountSource = hasAmount
+      ? data.amount
+      : (catalogRow ? catalogRow.defaultAmount : data.defaultAmount);
+    const exAmount = normalizeAmount(amountSource);
+
+    if (!finalName || exAmount === null) {
+      const err = new Error('اسم المصروف ومبلغه مطلوبان (المبلغ رقم ≥ 0)');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (!catalogId && data.saveToCatalog !== false) {
+      const existing = await prisma.sampleExpenseCatalog.findFirst({ where: { companyId, name: finalName } });
+      const cat = existing || await prisma.sampleExpenseCatalog.create({
+        data: { companyId, name: finalName, defaultAmount: exAmount },
+      });
+      catalogId = cat.id;
+    }
+
+    const expense = await prisma.sampleOrderExpense.create({
+      data: {
+        sampleOrderId: sampleId,
+        catalogId,
+        name: finalName,
+        amount: exAmount,
+      },
+    });
+
+    return expense;
+  }
+
+  static async updateSampleExpense(companyId, user, sampleId, expenseId, data = {}) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+
+    const sample = await prisma.sampleOrder.findFirst({
+      where: { id: sampleId, companyId },
+    });
+    if (!sample) {
+      const err = new Error('أمر العينة غير موجود');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (sample.status === 'CONVERTED') {
+      const err = new Error('لا يمكن تعديل مصاريف عينة تم تحويلها بالفعل');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const expense = await prisma.sampleOrderExpense.findFirst({
+      where: { id: expenseId, sampleOrderId: sampleId },
+    });
+    if (!expense) {
+      const err = new Error('بند المصروف غير موجود');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const patch = {};
+    if (data.name !== undefined) {
+      const name = normalizeExpenseName(data.name);
+      if (!name) {
+        const err = new Error('اسم المصروف إلزامي');
+        err.statusCode = 400;
+        throw err;
+      }
+      patch.name = name;
+    }
+    if (data.amount !== undefined) {
+      const amount = normalizeAmount(data.amount);
+      if (amount === null) {
+        const err = new Error('المبلغ لازم يكون رقم ≥ 0');
+        err.statusCode = 400;
+        throw err;
+      }
+      patch.amount = amount;
+    }
+
+    return await prisma.sampleOrderExpense.update({
+      where: { id: expenseId },
+      data: patch,
+    });
+  }
+
+  static async deleteSampleExpense(companyId, user, sampleId, expenseId) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+
+    const sample = await prisma.sampleOrder.findFirst({
+      where: { id: sampleId, companyId },
+    });
+    if (!sample) {
+      const err = new Error('أمر العينة غير موجود');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (sample.status === 'CONVERTED') {
+      const err = new Error('لا يمكن حذف مصاريف عينة تم تحويلها بالفعل');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const expense = await prisma.sampleOrderExpense.findFirst({
+      where: { id: expenseId, sampleOrderId: sampleId },
+    });
+    if (!expense) {
+      const err = new Error('بند المصروف غير موجود');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    await prisma.sampleOrderExpense.delete({
+      where: { id: expenseId },
+    });
+
+    return { success: true, message: 'تم حذف بند المصروف بنجاح' };
   }
 }
 

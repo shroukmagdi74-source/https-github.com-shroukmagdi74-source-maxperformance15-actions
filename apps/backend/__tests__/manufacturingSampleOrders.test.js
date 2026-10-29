@@ -31,6 +31,8 @@ function createInMemoryStore() {
     sampleOrders: new Map(),
     sampleStages: new Map(),
     sampleAttachments: new Map(),
+    sampleExpenseCatalogs: new Map(),
+    sampleOrderExpenses: new Map(),
     productionOrders: new Map(),
     boms: new Map(),
     counter: 0,
@@ -56,7 +58,9 @@ function createInMemoryStore() {
           .sort((a, b) => a.sequence - b.sequence);
         const attachments = Array.from(store.sampleAttachments.values())
           .filter((att) => att.sampleOrderId === item.id);
-        return { ...item, stages, attachments };
+        const expenses = Array.from(store.sampleOrderExpenses.values())
+          .filter((exp) => exp.sampleOrderId === item.id);
+        return { ...item, stages, attachments, expenses };
       },
       findMany: async ({ where, skip = 0, take = 50 } = {}) => {
         let items = Array.from(store.sampleOrders.values());
@@ -80,6 +84,7 @@ function createInMemoryStore() {
           ...s,
           stages: Array.from(store.sampleStages.values()).filter((st) => st.sampleOrderId === s.id),
           attachments: Array.from(store.sampleAttachments.values()).filter((att) => att.sampleOrderId === s.id),
+          expenses: Array.from(store.sampleOrderExpenses.values()).filter((exp) => exp.sampleOrderId === s.id),
         }));
       },
       count: async ({ where } = {}) => {
@@ -160,6 +165,74 @@ function createInMemoryStore() {
         for (const [id, att] of store.sampleAttachments.entries()) {
           if (att.sampleOrderId === where.sampleOrderId) {
             store.sampleAttachments.delete(id);
+          }
+        }
+      },
+    },
+    sampleExpenseCatalog: {
+      findFirst: async ({ where } = {}) => {
+        let items = Array.from(store.sampleExpenseCatalogs.values());
+        if (where?.companyId) items = items.filter((c) => c.companyId === where.companyId);
+        if (where?.id) items = items.filter((c) => c.id === where.id);
+        if (where?.name) items = items.filter((c) => c.name === where.name);
+        return items[0] || null;
+      },
+      findMany: async ({ where } = {}) => {
+        let items = Array.from(store.sampleExpenseCatalogs.values());
+        if (where?.companyId) items = items.filter((c) => c.companyId === where.companyId);
+        if (where?.isActive !== undefined) items = items.filter((c) => c.isActive === where.isActive);
+        return items;
+      },
+      create: async ({ data }) => {
+        const id = `cat-${++store.counter}`;
+        const record = { id, ...data, isActive: data.isActive !== undefined ? data.isActive : true, createdAt: new Date(), updatedAt: new Date() };
+        store.sampleExpenseCatalogs.set(id, record);
+        return record;
+      },
+      update: async ({ where, data }) => {
+        const item = store.sampleExpenseCatalogs.get(where.id);
+        if (!item) throw new Error('Not found');
+        const updated = { ...item, ...data, updatedAt: new Date() };
+        store.sampleExpenseCatalogs.set(where.id, updated);
+        return updated;
+      },
+    },
+    sampleOrderExpense: {
+      findFirst: async ({ where } = {}) => {
+        let items = Array.from(store.sampleOrderExpenses.values());
+        if (where?.id) items = items.filter((e) => e.id === where.id);
+        if (where?.sampleOrderId) items = items.filter((e) => e.sampleOrderId === where.sampleOrderId);
+        return items[0] || null;
+      },
+      findMany: async ({ where } = {}) => {
+        let items = Array.from(store.sampleOrderExpenses.values());
+        if (where?.sampleOrderId) items = items.filter((e) => e.sampleOrderId === where.sampleOrderId);
+        return items;
+      },
+      create: async ({ data }) => {
+        const id = `exp-${++store.counter}`;
+        const record = { id, ...data, createdAt: new Date(), updatedAt: new Date() };
+        store.sampleOrderExpenses.set(id, record);
+        return record;
+      },
+      update: async ({ where, data }) => {
+        const item = store.sampleOrderExpenses.get(where.id);
+        if (!item) throw new Error('Not found');
+        const updated = { ...item, ...data, updatedAt: new Date() };
+        store.sampleOrderExpenses.set(where.id, updated);
+        return updated;
+      },
+      delete: async ({ where }) => {
+        const item = store.sampleOrderExpenses.get(where.id);
+        store.sampleOrderExpenses.delete(where.id);
+        return item;
+      },
+      deleteMany: async ({ where } = {}) => {
+        if (where?.sampleOrderId) {
+          for (const [id, e] of store.sampleOrderExpenses.entries()) {
+            if (e.sampleOrderId === where.sampleOrderId) {
+              store.sampleOrderExpenses.delete(id);
+            }
           }
         }
       },
@@ -387,5 +460,65 @@ describe('Wave 5: Standalone Sample Orders & Conversion', () => {
     });
     expect(Array.isArray(list.items)).toBe(true);
     expect(list.items.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('5. Sample Recurring Expenses Catalog & Snapshot Costing (T07)', async () => {
+    // A) Create catalog item
+    const catItem = await ManufacturingSampleService.createExpenseCatalogItem(companyId, {
+      name: 'تطريز يدوي',
+      defaultAmount: 180,
+    });
+    expect(catItem.id).toBeDefined();
+    expect(catItem.name).toBe('تطريز يدوي');
+    expect(catItem.defaultAmount).toBe(180);
+
+    // B) Prevent duplicate catalog name (409)
+    await expect(
+      ManufacturingSampleService.createExpenseCatalogItem(companyId, {
+        name: 'تطريز يدوي',
+        defaultAmount: 200,
+      })
+    ).rejects.toThrow('موجود بالفعل');
+
+    // C) Create sample order with expenses
+    const sample = await ManufacturingSampleService.createSampleOrder(companyId, testUser, {
+      productName: 'عينة تي شيرت فاخر',
+      fee: 1000,
+      expenses: [
+        { catalogId: catItem.id, amount: 180 },
+        { name: 'شحن سريع', amount: 50 },
+      ],
+    });
+    expect(sample.expensesTotal).toBe(230);
+    expect(sample.totalCost).toBe(1230);
+    expect(sample.expenses.length).toBe(2);
+
+    // D) Update catalog item default amount - verify existing sample snapshot remains unchanged
+    await ManufacturingSampleService.updateExpenseCatalogItem(companyId, catItem.id, {
+      defaultAmount: 900,
+    });
+    const fetched = await ManufacturingSampleService.getSampleOrderById(companyId, sample.id);
+    expect(fetched.expensesTotal).toBe(230);
+    expect(fetched.totalCost).toBe(1230);
+    const emb = fetched.expenses.find((e) => e.name === 'تطريز يدوي');
+    expect(emb.amount).toBe(180);
+
+    // E) Add expense to existing sample
+    const newExp = await ManufacturingSampleService.addSampleExpense(companyId, testUser, sample.id, {
+      name: 'تغليف خاص',
+      amount: 40,
+    });
+    expect(newExp.name).toBe('تغليف خاص');
+    expect(newExp.amount).toBe(40);
+
+    // F) Delete expense from sample
+    await ManufacturingSampleService.deleteSampleExpense(companyId, testUser, sample.id, newExp.id);
+    const afterDelete = await ManufacturingSampleService.getSampleOrderById(companyId, sample.id);
+    expect(afterDelete.expensesTotal).toBe(230);
+    expect(afterDelete.totalCost).toBe(1230);
+
+    // G) Soft delete catalog item
+    const archived = await ManufacturingSampleService.archiveExpenseCatalogItem(companyId, catItem.id);
+    expect(archived.isActive).toBe(false);
   });
 });

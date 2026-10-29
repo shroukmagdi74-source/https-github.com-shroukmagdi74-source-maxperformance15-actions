@@ -771,6 +771,7 @@ model SampleOrder {
   shareLinks       SampleShareLink[]
   partnerFactory   PartnerFactory?      @relation(fields: [partnerFactoryId], references: [id], onDelete: SetNull)
   payments         SamplePayment[]
+  expenses         SampleOrderExpense[]
   customer         Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   bom              BillOfMaterials?     @relation(fields: [bomId], references: [id], onDelete: SetNull)
 
@@ -868,6 +869,44 @@ model SamplePayment {
   @@index([companyId, paidAt])
   @@map("sample_payments")
 }
+
+// ===== T07: Recurring Sample Expenses Catalog & Order Expenses =====
+
+/// كتالوج المصاريف المتكررة لأوامر العينات (شحن · تطريز · غسيل · معاينة …)
+model SampleExpenseCatalog {
+  id            String   @id @default(cuid())
+  companyId     String
+  name          String
+  defaultAmount Decimal  @default(0.0) @db.Decimal(10, 2)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  expenses      SampleOrderExpense[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+  @@map("sample_expense_catalog")
+}
+
+/// بند مصروف على أمر عينة — snapshot مستقل عن الكتالوج (تغيير الكتالوج لا يغيّره)
+model SampleOrderExpense {
+  id            String   @id @default(cuid())
+  sampleOrderId String
+  catalogId     String?
+  name          String
+  amount        Decimal  @default(0.0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sampleOrder   SampleOrder           @relation(fields: [sampleOrderId], references: [id], onDelete: Cascade)
+  catalog       SampleExpenseCatalog? @relation(fields: [catalogId], references: [id], onDelete: SetNull)
+
+  @@index([sampleOrderId])
+  @@index([catalogId])
+  @@map("sample_order_expenses")
+}
+
 
 
 // ============================================================================
