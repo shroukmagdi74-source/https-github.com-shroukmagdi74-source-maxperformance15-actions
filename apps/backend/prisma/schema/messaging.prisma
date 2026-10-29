@@ -308,6 +308,8 @@ model WhatsAppSession {
   metaBusinessId         String?
   metaAccessToken        String?                       @db.Text
   metaTokenExpiresAt     DateTime?
+  facebookAppKey         String?                       @default("primary")
+  fbAppKey               String?
   metaWebhookVerifyToken String?
   metaWebhookSecret      String?
   metaDisplayPhoneNumber String?

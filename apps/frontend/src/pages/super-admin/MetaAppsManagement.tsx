@@ -32,6 +32,8 @@ import {
   metaAppsService,
   type MetaApp,
   type UpsertMetaAppPayload,
+  type TestAppConnectionResult,
+  type AppPermissionStatus,
 } from "../../services/metaAppsService";
 
 export default function MetaAppsManagement() {
@@ -40,6 +42,9 @@ export default function MetaAppsManagement() {
   const [selectedApp, setSelectedApp] = useState<MetaApp | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testingKey, setTestingKey] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<TestAppConnectionResult | null>(null);
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
 
   // Form fields
   const [formData, setFormData] = useState<UpsertMetaAppPayload>({
@@ -118,6 +123,24 @@ export default function MetaAppsManagement() {
       toast.error(err?.response?.data?.message || "فشل في حفظ إعدادات التطبيق");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestConnection = async (key: string) => {
+    try {
+      setTestingKey(key);
+      const res = await metaAppsService.testConnection(key);
+      setTestResult(res);
+      setIsTestDialogOpen(true);
+      if (res?.connected) {
+        toast.success(`الاتصال بتطبيق ${key} ناجح وموثق`);
+      } else {
+        toast.warning(res?.message || `تعذر تأكيد الاتصال بتطبيق ${key}`);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || `فشل اختبار الاتصال بتطبيق ${key}`);
+    } finally {
+      setTestingKey(null);
     }
   };
 
@@ -334,7 +357,18 @@ export default function MetaAppsManagement() {
                 </div>
 
                 {/* Action footer */}
-                <div className="pt-2 border-t flex justify-end">
+                <div className="pt-2 border-t flex items-center justify-between gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleTestConnection(app.key)}
+                    disabled={testingKey === app.key}
+                    className="flex items-center gap-1.5 text-xs h-8"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${testingKey === app.key ? "animate-spin" : ""}`} />
+                    {testingKey === app.key ? "جاري الفحص..." : "فحص الاتصال والصلاحيات"}
+                  </Button>
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -437,6 +471,120 @@ export default function MetaAppsManagement() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Test Connection & Permissions Dialog */}
+      <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-base font-bold flex items-center gap-2">
+                <span>نتائج فحص الاتصال واعتماد الصلاحيات</span>
+                {testResult?.connected ? (
+                  <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px]">
+                    متصل بنجاح ✓
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="text-[10px]">
+                    فشل الاتصال ✕
+                  </Badge>
+                )}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              تطبيق: <strong className="font-semibold text-foreground">{testResult?.appName || testResult?.key}</strong> (App ID: <span className="font-mono">{testResult?.appId}</span>)
+              {testResult?.checkedAt && (
+                <span className="block mt-0.5 text-[11px]">
+                  وقت الفحص: {new Date(testResult.checkedAt).toLocaleString("ar-EG")}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {testResult?.message && (
+              <div
+                className={`p-3 rounded-lg border text-xs leading-relaxed ${
+                  testResult.connected
+                    ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
+                    : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200"
+                }`}
+              >
+                {testResult.message}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <h4 className="font-semibold text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-blue-500" />
+                حالة اعتماد صلاحيات Meta (App Review & Scope Access Levels)
+              </h4>
+
+              <div className="grid grid-cols-1 gap-2 pt-1">
+                {testResult?.permissions?.map((p: AppPermissionStatus) => {
+                  const isApproved = p.status === "approved";
+                  const isStandardOnly = p.status === "standard_only";
+                  const isPending = p.status === "pending_review";
+
+                  return (
+                    <div
+                      key={p.permission}
+                      className="p-2.5 rounded-lg border bg-card hover:bg-muted/30 transition-colors space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <code className="font-mono font-semibold text-[11px] text-foreground">
+                            {p.permission}
+                          </code>
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal">
+                            {p.category}
+                          </Badge>
+                        </div>
+
+                        <div>
+                          {isApproved && (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px]">
+                              معتمد (Advanced Access)
+                            </Badge>
+                          )}
+                          {isStandardOnly && (
+                            <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px]">
+                              وصول قياسي فقط (Standard Access)
+                            </Badge>
+                          )}
+                          {isPending && (
+                            <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[10px]">
+                              قيد المراجعة (Pending Meta)
+                            </Badge>
+                          )}
+                          {!isApproved && !isStandardOnly && !isPending && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              غير مطلوب
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-muted-foreground">{p.description}</p>
+
+                      {p.note && (
+                        <p className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 p-1.5 rounded border border-amber-500/20 mt-1">
+                          ⚠️ {p.note}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button size="sm" onClick={() => setIsTestDialogOpen(false)}>
+              إغلاق
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

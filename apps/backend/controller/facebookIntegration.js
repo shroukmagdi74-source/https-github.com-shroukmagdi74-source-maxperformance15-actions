@@ -319,12 +319,14 @@ const connectFacebookPage = async (req, res) => {
                         connectedAt: new Date(),
                         disconnectedAt: null, // Clear disconnection timestamp
                         companyId: companyId,
-                        facebookAppKey: req.body.app || req.body.facebookAppKey || existingPage.facebookAppKey || 'primary'
+                        facebookAppKey: req.body.app || req.body.facebookAppKey || req.body.appKey || existingPage.fbAppKey || existingPage.facebookAppKey || 'primary',
+                        fbAppKey: req.body.app || req.body.facebookAppKey || req.body.appKey || existingPage.fbAppKey || existingPage.facebookAppKey || 'primary'
                     }
                 });
                 ////console.log(`📝 [FACEBOOK-CONNECT] ${isReconnection ? 'Reconnected' : 'Updated'} existing page in database`);
             } else {
                 // Create new page for this company
+                const newAppKey = req.body.app || req.body.facebookAppKey || req.body.appKey || 'primary';
                 savedPage = await getSharedPrismaClient().facebookPage.create({
                     data: {
                         id: crypto.randomUUID(), // ✅ Add ID explicitly
@@ -334,7 +336,8 @@ const connectFacebookPage = async (req, res) => {
                         status: 'connected',
                         connectedAt: new Date(),
                         companyId: companyId,
-                        facebookAppKey: req.body.app || req.body.facebookAppKey || 'primary'
+                        facebookAppKey: newAppKey,
+                        fbAppKey: newAppKey
                     }
                 });
                 ////console.log('➕ [FACEBOOK-CONNECT] Created new page in database');
@@ -359,17 +362,31 @@ const connectFacebookPage = async (req, res) => {
                     if (!isSubscribed) {
                         ////console.log('🔧 [FACEBOOK-CONNECT] Attempting to subscribe page to webhook...');
 
-                        const subscribeResponse = await axios.post(`https://graph.facebook.com/${getMetaGraphApiVersion()}/${pageId}/subscribed_apps`, {
-                            subscribed_fields: 'messages,messaging_postbacks,messaging_referrals,message_attachments'
-                        }, {
-                            params: {
-                                access_token: pageAccessToken
-                            },
-                            timeout: 10000
-                        });
+                        const FULL_PAGE_WEBHOOK_FIELDS = 'messages,messaging_postbacks,messaging_referrals,message_attachments,feed,leadgen';
+                        const CORE_PAGE_WEBHOOK_FIELDS = 'messages,messaging_postbacks,messaging_referrals,message_attachments';
 
-                        ////console.log('✅ [FACEBOOK-CONNECT] Successfully subscribed page to webhook!');
-                        ////console.log('   Response:', subscribeResponse.data);
+                        try {
+                            const subscribeResponse = await axios.post(`https://graph.facebook.com/${getMetaGraphApiVersion()}/${pageId}/subscribed_apps`, {
+                                subscribed_fields: FULL_PAGE_WEBHOOK_FIELDS
+                            }, {
+                                params: {
+                                    access_token: pageAccessToken
+                                },
+                                timeout: 10000
+                            });
+                            console.log(`✅ [FACEBOOK-CONNECT] Subscribed page ${pageId} with full fields: ${FULL_PAGE_WEBHOOK_FIELDS}`);
+                        } catch (subErr) {
+                            console.warn(`⚠️ [FACEBOOK-CONNECT] Full subscription failed for page ${pageId}, falling back to core fields:`, subErr.response?.data?.error?.message || subErr.message);
+                            await axios.post(`https://graph.facebook.com/${getMetaGraphApiVersion()}/${pageId}/subscribed_apps`, {
+                                subscribed_fields: CORE_PAGE_WEBHOOK_FIELDS
+                            }, {
+                                params: {
+                                    access_token: pageAccessToken
+                                },
+                                timeout: 10000
+                            });
+                            console.log(`✅ [FACEBOOK-CONNECT] Subscribed page ${pageId} with core fields successfully`);
+                        }
                     } else {
                         ////console.log('✅ [FACEBOOK-CONNECT] Page is already subscribed to webhook');
                     }

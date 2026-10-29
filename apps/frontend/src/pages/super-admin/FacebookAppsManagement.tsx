@@ -43,6 +43,30 @@ export const FacebookAppsManagement: React.FC = () => {
   const [formVerifyTokenRef, setFormVerifyTokenRef] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
+
+  const handleTestConnection = async (key: string) => {
+    try {
+      setActionLoading(`test-${key}`);
+      const res = await fetch(buildApiUrl(`super-admin/platform/meta-apps/${key}/test-connection`), {
+        method: "POST",
+        headers: tokenManager.createAuthHeaders({ "Content-Type": "application/json" }),
+      });
+      const json = await res.json();
+      setTestResult(json);
+      setIsTestDialogOpen(true);
+      if (json?.connected) {
+        toast.success(`الاتصال بتطبيق ${key} ناجح وموثق`);
+      } else {
+        toast.warning(json?.message || `تعذر تأكيد الاتصال بتطبيق ${key}`);
+      }
+    } catch (err: any) {
+      toast.error("خطأ أثناء اختبار الاتصال: " + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const fetchApps = async () => {
     try {
@@ -285,18 +309,29 @@ export const FacebookAppsManagement: React.FC = () => {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => handleToggleActive(app.key, app.isActive)}
-                    disabled={actionLoading === app.key}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      app.isActive
-                        ? "border border-red-500/20 bg-red-500/10 text-red-600 hover:bg-red-500/20"
-                        : "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
-                    }`}
-                  >
-                    <Power className="size-3.5" />
-                    {app.isActive ? "تعطيل التطبيق" : "تفعيل التطبيق"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleTestConnection(app.key)}
+                      disabled={actionLoading === `test-${app.key}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-background hover:bg-muted text-foreground transition-colors"
+                    >
+                      <RefreshCw className={`size-3.5 ${actionLoading === `test-${app.key}` ? "animate-spin" : ""}`} />
+                      {actionLoading === `test-${app.key}` ? "جاري الفحص..." : "فحص الاتصال والصلاحيات"}
+                    </button>
+
+                    <button
+                      onClick={() => handleToggleActive(app.key, app.isActive)}
+                      disabled={actionLoading === app.key}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        app.isActive
+                          ? "border border-red-500/20 bg-red-500/10 text-red-600 hover:bg-red-500/20"
+                          : "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                      }`}
+                    >
+                      <Power className="size-3.5" />
+                      {app.isActive ? "تعطيل التطبيق" : "تفعيل التطبيق"}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -421,6 +456,136 @@ export const FacebookAppsManagement: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Test Connection & Permissions Modal */}
+      {isTestDialogOpen && testResult && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between p-4 border-b border-border/60 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm">نتائج فحص الاتصال واعتماد الصلاحيات</h3>
+                {testResult.connected ? (
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                    متصل بنجاح ✓
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-rose-500/10 text-rose-600 border border-rose-500/20 px-2 py-0.5 rounded-full font-bold">
+                    فشل الاتصال ✕
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setIsTestDialogOpen(false)}
+                className="text-muted-foreground hover:text-foreground text-xs p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto text-xs">
+              <div className="flex items-center justify-between bg-muted/40 p-3 rounded-lg border border-border/50 text-[11px]">
+                <div>
+                  <span className="text-muted-foreground">التطبيق: </span>
+                  <strong className="text-foreground">{testResult.appName || testResult.key}</strong>
+                  <span className="text-muted-foreground mx-2">|</span>
+                  <span className="text-muted-foreground">App ID: </span>
+                  <span className="font-mono">{testResult.appId}</span>
+                </div>
+                {testResult.checkedAt && (
+                  <span className="text-muted-foreground">
+                    {new Date(testResult.checkedAt).toLocaleString("ar-EG")}
+                  </span>
+                )}
+              </div>
+
+              {testResult.message && (
+                <div
+                  className={`p-3 rounded-lg border leading-relaxed ${
+                    testResult.connected
+                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+                      : "bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300"
+                  }`}
+                >
+                  {testResult.message}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <h4 className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                  <ShieldCheck className="size-4 text-blue-500" />
+                  حالة اعتماد صلاحيات Meta (App Review & Scope Access Levels)
+                </h4>
+
+                <div className="grid grid-cols-1 gap-2 pt-1">
+                  {testResult.permissions?.map((p: any) => {
+                    const isApproved = p.status === "approved";
+                    const isStandardOnly = p.status === "standard_only";
+                    const isPending = p.status === "pending_review";
+
+                    return (
+                      <div
+                        key={p.permission}
+                        className="p-2.5 rounded-lg border bg-card hover:bg-muted/30 transition-colors space-y-1"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <code className="font-mono font-semibold text-[11px] text-foreground">
+                              {p.permission}
+                            </code>
+                            <span className="text-[10px] py-0 px-1.5 font-normal rounded border bg-muted/40 text-muted-foreground">
+                              {p.category}
+                            </span>
+                          </div>
+
+                          <div>
+                            {isApproved && (
+                              <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-medium">
+                                معتمد (Advanced Access)
+                              </span>
+                            )}
+                            {isStandardOnly && (
+                              <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-medium">
+                                وصول قياسي فقط (Standard Access)
+                              </span>
+                            )}
+                            {isPending && (
+                              <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded text-[10px] font-medium">
+                                قيد المراجعة (Pending Meta)
+                              </span>
+                            )}
+                            {!isApproved && !isStandardOnly && !isPending && (
+                              <span className="bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20 px-2 py-0.5 rounded text-[10px]">
+                                غير مطلوب
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-muted-foreground">{p.description}</p>
+
+                        {p.note && (
+                          <p className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 p-1.5 rounded border border-amber-500/20 mt-1">
+                            ⚠️ {p.note}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-border/60 flex justify-end bg-muted/10">
+              <button
+                onClick={() => setIsTestDialogOpen(false)}
+                className="px-4 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs transition-colors"
+              >
+                إغلاق
+              </button>
+            </div>
           </div>
         </div>
       )}

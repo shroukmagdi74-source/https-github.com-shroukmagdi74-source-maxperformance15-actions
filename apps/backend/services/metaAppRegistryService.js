@@ -255,6 +255,7 @@ async function toggleAppStatus(key, isActive) {
  */
 async function ensureDefaultAppsSeeded() {
   try {
+    await ensureSchema();
     const prisma = getPrismaClient();
     if (!prisma?.facebookApp?.findUnique) return;
 
@@ -282,6 +283,284 @@ async function ensureDefaultAppsSeeded() {
     }
   } catch (err) {
     console.warn('⚠️ [META-APP-REGISTRY] خطأ أثناء فحص/زرع التطبيقات الافتراضية:', err.message);
+  }
+}
+
+let schemaEnsured = false;
+/**
+ * إنشاء جداول وأعمدة بنية التطبيقات المزدوجة ومنع التكرار بصورة idempotent
+ */
+async function ensureSchema() {
+  if (schemaEnsured) return;
+  try {
+    const prisma = getPrismaClient();
+    if (!prisma?.$executeRawUnsafe) return;
+
+    const ddlStatements = [
+      `CREATE TABLE IF NOT EXISTS "facebook_apps" (
+        "id" TEXT PRIMARY KEY,
+        "key" TEXT UNIQUE NOT NULL,
+        "appId" TEXT NOT NULL,
+        "appSecretRef" TEXT NOT NULL,
+        "configId" TEXT,
+        "webhookVerifyTokenRef" TEXT,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE TABLE IF NOT EXISTS "webhook_event_dedupe" (
+        "id" TEXT PRIMARY KEY,
+        "channel" TEXT NOT NULL DEFAULT 'facebook',
+        "externalMessageId" TEXT NOT NULL,
+        "appKey" TEXT DEFAULT 'primary',
+        "receivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "webhook_event_dedupe_channel_externalMessageId_key" ON "webhook_event_dedupe"("channel", "externalMessageId");`,
+      `CREATE INDEX IF NOT EXISTS "webhook_event_dedupe_receivedAt_idx" ON "webhook_event_dedupe"("receivedAt");`,
+      `ALTER TABLE "facebook_pages" ADD COLUMN IF NOT EXISTS "facebookAppKey" TEXT DEFAULT 'primary';`,
+      `ALTER TABLE "facebook_pages" ADD COLUMN IF NOT EXISTS "fbAppKey" TEXT;`,
+      `ALTER TABLE "facebook_account_connections" ADD COLUMN IF NOT EXISTS "facebookAppKey" TEXT DEFAULT 'primary';`,
+      `ALTER TABLE "facebook_account_connections" ADD COLUMN IF NOT EXISTS "fbAppKey" TEXT;`,
+      `ALTER TABLE "facebook_ad_accounts" ADD COLUMN IF NOT EXISTS "facebookAppKey" TEXT DEFAULT 'primary';`,
+      `ALTER TABLE "facebook_ad_accounts" ADD COLUMN IF NOT EXISTS "fbAppKey" TEXT;`,
+      `ALTER TABLE "facebook_ads_connection_sources" ADD COLUMN IF NOT EXISTS "facebookAppKey" TEXT DEFAULT 'primary';`,
+      `ALTER TABLE "facebook_ads_connection_sources" ADD COLUMN IF NOT EXISTS "fbAppKey" TEXT;`,
+      `ALTER TABLE "facebook_pixel_configs" ADD COLUMN IF NOT EXISTS "facebookAppKey" TEXT DEFAULT 'primary';`,
+      `ALTER TABLE "facebook_pixel_configs" ADD COLUMN IF NOT EXISTS "fbAppKey" TEXT;`,
+      `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "facebookAppKey" TEXT DEFAULT 'primary';`,
+      `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "fbAppKey" TEXT;`,
+      `ALTER TABLE "whatsapp_sessions" ADD COLUMN IF NOT EXISTS "facebookAppKey" TEXT DEFAULT 'primary';`,
+      `ALTER TABLE "whatsapp_sessions" ADD COLUMN IF NOT EXISTS "fbAppKey" TEXT;`
+    ];
+
+    for (const sql of ddlStatements) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+      } catch (_) {}
+    }
+    schemaEnsured = true;
+  } catch (err) {
+    console.warn('⚠️ [META-APP-REGISTRY] ensureSchema note:', err.message);
+  }
+}
+
+function getKnownScopesCatalog() {
+  return [
+    {
+      permission: 'pages_messaging',
+      category: 'Messenger',
+      description: 'إرسال واستقبال الرسائل عبر بوت الماسنجر',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_show_list',
+      category: 'Pages',
+      description: 'عرض قائمة الصفحات التي يديرها المستخدم',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_manage_metadata',
+      category: 'Pages',
+      description: 'إدارة وتحديث بيانات واشتراكات ويب هوك الصفحة',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_read_user_content',
+      category: 'Pages',
+      description: 'قراءة محتوى وتفاعل المستخدمين على الصفحة',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_manage_engagement',
+      category: 'Pages',
+      description: 'التفاعل مع التعليقات والمنشورات',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'business_management',
+      category: 'Business',
+      description: 'الوصول إلى محافظ الأعمال (Business Portfolios) وصفحات NPE',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'ads_management',
+      category: 'Ads',
+      description: 'إنشاء وإدارة الحملات الإعلانية ومجموعات الإعلانات',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'ads_read',
+      category: 'Ads',
+      description: 'قراءة نتائج وإحصائيات الحسابات الإعلانية',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_manage_ads',
+      category: 'Ads',
+      description: 'ربط الإعلانات بالصفحات كـ Ad Identity',
+      defaultAccessLevel: 'advanced',
+      defaultStatus: 'approved'
+    },
+    {
+      permission: 'pages_read_engagement',
+      category: 'Pages',
+      description: 'قراءة التفاعل على المنشورات',
+      defaultAccessLevel: 'standard',
+      defaultStatus: 'standard_only',
+      note: 'Advanced Access غير معتمد حاليًا — لا يُطلب بالـ OAuth تجنبًا لحجب ظهور الصفحات'
+    },
+    {
+      permission: 'leads_retrieval',
+      category: 'Leads',
+      description: 'استرجاع بيانات نماذج العملاء المحتملين (Lead Gen)',
+      defaultAccessLevel: 'standard',
+      defaultStatus: 'pending_review',
+      note: 'يتطلب مراجعة Meta App Review لتفعيل الاسترجاع الفوري'
+    }
+  ];
+}
+
+/**
+ * اختبار الاتصال بتطبيق فيسبوك وفحص حالة اعتماد الصلاحيات
+ * @param {string} key
+ */
+async function testAppConnection(key = PRIMARY_APP_KEY) {
+  const normalizedKey = String(key || PRIMARY_APP_KEY).trim().toLowerCase();
+  const app = await getAppByKey(normalizedKey);
+
+  if (!app) {
+    return {
+      success: false,
+      connected: false,
+      key: normalizedKey,
+      appId: '',
+      checkedAt: new Date().toISOString(),
+      message: `تطبيق ${normalizedKey} غير مسجل في النظام`,
+      permissions: []
+    };
+  }
+
+  const secret = app.appSecret || resolveSecretFromRef(app.appSecretRef);
+  if (!secret || isPlaceholderFacebookCredential(secret)) {
+    return {
+      success: false,
+      connected: false,
+      key: normalizedKey,
+      appId: app.appId,
+      appName: normalizedKey === 'growth' ? 'MaxPerformance Growth' : 'MaxPerformance Primary',
+      checkedAt: new Date().toISOString(),
+      message: `السر الخاص بالتطبيق (${app.appSecretRef}) غير مهيأ في متغيرات البيئة`,
+      permissions: getKnownScopesCatalog().map((c) => ({
+        permission: c.permission,
+        category: c.category,
+        description: c.description,
+        status: c.defaultStatus,
+        accessLevel: c.defaultAccessLevel,
+        note: c.note || null
+      }))
+    };
+  }
+
+  const SCOPES_CATALOG = getKnownScopesCatalog();
+  const axios = require('axios');
+  const appAccessToken = `${app.appId}|${secret}`;
+
+  try {
+    const appInfoRes = await axios.get(`https://graph.facebook.com/v19.0/${app.appId}`, {
+      params: {
+        access_token: appAccessToken,
+        fields: 'id,name,link'
+      },
+      timeout: 8000
+    });
+
+    const appData = appInfoRes.data || {};
+    let livePermissionsMap = new Map();
+
+    try {
+      const permRes = await axios.get(`https://graph.facebook.com/v19.0/${app.appId}/permissions`, {
+        params: { access_token: appAccessToken },
+        timeout: 6000
+      });
+      if (Array.isArray(permRes?.data?.data)) {
+        for (const item of permRes.data.data) {
+          if (item?.permission) {
+            livePermissionsMap.set(item.permission, item);
+          }
+        }
+      }
+    } catch (_) {}
+
+    const permissions = SCOPES_CATALOG.map((cat) => {
+      const live = livePermissionsMap.get(cat.permission);
+      let status = cat.defaultStatus;
+      let accessLevel = cat.defaultAccessLevel;
+
+      if (live) {
+        if (live.status === 'granted') {
+          status = 'approved';
+          accessLevel = 'advanced';
+        } else if (live.status === 'declined') {
+          status = 'not_requested';
+          accessLevel = 'none';
+        }
+      }
+
+      return {
+        permission: cat.permission,
+        category: cat.category,
+        description: cat.description,
+        status,
+        accessLevel,
+        note: cat.note || null
+      };
+    });
+
+    return {
+      success: true,
+      connected: true,
+      key: normalizedKey,
+      appId: appData.id || app.appId,
+      appName: appData.name || (normalizedKey === 'growth' ? 'MaxPerformance Growth' : 'MaxPerformance Primary'),
+      checkedAt: new Date().toISOString(),
+      message: 'تم الاتصال بـ Meta Graph API بنجاح واختبار صلاحيات التطبيق',
+      permissions
+    };
+  } catch (error) {
+    // CRITICAL: NEVER leak the appSecret in error log or response
+    const rawSecretRegex = new RegExp(String(secret).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+    const safeErrorMsg = (error.response?.data?.error?.message || error.message || 'فشل الاتصال بـ Meta API')
+      .replace(rawSecretRegex, '***');
+
+    const isNetworkErr = error.code === 'ENOTFOUND' || error.message?.includes('connect ECONNREFUSED') || error.message?.includes('proxy');
+
+    return {
+      success: !isNetworkErr,
+      connected: false,
+      key: normalizedKey,
+      appId: app.appId,
+      appName: normalizedKey === 'growth' ? 'MaxPerformance Growth' : 'MaxPerformance Primary',
+      checkedAt: new Date().toISOString(),
+      message: isNetworkErr
+        ? `تعذر الوصول المباشر لخوادم Meta (بيئة معزولة / Sandbox): ${safeErrorMsg}`
+        : `فشل الاتصال بـ Meta API: ${safeErrorMsg}`,
+      permissions: SCOPES_CATALOG.map((c) => ({
+        permission: c.permission,
+        category: c.category,
+        description: c.description,
+        status: c.defaultStatus,
+        accessLevel: c.defaultAccessLevel,
+        note: c.note || null
+      }))
+    };
   }
 }
 
@@ -326,6 +605,9 @@ module.exports = {
   upsertApp,
   toggleAppStatus,
   ensureDefaultAppsSeeded,
+  ensureSchema,
+  testAppConnection,
+  getKnownScopesCatalog,
   featureRequiresGrowth,
   resolveSecretFromRef,
   resolveVerifyTokenFromRef

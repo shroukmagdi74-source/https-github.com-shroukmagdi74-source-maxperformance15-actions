@@ -32,11 +32,13 @@ async function resolveFacebookAppKeyForPage(pageId) {
         ]
       },
       select: {
-        facebookAppKey: true
+        facebookAppKey: true,
+        fbAppKey: true
       }
     });
 
-    const appKey = page?.facebookAppKey ? String(page.facebookAppKey).trim().toLowerCase() : null;
+    const rawKey = page?.fbAppKey || page?.facebookAppKey;
+    const appKey = rawKey ? String(rawKey).trim().toLowerCase() : null;
     return appKey || 'primary';
   } catch (error) {
     console.warn(`[FACEBOOK-APP-RESOLVER] تعذر قراءة facebookAppKey للصفحة ${pageId}:`, error.message);
@@ -68,11 +70,13 @@ async function resolveFacebookAppKeyForConnection(connectionId) {
         ]
       },
       select: {
-        facebookAppKey: true
+        facebookAppKey: true,
+        fbAppKey: true
       }
     });
 
-    const appKey = connection?.facebookAppKey ? String(connection.facebookAppKey).trim().toLowerCase() : null;
+    const rawKey = connection?.fbAppKey || connection?.facebookAppKey;
+    const appKey = rawKey ? String(rawKey).trim().toLowerCase() : null;
     return appKey || 'primary';
   } catch (error) {
     console.warn(`[FACEBOOK-APP-RESOLVER] تعذر قراءة facebookAppKey للاتصال ${connectionId}:`, error.message);
@@ -104,11 +108,13 @@ async function resolveFacebookAppKeyForAdAccount(adAccountId) {
         ]
       },
       select: {
-        facebookAppKey: true
+        facebookAppKey: true,
+        fbAppKey: true
       }
     });
 
-    const appKey = adAccount?.facebookAppKey ? String(adAccount.facebookAppKey).trim().toLowerCase() : null;
+    const rawKey = adAccount?.fbAppKey || adAccount?.facebookAppKey;
+    const appKey = rawKey ? String(rawKey).trim().toLowerCase() : null;
     return appKey || 'primary';
   } catch (error) {
     console.warn(`[FACEBOOK-APP-RESOLVER] تعذر قراءة facebookAppKey للحساب الإعلاني ${adAccountId}:`, error.message);
@@ -133,12 +139,44 @@ async function getOAuthConfigForPage(pageId) {
 }
 
 /**
- * جلب إعدادات التطبيق الموحدة لمورد معين (صفحة، اتصال، أو حساب إعلاني)
- * هذا هو الممر المعتمد الوحيد لكافة استدعاءات Graph API
- * @param {{ pageId?: string, connectionId?: string, adAccountId?: string, appKey?: string }} params
+ * استرجاع مفتاح تطبيق فيسبوك المرتبط بشركة معينة
+ * @param {string} companyId - معرّف الشركة
+ * @returns {Promise<string>} مفتاح التطبيق ('primary' كافتراضي)
+ */
+async function resolveFacebookAppKeyForCompany(companyId) {
+  if (!companyId) {
+    return 'primary';
+  }
+
+  try {
+    const prisma = sharedDatabase.getSharedPrismaClient();
+    if (!prisma?.company?.findUnique && !prisma?.company?.findFirst) {
+      return 'primary';
+    }
+
+    const company = await prisma.company.findUnique({
+      where: { id: String(companyId) },
+      select: {
+        facebookAppKey: true,
+        fbAppKey: true
+      }
+    });
+
+    const rawKey = company?.fbAppKey || company?.facebookAppKey;
+    const appKey = rawKey ? String(rawKey).trim().toLowerCase() : null;
+    return appKey || 'primary';
+  } catch (error) {
+    console.warn(`[FACEBOOK-APP-RESOLVER] تعذر قراءة facebookAppKey للشركة ${companyId}:`, error.message);
+    return 'primary';
+  }
+}
+
+/**
+ * جلب إعدادات تطبيق فيسبوك بحسب المفتاح الصريح أو المورد
+ * @param {{ pageId?: string, connectionId?: string, adAccountId?: string, companyId?: string, appKey?: string }} params
  * @returns {Promise<{ key: string, appId: string, appSecret: string, loginConfigId: string, redirectUri: string }>}
  */
-async function resolveCredentialsForEntity({ pageId, connectionId, adAccountId, appKey }) {
+async function resolveCredentialsForEntity({ pageId, connectionId, adAccountId, companyId, appKey }) {
   let resolvedKey = appKey;
 
   if (!resolvedKey && pageId) {
@@ -147,6 +185,8 @@ async function resolveCredentialsForEntity({ pageId, connectionId, adAccountId, 
     resolvedKey = await resolveFacebookAppKeyForConnection(connectionId);
   } else if (!resolvedKey && adAccountId) {
     resolvedKey = await resolveFacebookAppKeyForAdAccount(adAccountId);
+  } else if (!resolvedKey && companyId) {
+    resolvedKey = await resolveFacebookAppKeyForCompany(companyId);
   }
 
   const key = String(resolvedKey || 'primary').trim().toLowerCase();
@@ -163,6 +203,7 @@ module.exports = {
   resolveFacebookAppKeyForPage,
   resolveFacebookAppKeyForConnection,
   resolveFacebookAppKeyForAdAccount,
+  resolveFacebookAppKeyForCompany,
   getOAuthConfigForPage,
   resolveCredentialsForEntity,
   featureRequiresGrowth

@@ -23,6 +23,26 @@ export interface UpsertMetaAppPayload {
   isActive?: boolean;
 }
 
+export interface AppPermissionStatus {
+  permission: string;
+  category: string;
+  description: string;
+  status: 'approved' | 'standard_only' | 'pending_review' | 'not_requested';
+  accessLevel: 'advanced' | 'standard' | 'none';
+  note?: string | null;
+}
+
+export interface TestAppConnectionResult {
+  success: boolean;
+  connected: boolean;
+  appId: string;
+  appName?: string;
+  key: string;
+  checkedAt: string;
+  message?: string;
+  permissions: AppPermissionStatus[];
+}
+
 export const metaAppsService = {
   async getApps(): Promise<MetaApp[]> {
     const response = await apiClient.get("/super-admin/platform/meta-apps");
@@ -41,6 +61,12 @@ export const metaAppsService = {
     const response = await apiClient.patch(`/super-admin/platform/meta-apps/${key}/toggle`, {
       isActive,
     });
+    const resData = response?.data as any;
+    return resData?.data || resData;
+  },
+
+  async testConnection(key: string): Promise<TestAppConnectionResult> {
+    const response = await apiClient.post(`/super-admin/platform/meta-apps/${key}/test-connection`);
     const resData = response?.data as any;
     return resData?.data || resData;
   },

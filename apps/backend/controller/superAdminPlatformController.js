@@ -198,4 +198,25 @@ exports.toggleMetaAppStatus = async (req, res) => {
   }
 };
 
+/**
+ * @route POST /api/v1/super-admin/platform/meta-apps/:key/test-connection
+ * @desc فحص الاتصال بـ Meta وحالة اعتماد الصلاحيات
+ * @access Super Admin
+ */
+exports.testMetaAppConnection = async (req, res) => {
+  try {
+    const metaAppRegistry = require('../services/metaAppRegistryService');
+    const { key } = req.params;
+    const result = await metaAppRegistry.testAppConnection(key);
+    return res.json(result);
+  } catch (error) {
+    console.error('❌ Error testing meta app connection:', error.message);
+    return res.status(500).json({
+      success: false,
+      connected: false,
+      message: 'فشل فحص اتصال تطبيق فيسبوك: ' + error.message
+    });
+  }
+};
+
 module.exports = exports;

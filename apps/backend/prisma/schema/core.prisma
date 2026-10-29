@@ -22,6 +22,8 @@ model Company {
   facebookUserAccessToken         String?
   facebookPixelAccessToken        String?
   facebookAdsAccessToken          String?
+  facebookAppKey                  String?                          @default("primary")
+  fbAppKey                        String?
   turboApiKey                     String?
   turboAutoCreate                 Boolean                          @default(false)
   turboEnabled                    Boolean                          @default(false)

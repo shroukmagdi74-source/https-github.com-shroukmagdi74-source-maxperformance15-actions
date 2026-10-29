@@ -1911,6 +1911,7 @@ const handleAdsOAuthCallback = async ({
           accessToken: userAccessToken,
           connectionSourceId: source.id,
           facebookAppKey: callbackAppKey,
+          fbAppKey: callbackAppKey,
           isActive: true,
         },
         create: {
@@ -1923,6 +1924,7 @@ const handleAdsOAuthCallback = async ({
           accessToken: userAccessToken,
           connectionSourceId: source.id,
           facebookAppKey: callbackAppKey,
+          fbAppKey: callbackAppKey,
           isActive: true,
         },
       });
@@ -2147,7 +2149,7 @@ router.get("/callback", async (req, res) => {
 
     // Keep Messenger/page OAuth isolated from Ads and Pixel reconnects.
     // Page OAuth is the only flow allowed to update facebookUserAccessToken.
-    const updateData = buildFacebookTokenUpdateData(userAccessToken, type);
+    const updateData = buildFacebookTokenUpdateData(userAccessToken, type, callbackAppKey);
 
     await getSharedPrismaClient().company.update({
       where: { id: companyId },
@@ -2286,6 +2288,7 @@ router.get("/callback", async (req, res) => {
               facebookUserEmail: facebookUserEmail || undefined,
               status: "connected",
               facebookAppKey: callbackAppKey,
+              fbAppKey: callbackAppKey,
               lastSyncedAt: new Date(),
               connectedByUserId: userId || undefined,
               updatedAt: new Date(),
@@ -2298,6 +2301,7 @@ router.get("/callback", async (req, res) => {
               accessToken: userAccessToken,
               status: "connected",
               facebookAppKey: callbackAppKey,
+              fbAppKey: callbackAppKey,
               connectedByUserId: userId || null,
               connectedAt: new Date(),
               updatedAt: new Date(),
@@ -2393,6 +2397,7 @@ router.get("/callback", async (req, res) => {
           pageName: page.name,
           status: "connected",
           facebookAppKey: callbackAppKey,
+          fbAppKey: callbackAppKey,
           connectedAt: new Date(),
           disconnectedAt: null,
           companyId: companyId,
@@ -2406,6 +2411,7 @@ router.get("/callback", async (req, res) => {
           pageAccessToken: page.access_token,
           status: "connected",
           facebookAppKey: callbackAppKey,
+          fbAppKey: callbackAppKey,
           connectedAt: new Date(),
           updatedAt: new Date(),
           companyId: companyId,
@@ -3418,7 +3424,7 @@ router.get("/pixel-callback", async (req, res) => {
     // 💾 حفظ Pixel Access Token في Company (منفصل عن facebookUserAccessToken)
     await getSharedPrismaClient().company.update({
       where: { id: companyId },
-      data: buildFacebookTokenUpdateData(pixelAccessToken, "pixel"),
+      data: buildFacebookTokenUpdateData(pixelAccessToken, "pixel", callbackAppKey),
     });
     console.log("✅ [PIXELS] Saved pixel access token to company");
 

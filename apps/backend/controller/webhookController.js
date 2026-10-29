@@ -312,14 +312,15 @@ const postWebhook = async (req, res) => {
       for (const entry of body?.entry || []) {
         try {
           const entryId = entry?.id;
-          const eventAppId = entry?.messaging?.[0]?.message?.app_id || entry?.changes?.[0]?.value?.app_id || signatureCheck.appId || 'default';
-          const eventAppKey = signatureCheck.matchedApp || 'primary';
-          console.log(`📥 [WEBHOOK-EVENT] entryId=${entryId} | app_id=${eventAppId} | appKey=${eventAppKey}`);
 
           // NEW: Check if this page still exists in our database AND is connected
           // If not, ignore the webhook event to prevent processing orphaned events
           // ⚡ Using cache to avoid repeated database queries
           const pageExists = await getCachedFacebookPage(entry.id);
+
+          const eventAppId = entry?.messaging?.[0]?.message?.app_id || entry?.changes?.[0]?.value?.app_id || signatureCheck.appId || 'default';
+          const eventAppKey = signatureCheck.matchedApp || pageExists?.fbAppKey || pageExists?.facebookAppKey || 'primary';
+          console.log(`📥 [WEBHOOK-EVENT] entryId=${entryId} | app_id=${eventAppId} | appKey=${eventAppKey}`);
 
           // 🔒 CRITICAL FIX: Check both existence AND connection status
           if (!pageExists) {
@@ -1095,15 +1096,19 @@ async function handlePageReply(webhookEvent, pageId = null) {
         typeof pageReplyMessage.metadata === 'string' ? pageReplyMessage.metadata.includes('"source":"ai_reply"') : pageReplyMessage.metadata?.source === 'ai_reply'
       ));
 
-    const { DEFAULT_FACEBOOK_APP_ID, getFacebookAppKeyConfig } = require('../config/facebookAppConfig');
+    const { DEFAULT_FACEBOOK_APP_ID, getFacebookAppKeyConfig, getAllFacebookAppSecrets } = require('../config/facebookAppConfig');
     const growthAppConfig = getFacebookAppKeyConfig('growth');
     const webhookAppId = webhookEvent.message?.app_id ? String(webhookEvent.message.app_id) : null;
-    const isOurAppEcho = !!(webhookAppId && (
-      webhookAppId === DEFAULT_FACEBOOK_APP_ID ||
-      webhookAppId === process.env.FACEBOOK_APP_ID ||
-      webhookAppId === growthAppConfig.appId ||
-      webhookAppId === process.env.FACEBOOK_GROWTH_APP_ID
-    ));
+    const allRegisteredSecrets = getAllFacebookAppSecrets();
+    const registeredAppIds = new Set([
+      DEFAULT_FACEBOOK_APP_ID,
+      process.env.FACEBOOK_APP_ID,
+      growthAppConfig?.appId,
+      process.env.FACEBOOK_GROWTH_APP_ID,
+      ...allRegisteredSecrets.map((a) => a.appId).filter(Boolean)
+    ].filter(Boolean).map(String));
+
+    const isOurAppEcho = !!(webhookAppId && registeredAppIds.has(webhookAppId));
 
     if (isAiReply || isSystemMessage || isOurAppEcho) {
       console.log(`🤖 [HUMAN-HANDOVER] Skipped handover pause for msg ${messageId}: sent by AI/System (isAi=${isAiReply}, isSystem=${isSystemMessage}, isOurApp=${isOurAppEcho})`);
