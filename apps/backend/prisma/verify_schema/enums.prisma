@@ -1019,6 +1019,7 @@ enum WhatsAppNotificationLogsEventType {
   BACK_IN_STOCK
   PROMOTIONAL
   OTP
+  SYSTEM_INCIDENT
 
   @@map("whatsapp_notification_logs_eventType")
 }

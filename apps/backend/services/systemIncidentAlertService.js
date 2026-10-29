@@ -515,9 +515,12 @@ class SystemIncidentAlertService {
                     if (result && (result.success || result.sent || result.messageId)) {
                         sentToThisPhone = true;
                         anySent = true;
+                        console.log(`✅ [SYSTEM-INCIDENT] WhatsApp alert successfully sent to admin phone ${phone} via WhatsAppNotificationService`);
+                    } else {
+                        console.error(`❌ [SYSTEM-INCIDENT] WhatsAppNotificationService failed for ${phone}: reason=${result?.reason || 'unknown'}, error=${result?.error || result?.errorCode || 'n/a'}`);
                     }
                 } catch (sendErr) {
-                    console.warn(`⚠️ [SYSTEM-INCIDENT] WhatsAppNotificationService send to ${phone} failed:`, sendErr.message);
+                    console.error(`❌ [SYSTEM-INCIDENT] WhatsAppNotificationService send to ${phone} threw error:`, sendErr.message || sendErr);
                 }
             }
 
@@ -532,9 +535,12 @@ class SystemIncidentAlertService {
                     if (directSent) {
                         sentToThisPhone = true;
                         anySent = true;
+                        console.log(`✅ [SYSTEM-INCIDENT] Direct WhatsApp fallback session succeeded for admin phone ${phone}`);
+                    } else {
+                        console.error(`❌ [SYSTEM-INCIDENT] Direct WhatsApp fallback session failed for admin phone ${phone}`);
                     }
                 } catch (directErr) {
-                    console.warn(`⚠️ [SYSTEM-INCIDENT] Direct WhatsApp session send to ${phone} failed:`, directErr.message);
+                    console.error(`❌ [SYSTEM-INCIDENT] Direct WhatsApp session send to ${phone} failed:`, directErr.message || directErr);
                 }
             }
 
@@ -542,46 +548,125 @@ class SystemIncidentAlertService {
             if (!sentToThisPhone && !waService) {
                 anySent = true;
             }
+
+            if (!sentToThisPhone && waService) {
+                console.error(`❌ [SYSTEM-INCIDENT] Delivery failed across all WhatsApp channels for admin phone ${phone} (company ${companyId})`);
+            }
         }
 
         return anySent;
     }
 
     /**
-     * إرسال مباشر بالجلسة الإدارية أو جلسة الشركة عبر WhatsAppManager
+     * إرسال مباشر بالجلسة الإدارية أو جلسة الشركة عبر WhatsAppManager / WhatsAppMessageHandler
      */
     async sendWhatsAppDirectViaSession({ companyId, phone, alertText }) {
         try {
-            const WhatsAppManager = require('./whatsapp/WhatsAppManager');
-            if (!WhatsAppManager) return false;
-
             const cleanPhone = String(phone).replace(/\D/g, '');
-            if (!cleanPhone) return false;
+            if (!cleanPhone) {
+                console.error(`❌ [SYSTEM-INCIDENT] Direct session send failed: invalid phone number "${phone}"`);
+                return false;
+            }
             const jid = `${cleanPhone}@s.whatsapp.net`;
+            const prisma = getSharedPrismaClient();
 
-            // البحث عن جلسة نشطة للشركة
             let session = null;
-            if (typeof WhatsAppManager.getCompanySessions === 'function') {
-                const compSessions = WhatsAppManager.getCompanySessions(companyId) || [];
-                session = compSessions.find(s => s && s.status === 'connected' && s.sock);
+            let sessionId = null;
+            let sent = false;
+
+            // 1. محاولة الجلسة عبر Baileys socket من WhatsAppManager
+            try {
+                const WhatsAppManager = require('./whatsapp/WhatsAppManager');
+                if (WhatsAppManager) {
+                    if (typeof WhatsAppManager.getCompanySessions === 'function') {
+                        const compSessions = WhatsAppManager.getCompanySessions(companyId) || [];
+                        session = compSessions.find(s => s && s.status === 'connected' && s.sock);
+                    }
+                    if (!session && typeof WhatsAppManager.getAllActiveSessions === 'function') {
+                        const all = WhatsAppManager.getAllActiveSessions();
+                        const sessionList = Array.isArray(all) ? all : Object.values(all || {});
+                        session = sessionList.find(s => s && (s.isConnected || s.status === 'connected') && s.sock);
+                    }
+                    if (session && typeof WhatsAppManager.sendMessage === 'function') {
+                        sessionId = session.sessionId;
+                        await WhatsAppManager.sendMessage(sessionId, jid, alertText);
+                        sent = true;
+                        console.log(`✅ [SYSTEM-INCIDENT] Direct WhatsApp message sent to ${phone} via Baileys session ${sessionId}`);
+                    }
+                }
+            } catch (baileysErr) {
+                console.error(`❌ [SYSTEM-INCIDENT] Baileys direct send error:`, baileysErr.message || baileysErr);
             }
 
-            // أو البحث عن جلسة إدارية عامة
-            if (!session && typeof WhatsAppManager.getAllActiveSessions === 'function') {
-                const all = WhatsAppManager.getAllActiveSessions();
-                const sessionList = Array.isArray(all) ? all : Object.values(all || {});
-                session = sessionList.find(s => s && (s.isConnected || s.status === 'connected'));
+            // 2. محاولة عبر جلسة META_CLOUD أو WhatsAppMessageHandler إذا لم تكن هناك جلسة Baileys
+            if (!sent && prisma?.whatsAppSession) {
+                try {
+                    const dbSession = await prisma.whatsAppSession.findFirst({
+                        where: {
+                            OR: [
+                                { companyId, status: 'CONNECTED' },
+                                { status: 'CONNECTED' }
+                            ]
+                        },
+                        orderBy: [{ companyId: companyId ? 'asc' : 'desc' }, { lastConnectedAt: 'desc' }]
+                    });
+
+                    if (dbSession) {
+                        sessionId = dbSession.id;
+                        if (dbSession.provider === 'META_CLOUD') {
+                            const MetaCloudProvider = require('./whatsapp/providers/MetaCloudProvider');
+                            const metaRes = await MetaCloudProvider.sendText(sessionId, cleanPhone, alertText);
+                            if (metaRes && (metaRes.messageId || metaRes.raw)) {
+                                sent = true;
+                                console.log(`✅ [SYSTEM-INCIDENT] Direct WhatsApp message sent to ${phone} via MetaCloud session ${sessionId}`);
+                            }
+                        } else {
+                            const WhatsAppMessageHandler = require('./whatsapp/WhatsAppMessageHandler');
+                            if (WhatsAppMessageHandler && typeof WhatsAppMessageHandler.sendText === 'function') {
+                                const msgRes = await WhatsAppMessageHandler.sendText(sessionId, cleanPhone, alertText);
+                                if (msgRes) {
+                                    sent = true;
+                                    console.log(`✅ [SYSTEM-INCIDENT] Direct WhatsApp message sent to ${phone} via WhatsAppMessageHandler session ${sessionId}`);
+                                }
+                            }
+                        }
+                    }
+                } catch (metaErr) {
+                    console.error(`❌ [SYSTEM-INCIDENT] MetaCloud/MessageHandler direct send error:`, metaErr.message || metaErr);
+                }
             }
 
-            if (session && typeof WhatsAppManager.sendMessage === 'function') {
-                await WhatsAppManager.sendMessage(session.sessionId, jid, alertText);
-                console.log(`✅ [SYSTEM-INCIDENT] Direct WhatsApp message sent to ${phone} via session ${session.sessionId}`);
-                return true;
+            if (!sent) {
+                console.error(`❌ [SYSTEM-INCIDENT] Direct WhatsApp session dispatch failed: no active session was able to deliver to ${phone}`);
+                return false;
             }
 
-            return false;
+            // 3. توثيق السجل في whatsAppNotificationLog بحالة SENT
+            if (prisma?.whatsAppNotificationLog) {
+                try {
+                    await prisma.whatsAppNotificationLog.create({
+                        data: {
+                            companyId,
+                            sessionId: sessionId || null,
+                            recipientPhone: cleanPhone,
+                            recipientName: 'إدارة النظام',
+                            recipientType: 'ADMIN',
+                            category: 'SYSTEM',
+                            eventType: 'SYSTEM_INCIDENT',
+                            rawEventType: 'SYSTEM_INCIDENT',
+                            content: alertText,
+                            status: 'SENT'
+                        }
+                    });
+                    console.log(`📝 [SYSTEM-INCIDENT] Successfully created record in whatsAppNotificationLog for ${cleanPhone} (status: SENT, event: SYSTEM_INCIDENT)`);
+                } catch (logErr) {
+                    console.error(`❌ [SYSTEM-INCIDENT] Failed to persist direct send record in whatsAppNotificationLog:`, logErr.message || logErr);
+                }
+            }
+
+            return true;
         } catch (err) {
-            console.warn(`⚠️ [SYSTEM-INCIDENT] Direct session send error:`, err.message);
+            console.error(`❌ [SYSTEM-INCIDENT] Direct session send unexpected error:`, err.message || err);
             return false;
         }
     }
@@ -642,7 +727,7 @@ class SystemIncidentAlertService {
         if (recipients.length > 0 && waService?.sendNotification) {
             for (const phone of recipients) {
                 try {
-                    await waService.sendNotification({
+                    const res = await waService.sendNotification({
                         companyId,
                         recipientPhone: phone,
                         recipientName: companyName || 'إدارة النظام',
@@ -658,9 +743,14 @@ class SystemIncidentAlertService {
                         deliveryStrategy: 'company',
                         priority: 3
                     });
-                    sent = true;
+                    if (res && (res.success || res.sent || res.messageId)) {
+                        sent = true;
+                        console.log(`✅ [SYSTEM-INCIDENT] Hourly digest sent to ${phone} for company ${companyId}`);
+                    } else {
+                        console.error(`❌ [SYSTEM-INCIDENT] Digest send failed for ${phone}: reason=${res?.reason || 'unknown'} error=${res?.error || 'n/a'}`);
+                    }
                 } catch (digestErr) {
-                    console.warn(`⚠️ [SYSTEM-INCIDENT] Digest send to ${phone} failed:`, digestErr.message);
+                    console.error(`❌ [SYSTEM-INCIDENT] Digest send to ${phone} threw error:`, digestErr.message || digestErr);
                 }
             }
         } else {
@@ -858,8 +948,25 @@ class SystemIncidentAlertService {
                 dispatchResults.whatsappReason = 'in_cooldown';
                 dispatchResults.whatsappDeduplicated = true;
                 console.log(`⏳ [SYSTEM-INCIDENT] WhatsApp alert suppressed by dedupe (${incidentType}:${companyId})`);
+            } else if (!force && (severity === SEVERITIES.WARNING || severity === SEVERITIES.INFO)) {
+                // التحذيرات تتجمع كل ساعة في ملخص دوري
+                this.queueForHourlyDigest({
+                    companyId,
+                    companyName,
+                    incidentType,
+                    title,
+                    message,
+                    severity,
+                    entityId,
+                    url: targetUrl,
+                    metadata
+                });
+                dispatchResults.whatsapp = true;
+                dispatchResults.whatsappMode = 'queued_hourly';
+                this.markWhatsAppIncidentSent(incidentType, companyId);
+                console.log(`📦 [SYSTEM-INCIDENT] Warning queued for hourly WhatsApp digest (${incidentType}:${companyId})`);
             } else {
-                // إرسال فوري ومباشر بنفس نمط تليجرام عبر WhatsAppNotificationService أو الجلسة الإدارية
+                // إرسال فوري ومباشر للحالات الحرجة (CRITICAL) أو عند الإرسال القسري (force: true)
                 const waSent = await this.sendWhatsAppImmediateAlert({
                     companyId,
                     companyName,
@@ -875,7 +982,7 @@ class SystemIncidentAlertService {
                 this.markWhatsAppIncidentSent(incidentType, companyId);
             }
         } catch (waErr) {
-            console.warn('⚠️ [SYSTEM-INCIDENT] WhatsApp alert processing failed:', waErr.message);
+            console.error('❌ [SYSTEM-INCIDENT] WhatsApp alert processing failed:', waErr.message || waErr);
             dispatchResults.whatsapp = false;
         }
 

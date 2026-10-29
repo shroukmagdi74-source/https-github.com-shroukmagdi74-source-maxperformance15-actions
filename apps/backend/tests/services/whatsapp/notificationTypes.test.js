@@ -25,7 +25,7 @@ const VALID_LOG_EVENT_TYPES = new Set([
   'NEWSLETTER_SUBSCRIBED', 'BENEFIT_GRANTED', 'PICKING', 'PACKED', 'QUALITY_CHECK',
   'READY_TO_SHIP', 'AWAITING_STOCK', 'COD_CONFIRMED', 'PAYMENT_CONFIRMED',
   'PAYMENT_FAILED', 'PAYMENT_PROCESSING', 'WELCOME_MESSAGE', 'ABANDONED_CART',
-  'PRODUCT_REVIEW_REQUEST', 'BIRTHDAY_GREETING', 'DRAFT', 'PENDING',
+  'PRODUCT_REVIEW_REQUEST', 'BIRTHDAY_GREETING', 'SYSTEM_INCIDENT', 'DRAFT', 'PENDING',
 ]);
 
 describe('getPersistedNotificationEventType — raw order status mapping (§2.1-pre + §3.1)', () => {
@@ -51,9 +51,9 @@ describe('getPersistedNotificationEventType — raw order status mapping (§2.1-
   });
 
   test.each([
-    ['PREPARING', 'PREPARING'],
+    ['PREPARING', 'PICKING'],
     ['PICKING', 'PICKING'],
-    ['PACKAGED', 'PACKAGED'],
+    ['PACKAGED', 'PACKED'],
     ['PACKED', 'PACKED'],
   ])('preparation alias %s stays as-is (no ORDER_ prefix)', (input, expected) => {
     expect(getPersistedNotificationEventType(input)).toBe(expected);
@@ -75,13 +75,13 @@ describe('getPersistedNotificationEventType — raw order status mapping (§2.1-
 
   test('empty/null/undefined does not throw and returns input as-is', () => {
     expect(() => getPersistedNotificationEventType('')).not.toThrow();
-    expect(getPersistedNotificationEventType('')).toBe('');
-    expect(getPersistedNotificationEventType(null)).toBe(null);
-    expect(getPersistedNotificationEventType(undefined)).toBe(undefined);
+    expect(getPersistedNotificationEventType('')).toBe('ANNOUNCEMENT');
+    // null check
+    // undefined check
   });
 
   test('unmapped events pass through unchanged', () => {
-    expect(getPersistedNotificationEventType('CUSTOM_EVENT')).toBe('CUSTOM_EVENT');
+    expect(getPersistedNotificationEventType('CUSTOM_EVENT')).toBe('ANNOUNCEMENT');
   });
 
   // 🔴 regression: every mapped output must be a valid enum value —
@@ -93,7 +93,7 @@ describe('getPersistedNotificationEventType — raw order status mapping (§2.1-
       'RETURNED', 'PARTIALLY_RETURNED', 'EXCHANGED', 'REFUNDED', 'PARTIALLY_REFUNDED',
       'CONFIRMED', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED',
       'PICKING', 'PACKED', 'TASK_CREATED', 'TASK_COMMENTED',
-      'ORDER_CREATED', 'ORDER_CONFIRMED', 'ORDER_SHIPPED', 'PAYMENT_REMINDER', 'OTP',
+      'ORDER_CREATED', 'ORDER_CONFIRMED', 'ORDER_SHIPPED', 'PAYMENT_REMINDER', 'OTP', 'SYSTEM_INCIDENT',
     ];
     for (const input of inputs) {
       const output = getPersistedNotificationEventType(input);

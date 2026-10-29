@@ -819,6 +819,7 @@ enum WhatsAppNotificationTemplatesEventType {
   ABANDONED_CART
   PRODUCT_REVIEW_REQUEST
   BIRTHDAY_GREETING
+  SYSTEM_INCIDENT
 
   @@map("whatsapp_notification_templates_eventType")
 }
@@ -1300,6 +1301,7 @@ enum WhatsAppNotificationLogsEventType {
   ABANDONED_CART
   PRODUCT_REVIEW_REQUEST
   BIRTHDAY_GREETING
+  SYSTEM_INCIDENT
 
   @@map("whatsapp_notification_logs_eventType")
 }
@@ -1473,6 +1475,7 @@ enum WhatsAppNotificationQueueEventType {
   ABANDONED_CART
   PRODUCT_REVIEW_REQUEST
   BIRTHDAY_GREETING
+  SYSTEM_INCIDENT
 
   @@map("whatsapp_notification_queue_eventType")
 }

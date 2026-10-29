@@ -201,7 +201,7 @@ describe('SystemIncidentAlertService - Comprehensive Multi-Channel Tests', () =>
         expect(WhatsAppNotificationService.sendNotification).not.toHaveBeenCalled();
     });
 
-    test('Acceptance 4: WARNING and INFO incidents send WhatsApp alert immediately with dedupe key = (type + companyId) per 30 min', async () => {
+    test('Acceptance 4: WARNING and INFO incidents queue for hourly digest with dedupe key = (type + companyId) per 30 min', async () => {
         const warnResult = await systemIncidentAlertService.dispatchIncident({
             companyId: 'comp_1',
             incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_ACCOUNT_ISSUE,
@@ -214,17 +214,8 @@ describe('SystemIncidentAlertService - Comprehensive Multi-Channel Tests', () =>
         expect(warnResult.sent).toBe(true);
         expect(warnResult.dispatchResults.telegram).toBe(true);
         expect(warnResult.dispatchResults.whatsapp).toBe(true);
-        expect(warnResult.dispatchResults.whatsappMode).toBe('immediate');
-
-        // Verify it was sent immediately via WhatsAppNotificationService in the same pattern as Telegram
-        expect(WhatsAppNotificationService.sendNotification).toHaveBeenCalledWith(
-            expect.objectContaining({
-                companyId: 'comp_1',
-                category: 'SYSTEM',
-                eventType: 'SYSTEM_INCIDENT',
-                contentOverride: expect.stringContaining('فواتير معلقة')
-            })
-        );
+        expect(warnResult.dispatchResults.whatsappMode).toBe('queued_hourly');
+        expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toHaveLength(1);
 
         // Deduplication test: second dispatch with DIFFERENT entityId but SAME (type + companyId) within 30 min
         const warnResult2 = await systemIncidentAlertService.dispatchIncident({
@@ -264,10 +255,10 @@ describe('SystemIncidentAlertService - Comprehensive Multi-Channel Tests', () =>
             entityId: 'act_999'
         });
 
-        expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toHaveLength(1);
+        expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toHaveLength(2);
         const flushResult = await systemIncidentAlertService.flushHourlyDigest('comp_1');
         expect(flushResult.sent).toBe(true);
-        expect(flushResult.count).toBe(1);
+        expect(flushResult.count).toBe(2);
         expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toBeUndefined();
     });
 
