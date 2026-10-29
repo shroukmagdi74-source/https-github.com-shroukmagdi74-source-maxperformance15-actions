@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, configure, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import StorefrontShell from "../StorefrontShell";
@@ -14,6 +14,28 @@ import {
   useCartStore,
 } from "../store/useCartStore";
 import { createMarketplacePreviewOrderResponse } from "../preview/marketplacePreviewOrder";
+import {
+  formatMoney,
+  getLocaleFormatDefaults,
+  resetLocaleFormatDefaults,
+  setLocaleFormatDefaults,
+} from "../utils/localeFormat";
+import { formatStorefrontCurrency } from "../utils/currency";
+
+/**
+ * PREVIEW-1 — async budget for preview assertions (was the library default,
+ * 1000ms).
+ *
+ * Measured on this suite: a marketplace preview resolves its settings through
+ * `buildPreviewStorefrontSettingsFallback` (two dynamic imports) and then the
+ * runtime theme resolver loads the theme asset before the shell can paint.
+ * Time-to-preview-banner measured here: ~1.0s warm and ~3.6s on the first case
+ * of a worker (cold module graph). The 1s default therefore failed on timing,
+ * not on behaviour — every case below was verified to render the expected DOM
+ * once given a realistic budget (banner link, seeded BiteRush/cafe carts,
+ * split-panel hero copy). Assertions are unchanged; only the polling window is.
+ */
+const PREVIEW_ASYNC_TIMEOUT = 5000;
 
 const createQueryClient = () =>
   new QueryClient({
@@ -27,6 +49,7 @@ const createQueryClient = () =>
 
 describe("Storefront preview mode", () => {
   beforeEach(() => {
+    configure({ asyncUtilTimeout: PREVIEW_ASYNC_TIMEOUT });
     localStorage.clear();
     sessionStorage.clear();
     useCartStore.setState({ items: [], isOpen: false });
@@ -135,6 +158,7 @@ describe("Storefront preview mode", () => {
 
   afterEach(() => {
     cleanup();
+    configure({ asyncUtilTimeout: 1000 });
     vi.restoreAllMocks();
     localStorage.clear();
     sessionStorage.clear();
@@ -328,6 +352,9 @@ describe("Storefront preview mode", () => {
 
     expect(await screen.findAllByText("راش كومبو")).not.toHaveLength(0);
     expect(screen.getAllByText("فولكانو فرايز")).not.toHaveLength(0);
+    // PREVIEW-1 — the preview cart must carry the whole sample order (3 lines),
+    // not just the visuals: the same seed feeds the cart drawer and checkout.
+    expect(useCartStore.getState().items).toHaveLength(3);
 
     await waitFor(() => {
       const liveCart = localStorage.getItem(
@@ -449,6 +476,12 @@ describe("Storefront preview mode", () => {
     sessionStorage.setItem(
       "sf-marketplace-preview-cart-seeded:elegant-luxe",
       "stale-signature",
+    );
+    // PREVIEW-1 — a stale "already seeded" marker (legacy and `:active:` shape)
+    // must not stop the preview cart from being reconciled with the current seed.
+    sessionStorage.setItem(
+      "sf-marketplace-preview-cart-seeded:active:elegant-luxe",
+      "1",
     );
     window.history.pushState(
       {},
@@ -722,7 +755,12 @@ describe("Storefront preview mode", () => {
     );
 
     expect(await screen.findByText("طلب مباشر تجريبي")).toBeInTheDocument();
-    expect(screen.getAllByText("EGP 1,890.00").length).toBeGreaterThan(0);
+    // PREVIEW-1 — this store is Arabic (`dir="rtl"`, `lang="ar"`), so LOCALE-1
+    // renders EGP with the Arabic symbol and no redundant piasters: `1,890 ج.م`.
+    // The old `EGP 1,890.00` expectation pinned the pre-LOCALE-1 Intl output and
+    // never matched an Arabic store; the English format is asserted separately in
+    // "formats EGP for the storefront locale (ar vs en)" below.
+    expect(screen.getAllByText("1,890 ج.م").length).toBeGreaterThan(0);
 
     await user.click(
       screen.getByRole("button", {
@@ -804,5 +842,45 @@ describe("Storefront preview mode", () => {
       expect(liveCart ?? "").not.toContain("cough-relief-syrup");
       expect(previewCart ?? "").toContain("cough-relief-syrup");
     });
+  });
+
+  it("formats EGP for the storefront locale (ar vs en)", () => {
+    // PREVIEW-1 / LOCALE-1 — proof that money formatting follows the store
+    // language instead of collapsing both locales into one string:
+    //   Arabic store  → `1,890 ج.م`      (symbol after, no redundant `.00`)
+    //   English store → `EGP 1,890.00`   (Intl currency code, currency decimals)
+    const previousDefaults = getLocaleFormatDefaults();
+    resetLocaleFormatDefaults();
+    try {
+      expect(
+        formatMoney(1890, {
+          currency: "EGP",
+          symbol: "ج.م",
+          position: "after",
+          locale: "ar-EG",
+        }),
+      ).toBe("1,890 ج.م");
+      expect(formatStorefrontCurrency(1890, "EGP", "ar-EG")).toBe("1,890 ج.م");
+
+      expect(
+        formatMoney(1890, {
+          style: "currency",
+          currency: "EGP",
+          locale: "en-US",
+        }),
+      ).toBe("EGP 1,890.00");
+      expect(formatStorefrontCurrency(1890, "EGP", "en-US")).toBe(
+        "EGP 1,890.00",
+      );
+      expect(formatStorefrontCurrency(1890.5, "EGP", "en-US")).toBe(
+        "EGP 1,890.50",
+      );
+      // Arabic keeps storing piasters when the amount actually has them.
+      expect(formatStorefrontCurrency(1890.5, "EGP", "ar-EG")).toBe(
+        "1,890.50 ج.م",
+      );
+    } finally {
+      setLocaleFormatDefaults(previousDefaults);
+    }
   });
 });

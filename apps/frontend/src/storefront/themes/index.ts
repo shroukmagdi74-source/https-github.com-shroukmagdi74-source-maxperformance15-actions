@@ -1,5 +1,14 @@
 import modernMinimalData from "./modern-minimal.json";
 import boldFashionData from "./bold-fashion.json";
+// PREVIEW-1 — marketplace demo themes that merchants preview from the gallery.
+// They ship as JSON presets in this folder but were never in
+// `STOREFRONT_THEME_PRESETS`, so `getStorefrontThemePreset()` fell back to the
+// "unregistered theme" diagnostic preset whenever the runtime JSON asset
+// request was unavailable (blocked asset host, offline preview, tests). The
+// preview-only map below keeps the preview identical to the marketplace card
+// without adding these demo themes to the merchant-facing preset gallery.
+import cafeDemoData from "./cafe-demo.json";
+import restaurantDemoData from "./restaurant-demo.json";
 import elegantLuxeData from "./elegant-luxe.json";
 import vanguardPremiumData from "./vanguard-premium.json";
 import atelierNovaData from "./atelier-nova.json";
@@ -728,6 +737,29 @@ export const STOREFRONT_THEME_ID_ALIASES: Record<string, string> = {
   allura: "allure",
 };
 
+/**
+ * PREVIEW-1 — presets that are previewable but deliberately kept out of the
+ * merchant gallery (`STOREFRONT_THEME_PRESETS`).
+ *
+ * `getStorefrontThemePreset()` is the last-resort fallback of the runtime theme
+ * resolver: the browser normally loads `<themeId>.json` as an asset and only
+ * lands here when that request fails. Adding the demo themes here means a
+ * marketplace preview renders the real theme instead of the "unregistered
+ * theme" diagnostic page — and `hasStorefrontThemePreset()` stays truthful, so
+ * `buildPreviewStorefrontSettingsFallback()` can build the preview without a
+ * settings round-trip.
+ */
+const STOREFRONT_PREVIEW_ONLY_THEME_PRESETS: Record<string, StorefrontTheme> = {
+  "cafe-demo": asStorefrontTheme(cafeDemoData),
+  "restaurant-demo": asStorefrontTheme(restaurantDemoData),
+};
+
+const getStorefrontThemePresetEntry = (
+  themeId: string,
+): StorefrontTheme | undefined =>
+  STOREFRONT_THEME_PRESETS[themeId] ||
+  STOREFRONT_PREVIEW_ONLY_THEME_PRESETS[themeId];
+
 export const resolveStorefrontThemeId = (themeId: string): string => {
   const normalized = typeof themeId === "string" ? themeId.trim().toLowerCase() : "";
   return STOREFRONT_THEME_ID_ALIASES[normalized] || normalized;
@@ -738,7 +770,10 @@ export const getStorefrontThemePresetIds = (): string[] =>
 
 export const hasStorefrontThemePreset = (themeId: string): boolean => {
   const resolved = resolveStorefrontThemeId(themeId);
-  return Boolean(STOREFRONT_THEME_PRESETS[resolved] || STOREFRONT_THEME_PRESETS[themeId]);
+  return Boolean(
+    getStorefrontThemePresetEntry(resolved) ||
+      getStorefrontThemePresetEntry(String(themeId || "")),
+  );
 };
 
 export const cloneStorefrontTheme = (theme: StorefrontTheme): StorefrontTheme =>
@@ -2129,8 +2164,8 @@ export const getStorefrontThemePreset = (
       : DEFAULT_STOREFRONT_THEME_ID;
   const resolvedThemeId = resolveStorefrontThemeId(normalizedThemeId);
   const preset =
-    STOREFRONT_THEME_PRESETS[resolvedThemeId] ||
-    STOREFRONT_THEME_PRESETS[normalizedThemeId] ||
+    getStorefrontThemePresetEntry(resolvedThemeId) ||
+    getStorefrontThemePresetEntry(normalizedThemeId) ||
     createUnregisteredThemePreset(normalizedThemeId);
 
   return normalizeStorefrontThemeCommercePages(

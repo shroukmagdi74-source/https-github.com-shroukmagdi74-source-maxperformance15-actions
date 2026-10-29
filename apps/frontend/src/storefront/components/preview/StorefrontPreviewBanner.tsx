@@ -1581,9 +1581,6 @@ const StorefrontProductPreviewBanner: React.FC<{
 };
 
 
-const MARKETPLACE_PREVIEW_CART_SEED_PREFIX =
-  "sf-marketplace-preview-cart-seeded";
-
 type PreviewCartSignatureItem = {
   id: string;
   productId: string;
@@ -1617,12 +1614,6 @@ const MarketplacePreviewCartBootstrap: React.FC<{
   previewThemeId?: string | null;
 }> = ({ previewThemeId }) => {
   const marketplacePreviewThemeId = previewThemeId || "";
-  const location = useLocation();
-  const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
-  const shouldShowPreviewCartSeed =
-    normalizedPath.endsWith("/cart") ||
-    normalizedPath.endsWith("/checkout") ||
-    normalizedPath.endsWith("/thank-you");
 
   useEffect(() => {
     const persistApi = useCartStore.persist;
@@ -1664,29 +1655,17 @@ const MarketplacePreviewCartBootstrap: React.FC<{
 
         const seedSignature =
           serializeMarketplacePreviewCartItems(previewItems);
-        const activeSeedKey = `${MARKETPLACE_PREVIEW_CART_SEED_PREFIX}:active:${marketplacePreviewThemeId}`;
         const currentItems = useCartStore.getState().items;
         const currentSignature = serializeMarketplacePreviewCartItems(currentItems);
 
-        if (!shouldShowPreviewCartSeed) {
-          if (
-            currentSignature === seedSignature ||
-            (typeof window !== "undefined" &&
-              window.sessionStorage.getItem(activeSeedKey) === "1")
-          ) {
-            useCartStore.setState({ items: [], isOpen: false });
-            if (typeof window !== "undefined") {
-              window.sessionStorage.removeItem(activeSeedKey);
-            }
-          }
-          return;
-        }
-
+        // PREVIEW-1 — the preview cart is per-theme isolated storage, so the
+        // sample cart has to exist on every preview route (home → drawer,
+        // cart, checkout, thank-you). It used to be seeded on cart/checkout/
+        // thank-you only, which left the home preview with an empty cart and
+        // kept stale seeded items (old imagery, wrong price) forever. Always
+        // reconcile the stored cart with the current seed.
         if (currentSignature !== seedSignature) {
           useCartStore.setState({ items: previewItems, isOpen: false });
-        }
-        if (typeof window !== "undefined") {
-          window.sessionStorage.setItem(activeSeedKey, "1");
         }
       },
     );
@@ -1694,7 +1673,7 @@ const MarketplacePreviewCartBootstrap: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [marketplacePreviewThemeId, shouldShowPreviewCartSeed]);
+  }, [marketplacePreviewThemeId]);
 
   return null;
 };

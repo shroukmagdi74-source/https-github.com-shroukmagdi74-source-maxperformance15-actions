@@ -33,7 +33,7 @@ import {
   setLocaleFormatDefaults,
 } from "./utils/localeFormat";
 import tokenManager from "../utils/tokenManager";
-import { formatStorefrontCurrency } from "./utils/currency";
+import { formatStorefrontCurrency, setStorefrontMoneyLocale } from "./utils/currency";
 import { sanitizeStorefrontHtml } from "./utils/html";
 import { StudioVariablesStyle } from "./studio/StudioVariablesStyle";
 import { StorefrontHead } from "./engine/StorefrontHead";
@@ -175,6 +175,10 @@ const StorefrontLayout: React.FC<{ previewThemeId?: string | null; activePageKey
     () => getLocaleDirection(currentLocale),
     [currentLocale],
   );
+  // PREVIEW-1 — publish the storefront locale for money formatting *while*
+  // rendering (not in an effect), so the very first price of an English store
+  // is already `EGP 1,890.00` instead of the previous document direction.
+  setStorefrontMoneyLocale(currentLocale);
   const documentLanguage = useMemo(
     () => (currentLocale === "en" ? "en" : resolveStorefrontDocumentLanguage(theme)),
     [currentLocale, theme],

@@ -12,6 +12,7 @@ import { formatStorefrontCurrency } from "../utils/currency";
 import { buildStorefrontPath } from "../utils/paths";
 import { isPharmacyThemeId } from "../utils/pharmacyThemes";
 import { trackStorefrontAppUsage } from "../utils/appUsageTracking";
+import { isMarketplaceThemePreview } from "../preview/previewContext";
 
 const hasCheckoutLikePath = (pathname: string): boolean =>
   pathname.endsWith("/checkout") || pathname.endsWith("/thank-you");
@@ -84,6 +85,26 @@ export const FreeShippingBar: React.FC = () => {
     location.pathname === "" ||
     location.pathname.endsWith("/store") ||
     location.pathname.endsWith("/store/");
+  // PREVIEW-1 — mirror `GlobalConversionHost`: the conversion suite's shell
+  // surfaces stay out of *mobile* marketplace previews. Seeding the preview
+  // cart (3 sample lines) makes the subtotal cross the free-shipping threshold,
+  // so without this gate the bar would suddenly cover the compact preview dock.
+  const isMarketplacePreview = useMemo(
+    () => isMarketplaceThemePreview(location.search),
+    [location.search],
+  );
+  const [isMobilePreviewViewport, setIsMobilePreviewViewport] = React.useState(
+    () => (typeof window !== "undefined" ? window.innerWidth < 768 : false),
+  );
+  React.useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+    const handleResize = () => setIsMobilePreviewViewport(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const shouldRender =
     isEnabled &&
     attachToThemeShell &&
@@ -91,7 +112,8 @@ export const FreeShippingBar: React.FC = () => {
     thresholdAmount > 0 &&
     !hasCheckoutLikePath(location.pathname) &&
     !(isRedlineAuto && isProductPage && subtotal === 0) &&
-    !isKhemetLuxe;
+    !isKhemetLuxe &&
+    !(isMarketplacePreview && isMobilePreviewViewport);
 
   const remainingToFreeShipping = Math.max(thresholdAmount - subtotal, 0);
   const isQualified = subtotal >= thresholdAmount && thresholdAmount > 0;

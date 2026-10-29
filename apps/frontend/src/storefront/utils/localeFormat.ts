@@ -307,6 +307,29 @@ export interface FormatMoneyOptions extends FormatNumberOptions {
   style?: FormatMoneyStyle;
 }
 
+/**
+ * The currency's own minor-unit count (`EGP` → 2, `JPY` → 0), used as the
+ * default for `style: 'currency'` so a currency-styled amount keeps the
+ * currency's decimals (`EGP 1,890.00`) instead of silently dropping `.00`.
+ */
+const resolveCurrencyDefaultFractionDigits = (
+  locale: string,
+  currency: string,
+): number => {
+  try {
+    const resolved = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+    }).resolvedOptions();
+    if (typeof resolved.maximumFractionDigits === 'number') {
+      return resolved.maximumFractionDigits;
+    }
+  } catch {
+    // Unknown currency/locale pair — fall back to the common 2-decimal case.
+  }
+  return 2;
+};
+
 const resolveMoneySettings = (options: FormatMoneyOptions): LocaleFormatSettings => {
   const defaults = getLocaleFormatDefaults();
   return resolveLocaleFormatSettings({
@@ -334,14 +357,34 @@ export const formatMoney = (
   );
 
   if (options.style === 'currency') {
+    // A currency-styled amount keeps the currency's own decimals unless the
+    // caller asks for something else (LOCALE-1 parity: en → `EGP 1,890.00`).
+    const hasExplicitFractionDigits =
+      options.minimumFractionDigits !== undefined ||
+      options.maximumFractionDigits !== undefined;
+    const currencyFractionDigits = hasExplicitFractionDigits
+      ? maximumFractionDigits
+      : resolveCurrencyDefaultFractionDigits(
+          buildIntlLocale(settings),
+          currency,
+        );
     try {
       return new Intl.NumberFormat(buildIntlLocale(settings), {
         style: 'currency',
         currency,
-        minimumFractionDigits,
-        maximumFractionDigits,
+        minimumFractionDigits: hasExplicitFractionDigits
+          ? minimumFractionDigits
+          : currencyFractionDigits,
+        maximumFractionDigits: currencyFractionDigits,
         useGrouping: options.useGrouping ?? true,
-      }).format(amount);
+      })
+        .format(amount)
+        // Intl pads currency codes with NBSP/narrow-NBSP and bidi marks; keep the
+        // output plain text so the same string can be asserted, copied and
+        // rendered inside either direction.
+        .replace(/[\u00a0\u202f\u200e\u200f\u061c]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
     } catch {
       return `${currency} ${formatNumber(amount, {
         numberLocale: settings.numberLocale,
