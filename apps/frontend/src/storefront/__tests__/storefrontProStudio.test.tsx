@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+// The shared storefront setup is imported here too so this suite is green even
+// when it is run directly (without scripts/vitest.storefront.config.ts):
+// zustand `persist` needs the in-memory localStorage polyfill.
+import "./setup/storefrontTestSetup";
 import React from "react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

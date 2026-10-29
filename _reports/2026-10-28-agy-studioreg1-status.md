@@ -64,6 +64,7 @@
 | تلوث الحالة بين الاختبارات | `beforeEach` بيفرّغ الـstorage |
 
 **الربط:** `apps/frontend/scripts/vitest.storefront.config.ts` — بيورّث `vite.config.ts` (نفس alias/plugins) ويضيف `test.environment=jsdom` + `setupFiles` + `include` لمسارات `src/storefront/__tests__/**` **فقط**. مفيش `setupFiles` عام على مستوى المشروع (كان لازم يتعمله ملف config لأن الريبو مفيهوش `vitest.config.*` أصلًا).
+كمان `storefrontProStudio.test.tsx` بيستورد `./setup/storefrontTestSetup` بنفسه في أول الملف، عشان يفضل 18/18 **حتى لو اتشغّل بالأمر المباشر** بدون الـconfig (ده اللي بيخلي بند القبول #1 يعدّي حرفيًا).
 
 **أثر الـsetup على الـsuites المذكورة في 3-ب (قياس حقيقي):**
 
