@@ -690,12 +690,26 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
   });
 
   // Heartbeat: update active editors on activePageKey change (PERM-1)
+  const heartbeatUserKey = `${effectiveUser?.id || ""}:${effectiveUser?.email || ""}:${effectiveUser?.name || ""}`;
   useEffect(() => {
     const updateHeartbeat = () => {
       try {
         recordStudioHeartbeat(activePageKey || "home", effectiveUser, sessionIdRef.current);
         const editors = getActiveStudioEditors(activePageKey || "home");
-        setActiveEditors(editors);
+        setActiveEditors((prev) => {
+          if (
+            prev.length === editors.length &&
+            prev.every(
+              (item, i) =>
+                item.sessionId === editors[i]?.sessionId &&
+                item.pageKey === editors[i]?.pageKey &&
+                item.userName === editors[i]?.userName
+            )
+          ) {
+            return prev;
+          }
+          return editors;
+        });
       } catch {
         // Safe fallback
       }
@@ -712,7 +726,7 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         // Safe fallback
       }
     };
-  }, [activePageKey, effectiveUser]);
+  }, [activePageKey, heartbeatUserKey]);
 
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showSearchReplacePanel, setShowSearchReplacePanel] = useState(false);

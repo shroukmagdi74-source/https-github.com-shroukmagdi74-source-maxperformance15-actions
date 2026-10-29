@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import "./setup/storefrontTestSetup";
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, cleanup, renderHook, act } from "@testing-library/react";
@@ -55,9 +56,10 @@ vi.mock("../store/useCartStore", async (importOriginal) => {
 });
 
 // Mock simple auth hook
+const mockStudioUser = { companyId: "test-company-123", name: "Test Store" };
 vi.mock("../../hooks/useAuthSimple", () => ({
   useAuth: () => ({
-    user: { companyId: "test-company-123", name: "Test Store" },
+    user: mockStudioUser,
   }),
 }));
 

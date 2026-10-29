@@ -36,18 +36,9 @@ const PER_FILE_TIMEOUT_MS = Number(process.env.STUDIO_TEST_FILE_TIMEOUT_MS || 30
 
 /**
  * Suites that are discovered but cannot run in this harness today, with the
- * reason printed on every run. Kept explicit (never silent) so the guard stays
- * honest: see _reports/2026-10-28-agy-studioreg1-status.md.
+ * reason printed on every run. Empty as of E2E-FIX-1 (studioEditorSmokeE2E.test.tsx now passes cleanly).
  */
-const EXCLUDED_SUITES = new Map([
-  [
-    'studioEditorSmokeE2E.test.tsx',
-    'pre-existing crash: rendering the full StorefrontStudioShell (Scenario 1) kills the vitest worker ' +
-      '(worker exited unexpectedly, 0 test results) even on an untouched tree — reproduced with and ' +
-      'without this guard, while Scenarios 2-5 pass individually. Tracked separately; the E2E job in ' +
-      '.github/workflows/e2e-studio.yml still runs this file.',
-  ],
-]);
+const EXCLUDED_SUITES = new Map();
 
 const verbose = process.argv.includes('--verbose');
 
