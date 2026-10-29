@@ -7,6 +7,7 @@ import structlog
 from src.db.session import close_db, init_db
 from src.services.redis_client import redis_client
 from src.workers.agent_worker import start_worker
+from src.workers.scheduler_worker import start_scheduler_worker
 from src.workers.telegram_worker import run_telegram_worker
 
 logger = structlog.get_logger(__name__)
@@ -22,6 +23,7 @@ async def main():
     workers = [
         start_worker(), # The main agent-tasks dispatcher
         run_telegram_worker(), # The Telegram event listener
+        start_scheduler_worker(), # The Routine scheduler
     ]
 
     try:

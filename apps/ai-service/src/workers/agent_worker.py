@@ -8,14 +8,28 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
-import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
+try:
+    import structlog
+    logger = structlog.get_logger(__name__)
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 
-from src.db.session import async_session
-from src.db.repo.agent_repo import AgentRepository
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession
+except ImportError:
+    AsyncSession = Any
+
+try:
+    from src.db.session import async_session
+except Exception:
+    async_session = None
+
+try:
+    from src.db.repo.agent_repo import AgentRepository
+except Exception:
+    AgentRepository = None
 from src.services.queue_service import QueuePriority, queue_service
-
-logger = structlog.get_logger(__name__)
 
 
 def _generate_id() -> str:
@@ -926,32 +940,48 @@ async def handle_scheduled_agent_task(job: dict[str, Any]) -> None:
     task_type = payload.get("type", "GENERAL")
     agent_id = payload.get("agent_id")
     task_context = payload.get("context", {})
+    task_id = payload.get("task_id") or _generate_id()
+    schedule_id = payload.get("schedule_id")
     job_id = job["id"]
 
-    logger.info("executing scheduled agent task", company_id=company_id, type=task_type, job_id=job_id)
+    logger.info("executing scheduled agent task", company_id=company_id, type=task_type, job_id=job_id, task_id=task_id)
 
-    from sqlalchemy import select
-
-    from src.agents.base import BaseAgent
-    from src.db.models.agent import AgentTemplate
+    try:
+        from sqlalchemy import select, text
+    except ImportError:
+        select = None
+        text = lambda x: x
 
     role = "SALES" if task_type == "GENERAL" else task_type
     async with async_session() as session:
-        trow = await session.execute(
-            select(AgentTemplate).where(AgentTemplate.role == role).limit(1)
-        )
-        tpl = trow.scalar_one_or_none()
-        slug = tpl.slug if tpl else "sales-agent"
+        # Tenant isolation check before running tools or constructing agent
+        db_agent = None
+        if agent_id and company_id:
+            db_agent = await AgentRepository(session).get_agent(agent_id, company_id)
+            if not db_agent:
+                logger.warning("tenant_mismatch", agent_id=agent_id, company_id=company_id, job_id=job_id)
+                return
+
+        from src.agents.base import BaseAgent
+
+        if db_agent and db_agent.template_slug:
+            slug = db_agent.template_slug
+        else:
+            trow = await session.execute(
+                select(AgentTemplate).where(AgentTemplate.role == role).limit(1)
+            )
+            tpl = trow.scalar_one_or_none()
+            slug = tpl.slug if tpl else "sales-agent"
 
         agent = await BaseAgent.from_template(
             slug,
             company_id,
             overrides={
                 "id": agent_id or f"routine_{_generate_id()[:8]}",
-                "name": f"Routine-{task_type}",
-                "role": role,
-                "model": payload.get("model"),
-                "allowed_tools": payload.get("tools", []),
+                "name": (db_agent.name if db_agent else f"Routine-{task_type}"),
+                "role": (db_agent.role if db_agent else role),
+                "model": payload.get("model") or (db_agent.model if db_agent else None),
+                "allowed_tools": payload.get("tools", []) or (db_agent.allowed_tools if db_agent else []),
             },
             session=session,
         )
@@ -959,6 +989,7 @@ async def handle_scheduled_agent_task(job: dict[str, Any]) -> None:
     task_obj = {
         "description": f"Routine scheduled execution of type: {task_type}",
         "job_id": job_id,
+        "task_id": task_id,
         "context": task_context,
     }
 
@@ -971,11 +1002,13 @@ async def handle_scheduled_agent_task(job: dict[str, Any]) -> None:
         result_data = task_result.get("result", {})
 
         async with async_session() as session:
-            # 1. Create/Ensure the high-level task exists
-            task_id = _generate_id()
+            # 1. Create/Ensure the high-level task exists idempotently
             await session.execute(
-                "INSERT INTO ai.ai_agent_tasks (id, company_id, agent_id, title, description, status, priority) "
-                "VALUES (:id, :cid, :aid, :title, :desc, :status, :prio)",
+                text(
+                    "INSERT INTO ai.ai_agent_tasks (id, company_id, agent_id, title, description, status, priority) "
+                    "VALUES (:id, :cid, :aid, :title, :desc, :status, :prio) "
+                    "ON CONFLICT (id) DO NOTHING"
+                ),
                 {
                     "id": task_id,
                     "cid": company_id,
@@ -1005,8 +1038,10 @@ async def handle_scheduled_agent_task(job: dict[str, Any]) -> None:
             action_map = {"FOLLOW_UP": "FOLLOW_UP_SENT", "INVENTORY_CHECK": "INVENTORY_AUDITED", "REPORT": "REPORT_GENERATED"}
             action = action_map.get(task_type, f"{task_type}_COMPLETED")
             await session.execute(
-                "INSERT INTO ai.provider_logs (id, provider, company_id, scope, action, status, message, metadata, created_at) "
-                "VALUES (:id, :provider, :company_id, :scope, :action, :status, :message, :metadata::jsonb, NOW())",
+                text(
+                    "INSERT INTO ai.provider_logs (id, provider, company_id, scope, action, status, message, metadata, created_at) "
+                    "VALUES (:id, :provider, :company_id, :scope, :action, :status, :message, :metadata::jsonb, NOW())"
+                ),
                 {
                     "id": _generate_id(),
                     "provider": "ROUTINE_EXECUTOR",
@@ -1015,7 +1050,7 @@ async def handle_scheduled_agent_task(job: dict[str, Any]) -> None:
                     "action": task_type,
                     "status": status,
                     "message": result_data.get("summary", ""),
-                    "metadata": json.dumps({"jobId": job_id, "action": action}),
+                    "metadata": json.dumps({"jobId": job_id, "action": action, "scheduleId": schedule_id}),
                 },
             )
             await session.commit()
@@ -1025,11 +1060,12 @@ async def handle_scheduled_agent_task(job: dict[str, Any]) -> None:
     except Exception as exc:
         logger.error("scheduled agent task failed", company_id=company_id, type=task_type, error=str(exc))
         async with async_session() as session:
-            # Log failure run
-            task_id = _generate_id()
             await session.execute(
-                "INSERT INTO ai.ai_agent_tasks (id, company_id, agent_id, title, description, status) "
-                "VALUES (:id, :cid, :aid, :title, :desc, 'FAILED')",
+                text(
+                    "INSERT INTO ai.ai_agent_tasks (id, company_id, agent_id, title, description, status) "
+                    "VALUES (:id, :cid, :aid, :title, :desc, 'FAILED') "
+                    "ON CONFLICT (id) DO NOTHING"
+                ),
                 {"id": task_id, "cid": company_id, "aid": agent.config.id, "title": f"Scheduled {task_type}", "desc": "Failed routine"}
             )
             await _log_agent_run(

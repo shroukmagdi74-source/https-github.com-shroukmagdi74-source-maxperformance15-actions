@@ -20,6 +20,8 @@ override :py:meth:`BaseAgent._get_system_prompt` for role-specific prompts.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -196,6 +198,8 @@ class BaseAgent:
         self._task_log: list[dict[str, Any]] = []
         self._system_prompt_cache: str | None = None
         self._system_prompt_cache_at: float = 0.0
+        self._system_prompt_cache_map: dict[tuple[Any, Any], tuple[str, float]] = {}
+        self._client_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # Factory: from_template
@@ -389,143 +393,152 @@ class BaseAgent:
         """Create the SDK-compatible client through the framework Agent lifecycle."""
         if self.client is not None:
             return self.client
-        settings = get_settings()
-        instructions = self._get_system_prompt()
-        tools = self._resolve_tools()
 
-        # DB-first model resolution: an agent without an explicit model falls back
-        # to the company model, then the platform default — never env.
-        if not self.model:
-            try:
-                from src.services.model_resolver import resolve_db_default_model
+        async with self._client_lock:
+            if self.client is not None:
+                return self.client
 
-                db_model = await resolve_db_default_model(self.company_id)
-                if db_model:
-                    self.model = db_model
-                    self._last_model_selection = {"model": db_model, "source": "db_default"}
-            except Exception as exc:
-                logger.warning("db_default_model_resolution_failed", agent_id=self.id, error=str(exc)[:160])
+            settings = get_settings()
+            instructions = self._get_system_prompt()
+            tools = self._resolve_tools()
 
-        # Step 1: Try primary model
-        client = await self._try_build_client(
-            provider=self.config.provider,
-            model=self.model,
-            key_id=self.config.key_id,
-            tools=tools,
-            instructions=instructions,
-        )
-        if client:
-            self._last_model_selection = {"model": self.model, "source": "primary"}
-            self.client = client
-            return client
+            resolved_model = self.model
+            selected_source = "primary"
 
-        # Step 2: Fallback logic using model_policy
-        model_policy = self.policies.get("model_policy", {}) or {}
-        if isinstance(model_policy, str):
-            try:
-                import json
-                model_policy = json.loads(model_policy)
-            except Exception:
-                model_policy = {}
-        if not isinstance(model_policy, dict):
-            model_policy = {}
+            # DB-first model resolution: an agent without an explicit model falls back
+            # to the company model, then the platform default — never env.
+            if not resolved_model:
+                try:
+                    from src.services.model_resolver import resolve_db_default_model
 
-        raw_fallbacks = model_policy.get("fallback", [])
-        if isinstance(raw_fallbacks, (str, dict)):
-            raw_fallbacks = [raw_fallbacks]
-        elif not isinstance(raw_fallbacks, list):
-            raw_fallbacks = []
+                    db_model = await resolve_db_default_model(self.company_id)
+                    if db_model:
+                        resolved_model = db_model
+                        selected_source = "db_default"
+                except Exception as exc:
+                    logger.warning("db_default_model_resolution_failed", agent_id=self.id, error=str(exc)[:160])
 
-        fallbacks: list[dict[str, Any]] = []
-        for fb in raw_fallbacks:
-            if isinstance(fb, str):
-                fb_str = fb.strip()
-                if not fb_str:
-                    continue
-                if "/" in fb_str:
-                    p, m = fb_str.split("/", 1)
-                    fallbacks.append({"provider": p, "model": m})
-                else:
-                    fallbacks.append({"model": fb_str})
-            elif isinstance(fb, dict):
-                fallbacks.append(fb)
-
-        logger.warning(
-            "primary_model_failed_trying_fallbacks",
-            agent_id=self.id,
-            primary_model=self.model,
-            fallback_count=len(fallbacks),
-        )
-
-        for i, fb in enumerate(fallbacks):
-            fb_model = fb.get("model", "") if isinstance(fb, dict) else str(fb)
-            fb_provider = fb.get("provider") if isinstance(fb, dict) else None
-            if not fb_model:
-                continue
-
-            logger.info(
-                "trying_model_fallback",
-                index=i,
-                model=fb_model,
-                provider=fb_provider,
-            )
+            # Step 1: Try primary model
             client = await self._try_build_client(
-                provider=fb_provider,
-                model=fb_model,
+                provider=self.config.provider,
+                model=resolved_model,
+                key_id=self.config.key_id,
                 tools=tools,
                 instructions=instructions,
             )
             if client:
-                self._last_model_selection = {
-                    "model": fb_model,
-                    "provider": fb_provider,
-                    "source": f"fallback-{i}",
-                    "original_model": self.model,
-                }
-                logger.warning(
-                    "model_fallback_activated",
-                    agent_id=self.id,
-                    fallback_index=i,
-                    fallback_model=fb_model,
-                    fallback_provider=fb_provider,
-                )
+                self._last_model_selection = {"model": resolved_model, "source": selected_source}
+                self.model = resolved_model
                 self.client = client
-                self.model = fb_model
                 return client
 
-        # Step 3: Platform DB-default fallback if primary & configured fallbacks failed
-        try:
-            from src.services.model_resolver import resolve_db_default_model
+            # Step 2: Fallback logic using model_policy
+            model_policy = self.policies.get("model_policy", {}) or {}
+            if isinstance(model_policy, str):
+                try:
+                    import json
+                    model_policy = json.loads(model_policy)
+                except Exception:
+                    model_policy = {}
+            if not isinstance(model_policy, dict):
+                model_policy = {}
 
-            db_model = await resolve_db_default_model(self.company_id)
-            if db_model and db_model != self.model:
-                logger.warning(
-                    "trying_db_default_as_last_resort",
-                    agent_id=self.id,
-                    db_model=db_model,
+            raw_fallbacks = model_policy.get("fallback", [])
+            if isinstance(raw_fallbacks, (str, dict)):
+                raw_fallbacks = [raw_fallbacks]
+            elif not isinstance(raw_fallbacks, list):
+                raw_fallbacks = []
+
+            fallbacks: list[dict[str, Any]] = []
+            for fb in raw_fallbacks:
+                if isinstance(fb, str):
+                    fb_str = fb.strip()
+                    if not fb_str:
+                        continue
+                    if "/" in fb_str:
+                        p, m = fb_str.split("/", 1)
+                        fallbacks.append({"provider": p, "model": m})
+                    else:
+                        fallbacks.append({"model": fb_str})
+                elif isinstance(fb, dict):
+                    fallbacks.append(fb)
+
+            logger.warning(
+                "primary_model_failed_trying_fallbacks",
+                agent_id=self.id,
+                primary_model=resolved_model,
+                fallback_count=len(fallbacks),
+            )
+
+            for i, fb in enumerate(fallbacks):
+                fb_model = fb.get("model", "") if isinstance(fb, dict) else str(fb)
+                fb_provider = fb.get("provider") if isinstance(fb, dict) else None
+                if not fb_model:
+                    continue
+
+                logger.info(
+                    "trying_model_fallback",
+                    index=i,
+                    model=fb_model,
+                    provider=fb_provider,
                 )
                 client = await self._try_build_client(
-                    model=db_model,
+                    provider=fb_provider,
+                    model=fb_model,
                     tools=tools,
                     instructions=instructions,
                 )
                 if client:
                     self._last_model_selection = {
-                        "model": db_model,
-                        "source": "db_default_last_resort",
-                        "original_model": self.model,
+                        "model": fb_model,
+                        "provider": fb_provider,
+                        "source": f"fallback-{i}",
+                        "original_model": resolved_model,
                     }
+                    logger.warning(
+                        "model_fallback_activated",
+                        agent_id=self.id,
+                        fallback_index=i,
+                        fallback_model=fb_model,
+                        fallback_provider=fb_provider,
+                    )
+                    self.model = fb_model
                     self.client = client
-                    self.model = db_model
                     return client
-        except Exception as exc:
-            logger.warning("db_default_last_resort_failed", agent_id=self.id, error=str(exc)[:160])
 
-        # Step 4: If everything failed, raise RuntimeError
-        raise RuntimeError(
-            f"No LLM client available for model '{self.model}' (tried primary model + {len(fallbacks)} fallbacks). "
-            f"Check active API keys in ai_keys table for agent {self.id}."
-        )
+            # Step 3: Platform DB-default fallback if primary & configured fallbacks failed
+            try:
+                from src.services.model_resolver import resolve_db_default_model
+
+                db_model = await resolve_db_default_model(self.company_id)
+                if db_model and db_model != resolved_model:
+                    logger.warning(
+                        "trying_db_default_as_last_resort",
+                        agent_id=self.id,
+                        db_model=db_model,
+                    )
+                    client = await self._try_build_client(
+                        model=db_model,
+                        tools=tools,
+                        instructions=instructions,
+                    )
+                    if client:
+                        self._last_model_selection = {
+                            "model": db_model,
+                            "source": "db_default_last_resort",
+                            "original_model": resolved_model,
+                        }
+                        self.model = db_model
+                        self.client = client
+                        return client
+            except Exception as exc:
+                logger.warning("db_default_last_resort_failed", agent_id=self.id, error=str(exc)[:160])
+
+            # Step 4: If everything failed, raise RuntimeError
+            raise RuntimeError(
+                f"No LLM client available for model '{resolved_model}' (tried primary model + {len(fallbacks)} fallbacks). "
+                f"Check active API keys in ai_keys table for agent {self.id}."
+            )
 
     def _resolve_tools(self) -> list[FunctionTool]:
         """Resolve the list of tools this agent is allowed to use.
@@ -548,15 +561,16 @@ class BaseAgent:
 
         from src.tools.registry import get_all_tools, unlock_advanced_tools_tool
 
-        if not self.allowed_tools:
+        effective_allowed = set(self.allowed_tools or [])
+        if not effective_allowed:
             # Fallback: populate from role_tools.yaml when agent has no explicit tools
             if not self.allowed_skills and self.role:
                 try:
                     from src.tools.role_config import get_tool_names_for_role
                     role_tools = get_tool_names_for_role(str(self.role).upper())
                     if role_tools:
-                        self.allowed_tools = list(role_tools)
-                        logger.info("resolved_tools_from_role", role=self.role, count=len(self.allowed_tools))
+                        effective_allowed = set(role_tools)
+                        logger.info("resolved_tools_from_role", role=self.role, count=len(effective_allowed))
                 except Exception as exc:
                     logger.warning("role_tools_resolve_failed", role=self.role, error=str(exc))
 
@@ -587,14 +601,15 @@ class BaseAgent:
                     agent_role=self.role,
                     allowed_tools=[_tool_name(t) for t in scoped],
                 )
-            return wrap_tools_for_gateway(
-                base_set,
-                company_id=self.company_id,
-                agent_role=self.role,
-                allowed_tools=[_tool_name(tool) for tool in base_set],
-            )
+            if not effective_allowed:
+                return wrap_tools_for_gateway(
+                    base_set,
+                    company_id=self.company_id,
+                    agent_role=self.role,
+                    allowed_tools=[_tool_name(tool) for tool in base_set],
+                )
 
-        allowed = {name.lower() for name in self.allowed_tools}
+        allowed = {name.lower() for name in effective_allowed}
 
         # Catalog role grants: active ai.agent_tool_catalog rows granted to
         # this agent's role (in-memory map built at startup by
@@ -701,11 +716,13 @@ class BaseAgent:
         Subclasses may override this to provide role-specific prompts.
         """
         now = _utcnow().timestamp()
+        cache_key = (hash(json.dumps(self._instructions, sort_keys=True, default=str)), self.model)
+        cached_entry = getattr(self, "_system_prompt_cache_map", {}).get(cache_key)
         if (
-            self._system_prompt_cache is not None
-            and (now - self._system_prompt_cache_at) < SYSTEM_PROMPT_CACHE_TTL_SECONDS
+            cached_entry is not None
+            and (now - cached_entry[1]) < SYSTEM_PROMPT_CACHE_TTL_SECONDS
         ):
-            return self._system_prompt_cache
+            return cached_entry[0]
 
         variables = {
             "company_name": self.persona.get("company_name") or self.company_id,
@@ -760,6 +777,9 @@ class BaseAgent:
 
         # Skills are injected by ContextAssembler (pipeline) or SkillsProvider
         # (SDK Agent Runtime). Do not inline them here to avoid duplication.
+        if not hasattr(self, "_system_prompt_cache_map"):
+            self._system_prompt_cache_map = {}
+        self._system_prompt_cache_map[cache_key] = (text, now)
         self._system_prompt_cache = text
         self._system_prompt_cache_at = now
         return text
@@ -955,6 +975,7 @@ class BaseAgent:
 
         Runs the five-stage pipeline and returns a structured result.
         """
+        self._task_log = []
         run_id = f"run_{uuid.uuid4()}"
         message = task.get("current_message") or task.get("description") or ""
         thread_id = task.get("session_id") or task.get("conversation_id") or task.get("job_id") or run_id

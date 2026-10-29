@@ -163,14 +163,13 @@ const agentInboxService = {
   checkoutTask: async (companyId, taskId, agentId) => {
     try {
       const db = prisma();
-      const task = await db.aiAgentTask.findFirst({ where: { id: taskId, companyId } });
-      if (!task) return { success: false, error: 'المهمة غير موجودة' };
-      if (task.status !== 'PENDING') return { success: false, error: 'المهمة ليست في حالة انتظار' };
-      await db.aiAgentTask.update({
-        where: { id: taskId },
+      const res = await db.aiAgentTask.updateMany({
+        where: { id: taskId, companyId, status: 'PENDING' },
         data: { status: 'CHECKED_OUT', checkedOutBy: agentId || null, checkedOutAt: new Date() },
       });
-      return { success: true, task: { ...task, status: 'CHECKED_OUT' } };
+      if (!res.count) return { success: false, error: 'المهمة محجوزة بالفعل أو غير موجودة' };
+      const task = await db.aiAgentTask.findFirst({ where: { id: taskId, companyId } });
+      return { success: true, task: task || { id: taskId, companyId, status: 'CHECKED_OUT', checkedOutBy: agentId || null } };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -178,12 +177,17 @@ const agentInboxService = {
   completeTask: async (companyId, taskId, agentId, result) => {
     try {
       const db = prisma();
-      const task = await db.aiAgentTask.findFirst({ where: { id: taskId, companyId } });
-      if (!task) return { success: false, error: 'المهمة غير موجودة' };
-      await db.aiAgentTask.update({
-        where: { id: taskId },
+      const where = {
+        id: taskId,
+        companyId,
+        status: { in: ['CHECKED_OUT', 'IN_PROGRESS'] },
+      };
+      if (agentId) where.checkedOutBy = agentId;
+      const res = await db.aiAgentTask.updateMany({
+        where,
         data: { status: 'COMPLETED', completedAt: new Date(), metadata: result || {} },
       });
+      if (!res.count) return { success: false, error: 'المهمة غير موجودة أو ليست محجوزة لهذا الوكيل' };
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -192,12 +196,17 @@ const agentInboxService = {
   failTask: async (companyId, taskId, agentId, error) => {
     try {
       const db = prisma();
-      const task = await db.aiAgentTask.findFirst({ where: { id: taskId, companyId } });
-      if (!task) return { success: false, error: 'المهمة غير موجودة' };
-      await db.aiAgentTask.update({
-        where: { id: taskId },
+      const where = {
+        id: taskId,
+        companyId,
+        status: { in: ['CHECKED_OUT', 'IN_PROGRESS'] },
+      };
+      if (agentId) where.checkedOutBy = agentId;
+      const res = await db.aiAgentTask.updateMany({
+        where,
         data: { status: 'FAILED', metadata: { error: error || 'فشل غير معروف' } },
       });
+      if (!res.count) return { success: false, error: 'المهمة غير موجودة أو ليست محجوزة لهذا الوكيل' };
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -282,6 +291,42 @@ router.get('/inbox', async (req, res) => {
       activeOnly: req.query.activeOnly === 'true',
     });
     return res.json({ success: true, tasks, count: tasks.length });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/runtime', async (req, res) => {
+  try {
+    const companyId = getCompanyId(req);
+    if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' });
+    const db = prisma();
+    const counts = await db.aiRuntimeQueueJob.groupBy({
+      by: ['status'],
+      where: { companyId },
+      _count: { id: true },
+    });
+    const map = {};
+    (counts || []).forEach((c) => {
+      map[c.status] = c._count.id;
+    });
+    const stuck = await db.aiRuntimeQueueJob.findMany({
+      where: {
+        companyId,
+        status: 'RUNNING',
+        lockExpiresAt: { lt: new Date() },
+      },
+      select: { id: true, agentId: true, lockExpiresAt: true },
+      take: 50,
+    });
+    return res.json({
+      success: true,
+      queued: map.PENDING || 0,
+      running: map.RUNNING || 0,
+      retrying: map.RETRY || 0,
+      dead: map.DEAD || 0,
+      stuck: stuck || [],
+    });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }

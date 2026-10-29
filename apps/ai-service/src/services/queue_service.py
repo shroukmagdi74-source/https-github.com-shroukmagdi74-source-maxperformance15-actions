@@ -1,17 +1,36 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-import structlog
+try:
+    import structlog
+    logger = structlog.get_logger(__name__)
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 
-from src.config import get_settings
-from src.services.redis_client import redis_client
+try:
+    from sqlalchemy import text
+except ImportError:
+    class _TextClause:
+        def __init__(self, text_str: str):
+            self.text = text_str
+        def __str__(self):
+            return self.text
+    text = _TextClause
 
-logger = structlog.get_logger(__name__)
+try:
+    from src.services.redis_client import redis_client
+except Exception:
+    class _MockRedis:
+        available = False
+        _client = None
+    redis_client = _MockRedis()
 
 
 class QueuePriority:
@@ -22,15 +41,22 @@ class QueuePriority:
 
 
 class QueueService:
-    """Simple Redis-backed queue for background agent tasks.
-
-    Replaces BullMQ with a lightweight rq-like pattern.
-    Falls back to in-memory if Redis is unavailable.
+    """PostgreSQL-backed queue with lease management, atomic reservation,
+    per-agent concurrency serialization, and Redis wake notifications.
     """
 
     def __init__(self) -> None:
-        self._in_memory: dict[str, list[dict]] = {}
-        self._settings = get_settings()
+        self._in_memory: dict[str, list[dict[str, Any]]] = {}
+
+    async def _ensure_session(self):
+        try:
+            from src.db.session import async_session, init_db
+            if async_session is None:
+                await init_db()
+                from src.db.session import async_session
+            return async_session()
+        except Exception as err:
+            raise RuntimeError(f"Database session unavailable: {err}") from err
 
     async def enqueue(
         self,
@@ -39,90 +65,346 @@ class QueueService:
         payload: dict[str, Any],
         priority: int = QueuePriority.MEDIUM,
         job_id: str | None = None,
+        dedupe_key: str | None = None,
+        agent_id: str | None = None,
+        company_id: str | None = None,
     ) -> str:
-        job_id = job_id or str(uuid.uuid4())
-        job = {
+        """Enqueue task into ai_runtime_queue_jobs with dedupeKey protection."""
+        job_id = job_id or f"job_{uuid.uuid4().hex[:16]}"
+        company_id = company_id or payload.get("company_id") or "SYSTEM"
+        agent_id = agent_id or payload.get("agent_id")
+        queue_key = dedupe_key or f"{queue_name}:{job_id}"
+        input_snapshot = json.dumps(payload)
+        metadata = json.dumps({"task_type": task_type, "queue_name": queue_name})
+
+        stmt = text("""
+            INSERT INTO ai_runtime_queue_jobs (
+                id, "companyId", "agentId", "queueKey", channel, status, priority,
+                attempts, "maxAttempts", "availableAt", "inputSnapshot", metadata, "createdAt", "updatedAt"
+            ) VALUES (
+                :id, :company_id, :agent_id, :queue_key, :channel, 'PENDING', :priority,
+                0, 3, now(), :input_snapshot, :metadata, now(), now()
+            )
+            ON CONFLICT ("queueKey") DO NOTHING
+            RETURNING id;
+        """)
+        params = {
             "id": job_id,
-            "type": task_type,
-            "payload": payload,
+            "company_id": company_id,
+            "agent_id": agent_id,
+            "queue_key": queue_key,
+            "channel": queue_name,
             "priority": priority,
-            "status": "queued",
-            "created_at": datetime.utcnow().isoformat(),
-            "attempts": 0,
-            "max_attempts": 3,
+            "input_snapshot": input_snapshot,
+            "metadata": metadata,
         }
 
-        if redis_client.available:
-            key = f"queue:{queue_name}"
-            score = priority * 1000000 + int(datetime.utcnow().timestamp())
-            await redis_client._client.zadd(key, {json.dumps(job): score})
-        else:
+        try:
+            session = await self._ensure_session()
+            async with session:
+                res = await session.execute(stmt, params)
+                row = res.first()
+                if row:
+                    final_id = row[0]
+                else:
+                    sel = text('SELECT id FROM ai_runtime_queue_jobs WHERE "queueKey" = :queue_key LIMIT 1')
+                    existing = (await session.execute(sel, {"queue_key": queue_key})).first()
+                    final_id = existing[0] if existing else job_id
+                await session.commit()
+        except Exception as exc:
+            if queue_name == "agent-tasks":
+                logger.error("queue_enqueue_db_failed", queue=queue_name, error=str(exc))
+                raise RuntimeError(f"Database queue unavailable for {queue_name}: {exc}") from exc
+            logger.warning("queue_fallback_in_memory", queue=queue_name, error=str(exc))
             if queue_name not in self._in_memory:
                 self._in_memory[queue_name] = []
-            self._in_memory[queue_name].append(job)
+            self._in_memory[queue_name].append({
+                "id": job_id,
+                "type": task_type,
+                "payload": payload,
+                "priority": priority,
+                "status": "queued",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "attempts": 0,
+                "max_attempts": 3,
+            })
+            return job_id
 
-        logger.info("job enqueued", queue=queue_name, type=task_type, job_id=job_id)
-        return job_id
+        # Redis wake notification
+        if redis_client.available:
+            try:
+                rkey = f"queue:{queue_name}"
+                score = priority * 1000000 + int(datetime.now(timezone.utc).timestamp())
+                await redis_client._client.zadd(rkey, {json.dumps({"id": final_id, "type": task_type}): score})
+            except Exception as r_err:
+                logger.debug("redis_wake_notification_failed", error=str(r_err))
+
+        logger.info("job enqueued", queue=queue_name, type=task_type, job_id=final_id, dedupe_key=queue_key)
+        return final_id
+
+    async def reserve(
+        self,
+        queue_name: str | None = None,
+        lease_seconds: int = 300,
+    ) -> dict[str, Any] | None:
+        """Atomically reserve a due job with lease lock and per-agent concurrency isolation."""
+        token = str(uuid.uuid4())
+        lease_interval = f"{int(lease_seconds)} seconds"
+
+        stmt = text("""
+            UPDATE ai_runtime_queue_jobs
+            SET status = 'RUNNING',
+                "lockToken" = :lock_token,
+                "lockedAt" = now(),
+                "lockExpiresAt" = now() + (:lease_interval)::interval,
+                "startedAt" = COALESCE("startedAt", now()),
+                attempts = attempts + 1,
+                "updatedAt" = now()
+            WHERE id = (
+              SELECT j.id
+              FROM ai_runtime_queue_jobs j
+              WHERE j.status IN ('PENDING', 'RETRY')
+                AND j."availableAt" <= now()
+                AND (:queue_name IS NULL OR j.channel = :queue_name)
+                AND NOT EXISTS (
+                  SELECT 1 FROM ai_runtime_queue_jobs r
+                  WHERE r.status = 'RUNNING'
+                    AND r."agentId" = j."agentId"
+                    AND r."agentId" IS NOT NULL
+                )
+              ORDER BY j.priority DESC, j."availableAt" ASC
+              LIMIT 1
+              FOR UPDATE SKIP LOCKED
+            )
+            RETURNING *;
+        """)
+
+        try:
+            session = await self._ensure_session()
+            async with session:
+                res = await session.execute(stmt, {
+                    "lock_token": token,
+                    "lease_interval": lease_interval,
+                    "queue_name": queue_name,
+                })
+                row = res.mappings().first()
+                if not row:
+                    return None
+                await session.commit()
+        except Exception as exc:
+            if queue_name == "agent-tasks":
+                logger.error("queue_reserve_db_failed", queue=queue_name, error=str(exc))
+                raise
+            return None
+
+        raw_snapshot = row.get("inputSnapshot") or "{}"
+        try:
+            payload = json.loads(raw_snapshot) if isinstance(raw_snapshot, str) else raw_snapshot
+        except Exception:
+            payload = {}
+
+        raw_meta = row.get("metadata") or "{}"
+        try:
+            meta = json.loads(raw_meta) if isinstance(raw_meta, str) else raw_meta
+        except Exception:
+            meta = {}
+
+        task_type = meta.get("task_type") or payload.get("type", "GENERAL")
+
+        return {
+            "id": row.get("id"),
+            "type": task_type,
+            "payload": payload,
+            "lock_token": token,
+            "attempts": row.get("attempts", 1),
+            "max_attempts": row.get("maxAttempts", 3),
+            "agent_id": row.get("agentId"),
+            "company_id": row.get("companyId"),
+            "priority": row.get("priority", 0),
+            "status": "RUNNING",
+        }
+
+    async def heartbeat(
+        self,
+        job_id: str,
+        token: str,
+        extend_seconds: int = 300,
+    ) -> bool:
+        """Extend lockExpiresAt by extend_seconds for a running job."""
+        extend_interval = f"{int(extend_seconds)} seconds"
+        stmt = text("""
+            UPDATE ai_runtime_queue_jobs
+            SET "lockExpiresAt" = now() + (:extend_interval)::interval,
+                "updatedAt" = now()
+            WHERE id = :job_id AND "lockToken" = :token AND status = 'RUNNING'
+            RETURNING id;
+        """)
+        try:
+            session = await self._ensure_session()
+            async with session:
+                res = await session.execute(stmt, {
+                    "job_id": job_id,
+                    "token": token,
+                    "extend_interval": extend_interval,
+                })
+                row = res.first()
+                await session.commit()
+                return bool(row)
+        except Exception as exc:
+            logger.warning("queue_heartbeat_failed", job_id=job_id, error=str(exc))
+            return False
+
+    async def ack(
+        self,
+        job_id: str,
+        token: str,
+        result: Any = None,
+    ) -> bool:
+        """Mark job as COMPLETED and save resultSnapshot."""
+        res_snapshot = json.dumps(result) if result is not None else None
+        stmt = text("""
+            UPDATE ai_runtime_queue_jobs
+            SET status = 'COMPLETED',
+                "completedAt" = now(),
+                "resultSnapshot" = :res_snapshot,
+                "updatedAt" = now()
+            WHERE id = :job_id AND "lockToken" = :token
+            RETURNING id;
+        """)
+        try:
+            session = await self._ensure_session()
+            async with session:
+                res = await session.execute(stmt, {
+                    "job_id": job_id,
+                    "token": token,
+                    "res_snapshot": res_snapshot,
+                })
+                row = res.first()
+                await session.commit()
+                return bool(row)
+        except Exception as exc:
+            logger.error("queue_ack_failed", job_id=job_id, error=str(exc))
+            return False
+
+    async def fail(
+        self,
+        job_id: str,
+        token: str,
+        error: str = "",
+    ) -> str:
+        """Mark job as RETRY (if attempts < maxAttempts) or DEAD, with exponential backoff."""
+        stmt = text("""
+            UPDATE ai_runtime_queue_jobs
+            SET status = CASE WHEN attempts < "maxAttempts" THEN 'RETRY' ELSE 'DEAD' END,
+                "availableAt" = CASE
+                    WHEN attempts < "maxAttempts" THEN now() + (LEAST(300, POWER(2, attempts) * 10) || ' seconds')::interval
+                    ELSE "availableAt"
+                END,
+                "lockToken" = NULL,
+                "lastError" = :error,
+                "completedAt" = CASE WHEN attempts >= "maxAttempts" THEN now() ELSE NULL END,
+                "updatedAt" = now()
+            WHERE id = :job_id AND "lockToken" = :token
+            RETURNING status;
+        """)
+        try:
+            session = await self._ensure_session()
+            async with session:
+                res = await session.execute(stmt, {
+                    "job_id": job_id,
+                    "token": token,
+                    "error": str(error)[:1000],
+                })
+                row = res.first()
+                await session.commit()
+                return row[0] if row else "UNKNOWN"
+        except Exception as exc:
+            logger.error("queue_fail_failed", job_id=job_id, error=str(exc))
+            return "ERROR"
+
+    async def reap_expired(self) -> list[str]:
+        """Reset running jobs whose lock expired back to RETRY."""
+        stmt = text("""
+            UPDATE ai_runtime_queue_jobs
+            SET status = 'RETRY',
+                "availableAt" = now(),
+                "lockToken" = NULL,
+                "updatedAt" = now()
+            WHERE status = 'RUNNING' AND "lockExpiresAt" < now()
+            RETURNING id;
+        """)
+        try:
+            session = await self._ensure_session()
+            async with session:
+                res = await session.execute(stmt)
+                rows = res.fetchall()
+                await session.commit()
+                return [r[0] for r in rows]
+        except Exception as exc:
+            logger.warning("queue_reap_expired_failed", error=str(exc))
+            return []
 
     async def dequeue(self, queue_name: str) -> dict[str, Any] | None:
-        if redis_client.available:
-            key = f"queue:{queue_name}"
-            jobs = await redis_client._client.zpopmin(key)
-            if jobs:
-                job = json.loads(jobs[0][0])
-                return job
-
-        if self._in_memory.get(queue_name):
-            return self._in_memory[queue_name].pop(0)
-
-        return None
+        """Legacy dequeue adapter: calls reserve."""
+        return await self.reserve(queue_name)
 
     async def register_worker(
         self,
         queue_name: str,
         handler: Callable[[dict[str, Any]], None],
-        poll_interval: float = 1.0,
+        poll_interval: float = 0.5,
     ) -> None:
+        """Background worker loop with atomic lease, concurrent heartbeat, and ack/fail."""
         logger.info("worker registered", queue=queue_name)
-        import asyncio
 
         while True:
-            job = await self.dequeue(queue_name)
-            if job:
+            job = await self.reserve(queue_name)
+            if not job:
+                await asyncio.sleep(poll_interval)
+                continue
+
+            job_id = job["id"]
+            token = job.get("lock_token")
+            logger.info("processing job", queue=queue_name, job_id=job_id)
+
+            stop_heartbeat = asyncio.Event()
+
+            async def _heartbeat_loop():
+                while not stop_heartbeat.is_set():
+                    try:
+                        await asyncio.wait_for(stop_heartbeat.wait(), timeout=60.0)
+                    except asyncio.TimeoutError:
+                        await self.heartbeat(job_id, token)
+
+            hb_task = asyncio.create_task(_heartbeat_loop())
+            try:
+                res = await handler(job)
+                await self.ack(job_id, token, result=res)
+                logger.info("job completed", queue=queue_name, job_id=job_id)
+            except Exception as exc:
+                logger.error("job handler failed", queue=queue_name, job_id=job_id, error=str(exc))
+                await self.fail(job_id, token, error=str(exc))
+            finally:
+                stop_heartbeat.set()
+                hb_task.cancel()
                 try:
-                    logger.info("processing job", queue=queue_name, job_id=job["id"])
-                    await handler(job)
-                    logger.info("job completed", queue=queue_name, job_id=job["id"])
-                except Exception as exc:
-                    job["attempts"] += 1
-                    if job["attempts"] < job["max_attempts"]:
-                        await self.enqueue(
-                            queue_name,
-                            job["type"],
-                            job["payload"],
-                            priority=job["priority"] - 1,
-                        )
-                        logger.warning(
-                            "job requeued",
-                            queue=queue_name,
-                            job_id=job["id"],
-                            attempt=job["attempts"],
-                            error=str(exc),
-                        )
-                    else:
-                        logger.error(
-                            "job failed permanently",
-                            queue=queue_name,
-                            job_id=job["id"],
-                            error=str(exc),
-                        )
-            await asyncio.sleep(poll_interval)
+                    await hb_task
+                except asyncio.CancelledError:
+                    pass
 
     async def get_queue_length(self, queue_name: str) -> int:
-        if redis_client.available:
-            key = f"queue:{queue_name}"
-            return await redis_client._client.zcard(key)
-        return len(self._in_memory.get(queue_name, []))
+        stmt = text("""
+            SELECT COUNT(*) FROM ai_runtime_queue_jobs
+            WHERE channel = :channel AND status IN ('PENDING', 'RETRY')
+        """)
+        try:
+            session = await self._ensure_session()
+            async with session:
+                res = await session.execute(stmt, {"channel": queue_name})
+                row = res.first()
+                return row[0] if row else 0
+        except Exception:
+            return len(self._in_memory.get(queue_name, []))
 
 
 queue_service = QueueService()

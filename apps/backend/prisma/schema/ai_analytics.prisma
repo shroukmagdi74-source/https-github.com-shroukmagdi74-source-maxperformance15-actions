@@ -428,6 +428,7 @@ model AiRuntimeLedger {
 model AiRuntimeQueueJob {
   id             String    @id @default(cuid())
   companyId      String
+  agentId        String?
   queueKey       String    @unique
   channel        String
   status         String    @default("PENDING")
@@ -451,7 +452,33 @@ model AiRuntimeQueueJob {
   @@index([status, availableAt, priority, createdAt])
   @@index([companyId, status, createdAt])
   @@index([lockExpiresAt])
+  @@index([agentId, status])
   @@map("ai_runtime_queue_jobs")
+}
+
+model AiAgentSchedule {
+  id              String    @id @default(cuid())
+  companyId       String
+  agentId         String
+  taskType        String    // SHIPPING | STOCK_TARGET_MONITOR | ...
+  intervalMinutes Int       @default(30)
+  enabled         Boolean   @default(false)
+  timezone        String    @default("Africa/Cairo")
+  nextRunAt       DateTime  @default(now())
+  lastRunAt       DateTime?
+  lastStatus      String?
+  lastTaskId      String?
+  lockToken       String?
+  lockExpiresAt   DateTime?
+  context         Json?
+  createdBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([companyId, agentId, taskType])
+  @@index([enabled, nextRunAt])
+  @@index([companyId])
+  @@map("ai_agent_schedules")
 }
 
 model AiDeliveryOutbox {

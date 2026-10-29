@@ -78,18 +78,26 @@ class TaskRepository:
     async def checkout_task(
         self, task_id: str, company_id: str, agent_id: str
     ) -> AiAgentTask | None:
-        task = await self.get_task(task_id, company_id)
-        if not task or task.status != "PENDING":
-            return None
-        return await self.update_task_status(
-            task_id,
-            company_id,
-            "CHECKED_OUT",
-            {
-                "checked_out_by": agent_id,
-                "checked_out_at": datetime.now(timezone.utc),
-            },
+        now = datetime.now(timezone.utc)
+        stmt = (
+            update(AiAgentTask)
+            .where(
+                AiAgentTask.id == task_id,
+                AiAgentTask.company_id == company_id,
+                AiAgentTask.status == "PENDING",
+            )
+            .values(
+                status="CHECKED_OUT",
+                checked_out_by=agent_id,
+                checked_out_at=now,
+                updated_at=now,
+            )
         )
+        res = await self._session.execute(stmt)
+        await self._session.flush()
+        if res.rowcount == 0:
+            return None
+        return await self.get_task(task_id, company_id)
 
     async def complete_task(
         self,
@@ -98,20 +106,26 @@ class TaskRepository:
         agent_id: str,
         result: dict[str, Any] | None = None,
     ) -> AiAgentTask | None:
-        task = await self.get_task(task_id, company_id)
-        if not task:
-            return None
-        metadata = (task.task_metadata or {}) | {"result": result or {}}
-        return await self.update_task_status(
-            task_id,
-            company_id,
-            "COMPLETED",
-            {
-                "checked_out_by": agent_id,
-                "completed_at": datetime.now(timezone.utc),
-                "task_metadata": metadata,
-            },
+        now = datetime.now(timezone.utc)
+        stmt = (
+            update(AiAgentTask)
+            .where(
+                AiAgentTask.id == task_id,
+                AiAgentTask.company_id == company_id,
+                AiAgentTask.status.in_(["CHECKED_OUT", "IN_PROGRESS"]),
+                AiAgentTask.checked_out_by == agent_id,
+            )
+            .values(
+                status="COMPLETED",
+                completed_at=now,
+                updated_at=now,
+            )
         )
+        res = await self._session.execute(stmt)
+        await self._session.flush()
+        if res.rowcount == 0:
+            return None
+        return await self.get_task(task_id, company_id)
 
     async def fail_task(
         self,
@@ -120,19 +134,25 @@ class TaskRepository:
         agent_id: str,
         error: str = "",
     ) -> AiAgentTask | None:
-        task = await self.get_task(task_id, company_id)
-        if not task:
-            return None
-        metadata = (task.task_metadata or {}) | {"error": error}
-        return await self.update_task_status(
-            task_id,
-            company_id,
-            "FAILED",
-            {
-                "checked_out_by": agent_id,
-                "task_metadata": metadata,
-            },
+        now = datetime.now(timezone.utc)
+        stmt = (
+            update(AiAgentTask)
+            .where(
+                AiAgentTask.id == task_id,
+                AiAgentTask.company_id == company_id,
+                AiAgentTask.status.in_(["CHECKED_OUT", "IN_PROGRESS"]),
+                AiAgentTask.checked_out_by == agent_id,
+            )
+            .values(
+                status="FAILED",
+                updated_at=now,
+            )
         )
+        res = await self._session.execute(stmt)
+        await self._session.flush()
+        if res.rowcount == 0:
+            return None
+        return await self.get_task(task_id, company_id)
 
     async def count_active(self, company_id: str) -> dict[str, int]:
         stmt = select(AiAgentTask).where(AiAgentTask.company_id == company_id)
