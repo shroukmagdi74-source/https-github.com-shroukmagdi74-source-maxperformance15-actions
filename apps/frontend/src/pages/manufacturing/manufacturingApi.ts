@@ -1792,7 +1792,7 @@ export const manufacturingApi = {
     return res.data?.data;
   },
 
-  createSampleOrder: async (data: Partial<SampleOrder> & { stages?: Partial<SampleOrderStage>[] }): Promise<SampleOrder> => {
+  createSampleOrder: async (data: CreateSampleOrderInput): Promise<SampleOrder> => {
     const res = await apiClient.post('/manufacturing/sample-orders', data);
     return res.data?.data;
   },

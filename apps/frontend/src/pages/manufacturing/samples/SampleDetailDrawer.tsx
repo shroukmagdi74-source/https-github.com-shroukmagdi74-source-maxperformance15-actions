@@ -777,16 +777,44 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 {sample.attachments?.map((att) => (
-                  <div key={att.id} className="p-2 rounded-xl border border-border bg-card group relative overflow-hidden">
-                    {att.kind === 'IMAGE' ? (
-                      <img src={att.url} alt={att.fileName} className="w-full h-32 object-cover rounded-lg mb-1.5" />
-                    ) : (
-                      <div className="w-full h-32 bg-muted/40 rounded-lg mb-1.5 flex flex-col items-center justify-center text-muted-foreground">
-                        <FileText className="w-8 h-8 mb-1" />
-                        <span className="text-[10px]">{att.kind}</span>
+                  <div key={att.id} className="p-2 rounded-xl border border-border bg-card group relative overflow-hidden flex flex-col justify-between">
+                    <div className="relative">
+                      {att.kind === 'IMAGE' ? (
+                        <img src={att.url} alt={att.fileName} className="w-full h-32 object-cover rounded-lg mb-1.5" />
+                      ) : (
+                        <div className="w-full h-32 bg-muted/40 rounded-lg mb-1.5 flex flex-col items-center justify-center text-muted-foreground">
+                          <FileText className="w-8 h-8 mb-1" />
+                          <span className="text-[10px]">{att.kind}</span>
+                        </div>
+                      )}
+                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-background/80 backdrop-blur-xs border border-border text-foreground">
+                        {att.kind}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-1 pt-1">
+                      <p className="text-[11px] font-medium text-foreground truncate flex-1" title={att.fileName}>
+                        {att.fileName}
+                      </p>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                          title="عرض / تحميل"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAttachment(att.id)}
+                          className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-muted"
+                          title="حذف المرفق"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                    )}
-                    <p className="text-[11px] font-medium text-foreground truncate">{att.fileName}</p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -890,10 +918,17 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
                         ? new Date(sample.expectedDeliveryAt).toLocaleDateString('ar-EG')
                         : 'غير محدد'}
                     </span>
-                    {sample.isOverdue && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                        متأخر {sample.overdueDays} يوم
+                    {sample.sampleReceived ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>مستلمة {sample.receivedAt ? `(${new Date(sample.receivedAt).toLocaleDateString('ar-EG')})` : ''}</span>
                       </span>
+                    ) : (
+                      sample.isOverdue && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                          متأخر {sample.overdueDays} يوم
+                        </span>
+                      )
                     )}
                   </div>
                 </div>

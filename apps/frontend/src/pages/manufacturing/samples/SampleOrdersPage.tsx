@@ -4,15 +4,14 @@ import {
   Plus,
   Search,
   FlaskConical,
-  Filter,
   RefreshCw,
-  ExternalLink,
   ChevronLeft,
   Calendar,
   Layers,
+  CheckCircle2,
 } from 'lucide-react';
 import { ManufacturingHeader } from '../ManufacturingHeader';
-import { manufacturingApi, SampleOrder, SampleOrderStatus, PartnerFactory } from '../manufacturingApi';
+import { manufacturingApi, SampleOrder, PartnerFactory } from '../manufacturingApi';
 import { SampleMetricsBar } from './SampleMetricsBar';
 import { SampleStatusBadge, MaterialSourceBadge } from './SampleStatusBadge';
 import { CreateSampleModal } from './CreateSampleModal';
@@ -37,6 +36,7 @@ export const SampleOrdersPage: React.FC = () => {
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
   const [factories, setFactories] = useState<PartnerFactory[]>([]);
   const [factoryFilter, setFactoryFilter] = useState<string>('ALL');
+  const [receiptFilter, setReceiptFilter] = useState<string>('ALL'); // 'ALL' | 'RECEIVED' | 'PENDING'
   const [overdueOnly, setOverdueOnly] = useState<boolean>(false);
 
   // Modals & Drawer
@@ -80,6 +80,7 @@ export const SampleOrdersPage: React.FC = () => {
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
         materialSource: materialFilter !== 'ALL' ? materialFilter : undefined,
         partnerFactoryId: factoryFilter !== 'ALL' ? factoryFilter : undefined,
+        sampleReceived: receiptFilter === 'RECEIVED' ? true : (receiptFilter === 'PENDING' ? false : undefined),
         overdue: overdueOnly ? true : undefined,
         search: searchTerm.trim() || undefined,
       });
@@ -99,7 +100,15 @@ export const SampleOrdersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, materialFilter, factoryFilter, overdueOnly, searchTerm, searchParams, selectedSample?.id]);
+  }, [statusFilter, materialFilter, factoryFilter, receiptFilter, overdueOnly, searchTerm, searchParams, selectedSample?.id]);
+
+  const handleQuickToggleReceipt = async (e: React.MouseEvent, sampleId: string, currentStatus?: boolean) => {
+    e.stopPropagation();
+    try {
+      await manufacturingApi.markSampleReceived(sampleId, { received: !currentStatus });
+      fetchSamples();
+    } catch (_) {}
+  };
 
   useEffect(() => {
     fetchSamples();
@@ -213,6 +222,20 @@ export const SampleOrdersPage: React.FC = () => {
                     {f.name}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* Receipt Status Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">الاستلام:</span>
+              <select
+                value={receiptFilter}
+                onChange={(e) => setReceiptFilter(e.target.value)}
+                className="px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none text-foreground"
+              >
+                <option value="ALL">جميع حالات الاستلام</option>
+                <option value="RECEIVED">مستلمة (✓)</option>
+                <option value="PENDING">في انتظار الاستلام</option>
               </select>
             </div>
 
@@ -332,17 +355,38 @@ export const SampleOrdersPage: React.FC = () => {
                         <div className="font-medium text-foreground">
                           {s.partnerFactory?.name || <span className="text-muted-foreground">بدون مصنع</span>}
                         </div>
-                        <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
                           <Calendar className="w-3 h-3 shrink-0" />
                           <span>
                             {s.expectedDeliveryAt
                               ? new Date(s.expectedDeliveryAt).toLocaleDateString('ar-EG')
                               : '—'}
                           </span>
-                          {s.isOverdue && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                              متأخر {s.overdueDays ? `${s.overdueDays} يوم` : ''}
+                          {s.sampleReceived ? (
+                            <span
+                              onClick={(e) => handleQuickToggleReceipt(e, s.id, s.sampleReceived)}
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                              title={`تم الاستلام ${s.receivedAt ? `(${new Date(s.receivedAt).toLocaleDateString('ar-EG')})` : ''} - اضغط للإلغاء`}
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>مستلمة</span>
                             </span>
+                          ) : (
+                            <>
+                              {s.isOverdue && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                  متأخر {s.overdueDays ? `${s.overdueDays} يوم` : ''}
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleQuickToggleReceipt(e, s.id, s.sampleReceived)}
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300 transition-colors"
+                                title="اضغط لتأكيد استلام العينة"
+                              >
+                                <span>استلام؟</span>
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>

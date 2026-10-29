@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Shirt, Calendar, DollarSign, Tag, User, Upload, CheckCircle2 } from 'lucide-react';
+import { X, Plus, Trash2, Shirt, Calendar, DollarSign, Tag, User, Upload } from 'lucide-react';
 import { manufacturingApi, BillOfMaterials, SampleMaterialSource, PartnerFactory, SampleExpenseCatalogItem } from '../manufacturingApi';
 import { CustomerPicker } from './CustomerPicker';
 
@@ -29,7 +29,7 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
   const [partnerFactoryId, setPartnerFactoryId] = useState<string>('');
   const [expectedDeliveryAt, setExpectedDeliveryAt] = useState<string>('');
   const [sampleReceived, setSampleReceived] = useState<boolean>(false);
-  const [receivedAt, setReceivedAt] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [receivedAt, setReceivedAt] = useState<string>(new Date().toISOString().slice(0, 10));
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dueDate, setDueDate] = useState<string>('');
   const [designNotes, setDesignNotes] = useState('');
