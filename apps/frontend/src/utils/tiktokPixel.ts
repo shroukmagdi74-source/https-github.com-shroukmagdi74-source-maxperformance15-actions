@@ -90,39 +90,17 @@ const ensureTtq = (): any => {
   ttq.load = function (id: string) {
     ttq._i = ttq._i || {};
     ttq._i[id] = [];
-
-    const injectScript = () => {
-      if (typeof document === 'undefined') return;
-      if (document.querySelector(`script[data-tiktok-pixel-id="${id}"]`)) return;
-      const script = document.createElement("script");
-      script.async = true;
-      script.src = `https://analytics.tiktok.com/i18n/pixel/events.js?sdkid=${id}&lib=ttq`;
-      script.setAttribute("data-tiktok-pixel-id", id);
-      const firstScript = document.getElementsByTagName("script")[0];
-      if (firstScript && firstScript.parentNode) {
-        firstScript.parentNode.insertBefore(script, firstScript);
-      } else if (document.head) {
-        document.head.appendChild(script);
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      let injected = false;
-      const interactionEvents = ['scroll', 'pointermove', 'touchstart', 'click'];
-      const triggerInjection = () => {
-        if (injected) return;
-        injected = true;
-        interactionEvents.forEach((evt) => {
-          try { window.removeEventListener(evt, triggerInjection); } catch (_) {}
-        });
-        injectScript();
-      };
-      interactionEvents.forEach((evt) => {
-        try { window.addEventListener(evt, triggerInjection, { passive: true, once: true }); } catch (_) {}
-      });
-      setTimeout(triggerInjection, 2000);
-    } else {
-      injectScript();
+    ttq._i[id]._u = `https://analytics.tiktok.com/i18n/pixel/events.js?sdkid=${id}&lib=ttq`;
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.async = true;
+    script.src = `https://analytics.tiktok.com/i18n/pixel/events.js?sdkid=${id}&lib=ttq`;
+    script.setAttribute("data-tiktok-pixel-id", id);
+    const firstScript = document.getElementsByTagName("script")[0];
+    if (firstScript && firstScript.parentNode) {
+      firstScript.parentNode.insertBefore(script, firstScript);
+    } else if (document.head) {
+      document.head.appendChild(script);
     }
   };
 
