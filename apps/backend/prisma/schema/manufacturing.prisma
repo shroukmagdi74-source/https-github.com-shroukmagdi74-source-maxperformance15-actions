@@ -756,6 +756,8 @@ model SampleOrder {
   dueDate          DateTime?
   partnerFactoryId   String?
   expectedDeliveryAt DateTime?
+  sampleReceived   Boolean              @default(false)
+  receivedAt       DateTime?
   totalAmount        Decimal?            @db.Decimal(12, 2)
   depositAmount      Decimal             @default(0) @db.Decimal(12, 2)
   paidAmount         Decimal             @default(0) @db.Decimal(12, 2)
@@ -782,6 +784,7 @@ model SampleOrder {
   @@index([companyId, convertedOrderId])
   @@index([companyId, partnerFactoryId])
   @@index([companyId, expectedDeliveryAt])
+  @@index([companyId, sampleReceived])
   @@map("sample_orders")
 }
 

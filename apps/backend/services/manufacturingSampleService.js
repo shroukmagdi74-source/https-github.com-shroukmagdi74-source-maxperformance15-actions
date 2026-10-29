@@ -109,6 +109,9 @@ class ManufacturingSampleService {
           "fee" DECIMAL(10,2),
           "status" "SampleOrderStatus" NOT NULL DEFAULT 'DRAFT',
           "dueDate" TIMESTAMP(3),
+          "expectedDeliveryAt" TIMESTAMP(3),
+          "sampleReceived" BOOLEAN NOT NULL DEFAULT false,
+          "receivedAt" TIMESTAMP(3),
           "designNotes" TEXT,
           "resultNotes" TEXT,
           "convertedOrderId" TEXT,
@@ -155,8 +158,11 @@ class ManufacturingSampleService {
         `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "totalAmount" DECIMAL(12,2);`,
         `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "depositAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;`,
         `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "paidAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;`,
+        `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "sampleReceived" BOOLEAN NOT NULL DEFAULT false;`,
+        `ALTER TABLE "sample_orders" ADD COLUMN IF NOT EXISTS "receivedAt" TIMESTAMP(3);`,
         `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_partnerFactoryId_idx" ON "sample_orders"("companyId","partnerFactoryId");`,
         `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_expectedDeliveryAt_idx" ON "sample_orders"("companyId","expectedDeliveryAt");`,
+        `CREATE INDEX IF NOT EXISTS "sample_orders_companyId_sampleReceived_idx" ON "sample_orders"("companyId","sampleReceived");`,
         `CREATE TABLE IF NOT EXISTS "sample_payments" (
           "id" TEXT PRIMARY KEY,
           "companyId" TEXT NOT NULL,
@@ -221,11 +227,16 @@ class ManufacturingSampleService {
     const expensesTotal = round2(expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0));
     const componentsTotal = round2(components.reduce((s, c) => s + (Number(c.totalCost) || 0), 0));
     const baseFee = round2(sample.fee || 0);
+    const received = sample.sampleReceived === true;
+    const overdueDays = overdueDaysOf(sample, received);
     return {
       ...sample,
       expensesTotal,
       componentsTotal,
       totalCost: round2(baseFee + expensesTotal + componentsTotal),
+      remaining: sample.remaining !== undefined ? sample.remaining : remainingOf(sample),
+      isOverdue: sample.isOverdue !== undefined ? sample.isOverdue : overdueDays > 0,
+      overdueDays: sample.overdueDays !== undefined ? sample.overdueDays : overdueDays,
     };
   }
 
@@ -326,11 +337,15 @@ class ManufacturingSampleService {
     if (query.partnerFactoryId) {
       where.partnerFactoryId = query.partnerFactoryId;
     }
+    if (query.sampleReceived !== undefined && query.sampleReceived !== 'ALL' && query.sampleReceived !== '') {
+      where.sampleReceived = String(query.sampleReceived) === 'true';
+    }
     if (String(query.overdue) === 'true') {
       const todayCairoStr = businessToday('Africa/Cairo');
       const cairoStartOfDay = new Date(`${todayCairoStr}T00:00:00+03:00`);
       where.expectedDeliveryAt = { lt: cairoStartOfDay };
       where.status = { notIn: ['CONVERTED', 'REJECTED'] };
+      where.sampleReceived = false;
     }
     if (search && String(search).trim()) {
       const s = String(search).trim();
@@ -546,6 +561,16 @@ class ManufacturingSampleService {
     const expectedDeliveryAt = data.expectedDeliveryAt ? new Date(data.expectedDeliveryAt) : null;
     if (expectedDeliveryAt && isNaN(expectedDeliveryAt.getTime())) throw httpErr(400, 'موعد استلام العينة غير صحيح');
 
+    const sampleReceived = data.sampleReceived === true || data.sampleReceived === 'true';
+    let receivedAt = null;
+    if (sampleReceived) {
+      receivedAt = data.receivedAt ? new Date(data.receivedAt) : new Date();
+      if (isNaN(receivedAt.getTime())) receivedAt = new Date();
+    } else if (data.receivedAt) {
+      receivedAt = new Date(data.receivedAt);
+      if (isNaN(receivedAt.getTime())) receivedAt = null;
+    }
+
     let customerId = data.customerId ? String(data.customerId) : null;
     let customerName = data.customerName ? String(data.customerName).trim() : null;
     if (customerId) {
@@ -590,6 +615,8 @@ class ManufacturingSampleService {
               dueDate: data.dueDate ? new Date(data.dueDate) : null,
               partnerFactoryId: data.partnerFactoryId ? String(data.partnerFactoryId).trim() : null,
               expectedDeliveryAt,
+              sampleReceived,
+              receivedAt,
               totalAmount,
               depositAmount,
               paidAmount: 0,
@@ -712,13 +739,37 @@ class ManufacturingSampleService {
       throw err;
     }
 
-    if (existing.status !== 'DRAFT') {
+    const nonReceiptKeys = Object.keys(data).filter(
+      (k) => !['sampleReceived', 'receivedAt'].includes(k)
+    );
+    if (existing.status !== 'DRAFT' && nonReceiptKeys.length > 0) {
       const err = new Error('لا يمكن تعديل بيانات العينة إلا في حالة المسودة (DRAFT)');
       err.statusCode = 400;
       throw err;
     }
 
     const updateData = {};
+    if (data.sampleReceived !== undefined) {
+      const isRec = data.sampleReceived === true || data.sampleReceived === 'true';
+      updateData.sampleReceived = isRec;
+      if (isRec) {
+        const rDate = data.receivedAt ? new Date(data.receivedAt) : (existing.receivedAt || new Date());
+        updateData.receivedAt = isNaN(rDate.getTime()) ? new Date() : rDate;
+      } else {
+        updateData.receivedAt = null;
+      }
+    } else if (data.receivedAt !== undefined) {
+      if (data.receivedAt) {
+        const rDate = new Date(data.receivedAt);
+        if (!isNaN(rDate.getTime())) {
+          updateData.receivedAt = rDate;
+          updateData.sampleReceived = true;
+        }
+      } else {
+        updateData.receivedAt = null;
+        updateData.sampleReceived = false;
+      }
+    }
     if (data.customerId !== undefined) {
       if (data.customerId) {
         const cId = String(data.customerId);
@@ -1018,6 +1069,72 @@ class ManufacturingSampleService {
         uploadedBy: user?.name || user?.email || 'System',
       },
     });
+  }
+
+  /**
+   * Delete attachment / file from sample order
+   */
+  static async deleteSampleFile(companyId, user, sampleId, fileId) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+
+    const sample = await prisma.sampleOrder.findFirst({
+      where: { id: sampleId, companyId },
+    });
+    if (!sample) throw httpErr(404, 'أمر العينة غير موجود');
+
+    const att = await prisma.sampleOrderAttachment.findFirst({
+      where: { id: fileId, sampleOrderId: sampleId },
+    });
+    if (!att) throw httpErr(404, 'الملف المرفق غير موجود');
+
+    await prisma.sampleOrderAttachment.delete({
+      where: { id: fileId },
+    });
+
+    return { success: true, message: 'تم حذف المرفق بنجاح' };
+  }
+
+  /**
+   * Mark sample order as received or not received
+   */
+  static async markSampleReceived(companyId, user, id, data = {}) {
+    await this.ensureSchema();
+    const prisma = getSharedPrismaClient();
+
+    const sample = await prisma.sampleOrder.findFirst({
+      where: { id, companyId },
+    });
+    if (!sample) throw httpErr(404, 'أمر العينة غير موجود');
+
+    const isReceived = data.received !== undefined
+      ? (data.received === true || data.received === 'true')
+      : true;
+
+    let receivedAt = null;
+    if (isReceived) {
+      receivedAt = data.receivedAt ? new Date(data.receivedAt) : (sample.receivedAt || new Date());
+      if (isNaN(receivedAt.getTime())) receivedAt = new Date();
+    }
+
+    const updated = await prisma.sampleOrder.update({
+      where: { id },
+      data: {
+        sampleReceived: isReceived,
+        receivedAt,
+      },
+      include: {
+        stages: { orderBy: { sequence: 'asc' } },
+        attachments: { orderBy: { uploadedAt: 'desc' } },
+        partnerFactory: { select: { id: true, name: true, code: true, contactPerson: true, phone: true, email: true } },
+        payments: { orderBy: { paidAt: 'desc' } },
+        customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        bom: { select: { id: true, code: true, name: true } },
+        expenses: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+
+    return this.decorateTotals(updated);
   }
 
   /**

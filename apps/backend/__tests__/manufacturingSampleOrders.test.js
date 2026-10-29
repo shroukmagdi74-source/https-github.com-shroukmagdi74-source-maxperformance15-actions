@@ -155,11 +155,22 @@ function createInMemoryStore() {
       },
     },
     sampleOrderAttachment: {
+      findFirst: async ({ where } = {}) => {
+        let items = Array.from(store.sampleAttachments.values());
+        if (where?.id) items = items.filter((a) => a.id === where.id);
+        if (where?.sampleOrderId) items = items.filter((a) => a.sampleOrderId === where.sampleOrderId);
+        return items[0] || null;
+      },
       create: async ({ data }) => {
         const id = `att-${++store.counter}`;
         const record = { id, ...data, createdAt: new Date() };
         store.sampleAttachments.set(id, record);
         return record;
+      },
+      delete: async ({ where } = {}) => {
+        const item = store.sampleAttachments.get(where.id);
+        if (item) store.sampleAttachments.delete(where.id);
+        return item;
       },
       deleteMany: async ({ where }) => {
         for (const [id, att] of store.sampleAttachments.entries()) {
@@ -520,5 +531,56 @@ describe('Wave 5: Standalone Sample Orders & Conversion', () => {
     // G) Soft delete catalog item
     const archived = await ManufacturingSampleService.archiveExpenseCatalogItem(companyId, catItem.id);
     expect(archived.isActive).toBe(false);
+  });
+
+  test('6. Sample Receipt Tracking & Attachments Flow (sampleReceived, receivedAt, attachments)', async () => {
+    // 1. Create a sample with default unreceived status
+    const sample = await ManufacturingSampleService.createSampleOrder(companyId, testUser, {
+      productName: 'عينة بليزر رسمي',
+      fee: 3000,
+      expectedDeliveryAt: '2026-10-20', // past date
+    });
+    expect(sample.sampleReceived).toBe(false);
+    expect(sample.receivedAt).toBeFalsy();
+    expect(sample.isOverdue).toBe(true);
+    expect(sample.overdueDays).toBeGreaterThan(0);
+
+    // 2. Mark sample as received
+    const marked = await ManufacturingSampleService.markSampleReceived(companyId, testUser, sample.id, {
+      received: true,
+      receivedAt: '2026-10-28T14:00:00Z',
+    });
+    expect(marked.sampleReceived).toBe(true);
+    expect(marked.receivedAt).toBeTruthy();
+    expect(marked.isOverdue).toBe(false);
+    expect(marked.overdueDays).toBe(0);
+
+    // 3. Upload attachments of different kinds (IMAGE, PDF, OTHER)
+    const imgAtt = await ManufacturingSampleService.uploadSampleFile(companyId, testUser, sample.id, {
+      fileName: 'sketch.png',
+      url: '/uploads/manufacturing/sketch.png',
+    });
+    expect(imgAtt.kind).toBe('IMAGE');
+
+    const pdfAtt = await ManufacturingSampleService.uploadSampleFile(companyId, testUser, sample.id, {
+      fileName: 'techpack.pdf',
+      url: '/uploads/manufacturing/techpack.pdf',
+    });
+    expect(pdfAtt.kind).toBe('PDF');
+
+    // 4. Verify attachments on sample
+    const sampleWithFiles = await ManufacturingSampleService.getSampleOrderById(companyId, sample.id);
+    expect(sampleWithFiles.attachments.length).toBe(2);
+
+    // 5. Delete one attachment
+    const delRes = await ManufacturingSampleService.deleteSampleFile(companyId, testUser, sample.id, imgAtt.id);
+    expect(delRes.success).toBe(true);
+
+    // 6. Toggle receipt back to unreceived
+    const unreceived = await ManufacturingSampleService.markSampleReceived(companyId, testUser, sample.id, {
+      received: false,
+    });
+    expect(unreceived.sampleReceived).toBe(false);
+    expect(unreceived.receivedAt).toBeNull();
   });
 });

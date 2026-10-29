@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Shirt, Calendar, DollarSign, Tag, User } from 'lucide-react';
+import { X, Plus, Trash2, Shirt, Calendar, DollarSign, Tag, User, Upload, CheckCircle2 } from 'lucide-react';
 import { manufacturingApi, BillOfMaterials, SampleMaterialSource, PartnerFactory, SampleExpenseCatalogItem } from '../manufacturingApi';
 import { CustomerPicker } from './CustomerPicker';
 
@@ -28,6 +28,9 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
   const [depositAmount, setDepositAmount] = useState<string>('0');
   const [partnerFactoryId, setPartnerFactoryId] = useState<string>('');
   const [expectedDeliveryAt, setExpectedDeliveryAt] = useState<string>('');
+  const [sampleReceived, setSampleReceived] = useState<boolean>(false);
+  const [receivedAt, setReceivedAt] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dueDate, setDueDate] = useState<string>('');
   const [designNotes, setDesignNotes] = useState('');
   const [bomId, setBomId] = useState<string>('');
@@ -110,7 +113,7 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
           sequence: idx + 1,
         }));
 
-      await manufacturingApi.createSampleOrder({
+      const createdSample = await manufacturingApi.createSampleOrder({
         productName: productName.trim(),
         customerId: customerId || undefined,
         customerName: customerName.trim() || undefined,
@@ -124,6 +127,8 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
         depositAmount: depositAmount !== '' ? Number(depositAmount) : 0,
         partnerFactoryId: partnerFactoryId || undefined,
         expectedDeliveryAt: expectedDeliveryAt || undefined,
+        sampleReceived,
+        receivedAt: sampleReceived ? (receivedAt ? new Date(receivedAt).toISOString() : new Date().toISOString()) : undefined,
         dueDate: dueDate || undefined,
         designNotes: designNotes.trim() || undefined,
         bomId: bomId || undefined,
@@ -137,6 +142,18 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
               }))
             : undefined,
       });
+
+      // Upload selected initial attachments
+      if (selectedFiles.length > 0 && createdSample?.id) {
+        for (const file of selectedFiles) {
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('fileName', file.name);
+            await manufacturingApi.uploadSampleFile(createdSample.id, formData);
+          } catch (_) {}
+        }
+      }
 
       onSuccess();
       onClose();
@@ -477,6 +494,43 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
             </div>
           </div>
 
+          {/* Row: Sample Receipt Status */}
+          <div className="p-3.5 rounded-xl bg-muted/20 border border-border/70 space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={sampleReceived}
+                onChange={(e) => setSampleReceived(e.target.checked)}
+                className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
+              />
+              <span className="text-xs font-semibold text-foreground">
+                تم استلام العينة الفعلية من المصنع
+              </span>
+              {sampleReceived && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  مستلمة
+                </span>
+              )}
+            </label>
+
+            {sampleReceived && (
+              <div className="pt-2 border-t border-border/50">
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  تاريخ استلام العينة
+                </label>
+                <div className="relative max-w-xs">
+                  <input
+                    type="date"
+                    value={receivedAt}
+                    onChange={(e) => setReceivedAt(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                  />
+                  <Calendar className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Row: Financials (Total, Deposit, Calculated Remaining) */}
           <div className="p-3.5 rounded-xl bg-muted/20 border border-border/70 space-y-2.5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -616,6 +670,55 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
               placeholder="تفاصيل التطريز، الطباعة، مواصفات خياطة الجيوب أو الباترون..."
               className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none"
             />
+          </div>
+
+          {/* Row 7: Attachments (صور ومرفقات أولية) */}
+          <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Upload className="w-3.5 h-3.5 text-primary" />
+                <span>المرفقات وصور العينة الأولية</span>
+                <span className="text-muted-foreground text-[10px]">(اختياري - صور / PDF)</span>
+              </label>
+              <label className="px-2.5 py-1 text-xs font-medium rounded-lg border border-border bg-background hover:bg-muted cursor-pointer transition-colors flex items-center gap-1">
+                <Plus className="w-3.5 h-3.5" />
+                <span>اختيار ملفات</span>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      const newFiles = Array.from(e.target.files);
+                      setSelectedFiles((prev) => [...prev, ...newFiles]);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {selectedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {selectedFiles.map((file, idx) => (
+                  <div
+                    key={`${file.name}-${idx}`}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-background border border-border shadow-xs"
+                  >
+                    <span className="truncate max-w-[150px] font-medium">{file.name}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      ({Math.round(file.size / 1024)} KB)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      className="p-0.5 text-muted-foreground hover:text-rose-500 rounded"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}

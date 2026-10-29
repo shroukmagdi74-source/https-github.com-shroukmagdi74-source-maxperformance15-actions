@@ -272,6 +272,36 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
     }
   };
 
+  const handleToggleReceipt = async (currentReceived?: boolean) => {
+    if (!sample) return;
+    try {
+      setLoading(true);
+      await manufacturingApi.markSampleReceived(sample.id, {
+        received: !currentReceived,
+        receivedAt: !currentReceived ? new Date().toISOString() : undefined,
+      });
+      onRefresh();
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || err?.message || 'فشل تحديث حالة استلام العينة');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (fileId: string) => {
+    if (!sample) return;
+    if (!window.confirm('هل أنت متأكد من حذف هذا الملف المرفق؟')) return;
+    try {
+      setLoading(true);
+      await manufacturingApi.deleteSampleFile(sample.id, fileId);
+      onRefresh();
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message || err?.message || 'فشل حذف الملف المرفق');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-background/50 backdrop-blur-sm" onClick={onClose} />
@@ -299,6 +329,38 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        {/* Receipt Quick Status Bar */}
+        <div className="px-4 py-2.5 bg-muted/40 border-b border-border/70 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground font-medium">الاستلام الفعلي:</span>
+            {sample.sampleReceived ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>تم الاستلام {sample.receivedAt ? `(${new Date(sample.receivedAt).toLocaleDateString('ar-EG')})` : ''}</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                <Clock className="w-3.5 h-3.5" />
+                <span>في انتظار الاستلام</span>
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleToggleReceipt(sample.sampleReceived)}
+            disabled={loading}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 active:scale-95 disabled:opacity-50 ${
+              sample.sampleReceived
+                ? 'border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>{sample.sampleReceived ? 'إلغاء الاستلام' : 'تأكيد استلام العينة'}</span>
+          </button>
         </div>
 
         {/* Global Action Error Alert */}
@@ -659,6 +721,19 @@ export const SampleDetailDrawer: React.FC<SampleDetailDrawerProps> = ({
                       ? new Date(sample.expectedDeliveryAt).toLocaleDateString('ar-EG')
                       : 'غير محدد'}
                   </span>
+                </div>
+                <div className="flex justify-between border-b pb-2">
+                  <span className="text-muted-foreground">حالة استلام العينة:</span>
+                  <div>
+                    {sample.sampleReceived ? (
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>تم الاستلام {sample.receivedAt ? `(${new Date(sample.receivedAt).toLocaleDateString('ar-EG')})` : ''}</span>
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">في انتظار الاستلام من المصنع</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">الحساب المالي:</span>

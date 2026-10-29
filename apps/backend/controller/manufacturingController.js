@@ -1005,6 +1005,30 @@ class ManufacturingController {
     }
   }
 
+  static async deleteSampleFile(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.deleteSampleFile(companyId, req.user, req.params.id, req.params.fileId);
+      res.json({ success: true, data, message: 'تم حذف المرفق بنجاح' });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async markSampleReceived(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingSampleService.markSampleReceived(companyId, req.user, req.params.id, req.body);
+      res.json({
+        success: true,
+        data,
+        message: data.sampleReceived ? 'تم تسجيل استلام العينة بنجاح' : 'تم إلغاء استلام العينة',
+      });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+  }
+
   static async approveSampleOrder(req, res) {
     try {
       const companyId = ManufacturingController.getCompanyId(req);

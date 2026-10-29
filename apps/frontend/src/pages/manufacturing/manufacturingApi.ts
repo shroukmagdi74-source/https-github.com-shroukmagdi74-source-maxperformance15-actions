@@ -972,6 +972,8 @@ export interface SampleOrder {
     email?: string | null;
   } | null;
   expectedDeliveryAt?: string | null;
+  sampleReceived?: boolean;
+  receivedAt?: string | null;
   totalAmount?: number | null;
   depositAmount?: number;
   paidAmount?: number;
@@ -1775,6 +1777,7 @@ export const manufacturingApi = {
     customerId?: string;
     customerLinked?: string;
     partnerFactoryId?: string;
+    sampleReceived?: boolean | string;
     overdue?: boolean | string;
     search?: string;
     page?: number;
@@ -1826,6 +1829,19 @@ export const manufacturingApi = {
     const res = await apiClient.post(`/manufacturing/sample-orders/${id}/files`, payload, {
       headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined,
     });
+    return res.data?.data;
+  },
+
+  deleteSampleFile: async (id: string, fileId: string): Promise<{ success: boolean; message: string }> => {
+    const res = await apiClient.delete(`/manufacturing/sample-orders/${id}/files/${fileId}`);
+    return res.data;
+  },
+
+  markSampleReceived: async (
+    id: string,
+    payload?: { received?: boolean; receivedAt?: string }
+  ): Promise<SampleOrder> => {
+    const res = await apiClient.post(`/manufacturing/sample-orders/${id}/receive`, payload || { received: true });
     return res.data?.data;
   },
 
