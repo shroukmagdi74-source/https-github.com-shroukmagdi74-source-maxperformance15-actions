@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Shirt, Calendar, DollarSign, Tag, User } from 'lucide-react';
-import { manufacturingApi, BillOfMaterials, SampleMaterialSource, PartnerFactory } from '../manufacturingApi';
+import { manufacturingApi, BillOfMaterials, SampleMaterialSource, PartnerFactory, SampleExpenseCatalogItem } from '../manufacturingApi';
 import { CustomerPicker } from './CustomerPicker';
 
 interface CreateSampleModalProps {
@@ -32,6 +32,12 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
   const [designNotes, setDesignNotes] = useState('');
   const [bomId, setBomId] = useState<string>('');
 
+  // المصاريف المتكررة (T07)
+  const [expenseCatalog, setExpenseCatalog] = useState<SampleExpenseCatalogItem[]>([]);
+  const [expenses, setExpenses] = useState<Array<{ name: string; amount: number; catalogId?: string | null }>>([]);
+  const [newExpenseName, setNewExpenseName] = useState('');
+  const [newExpenseAmount, setNewExpenseAmount] = useState<string>('');
+
   // Factories list
   const [factories, setFactories] = useState<PartnerFactory[]>([]);
 
@@ -58,6 +64,13 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
         .listPartnerFactories()
         .then((res: any) => {
           setFactories(Array.isArray(res) ? res : (res?.items || []));
+        })
+        .catch(() => {});
+
+      manufacturingApi
+        .listExpenseCatalog()
+        .then((res: any) => {
+          setExpenseCatalog(Array.isArray(res) ? res : []);
         })
         .catch(() => {});
     }
@@ -115,6 +128,14 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
         designNotes: designNotes.trim() || undefined,
         bomId: bomId || undefined,
         stages: validStages.length > 0 ? validStages : undefined,
+        expenses:
+          expenses.length > 0
+            ? expenses.map((e) => ({
+                name: e.name,
+                amount: Number(e.amount) || 0,
+                catalogId: e.catalogId || undefined,
+              }))
+            : undefined,
       });
 
       onSuccess();
@@ -279,7 +300,9 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">سعر/تكلفة العينة</label>
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                سعر/تكلفة العينة الأساسية (بدون المصاريف)
+              </label>
               <div className="relative">
                 <input
                   type="number"
@@ -295,6 +318,129 @@ export const CreateSampleModal: React.FC<CreateSampleModalProps> = ({ isOpen, on
                 <DollarSign className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
               </div>
             </div>
+          </div>
+
+          {/* المصاريف المتكررة (T07) */}
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-foreground">
+                مصاريف العينة (شحن · تطريز · غسيل · معاينة)
+              </label>
+              <span className="text-[11px] font-bold text-foreground tabular-nums">
+                إجمالي المصاريف: {expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0).toLocaleString()} ج.م
+              </span>
+            </div>
+
+            {/* اختيار من الكتالوج */}
+            <div className="flex flex-wrap gap-2">
+              {expenseCatalog.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() =>
+                    setExpenses((prev) =>
+                      prev.some((e) => e.catalogId === c.id)
+                        ? prev
+                        : [...prev, { name: c.name, amount: Number(c.defaultAmount) || 0, catalogId: c.id }]
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg text-[11px] border border-border bg-background hover:border-primary hover:text-primary transition-colors"
+                >
+                  + {c.name} ({Number(c.defaultAmount).toLocaleString()} ج.م)
+                </button>
+              ))}
+              {expenseCatalog.length === 0 && (
+                <span className="text-[11px] text-muted-foreground">مفيش كتالوج بعد — أضف أول مصروف من تحت.</span>
+              )}
+            </div>
+
+            {/* البنود المضافة */}
+            {expenses.map((ex, i) => (
+              <div key={`${ex.catalogId || ex.name}-${i}`} className="flex items-center gap-2 text-xs">
+                <span className="flex-1 font-medium">{ex.name}</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={ex.amount}
+                  onChange={(e) =>
+                    setExpenses((prev) =>
+                      prev.map((x, idx) => (idx === i ? { ...x, amount: Number(e.target.value) || 0 } : x))
+                    )
+                  }
+                  className="w-24 px-2 py-1 rounded border border-border bg-background tabular-nums"
+                />
+                <span className="text-muted-foreground">ج.م</span>
+                <button
+                  type="button"
+                  onClick={() => setExpenses((prev) => prev.filter((_, idx) => idx !== i))}
+                  className="p-1 text-muted-foreground hover:text-rose-500"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+
+            {/* إدخال مصروف جديد (بيتحفظ في الكتالوج تلقائيًا) */}
+            <div className="flex items-center gap-2 pt-1 border-t border-border/60">
+              <input
+                type="text"
+                value={newExpenseName}
+                onChange={(e) => setNewExpenseName(e.target.value)}
+                placeholder="مصروف جديد (مثال: تطريز)"
+                className="flex-1 px-2 py-1 text-xs rounded border border-border bg-background"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newExpenseName.trim()) {
+                      const name = newExpenseName.trim();
+                      const amount = Number(newExpenseAmount) || 0;
+                      setExpenses((prev) => [...prev, { name, amount }]);
+                      setNewExpenseName('');
+                      setNewExpenseAmount('');
+                    }
+                  }
+                }}
+              />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={newExpenseAmount}
+                onChange={(e) => setNewExpenseAmount(e.target.value)}
+                placeholder="150"
+                className="w-20 px-2 py-1 text-xs rounded border border-border bg-background tabular-nums"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newExpenseName.trim()) {
+                      const name = newExpenseName.trim();
+                      const amount = Number(newExpenseAmount) || 0;
+                      setExpenses((prev) => [...prev, { name, amount }]);
+                      setNewExpenseName('');
+                      setNewExpenseAmount('');
+                    }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                disabled={!newExpenseName.trim()}
+                onClick={() => {
+                  const name = newExpenseName.trim();
+                  const amount = Number(newExpenseAmount) || 0;
+                  setExpenses((prev) => [...prev, { name, amount }]);
+                  setNewExpenseName('');
+                  setNewExpenseAmount('');
+                }}
+                className="px-2.5 py-1 text-[11px] rounded bg-primary text-primary-foreground disabled:opacity-50"
+              >
+                إضافة
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              أي مصروف جديد بيتحفظ في كتالوج الإعدادات أول مرة، وبعدها بتلاقيه زرار جاهز.
+            </p>
           </div>
 
           {/* Row: Partner Factory & Expected Delivery Date */}
