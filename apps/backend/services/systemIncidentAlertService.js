@@ -79,6 +79,9 @@ class SystemIncidentAlertService {
         this.cooldowns = new Map();
         this.defaultCooldownMinutes = 30; // 30 دقيقة افتراضياً لكل خطأ متطابق
 
+        // ذاكرة كاش لمنع تكرار تنبيهات الواتساب: dedupe key = (type + companyId) لكل 30 دقيقة
+        this.whatsAppCooldowns = new Map();
+
         // طابور التجميع الساعي للتنبيهات العادية (WARNING / INFO)
         // المفتاح: companyId -> Array<incidentItem>
         this.hourlyDigestQueue = new Map();
@@ -114,6 +117,44 @@ class SystemIncidentAlertService {
         if (this.hourlyDigestInterval) {
             clearInterval(this.hourlyDigestInterval);
             this.hourlyDigestInterval = null;
+        }
+    }
+
+    /**
+     * إنشاء مفتاح منع تكرار تنبيهات الواتساب: (type + companyId)
+     */
+    getWhatsAppDedupeKey(incidentType, companyId) {
+        return `${incidentType}:${companyId}`;
+    }
+
+    /**
+     * التحقق مما إذا كان تنبيه الواتساب في فترة التهدئة لمنع التكرار: dedupe key = (type + companyId)
+     */
+    isWhatsAppCoolingDown(incidentType, companyId, cooldownMinutes = this.defaultCooldownMinutes) {
+        if (!incidentType || !companyId) return false;
+        const key = this.getWhatsAppDedupeKey(incidentType, companyId);
+        const lastSent = this.whatsAppCooldowns.get(key);
+        if (!lastSent) return false;
+        const cooldownMs = cooldownMinutes * 60 * 1000;
+        return (Date.now() - lastSent) < cooldownMs;
+    }
+
+    /**
+     * تسجيل وقت إرسال تنبيه الواتساب بمفتاح (type + companyId)
+     */
+    markWhatsAppIncidentSent(incidentType, companyId) {
+        if (!incidentType || !companyId) return;
+        const key = this.getWhatsAppDedupeKey(incidentType, companyId);
+        this.whatsAppCooldowns.set(key, Date.now());
+
+        // تنظيف الكاش القديم دورياً إذا زاد الحجم عن 2000 عنصر
+        if (this.whatsAppCooldowns.size > 2000) {
+            const cutoff = Date.now() - (24 * 60 * 60 * 1000);
+            for (const [k, timestamp] of this.whatsAppCooldowns.entries()) {
+                if (timestamp < cutoff) {
+                    this.whatsAppCooldowns.delete(k);
+                }
+            }
         }
     }
 
@@ -188,7 +229,24 @@ class SystemIncidentAlertService {
         const prisma = getSharedPrismaClient();
 
         try {
-            // 2. التحقق من جدول إعدادات إشعارات الواتساب whatsAppNotificationSettings
+            // 2. التحقق من إعدادات الشركة في جدول company (حقل settings)
+            if (prisma?.company?.findUnique) {
+                const comp = await prisma.company.findUnique({
+                    where: { id: companyId },
+                    select: { settings: true }
+                }).catch(() => null);
+
+                if (comp?.settings) {
+                    try {
+                        const parsedSettings = typeof comp.settings === 'string' ? JSON.parse(comp.settings) : comp.settings;
+                        if (parsedSettings?.incidentAlerts?.whatsappEnabled === false) return false;
+                        if (parsedSettings?.notifications?.whatsapp === false) return false;
+                        if (parsedSettings?.channels?.whatsapp?.enabled === false) return false;
+                    } catch (_) {}
+                }
+            }
+
+            // 3. التحقق من جدول إعدادات إشعارات الواتساب whatsAppNotificationSettings
             if (prisma?.whatsAppNotificationSettings) {
                 const waSettings = await prisma.whatsAppNotificationSettings.findUnique({
                     where: { companyId },
@@ -261,6 +319,28 @@ class SystemIncidentAlertService {
                 const prefPhone = notifPref?.settings?.channels?.whatsapp?.phoneNumber;
                 if (prefPhone && typeof prefPhone === 'string' && prefPhone.trim()) {
                     phones.add(prefPhone.trim());
+                }
+            }
+        } catch (_) {}
+
+        // 2b. رقم مخصص في إعدادات الشركة (company.settings)
+        try {
+            if (prisma?.company?.findUnique) {
+                const comp = await prisma.company.findUnique({
+                    where: { id: companyId },
+                    select: { settings: true, phone: true }
+                }).catch(() => null);
+                if (comp?.settings) {
+                    try {
+                        const parsed = typeof comp.settings === 'string' ? JSON.parse(comp.settings) : comp.settings;
+                        const alertPhone = parsed?.incidentAlerts?.whatsappPhone || parsed?.channels?.whatsapp?.phoneNumber;
+                        if (alertPhone && typeof alertPhone === 'string' && alertPhone.trim()) {
+                            phones.add(alertPhone.trim());
+                        }
+                    } catch (_) {}
+                }
+                if (phones.size === 0 && comp?.phone && comp.phone.trim()) {
+                    phones.add(comp.phone.trim());
                 }
             }
         } catch (_) {}
@@ -408,8 +488,11 @@ class SystemIncidentAlertService {
 
         let anySent = false;
         for (const phone of recipients) {
-            try {
-                if (waService?.sendNotification) {
+            let sentToThisPhone = false;
+
+            // 1. محاولة الإرسال عبر WhatsAppNotificationService
+            if (waService?.sendNotification) {
+                try {
                     const result = await waService.sendNotification({
                         companyId,
                         recipientPhone: phone,
@@ -430,17 +513,77 @@ class SystemIncidentAlertService {
                         priority: 1
                     });
                     if (result && (result.success || result.sent || result.messageId)) {
+                        sentToThisPhone = true;
                         anySent = true;
                     }
-                } else {
-                    anySent = true;
+                } catch (sendErr) {
+                    console.warn(`⚠️ [SYSTEM-INCIDENT] WhatsAppNotificationService send to ${phone} failed:`, sendErr.message);
                 }
-            } catch (sendErr) {
-                console.warn(`⚠️ [SYSTEM-INCIDENT] WhatsApp send to ${phone} failed:`, sendErr.message);
+            }
+
+            // 2. إرسال مباشر بالجلسة الإدارية (Fallback direct send via admin/company session)
+            if (!sentToThisPhone) {
+                try {
+                    const directSent = await this.sendWhatsAppDirectViaSession({
+                        companyId,
+                        phone,
+                        alertText
+                    });
+                    if (directSent) {
+                        sentToThisPhone = true;
+                        anySent = true;
+                    }
+                } catch (directErr) {
+                    console.warn(`⚠️ [SYSTEM-INCIDENT] Direct WhatsApp session send to ${phone} failed:`, directErr.message);
+                }
+            }
+
+            // في بيئات الاختبار بدون خدمات متصلة
+            if (!sentToThisPhone && !waService) {
+                anySent = true;
             }
         }
 
         return anySent;
+    }
+
+    /**
+     * إرسال مباشر بالجلسة الإدارية أو جلسة الشركة عبر WhatsAppManager
+     */
+    async sendWhatsAppDirectViaSession({ companyId, phone, alertText }) {
+        try {
+            const WhatsAppManager = require('./whatsapp/WhatsAppManager');
+            if (!WhatsAppManager) return false;
+
+            const cleanPhone = String(phone).replace(/\D/g, '');
+            if (!cleanPhone) return false;
+            const jid = `${cleanPhone}@s.whatsapp.net`;
+
+            // البحث عن جلسة نشطة للشركة
+            let session = null;
+            if (typeof WhatsAppManager.getCompanySessions === 'function') {
+                const compSessions = WhatsAppManager.getCompanySessions(companyId) || [];
+                session = compSessions.find(s => s && s.status === 'connected' && s.sock);
+            }
+
+            // أو البحث عن جلسة إدارية عامة
+            if (!session && typeof WhatsAppManager.getAllActiveSessions === 'function') {
+                const all = WhatsAppManager.getAllActiveSessions();
+                const sessionList = Array.isArray(all) ? all : Object.values(all || {});
+                session = sessionList.find(s => s && (s.isConnected || s.status === 'connected'));
+            }
+
+            if (session && typeof WhatsAppManager.sendMessage === 'function') {
+                await WhatsAppManager.sendMessage(session.sessionId, jid, alertText);
+                console.log(`✅ [SYSTEM-INCIDENT] Direct WhatsApp message sent to ${phone} via session ${session.sessionId}`);
+                return true;
+            }
+
+            return false;
+        } catch (err) {
+            console.warn(`⚠️ [SYSTEM-INCIDENT] Direct session send error:`, err.message);
+            return false;
+        }
     }
 
     /**
@@ -702,15 +845,21 @@ class SystemIncidentAlertService {
             console.warn('⚠️ [SYSTEM-INCIDENT] Telegram alert failed:', tgErr.message);
         }
 
-        // 5. إرسال إلى WhatsApp (حسب مستوى الخطورة ومفتاح تشغيل القناة للشركة)
+        // 5. إرسال إلى WhatsApp (بنفس نمط تليجرام، مع dedupe key = (type + companyId) لكل 30 دقيقة وإعداد per-company)
         try {
             const isWaEnabled = await this.isWhatsAppAlertsEnabled(companyId, prefTypeId);
             if (!isWaEnabled) {
                 dispatchResults.whatsapp = false;
                 dispatchResults.whatsappReason = 'channel_disabled';
                 console.log(`ℹ️ [SYSTEM-INCIDENT] WhatsApp channel is disabled for company ${companyId}`);
-            } else if (severity === SEVERITIES.CRITICAL) {
-                // إرسال فوري للحوادث الحرجة (مثل WHATSAPP_DISCONNECTED أو SYSTEM_ERROR الحرج)
+            } else if (!force && this.isWhatsAppCoolingDown(incidentType, companyId, cooldownMinutes)) {
+                // منع التكرار: dedupe key = (type + companyId) لكل 30 دقيقة
+                dispatchResults.whatsapp = false;
+                dispatchResults.whatsappReason = 'in_cooldown';
+                dispatchResults.whatsappDeduplicated = true;
+                console.log(`⏳ [SYSTEM-INCIDENT] WhatsApp alert suppressed by dedupe (${incidentType}:${companyId})`);
+            } else {
+                // إرسال فوري ومباشر بنفس نمط تليجرام عبر WhatsAppNotificationService أو الجلسة الإدارية
                 const waSent = await this.sendWhatsAppImmediateAlert({
                     companyId,
                     companyName,
@@ -723,22 +872,7 @@ class SystemIncidentAlertService {
                 });
                 dispatchResults.whatsapp = Boolean(waSent);
                 dispatchResults.whatsappMode = 'immediate';
-            } else {
-                // تجميع الحوادث العادية (WARNING / INFO) في طابور التقرير الساعي
-                this.queueForHourlyDigest({
-                    companyId,
-                    companyName,
-                    incidentType,
-                    title,
-                    message,
-                    severity,
-                    entityId,
-                    url: targetUrl,
-                    metadata
-                });
-                dispatchResults.whatsapp = true;
-                dispatchResults.whatsappQueuedForDigest = true;
-                dispatchResults.whatsappMode = 'hourly_digest';
+                this.markWhatsAppIncidentSent(incidentType, companyId);
             }
         } catch (waErr) {
             console.warn('⚠️ [SYSTEM-INCIDENT] WhatsApp alert processing failed:', waErr.message);

@@ -88,6 +88,121 @@ async function runTests() {
     assert.strictEqual(differentReasonCool, false, 'Different failure reason should not be cooled down');
     console.log('✅ 6. Batch storm protection for automation failures verified.');
 
+    // 7. Test WhatsApp Alert Text Builder
+    const waText = systemIncidentAlertService.buildWhatsAppAlertText({
+        companyName: 'متجر التميز',
+        title: '🚨 انقطاع جلسة الواتساب',
+        message: 'تم انقطاع الجلسة الإدارية الرئيسية للرقم',
+        incidentType: 'WHATSAPP_DISCONNECTED',
+        severity: 'CRITICAL',
+        url: '/whatsapp',
+        metadata: { sessionId: 'wa_123', reason: 'qr_timeout' }
+    });
+    assert(waText.includes('[عطل حرج - WHATSAPP_DISCONNECTED]'), 'Should contain Arabic severity and type');
+    assert(waText.includes('متجر التميز'), 'Should contain company name');
+    assert(waText.includes('انقطاع جلسة الواتساب'), 'Should contain title');
+    assert(waText.includes('https://maxp.online/whatsapp'), 'Should contain url');
+    assert(waText.includes('sessionId: wa_123'), 'Should include metadata');
+    console.log('✅ 7. WhatsApp Alert text formatting verified.');
+
+    // 8. Test WhatsApp Dedupe Key = (type + companyId) for 30 minutes
+    systemIncidentAlertService.whatsAppCooldowns.clear();
+    const waDedupeKey = systemIncidentAlertService.getWhatsAppDedupeKey('ORDER_SYNC_STOPPAGE', 'comp_wa_test');
+    assert.strictEqual(waDedupeKey, 'ORDER_SYNC_STOPPAGE:comp_wa_test', 'Dedupe key must equal (type + companyId)');
+
+    const isWaCool1 = systemIncidentAlertService.isWhatsAppCoolingDown('ORDER_SYNC_STOPPAGE', 'comp_wa_test', 30);
+    assert.strictEqual(isWaCool1, false, 'Should not be cooling down initially');
+
+    systemIncidentAlertService.markWhatsAppIncidentSent('ORDER_SYNC_STOPPAGE', 'comp_wa_test');
+    const isWaCool2 = systemIncidentAlertService.isWhatsAppCoolingDown('ORDER_SYNC_STOPPAGE', 'comp_wa_test', 30);
+    assert.strictEqual(isWaCool2, true, 'Should be cooling down immediately after sent');
+
+    // A different incident type for the SAME company should NOT be cooling down
+    const isWaDifferentType = systemIncidentAlertService.isWhatsAppCoolingDown('AD_CAMPAIGN_STOPPED', 'comp_wa_test', 30);
+    assert.strictEqual(isWaDifferentType, false, 'Different incident type should not be cooled down');
+
+    // The SAME incident type for a DIFFERENT company should NOT be cooling down
+    const isWaDifferentCompany = systemIncidentAlertService.isWhatsAppCoolingDown('ORDER_SYNC_STOPPAGE', 'comp_wa_other', 30);
+    assert.strictEqual(isWaDifferentCompany, false, 'Different company should not be cooled down');
+    console.log('✅ 8. WhatsApp dedupe key = (type + companyId) per 30 minutes verified.');
+
+    // 9. Test Per-Company WhatsApp Channel Settings Override
+    systemIncidentAlertService.companyWhatsAppEnabledOverrides.clear();
+    systemIncidentAlertService.setCompanyWhatsAppEnabled('comp_settings_test', false);
+    const isEnabledFalse = await systemIncidentAlertService.isWhatsAppAlertsEnabled('comp_settings_test');
+    assert.strictEqual(isEnabledFalse, false, 'Should be disabled when per-company setting is false');
+
+    systemIncidentAlertService.setCompanyWhatsAppEnabled('comp_settings_test', true);
+    const isEnabledTrue = await systemIncidentAlertService.isWhatsAppAlertsEnabled('comp_settings_test');
+    assert.strictEqual(isEnabledTrue, true, 'Should be enabled when per-company setting is true');
+    console.log('✅ 9. Per-company WhatsApp settings control verified.');
+
+    // 10. Generate Test Incident across Channels (توليد عطل تجريبي)
+    const WhatsAppNotificationService = require('../services/whatsapp/WhatsAppNotificationService');
+    const originalSendNotification = WhatsAppNotificationService.sendNotification;
+    let dispatchedWhatsAppPayload = null;
+    WhatsAppNotificationService.sendNotification = async (payload) => {
+        dispatchedWhatsAppPayload = payload;
+        return { success: true, messageId: 'msg_test_wa_123' };
+    };
+
+    systemIncidentAlertService.whatsAppCooldowns.clear();
+    systemIncidentAlertService.setCompanyWhatsAppEnabled('comp_test_live', true);
+    process.env.INCIDENT_ALERT_WHATSAPP_PHONE = '201000000001';
+
+    const testIncident1 = await systemIncidentAlertService.dispatchIncident({
+        companyId: 'comp_test_live',
+        incidentType: systemIncidentAlertService.INCIDENT_TYPES.ORDER_SYNC_STOPPAGE,
+        title: '🚨 عطل تجريبي: توقف مزامنة أوردرات المتجر',
+        message: 'تم إطلاق هذا العطل التجريبي لاختبار قنوات الإنذار الفوري وتنبيهات الواتساب وتليجرام',
+        severity: systemIncidentAlertService.SEVERITIES.WARNING,
+        entityId: 'test_order_1001',
+        url: '/orders',
+        force: true
+    });
+
+    assert.strictEqual(testIncident1.sent, true, 'Test incident dispatch must succeed');
+    assert.strictEqual(testIncident1.dispatchResults.whatsapp, true, 'WhatsApp alert must be dispatched');
+    assert.strictEqual(testIncident1.dispatchResults.whatsappMode, 'immediate', 'WhatsApp mode must be immediate');
+    assert(dispatchedWhatsAppPayload, 'WhatsApp payload must have been passed to sendNotification');
+    assert.strictEqual(dispatchedWhatsAppPayload.recipientPhone, '201000000001', 'Recipient phone must match');
+    assert(dispatchedWhatsAppPayload.contentOverride.includes('توقف مزامنة أوردرات'), 'Alert content must contain incident title');
+
+    // Second dispatch for SAME incident type and company (even with different entityId) without force
+    dispatchedWhatsAppPayload = null;
+    const testIncident2 = await systemIncidentAlertService.dispatchIncident({
+        companyId: 'comp_test_live',
+        incidentType: systemIncidentAlertService.INCIDENT_TYPES.ORDER_SYNC_STOPPAGE,
+        title: '🚨 عطل تجريبي: توقف أوردر آخر',
+        message: 'عطل آخر مكرر',
+        severity: systemIncidentAlertService.SEVERITIES.WARNING,
+        entityId: 'test_order_1002',
+        url: '/orders'
+    });
+
+    // WhatsApp must be suppressed by dedupe key (type + companyId)
+    assert.strictEqual(testIncident2.dispatchResults.whatsapp, false, 'WhatsApp duplicate alert must be suppressed');
+    assert.strictEqual(testIncident2.dispatchResults.whatsappDeduplicated, true, 'Must indicate WhatsApp deduplication');
+    assert.strictEqual(testIncident2.dispatchResults.whatsappReason, 'in_cooldown');
+    assert.strictEqual(dispatchedWhatsAppPayload, null, 'No new WhatsApp message should be dispatched on deduplication');
+
+    // Third dispatch with force: true must bypass dedupe
+    const testIncident3 = await systemIncidentAlertService.dispatchIncident({
+        companyId: 'comp_test_live',
+        incidentType: systemIncidentAlertService.INCIDENT_TYPES.ORDER_SYNC_STOPPAGE,
+        title: '🚨 عطل تجريبي: توقف قسري متكرر',
+        message: 'إرسال قسري',
+        severity: systemIncidentAlertService.SEVERITIES.WARNING,
+        entityId: 'test_order_1003',
+        url: '/orders',
+        force: true
+    });
+    assert.strictEqual(testIncident3.dispatchResults.whatsapp, true, 'Force dispatch must bypass WhatsApp cooldown');
+
+    // Restore original handler
+    WhatsAppNotificationService.sendNotification = originalSendNotification;
+    console.log('✅ 10. Test incident generation & WhatsApp deduplication verification complete.');
+
     console.log('🎉 ALL SYSTEM INCIDENT ALERT TESTS PASSED SUCCESSFULLY!');
 }
 

@@ -86,6 +86,7 @@ describe('SystemIncidentAlertService - Comprehensive Multi-Channel Tests', () =>
 
         // Reset cooldowns, queue, and overrides
         systemIncidentAlertService.cooldowns.clear();
+        systemIncidentAlertService.whatsAppCooldowns.clear();
         systemIncidentAlertService.hourlyDigestQueue.clear();
         systemIncidentAlertService.companyWhatsAppEnabledOverrides.clear();
     });
@@ -200,7 +201,7 @@ describe('SystemIncidentAlertService - Comprehensive Multi-Channel Tests', () =>
         expect(WhatsAppNotificationService.sendNotification).not.toHaveBeenCalled();
     });
 
-    test('Acceptance 4: WARNING and INFO incidents are queued for the hourly digest and not sent immediately', async () => {
+    test('Acceptance 4: WARNING and INFO incidents send WhatsApp alert immediately with dedupe key = (type + companyId) per 30 min', async () => {
         const warnResult = await systemIncidentAlertService.dispatchIncident({
             companyId: 'comp_1',
             incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_ACCOUNT_ISSUE,
@@ -213,27 +214,60 @@ describe('SystemIncidentAlertService - Comprehensive Multi-Channel Tests', () =>
         expect(warnResult.sent).toBe(true);
         expect(warnResult.dispatchResults.telegram).toBe(true);
         expect(warnResult.dispatchResults.whatsapp).toBe(true);
-        expect(warnResult.dispatchResults.whatsappQueuedForDigest).toBe(true);
-        expect(warnResult.dispatchResults.whatsappMode).toBe('hourly_digest');
+        expect(warnResult.dispatchResults.whatsappMode).toBe('immediate');
 
-        // Verify it was NOT sent immediately via WhatsAppNotificationService
-        expect(WhatsAppNotificationService.sendNotification).not.toHaveBeenCalled();
-
-        // Verify it was added to hourlyDigestQueue
-        expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toHaveLength(1);
-
-        // Now trigger flushHourlyDigest
-        const flushResult = await systemIncidentAlertService.flushHourlyDigest('comp_1');
-        expect(flushResult.sent).toBe(true);
-        expect(flushResult.count).toBe(1);
-
-        // Verify the aggregated digest was sent
+        // Verify it was sent immediately via WhatsAppNotificationService in the same pattern as Telegram
         expect(WhatsAppNotificationService.sendNotification).toHaveBeenCalledWith(
             expect.objectContaining({
                 companyId: 'comp_1',
-                contentOverride: expect.stringContaining('تقرير ملخص تنبيهات السيستم - آخر ساعة')
+                category: 'SYSTEM',
+                eventType: 'SYSTEM_INCIDENT',
+                contentOverride: expect.stringContaining('فواتير معلقة')
             })
         );
+
+        // Deduplication test: second dispatch with DIFFERENT entityId but SAME (type + companyId) within 30 min
+        const warnResult2 = await systemIncidentAlertService.dispatchIncident({
+            companyId: 'comp_1',
+            incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_ACCOUNT_ISSUE,
+            title: 'فواتير معلقة أخرى',
+            message: 'حساب آخر معلق',
+            severity: systemIncidentAlertService.SEVERITIES.WARNING,
+            entityId: 'act_888'
+        });
+
+        // WhatsApp duplicate alert must be suppressed by dedupe key (type + companyId)
+        expect(warnResult2.dispatchResults.whatsapp).toBe(false);
+        expect(warnResult2.dispatchResults.whatsappReason).toBe('in_cooldown');
+        expect(warnResult2.dispatchResults.whatsappDeduplicated).toBe(true);
+
+        // Third dispatch with force=true must bypass WhatsApp dedupe
+        const warnResult3 = await systemIncidentAlertService.dispatchIncident({
+            companyId: 'comp_1',
+            incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_ACCOUNT_ISSUE,
+            title: 'فواتير معلقة',
+            message: 'يرجى تحديث وسيلة الدفع',
+            severity: systemIncidentAlertService.SEVERITIES.WARNING,
+            entityId: 'act_777',
+            force: true
+        });
+        expect(warnResult3.dispatchResults.whatsapp).toBe(true);
+
+        // Verify hourly digest queue and flush operate correctly
+        systemIncidentAlertService.queueForHourlyDigest({
+            companyId: 'comp_1',
+            companyName: 'متجر تجريبي',
+            incidentType: systemIncidentAlertService.INCIDENT_TYPES.AD_ACCOUNT_ISSUE,
+            title: 'فواتير معلقة',
+            message: 'يرجى تحديث وسيلة الدفع',
+            severity: systemIncidentAlertService.SEVERITIES.WARNING,
+            entityId: 'act_999'
+        });
+
+        expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toHaveLength(1);
+        const flushResult = await systemIncidentAlertService.flushHourlyDigest('comp_1');
+        expect(flushResult.sent).toBe(true);
+        expect(flushResult.count).toBe(1);
         expect(systemIncidentAlertService.hourlyDigestQueue.get('comp_1')).toBeUndefined();
     });
 
