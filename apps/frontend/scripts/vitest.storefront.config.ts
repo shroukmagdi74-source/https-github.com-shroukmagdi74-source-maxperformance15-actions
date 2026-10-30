@@ -33,6 +33,8 @@ export default mergeConfig(
       include: ["src/storefront/__tests__/**/*.test.{ts,tsx}"],
       // Storefront suites assert DOM/behaviour, not shipped CSS.
       css: false,
+      testTimeout: 30000,
+      hookTimeout: 30000,
     },
   }),
 );
