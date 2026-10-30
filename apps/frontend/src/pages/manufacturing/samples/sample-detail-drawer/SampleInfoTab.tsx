@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react';
-import { SampleOrder } from '../manufacturingApi';
+import { SampleOrder } from '../../manufacturingApi';
 
 export interface SampleInfoTabProps {
   sample: SampleOrder;

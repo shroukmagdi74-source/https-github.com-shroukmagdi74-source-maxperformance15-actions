@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle2, Clock } from 'lucide-react';
-import { SampleOrder } from '../manufacturingApi';
+import { SampleOrder } from '../../manufacturingApi';
 
 export interface DrawerReceiptStatusBarProps {
   sample: SampleOrder;

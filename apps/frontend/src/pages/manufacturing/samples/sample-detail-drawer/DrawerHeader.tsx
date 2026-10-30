@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Share2 } from 'lucide-react';
-import { SampleOrder } from '../manufacturingApi';
+import { SampleOrder } from '../../manufacturingApi';
 import { SampleStatusBadge, MaterialSourceBadge } from '../SampleStatusBadge';
 
 export interface DrawerHeaderProps {

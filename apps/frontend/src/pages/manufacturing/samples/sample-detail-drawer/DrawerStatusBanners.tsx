@@ -5,7 +5,7 @@ import {
   ArrowRightLeft,
   ExternalLink,
 } from 'lucide-react';
-import { SampleOrder } from '../manufacturingApi';
+import { SampleOrder } from '../../manufacturingApi';
 
 export interface DrawerStatusBannersProps {
   sample: SampleOrder;

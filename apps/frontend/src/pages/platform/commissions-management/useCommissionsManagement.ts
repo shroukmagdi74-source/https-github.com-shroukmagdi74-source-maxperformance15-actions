@@ -3,10 +3,9 @@ import { apiClient } from "../../../services/apiClient";
 import { useCurrency } from "../../../hooks/useCurrency";
 import { useTheme } from "../../../hooks/useTheme";
 import { toast as namedToast } from "sonner";
-import defaultToast from "sonner";
 import { tToast } from "../../../utils/i18n-toast";
 
-const toast = namedToast || (defaultToast as any)?.default || defaultToast;
+const toast = namedToast;
 import type {
   Commission,
   AffiliatePayout,

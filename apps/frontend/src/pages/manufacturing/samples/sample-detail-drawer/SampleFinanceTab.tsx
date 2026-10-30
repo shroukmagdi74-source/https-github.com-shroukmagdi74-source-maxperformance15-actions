@@ -8,7 +8,7 @@ import {
   Trash2,
   CheckCircle2,
 } from 'lucide-react';
-import { SampleOrder } from '../manufacturingApi';
+import { SampleOrder } from '../../manufacturingApi';
 
 export interface SampleFinanceTabProps {
   sample: SampleOrder;

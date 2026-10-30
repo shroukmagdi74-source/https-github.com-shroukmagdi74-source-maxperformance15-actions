@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle2, ArrowRightLeft } from 'lucide-react';
-import { SampleOrder } from '../manufacturingApi';
+import { SampleOrder } from '../../manufacturingApi';
 
 export interface DrawerFooterActionsProps {
   sample: SampleOrder;

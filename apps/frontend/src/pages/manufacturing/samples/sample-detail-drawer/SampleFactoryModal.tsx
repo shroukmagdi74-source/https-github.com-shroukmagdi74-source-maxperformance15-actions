@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { PartnerFactory } from '../manufacturingApi';
+import { PartnerFactory } from '../../manufacturingApi';
 
 export interface SampleFactoryModalProps {
   isOpen: boolean;

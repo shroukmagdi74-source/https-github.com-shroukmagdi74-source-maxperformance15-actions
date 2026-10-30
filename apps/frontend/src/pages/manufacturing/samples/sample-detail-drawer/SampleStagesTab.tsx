@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, Play, Check, CheckCircle2 } from 'lucide-react';
-import { SampleOrder, SampleOrderStage } from '../manufacturingApi';
+import { SampleOrder, SampleOrderStage } from '../../manufacturingApi';
 
 export interface SampleStagesTabProps {
   sample: SampleOrder;

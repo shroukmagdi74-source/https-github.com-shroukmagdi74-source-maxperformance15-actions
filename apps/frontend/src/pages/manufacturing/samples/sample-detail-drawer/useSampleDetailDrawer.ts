@@ -5,7 +5,7 @@ import {
   SampleOrder,
   SampleOrderStage,
   PartnerFactory,
-} from '../manufacturingApi';
+} from '../../manufacturingApi';
 import { DrawerTab } from './types';
 
 export function useSampleDetailDrawer(

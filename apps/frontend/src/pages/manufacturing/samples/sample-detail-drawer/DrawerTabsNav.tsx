@@ -1,5 +1,5 @@
 import React from 'react';
-import { SampleOrder } from '../manufacturingApi';
+import { SampleOrder } from '../../manufacturingApi';
 import { DrawerTab } from './types';
 
 export interface DrawerTabsNavProps {

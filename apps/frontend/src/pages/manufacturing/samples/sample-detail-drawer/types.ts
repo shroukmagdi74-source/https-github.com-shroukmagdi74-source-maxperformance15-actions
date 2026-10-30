@@ -1,4 +1,4 @@
-import { SampleOrder, SampleOrderStage, PartnerFactory } from '../manufacturingApi';
+import { SampleOrder, SampleOrderStage, PartnerFactory } from '../../manufacturingApi';
 
 export type DrawerTab = 'info' | 'stages' | 'attachments' | 'finance';
 

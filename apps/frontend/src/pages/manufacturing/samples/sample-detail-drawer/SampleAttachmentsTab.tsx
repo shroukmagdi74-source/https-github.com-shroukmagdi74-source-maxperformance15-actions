@@ -1,6 +1,6 @@
 import React from 'react';
 import { Upload, FileText, ExternalLink, Trash2 } from 'lucide-react';
-import { SampleOrder } from '../manufacturingApi';
+import { SampleOrder } from '../../manufacturingApi';
 
 export interface SampleAttachmentsTabProps {
   sample: SampleOrder;
