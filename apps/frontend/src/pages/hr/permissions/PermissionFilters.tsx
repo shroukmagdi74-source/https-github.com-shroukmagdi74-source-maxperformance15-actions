@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { permissionTypeConfig } from "./helpers";
+import { PermissionType } from "./types";
 
 interface PermissionFiltersProps {
   activeTab: string;
@@ -26,6 +27,15 @@ export const PermissionFilters: React.FC<PermissionFiltersProps> = ({
   pendingCount,
 }) => {
   const { t } = useTranslation();
+
+  const selectedTypeLabel =
+    typeFilter === "all"
+      ? t("employee.permissions.allTypes")
+      : typeFilter in permissionTypeConfig
+        ? t(
+            `employee.permissions.${permissionTypeConfig[typeFilter as PermissionType].labelKey}`,
+          )
+        : undefined;
 
   return (
     <div className="p-3 sm:p-4 border-b border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
@@ -70,7 +80,9 @@ export const PermissionFilters: React.FC<PermissionFiltersProps> = ({
       <div className="w-full sm:w-auto flex items-center gap-3">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-full sm:w-[180px] bg-gray-50/50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 h-9 sm:h-10 text-xs sm:text-sm">
-            <SelectValue placeholder={t("employee.permissions.typePlaceholder")} />
+            <SelectValue placeholder={t("employee.permissions.typePlaceholder")}>
+              {selectedTypeLabel}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("employee.permissions.allTypes")}</SelectItem>
