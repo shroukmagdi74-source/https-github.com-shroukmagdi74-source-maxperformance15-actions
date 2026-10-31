@@ -1,4 +1,4 @@
-﻿export interface HeroSticker {
+export interface HeroSticker {
   label: string;
   position?: "left-mid" | "left-bottom" | "right-mid" | "right-bottom";
   tone?: "primary" | "outline" | "default";
@@ -57,4 +57,39 @@ export interface HeroVariantProps {
   secondaryActionClassName?: string;
   slides?: HeroSlide[];
   compact?: boolean;
+}
+
+export interface HeroBannerProps {
+  section?: {
+    variant?: string;
+    [key: string]: unknown;
+  };
+  settings?: {
+    title?: string;
+    subtitle?: string;
+    variant?: string;
+    primaryCtaText?: string;
+    ctaText?: string;
+    primaryCtaLink?: string;
+    ctaLink?: string;
+    secondaryCtaText?: string;
+    secondaryCtaLink?: string;
+    backgroundImage?: string;
+    imageUrl?: string;
+    image?: string;
+    eyebrow?: string;
+    highlights?: HeroBannerHighlight[];
+    floatingCards?: HeroFloatingCard[];
+    stickers?: HeroSticker[];
+    slides?: HeroSlide[];
+    compact?: boolean;
+    panelImage?: string;
+    panelTitle?: string;
+    panelSubtitle?: string;
+    panelNote?: string;
+    panelEyebrow?: string;
+    panelMetricValue?: string;
+    panelMetricLabel?: string;
+    [key: string]: unknown;
+  };
 }
