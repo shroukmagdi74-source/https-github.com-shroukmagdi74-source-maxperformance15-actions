@@ -1,26 +1,28 @@
+// @vitest-environment jsdom
 import React from "react";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-jest.mock("../../../components/common/ErrorBoundary", () => ({
+vi.mock("../../../components/common/ErrorBoundary", () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock("react-i18next", () => ({
+vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, opts?: any) => (opts && opts.defaultValue ? opts.defaultValue : key),
   }),
 }));
 
 // Mock lazy child modals
-jest.mock("../../../components/orders/EnhancedOrderModal", () => ({
+vi.mock("../../../components/orders/EnhancedOrderModal", () => ({
   __esModule: true,
   default: ({ isOpen, order }: { isOpen: boolean; order: any }) =>
     isOpen ? <div data-testid="enhanced-order-modal">OrderModal: {order.orderNumber}</div> : null,
 }));
 
-jest.mock("../../../components/orders/InvoiceModal", () => ({
+vi.mock("../../../components/orders/InvoiceModal", () => ({
   __esModule: true,
   default: ({ invoice }: { invoice: any }) =>
     invoice ? <div data-testid="invoice-modal">InvoiceModal: {invoice.id}</div> : null,
@@ -31,14 +33,14 @@ import { OrdersModalsContainer } from "./OrdersModalsContainer";
 describe("OrdersModalsContainer", () => {
   const defaultProps = {
     selectedOrder: null,
-    setSelectedOrder: jest.fn(),
+    setSelectedOrder: vi.fn(),
     showOrderModal: false,
-    setShowOrderModal: jest.fn(),
+    setShowOrderModal: vi.fn(),
     isMerchant: false,
     orderStatuses: [],
-    onOrderUpdate: jest.fn(),
+    onOrderUpdate: vi.fn(),
     selectedInvoice: null,
-    setSelectedInvoice: jest.fn(),
+    setSelectedInvoice: vi.fn(),
   };
 
   it("renders EnhancedOrderModal when selectedOrder is set and showOrderModal is true", async () => {
@@ -50,8 +52,8 @@ describe("OrdersModalsContainer", () => {
       />
     );
 
-    expect(await screen.findByTestId("enhanced-order-modal")).toBeInTheDocument();
-    expect(screen.getByText("OrderModal: ORD-99182")).toBeInTheDocument();
+    expect(await screen.findByTestId("enhanced-order-modal")).toBeDefined();
+    expect(screen.getByText("OrderModal: ORD-99182")).toBeDefined();
   });
 
   it("renders InvoiceModal when selectedInvoice is set", async () => {
@@ -62,7 +64,7 @@ describe("OrdersModalsContainer", () => {
       />
     );
 
-    expect(await screen.findByTestId("invoice-modal")).toBeInTheDocument();
-    expect(screen.getByText("InvoiceModal: INV-102")).toBeInTheDocument();
+    expect(await screen.findByTestId("invoice-modal")).toBeDefined();
+    expect(screen.getByText("InvoiceModal: INV-102")).toBeDefined();
   });
 });
