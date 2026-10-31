@@ -12,3 +12,4 @@ export * from "./AttendanceDeleteDialog";
 export * from "./AttendanceNotesDialog";
 export * from "./AttendanceMapDialog";
 export * from "./AttendanceExceptionRequestsSection";
+export * from "./AttendanceMissingPunchesSection";

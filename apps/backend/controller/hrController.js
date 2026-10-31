@@ -269,9 +269,12 @@ async function getMyTodayAttendance(req, res) {
       userId,
     );
     if (!employee) {
-      return res.status(404).json({
-        success: false,
-        error: "لم يتم العثور على ملف الموظف",
+      return res.status(200).json({
+        success: true,
+        attendance: null,
+        notAnEmployee: true,
+        canRequestLink: true,
+        message: "أنت غير مسجل كموظف في هذه الشركة",
       });
     }
 
@@ -2063,15 +2066,24 @@ async function getEmployeeStats(req, res) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * يبني سياق البصمة الموثوق من الطلب (IP/جهاز/دور المستخدم) — لا يأتي أبدًا من البودي
+ * يبني سياق البصمة الموثوق من الطلب (IP/جهاز/بصمة الجهاز/دور المستخدم)
  */
 function buildAttendanceContext(req) {
   const userAgent = req.headers["user-agent"] || null;
+  const deviceFingerprint =
+    req.headers["x-device-fingerprint"] ||
+    req.headers["x-fingerprint"] ||
+    req.headers["x-device-id"] ||
+    req.body?.fingerprint ||
+    req.body?.deviceFingerprint ||
+    null;
+
   return {
     ip: getClientIp(req),
     userAgent,
     deviceType: detectDeviceType(userAgent),
     actorRole: req.user?.role || null,
+    deviceFingerprint: deviceFingerprint ? String(deviceFingerprint).trim() : null,
   };
 }
 
@@ -2164,10 +2176,133 @@ async function decideAttendanceExceptionRequest(req, res) {
   }
 }
 
+/**
+ * جلب تقرير البصمات المفقودة (محاولات الأجهزة التي لم تُسجل)
+ * GET /api/hr/attendance/missing-punches
+ */
+async function getMissingPunchesReport(req, res) {
+  try {
+    const { companyId } = req.user;
+    const { startDate, endDate, userId, limit, page } = req.query || {};
+
+    const report = await attendanceService.getMissingPunchesReport(companyId, {
+      startDate,
+      endDate,
+      userId,
+      limit,
+      page,
+    });
+
+    res.json({ success: true, ...report });
+  } catch (error) {
+    console.error("❌ Error getting missing punches report:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "حدث خطأ أثناء جلب تقرير البصمات المفقودة",
+    });
+  }
+}
+
+/**
+ * تشغيل فحص البصمات المفقودة اليومي وإرسال تنبيه
+ * POST /api/hr/attendance/missing-punches/check-daily
+ */
+async function triggerDailyMissingPunchesCheck(req, res) {
+  try {
+    const { companyId } = req.user;
+    const { targetDate } = req.body || {};
+
+    const result = await attendanceService.checkDailyMissingPunches(companyId, targetDate);
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("❌ Error triggering daily missing punches check:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "حدث خطأ أثناء فحص البصمات المفقودة",
+    });
+  }
+}
+
+/**
+ * تسوية بصمة مفقودة يدويًا
+ * POST /api/hr/attendance/missing-punches/:attemptId/resolve
+ */
+async function resolveMissingPunch(req, res) {
+  try {
+    const { companyId, id: actorId, firstName, lastName } = req.user;
+    const { attemptId } = req.params;
+    const { notes, checkInTime } = req.body || {};
+    const actorName = [firstName, lastName].filter(Boolean).join(" ") || req.user.name || "مسؤول النظام";
+
+    const result = await attendanceService.resolveMissingPunch(
+      companyId,
+      attemptId,
+      { actorId, actorName, notes, checkInTime },
+    );
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("❌ Error resolving missing punch:", error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message || "تعذر تسوية البصمة المفقودة",
+    });
+  }
+}
+
+/**
+ * إرسال طلب ربط حساب كموظف في الشركة
+ * POST /api/hr/employees/request-link
+ */
+async function requestEmployeeLink(req, res) {
+  try {
+    const { companyId, id: userId, firstName, lastName, email, role } = req.user;
+    const { notes } = req.body || {};
+    const userName = [firstName, lastName].filter(Boolean).join(" ") || email || "مستخدم";
+    const hrNotificationService = require("../services/hr/hrNotificationService");
+
+    // إرسال إشعار للمدراء ومسؤولي الموارد البشرية
+    await hrNotificationService.notifyHrEvent({
+      companyId,
+      notificationKey: "notifyOnLeaveRequest",
+      includeManagers: true,
+      title: "📌 طلب ربط موظف جديد",
+      message: `قام ${userName} (${role || "عضو"}) بطلب ربط حسابه كموظف في الشركة لتفعيل البصمة ومتابعة الحضور.`,
+      type: "HR_GENERAL",
+      data: {
+        userId,
+        userName,
+        userEmail: email,
+        userRole: role,
+        notes: notes || "طلب ربط ملف وظيفي",
+        requestedAt: new Date().toISOString(),
+      },
+      whatsApp: {
+        actionId: "EMPLOYEE_LINK_REQUEST",
+        actionName: "طلب ربط موظف",
+        details: `المستخدم: ${userName}\nالبريد: ${email}\nالدور: ${role}\nالحدث: طلب ربط كموظف لتسجيل الحضور.`,
+        requiresApproval: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: "تم إرسال طلبك لإدارة الشركة بنجاح. سيتم تفعيل البصمة فور اعتمادك كموظف.",
+    });
+  } catch (error) {
+    console.error("❌ Error requesting employee link:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "حدث خطأ أثناء إرسال طلب الربط",
+    });
+  }
+}
+
 async function checkIn(req, res) {
   try {
     const { companyId, id: userId, role } = req.user;
-    const { location, method, employeeId, workMode } = req.body;
+    const { location, method, employeeId, workMode, originalTimestamp, fingerprint } = req.body;
 
     let targetUserId = userId; // Default to the logged-in user's userId
 
@@ -2195,6 +2330,8 @@ async function checkIn(req, res) {
         location,
         method,
         workMode,
+        originalTimestamp,
+        fingerprint,
       },
       buildAttendanceContext(req),
     );
@@ -2224,6 +2361,26 @@ async function checkIn(req, res) {
       });
     }
 
+    // Handle unlinked employee errors
+    if (error.code === "NOT_AN_EMPLOYEE" || error.message?.includes("غير مسجل كموظف")) {
+      return res.status(403).json({
+        success: false,
+        error: error.message || "أنت غير مسجل كموظف في هذه الشركة. يرجى مراجعة إدارة الشركة لربط حسابك أو إضافة ملفك الوظيفي.",
+        code: "NOT_AN_EMPLOYEE",
+        canRequestLink: true,
+      });
+    }
+
+    // Handle unlinked employee errors
+    if (error.code === "NOT_AN_EMPLOYEE" || error.message?.includes("غير مسجل كموظف")) {
+      return res.status(403).json({
+        success: false,
+        error: error.message || "أنت غير مسجل كموظف في هذه الشركة. يرجى مراجعة إدارة الشركة لربط حسابك أو إضافة ملفك الوظيفي.",
+        code: "NOT_AN_EMPLOYEE",
+        canRequestLink: true,
+      });
+    }
+
     // Handle geofencing errors with detailed data (check geofenceData first)
     if (error.geofenceData) {
       return res.status(403).json({
@@ -2249,7 +2406,7 @@ async function checkIn(req, res) {
 async function checkOut(req, res) {
   try {
     const { companyId, id: userId, role } = req.user;
-    const { location, method, employeeId, workMode } = req.body;
+    const { location, method, employeeId, workMode, originalTimestamp, fingerprint } = req.body;
 
     let targetUserId = userId; // Default to the logged-in user's userId
 
@@ -2276,6 +2433,8 @@ async function checkOut(req, res) {
         location,
         method,
         workMode,
+        originalTimestamp,
+        fingerprint,
       },
       buildAttendanceContext(req),
     );
@@ -2285,6 +2444,16 @@ async function checkOut(req, res) {
     res.json({ success: true, attendance });
   } catch (error) {
     console.error("❌ Error checking out:", error);
+
+    // Handle unlinked employee errors
+    if (error.code === "NOT_AN_EMPLOYEE" || error.message?.includes("غير مسجل كموظف")) {
+      return res.status(403).json({
+        success: false,
+        error: error.message || "أنت غير مسجل كموظف في هذه الشركة. يرجى مراجعة إدارة الشركة لربط حسابك أو إضافة ملفك الوظيفي.",
+        code: "NOT_AN_EMPLOYEE",
+        canRequestLink: true,
+      });
+    }
 
     // Handle geofencing errors with detailed data (check geofenceData first)
     if (error.geofenceData) {
@@ -7888,6 +8057,12 @@ module.exports = {
   getMyCompaniesToday,
   getMyCompaniesAttendanceReport,
   exportMyCompaniesReport,
+
+  // Missing Punches & Employee Link
+  getMissingPunchesReport,
+  triggerDailyMissingPunchesCheck,
+  resolveMissingPunch,
+  requestEmployeeLink,
 
   updateBulkSalaries,
   debugGetUser,

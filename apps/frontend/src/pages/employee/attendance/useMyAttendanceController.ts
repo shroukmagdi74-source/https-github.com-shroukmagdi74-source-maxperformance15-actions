@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import api from "../../../services/api";
 import { useAuth } from "../../../hooks/useAuthSimple";
+import { enqueuePunch, processAttendanceQueue } from "../../../services/attendanceQueueService";
 import {
   AttendanceStats,
   GeofenceModalData,
@@ -25,6 +26,8 @@ export const useMyAttendanceController = () => {
   const { user } = useAuth();
   const timezone = user?.timezone || "Africa/Cairo";
   const [loading, setLoading] = useState(true);
+  const [isNotAnEmployee, setIsNotAnEmployee] = useState(false);
+  const [requestingLink, setRequestingLink] = useState(false);
   const [todayAttendance, setTodayAttendance] =
     useState<TodayAttendance | null>(null);
   const [stats, setStats] = useState<AttendanceStats | null>(null);
@@ -101,6 +104,10 @@ export const useMyAttendanceController = () => {
   }, [todayAttendance]);
 
   useEffect(() => {
+    void processAttendanceQueue(() => {
+      void fetchTodayAttendance();
+      void fetchStats();
+    });
     void fetchTodayAttendance();
     void fetchStats();
     void fetchTodayGoals();
@@ -142,18 +149,35 @@ export const useMyAttendanceController = () => {
     try {
       setLoading(true);
       const response = await api.get("/hr/attendance/my-today");
-      setTodayAttendance(response.data.attendance);
+      if (response.data?.notAnEmployee) {
+        setIsNotAnEmployee(true);
+        setTodayAttendance(null);
+      } else {
+        setIsNotAnEmployee(false);
+        setTodayAttendance(response.data.attendance);
+      }
       clearErrorKey("today");
     } catch (error: unknown) {
       const apiError = getApiError(error);
-      console.error("Error fetching today attendance:", error);
-      const errorMessage =
-        apiError.response?.data?.error ||
-        t("employee.attendance.errorFetchToday");
-      setErrorKey("today", errorMessage);
-      toast.error(errorMessage, {
-        description: t("employee.attendance.errorFetchTodayDesc"),
-      });
+      const isNotEmp =
+        apiError.response?.data?.notAnEmployee ||
+        apiError.response?.data?.code === "NOT_AN_EMPLOYEE" ||
+        apiError.response?.data?.error?.includes("غير مسجل كموظف") ||
+        apiError.response?.data?.error?.includes("ملف الموظف");
+
+      if (isNotEmp) {
+        setIsNotAnEmployee(true);
+        setTodayAttendance(null);
+      } else {
+        console.error("Error fetching today attendance:", error);
+        const errorMessage =
+          apiError.response?.data?.error ||
+          t("employee.attendance.errorFetchToday");
+        setErrorKey("today", errorMessage);
+        toast.error(errorMessage, {
+          description: t("employee.attendance.errorFetchTodayDesc"),
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -227,6 +251,7 @@ export const useMyAttendanceController = () => {
   };
 
   const finalizeCheckOut = async () => {
+    const punchTime = new Date();
     try {
       setCheckingOut(true);
       const location = await getLocationPayload();
@@ -235,9 +260,11 @@ export const useMyAttendanceController = () => {
         method: "self_service",
         workMode,
         location: location ? JSON.stringify(location) : null,
+        originalTimestamp: punchTime.toISOString(),
       });
 
-      toast.success(t("employee.attendance.checkoutSuccess"));
+      const formattedTime = formatTimeWithTZ(punchTime, timezone);
+      toast.success(`تم تسجيل الانصراف بنجاح ✅ ${formattedTime}`);
       await fetchTodayAttendance();
       await fetchStats();
       await fetchTodayGoals();
@@ -245,10 +272,47 @@ export const useMyAttendanceController = () => {
       await fetchRecentAttendance();
       setShowGoalsReviewDialog(false);
     } catch (error: unknown) {
-      handleAttendanceActionError(error, t, "checkout", (data) => {
-        setGeofenceModalData(data);
-        setShowGeofenceModal(true);
-      });
+      const apiErr = getApiError(error);
+      const isNotEmp =
+        apiErr.response?.data?.code === "NOT_AN_EMPLOYEE" ||
+        apiErr.response?.data?.notAnEmployee ||
+        apiErr.response?.data?.error?.includes("غير مسجل كموظف") ||
+        apiErr.response?.data?.error?.includes("ملف وظيفي");
+
+      if (isNotEmp) {
+        setIsNotAnEmployee(true);
+        toast.error("لم تُسجّل — السبب: أنت غير مسجل كموظف في الشركة", {
+          description: "حسابك لا يمتلك ملفاً في سجل موظفي الشركة. يرجى الضغط على زر طلب الربط بالأسفل.",
+          duration: 9000,
+        });
+        return;
+      }
+
+      const isNetworkErr = !navigator.onLine || !apiErr.response || apiErr.code === "ERR_NETWORK" || apiErr.code === "ECONNABORTED";
+
+      if (isNetworkErr) {
+        enqueuePunch({
+          action: "CHECK_OUT",
+          originalTimestamp: punchTime.toISOString(),
+          workMode,
+          method: "self_service",
+          lastError: "انقطاع الاتصال بالإنترنت",
+        });
+        toast.error("لم تُسجّل — السبب: انقطاع الاتصال بالإنترنت", {
+          description: "تم حفظ بصمة الانصراف محلياً وسيتم إرسالها تلقائياً فور عودة الاتصال.",
+          duration: 8000,
+        });
+      } else {
+        const errorReason = apiErr.response?.data?.error || apiErr.message || "خطأ غير متوقع";
+        if (apiErr.response?.status === 403 && apiErr.response?.data?.geofenceData) {
+          handleAttendanceActionError(error, t, "checkout", (data) => {
+            setGeofenceModalData(data);
+            setShowGeofenceModal(true);
+          });
+        } else {
+          toast.error(`لم تُسجّل — السبب: ${errorReason}`);
+        }
+      }
     } finally {
       setCheckingOut(false);
     }
@@ -293,6 +357,7 @@ export const useMyAttendanceController = () => {
   };
 
   const handleCheckIn = async () => {
+    const punchTime = new Date();
     try {
       setCheckingIn(true);
       const location = await getLocationPayload();
@@ -301,9 +366,11 @@ export const useMyAttendanceController = () => {
         method: "self_service",
         workMode,
         location: location ? JSON.stringify(location) : null,
+        originalTimestamp: punchTime.toISOString(),
       });
 
-      toast.success(t("employee.attendance.checkinSuccess"), {
+      const formattedTime = formatTimeWithTZ(punchTime, timezone);
+      toast.success(`تم تسجيل البصمة بنجاح ✅ ${formattedTime}`, {
         description: t(
           "employee.attendance.desktopPrompt",
           "تذكير: يرجى التأكد من تشغيل تطبيق سطح المكتب MaxP Workspace لتوثيق فترات النشاط وساعات العمل بدقة.",
@@ -316,10 +383,47 @@ export const useMyAttendanceController = () => {
       setRecentPage(1);
       await fetchRecentAttendance();
     } catch (error: unknown) {
-      handleAttendanceActionError(error, t, "checkin", (data) => {
-        setGeofenceModalData(data);
-        setShowGeofenceModal(true);
-      });
+      const apiErr = getApiError(error);
+      const isNotEmp =
+        apiErr.response?.data?.code === "NOT_AN_EMPLOYEE" ||
+        apiErr.response?.data?.notAnEmployee ||
+        apiErr.response?.data?.error?.includes("غير مسجل كموظف") ||
+        apiErr.response?.data?.error?.includes("ملف وظيفي");
+
+      if (isNotEmp) {
+        setIsNotAnEmployee(true);
+        toast.error("لم تُسجّل — السبب: أنت غير مسجل كموظف في الشركة", {
+          description: "حسابك لا يمتلك ملفاً في سجل موظفي الشركة. يرجى الضغط على زر طلب الربط بالأسفل.",
+          duration: 9000,
+        });
+        return;
+      }
+
+      const isNetworkErr = !navigator.onLine || !apiErr.response || apiErr.code === "ERR_NETWORK" || apiErr.code === "ECONNABORTED";
+
+      if (isNetworkErr) {
+        enqueuePunch({
+          action: "CHECK_IN",
+          originalTimestamp: punchTime.toISOString(),
+          workMode,
+          method: "self_service",
+          lastError: "انقطاع الاتصال بالإنترنت",
+        });
+        toast.error("لم تُسجّل — السبب: انقطاع الاتصال بالإنترنت", {
+          description: "تم حفظ البصمة محلياً وسيتم إرسالها تلقائياً بالوقت الأصلي فور عودة الاتصال.",
+          duration: 8000,
+        });
+      } else {
+        const errorReason = apiErr.response?.data?.error || apiErr.message || "خطأ غير متوقع";
+        if (apiErr.response?.status === 403 && apiErr.response?.data?.geofenceData) {
+          handleAttendanceActionError(error, t, "checkin", (data) => {
+            setGeofenceModalData(data);
+            setShowGeofenceModal(true);
+          });
+        } else {
+          toast.error(`لم تُسجّل — السبب: ${errorReason}`);
+        }
+      }
     } finally {
       setCheckingIn(false);
     }
@@ -386,12 +490,31 @@ export const useMyAttendanceController = () => {
       )
     : null;
 
+  const handleRequestEmployeeLink = async () => {
+    try {
+      setRequestingLink(true);
+      const res = await api.post("/hr/employees/request-link");
+      if (res.data?.success) {
+        toast.success("تم إرسال طلب ربط الحساب لإدارة الشركة بنجاح ✅", {
+          description: "سيتم إشعار مسؤولي الموارد البشرية لربط ملفك الوظيفي وتفعيل البصمة.",
+        });
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "فشل إرسال طلب الربط");
+    } finally {
+      setRequestingLink(false);
+    }
+  };
+
   return {
     t,
     user,
     timezone,
     loading,
     todayAttendance,
+    isNotAnEmployee,
+    requestingLink,
+    handleRequestEmployeeLink,
     stats,
     recentAttendance,
     hasMoreRecent,

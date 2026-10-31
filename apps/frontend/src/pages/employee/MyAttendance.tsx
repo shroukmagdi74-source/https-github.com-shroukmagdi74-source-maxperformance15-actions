@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, UserX, UserCheck } from "lucide-react";
 import {
   formatDate,
   MyAttendanceClockAndActionsCard,
@@ -15,6 +15,9 @@ const MyAttendance: React.FC = () => {
     timezone,
     loading,
     todayAttendance,
+    isNotAnEmployee,
+    requestingLink,
+    handleRequestEmployeeLink,
     stats,
     recentAttendance,
     hasMoreRecent,
@@ -96,6 +99,34 @@ const MyAttendance: React.FC = () => {
                 </p>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {isNotAnEmployee && (
+        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 dark:border-amber-700/60 dark:bg-amber-950/30 p-6 text-center space-y-3 shadow-sm">
+          <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-700 dark:text-amber-300">
+            <UserX className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-amber-900 dark:text-amber-200">
+              أنت غير مسجل كموظف في الشركة
+            </h3>
+            <p className="text-sm text-amber-800 dark:text-amber-300/90 mt-1 max-w-xl mx-auto">
+              حسابك الحالي مسجل في النظام بدور ({user?.role || "مستخدم"}) لكنه غير مقيد في سجل الموظفين (HR Employees).
+              لذلك لا يمكن تسجيل الحضور والانصراف حتى يتم ربط ملفك الوظيفي أو اعتماد طلبك من قِبل إدارة الشركة.
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={handleRequestEmployeeLink}
+              disabled={requestingLink}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-sm transition shadow-sm disabled:opacity-50 cursor-pointer"
+            >
+              <UserCheck className="h-4 w-4" />
+              {requestingLink ? "جاري إرسال الطلب للإدارة..." : "طلب ربط حسابي كموظف في الشركة"}
+            </button>
           </div>
         </div>
       )}

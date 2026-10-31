@@ -14,6 +14,7 @@ import {
   AttendanceNotesDialog,
   AttendanceMapDialog,
   AttendanceExceptionRequestsSection,
+  AttendanceMissingPunchesSection,
 } from "./attendance/index";
 
 export const Attendance: React.FC = () => {
@@ -128,6 +129,14 @@ export const Attendance: React.FC = () => {
       {/* طلبات استثناء البصمة */}
       <AttendanceExceptionRequestsSection
         onDecisionSuccess={() => {
+          fetchAttendance();
+          fetchTodayStats();
+        }}
+      />
+
+      {/* تقرير ومطابقة البصمات المفقودة من أجهزة الشركة */}
+      <AttendanceMissingPunchesSection
+        onResolveSuccess={() => {
           fetchAttendance();
           fetchTodayStats();
         }}

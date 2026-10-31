@@ -871,17 +871,23 @@ class MonitorApiClient {
     }
   }
 
-  async autoClockIn(workMode: 'office' | 'remote' = 'office'): Promise<{ success: boolean; attendance?: any; error?: string }> {
+  async autoClockIn(
+    workMode: 'office' | 'remote' = 'office',
+    payload: { originalTimestamp?: string; fingerprint?: string } = {}
+  ): Promise<{ success: boolean; attendance?: any; error?: string }> {
     try {
       const base = this.serverUrl;
+      const body = {
+        method: 'desktop_workspace',
+        workMode,
+        fingerprint: payload.fingerprint || this.deviceFingerprint,
+        ...(payload.originalTimestamp ? { originalTimestamp: payload.originalTimestamp } : {}),
+      };
       let res;
       try {
         res = await axios.post(
           `${base}/api/v1/hr/attendance/check-in`,
-          {
-            method: 'desktop_workspace',
-            workMode,
-          },
+          body,
           {
             headers: this.getAuthHeaders(),
             timeout: 10_000,
@@ -892,10 +898,7 @@ class MonitorApiClient {
         if (err.response?.status === 404) {
           res = await axios.post(
             `${base}/api/hr/attendance/check-in`,
-            {
-              method: 'desktop_workspace',
-              workMode: 'office',
-            },
+            body,
             {
               headers: this.getAuthHeaders(),
               timeout: 10_000,

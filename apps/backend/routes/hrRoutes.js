@@ -255,6 +255,7 @@ router.delete('/employees/:id', verifyToken.authenticateToken, verifyToken.requi
 router.post('/employees/:id/terminate', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.terminateEmployee);
 router.post('/employees/:id/link-user', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.linkEmployeeToUser);
 router.post('/employees/:id/reactivate', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.reactivateEmployee);
+router.post('/employees/request-link', hrController.requestEmployeeLink);
 
 // 🔗 دعوات وانضمام الموظفين الذاتي - Employee Invitations Management (Admin)
 router.post('/employee-invitations', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), employeeInvitationController.createEmployeeInvitation);
@@ -273,6 +274,11 @@ router.post('/attendance/check-out', hrController.checkOut);
 router.post('/attendance/exception-requests', hrController.createAttendanceExceptionRequest);
 router.get('/attendance/exception-requests', verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.listAttendanceExceptionRequests);
 router.post('/attendance/exception-requests/:id/decide', verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.decideAttendanceExceptionRequest);
+
+// 🔍 تقرير ومطابقة البصمات المفقودة (Missing Punches)
+router.get('/attendance/missing-punches', verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.getMissingPunchesReport);
+router.post('/attendance/missing-punches/check-daily', verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.triggerDailyMissingPunchesCheck);
+router.post('/attendance/missing-punches/:attemptId/resolve', verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER']), hrController.resolveMissingPunch);
 
 // 🔒 Protected Management Routes
 router.get('/attendance/today', verifyToken.authenticateToken, verifyToken.requireRole(['SUPER_ADMIN', 'COMPANY_ADMIN', 'OWNER', 'MANAGER', 'AGENT']), hrController.getTodayAttendance);

@@ -208,6 +208,12 @@ app.whenReady().then(async () => {
     setInterval(pollTaskNotifications, 15_000);
   }, 2_500);
 
+  // Start periodic offline punches retry processor (every 30s)
+  setTimeout(() => {
+    processOfflinePunchesQueue();
+    setInterval(processOfflinePunchesQueue, 30_000);
+  }, 4_000);
+
   // Check if user is already logged in
   const savedToken = loadAuthToken();
   const savedServer = store.get('serverUrl') as string | undefined;
@@ -964,17 +970,59 @@ function registerIpcHandlers(): void {
     if (currentDeviceType !== 'OFFICE') {
       return { success: false, error: 'بصمة الحضور من الأجهزة الشخصية بتتسجل من صفحة الحضور على الويب، مش من التطبيق ده.' };
     }
+    const punchTime = new Date();
+    const fp = getHardwareFingerprint();
     try {
-      const res = await apiClient.autoClockIn();
+      const res = await apiClient.autoClockIn('office', {
+        originalTimestamp: punchTime.toISOString(),
+        fingerprint: fp,
+      });
       if (res?.success) {
-        showNotification('MaxP Workspace', 'تم توثيق حضورك بنجاح.');
+        const timeStr = formatPunchTime(punchTime);
+        showNotification('MaxP Workspace', `تم تسجيل البصمة بنجاح ✅ الساعة ${timeStr}`);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('attendance:updated', res.attendance);
         }
+        return res;
+      } else {
+        const errorReason = res?.error || 'تعذر تسجيل البصمة';
+        const isNotEmp = errorReason.includes('غير مسجل كموظف') || errorReason.includes('NOT_AN_EMPLOYEE');
+
+        if (isNotEmp) {
+          showNotification('MaxP Workspace', 'لم تُسجّل — السبب: أنت غير مسجل كموظف في الشركة. يرجى مراجعة إدارة الشركة لربط ملفك الوظيفي.');
+          return { success: false, error: 'أنت غير مسجل كموظف في الشركة. يرجى مراجعة إدارة الشركة لربط ملفك الوظيفي.' };
+        }
+
+        localDb.saveOfflinePunch({
+          action: 'CHECK_IN',
+          originalTimestamp: punchTime.toISOString(),
+          fingerprint: fp,
+          method: 'desktop_workspace',
+          workMode: 'office',
+          lastError: errorReason,
+        });
+        showNotification('MaxP Workspace', `لم تُسجّل — السبب: ${errorReason} (تم الحفظ لإعادة المحاولة تلقائياً)`);
+        return { success: false, error: `لم تُسجّل — السبب: ${errorReason} (تم حفظ البصمة محلياً)` };
       }
-      return res;
     } catch (err: any) {
-      return { success: false, error: err?.message };
+      const errorReason = err?.message || 'انقطاع الاتصال بالسيرفر';
+      const isNotEmp = errorReason.includes('غير مسجل كموظف') || errorReason.includes('NOT_AN_EMPLOYEE');
+
+      if (isNotEmp) {
+        showNotification('MaxP Workspace', 'لم تُسجّل — السبب: أنت غير مسجل كموظف في الشركة. يرجى مراجعة إدارة الشركة لربط ملفك الوظيفي.');
+        return { success: false, error: 'أنت غير مسجل كموظف في الشركة. يرجى مراجعة إدارة الشركة لربط ملفك الوظيفي.' };
+      }
+
+      localDb.saveOfflinePunch({
+        action: 'CHECK_IN',
+        originalTimestamp: punchTime.toISOString(),
+        fingerprint: fp,
+        method: 'desktop_workspace',
+        workMode: 'office',
+        lastError: errorReason,
+      });
+      showNotification('MaxP Workspace', `لم تُسجّل — السبب: ${errorReason} (تم الحفظ لإعادة المحاولة تلقائياً)`);
+      return { success: false, error: `لم تُسجّل — السبب: ${errorReason} (تم حفظ البصمة محلياً)` };
     }
   });
 
@@ -2007,6 +2055,58 @@ function stopIdleReminder(): void {
   }
 }
 
+function formatPunchTime(dateInput?: string | Date): string {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+let isProcessingPunchesQueue = false;
+
+async function processOfflinePunchesQueue(): Promise<void> {
+  if (isProcessingPunchesQueue || !apiClient.isConfigured) return;
+  const pending = localDb.getPendingOfflinePunches();
+  if (pending.length === 0) return;
+
+  isProcessingPunchesQueue = true;
+  try {
+    for (const item of pending) {
+      const punch = item.data;
+      if (punch.action === 'CHECK_IN') {
+        const res = await apiClient.autoClockIn(
+          (punch.workMode as any) || 'office',
+          {
+            originalTimestamp: punch.originalTimestamp,
+            fingerprint: punch.fingerprint || getHardwareFingerprint(),
+          }
+        );
+
+        if (res?.success) {
+          localDb.markOfflinePunchSynced(item.id);
+          const timeStr = formatPunchTime(punch.originalTimestamp);
+          showNotification('MaxP Workspace', `تم تسجيل البصمة بنجاح ✅ الساعة ${timeStr}`);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('attendance:updated', res.attendance);
+          }
+        } else {
+          const errStr = res?.error || 'Unknown error';
+          if (errStr.includes('غير مسجل كموظف') || errStr.includes('NOT_AN_EMPLOYEE')) {
+            localDb.markOfflinePunchSynced(item.id); // dismiss permanently
+            showNotification('MaxP Workspace', 'لم تُسجّل — السبب: أنت غير مسجل كموظف في الشركة. يرجى مراجعة إدارة الشركة.');
+          } else {
+            localDb.incrementPunchAttempt(item.id, errStr);
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Main] Offline punches queue sync error:', err?.message || err);
+  } finally {
+    isProcessingPunchesQueue = false;
+  }
+}
+
 async function triggerAutoClockIn(): Promise<void> {
   try {
     // 🖥️ [DEVICE-ISOLATION] Only OFFICE machines can automatically clock in!
@@ -2022,21 +2122,65 @@ async function triggerAutoClockIn(): Promise<void> {
       return;
     }
 
+    // Process any previously queued offline punches first
+    await processOfflinePunchesQueue();
 
     const todayAtt = await apiClient.checkTodayAttendance();
     const hasCheckedIn = todayAtt && (todayAtt.checkIn || todayAtt.checkInTime);
     if (!hasCheckedIn) {
       console.log('[Main] Auto clock-in triggered for employee...');
-      const res = await apiClient.autoClockIn();
+      const punchTime = new Date();
+      const fp = getHardwareFingerprint();
+      const res = await apiClient.autoClockIn('office', {
+        originalTimestamp: punchTime.toISOString(),
+        fingerprint: fp,
+      });
+
       if (res?.success) {
-        showNotification('MaxP Workspace', 'تم توثيق حضورك الصباحي تلقائياً بنجاح.');
+        const timeStr = formatPunchTime(punchTime);
+        showNotification('MaxP Workspace', `تم تسجيل البصمة بنجاح ✅ الساعة ${timeStr}`);
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('attendance:updated', res.attendance);
         }
+      } else {
+        const errorReason = res?.error || 'تعذر الاتصال بالخادم';
+        const isNotEmp = errorReason.includes('غير مسجل كموظف') || errorReason.includes('NOT_AN_EMPLOYEE');
+
+        if (isNotEmp) {
+          showNotification('MaxP Workspace', 'لم تُسجّل — السبب: أنت غير مسجل كموظف في الشركة. يرجى مراجعة إدارة الشركة لربط ملفك الوظيفي.');
+          return;
+        }
+
+        localDb.saveOfflinePunch({
+          action: 'CHECK_IN',
+          originalTimestamp: punchTime.toISOString(),
+          fingerprint: fp,
+          method: 'desktop_workspace',
+          workMode: 'office',
+          lastError: errorReason,
+        });
+        showNotification('MaxP Workspace', `لم تُسجّل — السبب: ${errorReason} (تم حفظ البصمة محلياً وسيتم إرسالها تلقائياً)`);
       }
     }
   } catch (err: any) {
-    console.warn('[Main] Auto clock-in check skipped:', err?.message || err);
+    const errorReason = err?.message || 'خطأ في الاتصال';
+    const isNotEmp = errorReason.includes('غير مسجل كموظف') || errorReason.includes('NOT_AN_EMPLOYEE');
+
+    if (isNotEmp) {
+      showNotification('MaxP Workspace', 'لم تُسجّل — السبب: أنت غير مسجل كموظف في الشركة. يرجى مراجعة إدارة الشركة لربط ملفك الوظيفي.');
+      return;
+    }
+
+    console.warn('[Main] Auto clock-in check error, queueing offline:', errorReason);
+    localDb.saveOfflinePunch({
+      action: 'CHECK_IN',
+      originalTimestamp: new Date().toISOString(),
+      fingerprint: getHardwareFingerprint(),
+      method: 'desktop_workspace',
+      workMode: 'office',
+      lastError: errorReason,
+    });
+    showNotification('MaxP Workspace', `لم تُسجّل — السبب: ${errorReason} (تم حفظ البصمة محلياً وسيتم إرسالها تلقائياً)`);
   }
 }
 

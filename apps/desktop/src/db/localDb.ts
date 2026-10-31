@@ -10,6 +10,19 @@ interface QueueItem<T> {
   synced: number;
 }
 
+export interface OfflinePunch {
+  id: number;
+  action: 'CHECK_IN' | 'CHECK_OUT';
+  originalTimestamp: string;
+  fingerprint?: string;
+  location?: any;
+  method?: string;
+  workMode?: string;
+  attemptsCount: number;
+  lastError?: string;
+  createdAt: string;
+}
+
 export function getLocalDateString(d: Date = new Date()): string {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -29,6 +42,7 @@ class LocalDatabase {
   private activitiesQueue: QueueItem<ActivityInterval>[] = [];
   private appsQueue: QueueItem<AppUsageRecord>[] = [];
   private websitesQueue: QueueItem<WebUsageRecord>[] = [];
+  private offlinePunchesQueue: QueueItem<OfflinePunch>[] = [];
   private dailyStatsMap: Record<string, any> = {};
   private tasksCache: Record<string, any[]> = {};
 
@@ -49,6 +63,7 @@ class LocalDatabase {
         this.activitiesQueue = parsed.activities || [];
         this.appsQueue = parsed.apps || [];
         this.websitesQueue = parsed.websites || [];
+        this.offlinePunchesQueue = parsed.offlinePunches || [];
         this.dailyStatsMap = parsed.dailyStats || {};
         this.tasksCache = parsed.tasksCache || {};
         this.nextId = parsed.nextId || 1;
@@ -83,6 +98,7 @@ class LocalDatabase {
         activities: this.activitiesQueue,
         apps: this.appsQueue,
         websites: this.websitesQueue,
+        offlinePunches: this.offlinePunchesQueue,
         dailyStats: this.dailyStatsMap,
         tasksCache: this.tasksCache,
         nextId: this.nextId,
@@ -90,6 +106,48 @@ class LocalDatabase {
       fs.writeFileSync(this.jsonFile, JSON.stringify(data, null, 2), 'utf8');
     } catch (err: any) {
       console.warn('[LocalDb] Error saving cache to disk:', err.message);
+    }
+  }
+
+  // ── Offline Attendance Queue ────────────────────────────────
+
+  saveOfflinePunch(punch: Omit<OfflinePunch, 'id' | 'createdAt' | 'attemptsCount'>): OfflinePunch {
+    const id = this.nextId++;
+    const itemData: OfflinePunch = {
+      ...punch,
+      id,
+      createdAt: new Date().toISOString(),
+      attemptsCount: 0,
+    };
+    this.offlinePunchesQueue.push({
+      id,
+      data: itemData,
+      created_at: new Date().toISOString(),
+      synced: 0,
+    });
+    this.saveImmediately();
+    return itemData;
+  }
+
+  getPendingOfflinePunches(): QueueItem<OfflinePunch>[] {
+    return this.offlinePunchesQueue.filter((p) => p.synced === 0);
+  }
+
+  markOfflinePunchSynced(id: number): void {
+    const item = this.offlinePunchesQueue.find((p) => p.id === id);
+    if (item) {
+      item.synced = 1;
+      this.offlinePunchesQueue = this.offlinePunchesQueue.filter((p) => p.id !== id);
+      this.saveImmediately();
+    }
+  }
+
+  incrementPunchAttempt(id: number, errorMsg: string): void {
+    const item = this.offlinePunchesQueue.find((p) => p.id === id);
+    if (item) {
+      item.data.attemptsCount = (item.data.attemptsCount || 0) + 1;
+      item.data.lastError = errorMsg;
+      this.scheduleSave();
     }
   }
 
