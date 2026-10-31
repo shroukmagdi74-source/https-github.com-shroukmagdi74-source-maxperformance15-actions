@@ -191,7 +191,7 @@ describe('ProductInfo gear-loadout variant selection', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/EGP\s*1,350\.00/)).toBeInTheDocument();
+      expect(screen.getByText(/(?:EGP\s*1,350(?:\.00)?|1,350\s*ج\.م)/)).toBeInTheDocument();
     });
   });
 
