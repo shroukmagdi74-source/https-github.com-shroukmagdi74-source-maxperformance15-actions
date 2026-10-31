@@ -1,397 +1,74 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Search,
-  Eye,
-  Star,
-  AlertCircle,
-  Tag,
-  X,
-  RefreshCw,
-} from "lucide-react";
-import { toast } from "sonner";
+import React from "react";
+import { Search, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { apiClient } from "../../services/apiClient";
 import ConfirmDialog from "@/components/common/ConfirmDialog";
-import { formatCurrency } from "../../utils/currency";
-import {
-  ProcurementMobileCard,
-  ProcurementMobileState,
-} from "./ProcurementMobileCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  useSuppliersController,
+  SuppliersHeader,
+  SuppliersTable,
+  SuppliersMobileView,
+  SupplierFormModal,
+  SupplierDetailsModal,
+  SupplierQuickTagModal,
+} from "./suppliers/index";
 
-interface Supplier {
-  id: string;
-  name: string;
-  contactPerson?: string;
-  email?: string;
-  phone?: string;
-  mobile?: string;
-  phoneNormalized?: string;
-  tags?: string | string[];
-  address?: string;
-  city?: string;
-  country?: string;
-  taxNumber?: string;
-  commercialRegister?: string;
-  paymentTerms?: string;
-  creditLimit?: number;
-  currentBalance: number;
-  rating?: number;
-  notes?: string;
-  isActive: boolean;
-  createdAt: string;
-  _count?: {
-    purchaseOrders: number;
-    purchaseInvoices: number;
-  };
-}
-
-const parseTags = (tags: any): string[] => {
-  if (!tags) return [];
-  if (Array.isArray(tags)) return tags;
-  if (typeof tags === "string") {
-    try {
-      const parsed = JSON.parse(tags);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-};
-
-const StarRating: React.FC<{
-  value: number;
-  onChange?: (value: number) => void;
-  readonly?: boolean;
-  size?: number;
-}> = ({ value, onChange, readonly, size = 16 }) => {
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <button
-          key={star}
-          type="button"
-          disabled={readonly}
-          onClick={() => onChange?.(star)}
-          className={readonly ? "cursor-default" : "cursor-pointer"}
-        >
-          <Star
-            size={size}
-            className={star <= value ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}
-          />
-        </button>
-      ))}
-    </div>
-  );
-};
-
-const Suppliers: React.FC = () => {
+export const Suppliers: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const tr = (key: string) => String(t(key as any));
-  const isRtl = i18n.language === "ar";
-  const navigate = useNavigate();
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [openViewDialog, setOpenViewDialog] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{
-    open: boolean;
-    supplierId: string | null;
-  }>({ open: false, supplierId: null });
-  const [searchTerm, setSearchTerm] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [formData, setFormData] = useState<{
-    name: string;
-    contactPerson: string;
-    email: string;
-    phone: string;
-    mobile: string;
-    tags: string[];
-    address: string;
-    city: string;
-    country: string;
-    taxNumber: string;
-    commercialRegister: string;
-    paymentTerms: string;
-    creditLimit: string;
-    rating: number;
-    notes: string;
-    isActive: boolean;
-  }>({
-    name: "",
-    contactPerson: "",
-    email: "",
-    phone: "",
-    mobile: "",
-    tags: [],
-    address: "",
-    city: "",
-    country: "Egypt",
-    taxNumber: "",
-    commercialRegister: "",
-    paymentTerms: "",
-    creditLimit: "",
-    rating: 0,
-    notes: "",
-    isActive: true,
-  });
+  const tr = (key: string, defaultValue?: string) => t(key, defaultValue ?? key);
+  const isRtl = i18n.dir() === "rtl";
 
-  const [quickTagSupplier, setQuickTagSupplier] = useState<Supplier | null>(null);
-  const [quickTagInput, setQuickTagInput] = useState("");
-  const [savingQuickTag, setSavingQuickTag] = useState(false);
-  const [newTagInput, setNewTagInput] = useState("");
-
-  const [recalculatingAll, setRecalculatingAll] = useState(false);
-  const [recalculatingId, setRecalculatingId] = useState<string | null>(null);
-
-  const fetchSuppliers = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await apiClient.get<{
-        suppliers: Supplier[];
-        pagination: { totalPages: number };
-      }>("/procurement/suppliers", {
-        params: { page, limit: 20, search: searchTerm },
-      });
-      setSuppliers(response.data.suppliers);
-      setTotalPages(response.data.pagination.totalPages);
-    } catch (err: any) {
-      console.error("Error fetching suppliers:", err);
-      setError(err?.response?.data?.message || t("procurement.suppliers.fetchError", "تعذر تحميل قائمة الموردين"));
-    } finally {
-      setLoading(false);
-    }
-  }, [page, searchTerm, t]);
-
-  useEffect(() => {
-    fetchSuppliers();
-  }, [fetchSuppliers]);
-
-  const handleOpenDialog = (supplier?: Supplier) => {
-    setNewTagInput("");
-    if (supplier) {
-      setSelectedSupplier(supplier);
-      setFormData({
-        name: supplier.name,
-        contactPerson: supplier.contactPerson || "",
-        email: supplier.email || "",
-        phone: supplier.phone || "",
-        mobile: supplier.mobile || "",
-        tags: parseTags(supplier.tags),
-        address: supplier.address || "",
-        city: supplier.city || "",
-        country: supplier.country || "Egypt",
-        taxNumber: supplier.taxNumber || "",
-        commercialRegister: supplier.commercialRegister || "",
-        paymentTerms: supplier.paymentTerms || "",
-        creditLimit: supplier.creditLimit?.toString() || "",
-        rating: supplier.rating || 0,
-        notes: supplier.notes || "",
-        isActive: supplier.isActive,
-      });
-    } else {
-      setSelectedSupplier(null);
-      setFormData({
-        name: "",
-        contactPerson: "",
-        email: "",
-        phone: "",
-        mobile: "",
-        tags: [],
-        address: "",
-        city: "",
-        country: "Egypt",
-        taxNumber: "",
-        commercialRegister: "",
-        paymentTerms: "",
-        creditLimit: "",
-        rating: 0,
-        notes: "",
-        isActive: true,
-      });
-    }
-    setOpenDialog(true);
-  };
-
-  const handleAddFormTag = () => {
-    const trimmed = newTagInput.trim();
-    if (trimmed && !formData.tags.includes(trimmed)) {
-      setFormData((prev) => ({ ...prev, tags: [...prev.tags, trimmed] }));
-      setNewTagInput("");
-    }
-  };
-
-  const handleRemoveFormTag = (tagToRemove: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((t) => t !== tagToRemove),
-    }));
-  };
-
-  const handleOpenQuickTagDialog = (supplier: Supplier) => {
-    setQuickTagSupplier(supplier);
-    setQuickTagInput("");
-  };
-
-  const handleSaveQuickTag = async () => {
-    if (!quickTagSupplier) return;
-    const trimmed = quickTagInput.trim();
-    if (!trimmed) return;
-    const currentTags = parseTags(quickTagSupplier.tags);
-    const updatedTags = currentTags.includes(trimmed)
-      ? currentTags
-      : [...currentTags, trimmed];
-    try {
-      setSavingQuickTag(true);
-      await apiClient.put(`/procurement/suppliers/${quickTagSupplier.id}`, {
-        tags: updatedTags,
-      });
-      setQuickTagSupplier(null);
-      setQuickTagInput("");
-      fetchSuppliers();
-    } catch (err: any) {
-      console.error("Error saving quick tag:", err);
-      setError(err?.response?.data?.message || "تعذر حفظ الوسم");
-    } finally {
-      setSavingQuickTag(false);
-    }
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setSelectedSupplier(null);
-  };
-
-  const handleSubmit = async () => {
-    try {
-      if (selectedSupplier) {
-        await apiClient.put(
-          `/procurement/suppliers/${selectedSupplier.id}`,
-          formData,
-        );
-      } else {
-        await apiClient.post("/procurement/suppliers", formData);
-      }
-      fetchSuppliers();
-      handleCloseDialog();
-    } catch (error: any) {
-      console.error("Error saving supplier:", error);
-      setError(error?.response?.data?.message || "تعذر حفظ بيانات المورد");
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    setDeleteConfirmDialog({ open: true, supplierId: id });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteConfirmDialog.supplierId) return;
-    try {
-      await apiClient.delete(`/procurement/suppliers/${deleteConfirmDialog.supplierId}`);
-      fetchSuppliers();
-    } catch (error: any) {
-      console.error("Error deleting supplier:", error);
-      setError(error?.response?.data?.message || "تعذر حذف المورد");
-    } finally {
-      setDeleteConfirmDialog({ open: false, supplierId: null });
-    }
-  };
-
-  const handleRecalculateAll = async () => {
-    try {
-      setRecalculatingAll(true);
-      const res = await apiClient.post<{ success: boolean; message: string; updatedCount: number }>(
-        "/procurement/suppliers/recalculate-all"
-      );
-      toast.success(res.data.message || "تم تدقيق ومزامنة أرصدة الموردين بنجاح");
-      await fetchSuppliers();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "تعذر تدقيق أرصدة الموردين");
-    } finally {
-      setRecalculatingAll(false);
-    }
-  };
-
-  const handleRecalculateSingle = async (supplierId: string, supplierName: string) => {
-    try {
-      setRecalculatingId(supplierId);
-      const res = await apiClient.post<{ success: boolean; message: string; currentBalance: number }>(
-        `/procurement/suppliers/${supplierId}/recalculate-balance`
-      );
-      toast.success(`تم تدقيق وتحديث رصيد المورد (${supplierName}) بنجاح`);
-      await fetchSuppliers();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "تعذر تدقيق رصيد المورد");
-    } finally {
-      setRecalculatingId(null);
-    }
-  };
-
-  const handleViewDetails = (supplier: Supplier) => {
-    navigate(`/procurement/suppliers/${supplier.id}`);
-  };
+  const {
+    suppliers,
+    loading,
+    error,
+    searchTerm,
+    setSearchTerm,
+    page,
+    setPage,
+    totalPages,
+    openDialog,
+    setOpenDialog,
+    openViewDialog,
+    setOpenViewDialog,
+    selectedSupplier,
+    formData,
+    setFormData,
+    newTagInput,
+    setNewTagInput,
+    quickTagSupplier,
+    setQuickTagSupplier,
+    quickTagInput,
+    setQuickTagInput,
+    savingQuickTag,
+    recalculatingAll,
+    recalculatingId,
+    deleteConfirmDialog,
+    setDeleteConfirmDialog,
+    fetchSuppliers,
+    handleOpenDialog,
+    handleCloseDialog,
+    handleOpenQuickTagDialog,
+    handleSaveQuickTag,
+    handleAddFormTag,
+    handleRemoveFormTag,
+    handleSubmit,
+    handleDelete,
+    confirmDelete,
+    handleRecalculateAll,
+    handleRecalculateSingle,
+    handleViewDetails,
+  } = useSuppliersController();
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-7xl mx-auto" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            {t("procurement.suppliers.title")}
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            سجل الموردين المعتمدين، بيانات الاتصال، والأرصدة الدائنة والتقييمات
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleRecalculateAll}
-            disabled={recalculatingAll || loading}
-            className="gap-2"
-            title="تدقيق ومزامنة أرصدة كافة الموردين مع الفواتير وسندات الصرف الحقيقية"
-          >
-            <RefreshCw className={`size-4 ${recalculatingAll ? "animate-spin text-primary" : ""}`} />
-            <span>{recalculatingAll ? "جاري التدقيق..." : "مزامنة وتدقيق الأرصدة"}</span>
-          </Button>
-          <Button onClick={() => handleOpenDialog()} className="gap-2">
-            <Plus className="size-4" /> {t("procurement.suppliers.addNew")}
-          </Button>
-        </div>
-      </div>
+      <SuppliersHeader
+        recalculatingAll={recalculatingAll}
+        loading={loading}
+        onRecalculateAll={handleRecalculateAll}
+        onAddNew={() => handleOpenDialog()}
+      />
 
       {error && (
         <div className="flex items-center justify-between p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs">
@@ -418,265 +95,33 @@ const Suppliers: React.FC = () => {
         </div>
       </div>
 
-      <div className="hidden md:block rounded-xl border bg-card text-card-foreground">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-start">{t("procurement.suppliers.columnName")}</TableHead>
-              <TableHead className="text-start">{t("procurement.suppliers.columnContact")}</TableHead>
-              <TableHead className="text-start">{t("procurement.suppliers.columnPhone")}</TableHead>
-              <TableHead className="text-start">{t("procurement.suppliers.columnEmail")}</TableHead>
-              <TableHead className="text-start">{t("procurement.suppliers.columnTags", "الوسوم")}</TableHead>
-              <TableHead className="text-end">{t("procurement.suppliers.columnBalance")}</TableHead>
-              <TableHead className="text-center">{t("procurement.suppliers.columnRating")}</TableHead>
-              <TableHead className="text-center">{t("procurement.suppliers.columnStatus")}</TableHead>
-              <TableHead className="text-center">{t("procurement.suppliers.columnActions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              [...Array(5)].map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={9}>
-                    <div className="h-4 bg-muted animate-pulse rounded" />
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : suppliers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                  {searchTerm ? "لا توجد نتائج مطابقة لبحثك" : "لا يوجد موردون مسجلون حالياً"}
-                </TableCell>
-              </TableRow>
-            ) : (
-              suppliers.map((supplier) => (
-                <TableRow key={supplier.id}>
-                  <TableCell className="font-medium text-start">{supplier.name}</TableCell>
-                  <TableCell className="text-start">{supplier.contactPerson || "-"}</TableCell>
-                  <TableCell className="text-start">{supplier.phone || supplier.mobile || "-"}</TableCell>
-                  <TableCell className="text-start">{supplier.email || "-"}</TableCell>
-                  <TableCell className="text-start">
-                    {parseTags(supplier.tags).length > 0 ? (
-                      <div className="flex flex-wrap items-center gap-1">
-                        {parseTags(supplier.tags).slice(0, 2).map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        {parseTags(supplier.tags).length > 2 && (
-                          <span className="text-[10px] text-zinc-400 font-mono">
-                            +{parseTags(supplier.tags).length - 2}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-end tabular-nums font-medium">
-                    {Number(supplier.currentBalance) > 0 ? (
-                      <div className="flex flex-col items-end">
-                        <span className="text-amber-500 font-semibold">
-                          {formatCurrency(supplier.currentBalance, { locale: i18n.language })}
-                        </span>
-                        <span className="text-[10px] text-amber-500/80 font-normal">مستحق للمورد</span>
-                      </div>
-                    ) : Number(supplier.currentBalance) < 0 ? (
-                      <div className="flex flex-col items-end">
-                        <span className="text-sky-400 font-semibold">
-                          {formatCurrency(Math.abs(supplier.currentBalance), { locale: i18n.language })}
-                        </span>
-                        <span className="text-[10px] text-sky-400/80 font-normal">دفعة مقدمة</span>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground font-mono">
-                        {formatCurrency(0, { locale: i18n.language })}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <StarRating value={supplier.rating || 0} readonly />
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={supplier.isActive ? "default" : "secondary"}>
-                      {supplier.isActive
-                        ? t("procurement.suppliers.statusActive")
-                        : t("procurement.suppliers.statusInactive")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={recalculatingId === supplier.id}
-                        onClick={() => handleRecalculateSingle(supplier.id, supplier.name)}
-                        title="تدقيق ومزامنة رصيد المورد"
-                      >
-                        <RefreshCw className={`size-4 ${recalculatingId === supplier.id ? "animate-spin text-primary" : ""}`} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleOpenQuickTagDialog(supplier)}
-                        title={tr("procurement.suppliers.quickAddTag")}
-                      >
-                        <Plus className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleViewDetails(supplier)}
-                        title={tr("procurement.suppliers.viewDetails")}
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleOpenDialog(supplier)}
-                        title={tr("common.edit")}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(supplier.id)}
-                        title={tr("common.delete")}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {/* Desktop Table View */}
+      <SuppliersTable
+        suppliers={suppliers}
+        loading={loading}
+        searchTerm={searchTerm}
+        recalculatingId={recalculatingId}
+        onRecalculateSingle={handleRecalculateSingle}
+        onQuickTag={handleOpenQuickTagDialog}
+        onViewDetails={handleViewDetails}
+        onEdit={(s) => handleOpenDialog(s)}
+        onDelete={handleDelete}
+      />
 
-      <div className="grid md:hidden gap-2">
-        {loading ? (
-          [...Array(3)].map((_, i) => (
-            <div key={i} className="p-4 rounded-xl border border-border bg-card animate-pulse space-y-2">
-              <div className="h-4 bg-muted rounded w-1/3" />
-              <div className="h-5 bg-muted rounded w-2/3" />
-              <div className="h-4 bg-muted rounded w-1/2" />
-            </div>
-          ))
-        ) : suppliers.length === 0 ? (
-          <ProcurementMobileState>
-            {searchTerm
-              ? "لا توجد نتائج مطابقة لبحثك"
-              : "لا يوجد موردون مسجلون حالياً"}
-          </ProcurementMobileState>
-        ) : (
-          suppliers.map((supplier) => (
-            <ProcurementMobileCard
-              key={supplier.id}
-              eyebrow={supplier.contactPerson || t("procurement.suppliers.columnContact")}
-              title={supplier.name}
-              subtitle={supplier.email || supplier.phone || supplier.mobile || "-"}
-              status={
-                <Badge variant={supplier.isActive ? "default" : "secondary"}>
-                  {supplier.isActive
-                    ? t("procurement.suppliers.statusActive")
-                    : t("procurement.suppliers.statusInactive")}
-                </Badge>
-              }
-              fields={[
-                {
-                  label: t("procurement.suppliers.columnPhone"),
-                  value: supplier.phone || supplier.mobile || "-",
-                },
-                {
-                  label: t("procurement.suppliers.columnTags", "الوسوم"),
-                  value: parseTags(supplier.tags).length > 0 ? (
-                    <div className="flex flex-wrap items-center gap-1">
-                      {parseTags(supplier.tags).slice(0, 2).map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {parseTags(supplier.tags).length > 2 && (
-                        <span className="text-[10px] text-zinc-400 font-mono">
-                          +{parseTags(supplier.tags).length - 2}
-                        </span>
-                      )}
-                    </div>
-                  ) : "-",
-                },
-                {
-                  label: t("procurement.suppliers.columnBalance"),
-                  value: formatCurrency(supplier.currentBalance, { locale: i18n.language }),
-                  emphasis: true,
-                },
-                {
-                  label: t("procurement.suppliers.columnRating"),
-                  value: <StarRating value={supplier.rating || 0} readonly />,
-                },
-                {
-                  label: t("procurement.suppliers.labelCity"),
-                  value: supplier.city || supplier.country || "-",
-                },
-              ]}
-              actions={
-                <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={recalculatingId === supplier.id}
-                    onClick={() => handleRecalculateSingle(supplier.id, supplier.name)}
-                    title="تدقيق ومزامنة رصيد المورد"
-                  >
-                    <RefreshCw className={`size-4 ${recalculatingId === supplier.id ? "animate-spin text-primary" : ""}`} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleOpenQuickTagDialog(supplier)}
-                    title={tr("procurement.suppliers.quickAddTag")}
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleViewDetails(supplier)}
-                    title={tr("procurement.suppliers.viewDetails")}
-                  >
-                    <Eye className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleOpenDialog(supplier)}
-                    title={tr("common.edit")}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(supplier.id)}
-                    title={tr("common.delete")}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </>
-              }
-            />
-          ))
-        )}
-      </div>
+      {/* Mobile Card List View */}
+      <SuppliersMobileView
+        suppliers={suppliers}
+        loading={loading}
+        searchTerm={searchTerm}
+        recalculatingId={recalculatingId}
+        onRecalculateSingle={handleRecalculateSingle}
+        onQuickTag={handleOpenQuickTagDialog}
+        onViewDetails={handleViewDetails}
+        onEdit={(s) => handleOpenDialog(s)}
+        onDelete={handleDelete}
+      />
 
+      {/* Pagination */}
       <div className="flex justify-center mt-3">
         <div className="flex items-center gap-1">
           <Button
@@ -687,7 +132,7 @@ const Suppliers: React.FC = () => {
           >
             {t("common.previous")}
           </Button>
-          <span className="text-sm px-3">
+          <span className="text-sm px-3 tabular-nums font-mono">
             {page} / {totalPages}
           </span>
           <Button
@@ -701,283 +146,40 @@ const Suppliers: React.FC = () => {
         </div>
       </div>
 
-      <Dialog open={openDialog} onOpenChange={(open) => setOpenDialog(open)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogTitle>
-            {selectedSupplier
-              ? t("procurement.suppliers.editTitle")
-              : t("procurement.suppliers.addNew")}
-          </DialogTitle>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelName")}</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelContact")}</Label>
-              <Input
-                value={formData.contactPerson}
-                onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelEmail")}</Label>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelPhone")}</Label>
-              <Input
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelMobile")}</Label>
-              <Input
-                value={formData.mobile}
-                onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelCity")}</Label>
-              <Input
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelCountry")}</Label>
-              <Input
-                value={formData.country}
-                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelTaxNumber")}</Label>
-              <Input
-                value={formData.taxNumber}
-                onChange={(e) => setFormData({ ...formData, taxNumber: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelCommercialRegister")}</Label>
-              <Input
-                value={formData.commercialRegister}
-                onChange={(e) => setFormData({ ...formData, commercialRegister: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{t("procurement.suppliers.labelCreditLimit")}</Label>
-              <Input
-                type="number"
-                value={formData.creditLimit}
-                onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1 col-span-full">
-              <Label>{t("procurement.suppliers.labelAddress")}</Label>
-              <Textarea
-                rows={2}
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1 col-span-full">
-              <Label>{t("procurement.suppliers.labelPaymentTerms")}</Label>
-              <Textarea
-                rows={2}
-                value={formData.paymentTerms}
-                onChange={(e) => setFormData({ ...formData, paymentTerms: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1 col-span-full">
-              <Label>{t("procurement.suppliers.labelNotes")}</Label>
-              <Textarea
-                rows={3}
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2 col-span-full">
-              <Label>{t("procurement.suppliers.labelTags", "الوسوم")}</Label>
-              <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 rounded-lg border border-input bg-background/50">
-                {formData.tags.length > 0 ? (
-                  formData.tags.map((tag, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-md text-xs font-medium border border-zinc-200 dark:border-zinc-700"
-                    >
-                      <Tag className="size-3 text-zinc-400" />
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFormTag(tag)}
-                        className="ms-1 text-zinc-400 hover:text-rose-500 transition-colors"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-muted-foreground self-center">
-                    {t("procurement.suppliers.noTags", "لا توجد وسوم")}
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={newTagInput}
-                  onChange={(e) => setNewTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddFormTag();
-                    }
-                  }}
-                  placeholder={tr("procurement.suppliers.addTagPlaceholder")}
-                  className="text-xs"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddFormTag}
-                  disabled={!newTagInput.trim()}
-                >
-                  <Plus className="size-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="col-span-full">
-              <Label className="mb-1 block">{t("procurement.suppliers.labelRating")}</Label>
-              <StarRating
-                value={formData.rating}
-                onChange={(value) => setFormData({ ...formData, rating: value })}
-              />
-            </div>
-            <div className="col-span-full">
-              <Label>{t("procurement.suppliers.labelStatus")}</Label>
-              <Select
-                value={formData.isActive ? "true" : "false"}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, isActive: value === "true" })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">{t("procurement.suppliers.statusActive")}</SelectItem>
-                  <SelectItem value="false">{t("procurement.suppliers.statusInactive")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>{t("common.cancel")}</Button>
-            <Button onClick={handleSubmit}>{t("common.save")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Add / Edit Dialog */}
+      <SupplierFormModal
+        open={openDialog}
+        onOpenChange={setOpenDialog}
+        isEditing={Boolean(selectedSupplier)}
+        formData={formData}
+        setFormData={setFormData}
+        newTagInput={newTagInput}
+        setNewTagInput={setNewTagInput}
+        onAddTag={handleAddFormTag}
+        onRemoveTag={handleRemoveFormTag}
+        onSubmit={handleSubmit}
+        onCancel={handleCloseDialog}
+      />
 
-      <Dialog open={openViewDialog} onOpenChange={(open) => setOpenViewDialog(open)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogTitle>{t("procurement.suppliers.viewTitle")}</DialogTitle>
-          {selectedSupplier && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
-              <div>
-                <p className="text-xs text-muted-foreground">{t("procurement.suppliers.columnName")}</p>
-                <p className="text-sm">{selectedSupplier.name}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{t("procurement.suppliers.columnContact")}</p>
-                <p className="text-sm">{selectedSupplier.contactPerson || "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{t("procurement.suppliers.columnEmail")}</p>
-                <p className="text-sm">{selectedSupplier.email || "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{t("procurement.suppliers.columnPhone")}</p>
-                <p className="text-sm">{selectedSupplier.phone || "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{t("procurement.suppliers.columnBalance")}</p>
-                <p className="text-sm font-medium tabular-nums">{formatCurrency(selectedSupplier.currentBalance, { locale: i18n.language })}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{t("procurement.suppliers.columnRating")}</p>
-                <StarRating value={selectedSupplier.rating || 0} readonly />
-              </div>
-              <div className="col-span-full">
-                <p className="text-xs text-muted-foreground">{t("procurement.suppliers.labelAddress")}</p>
-                <p className="text-sm">{selectedSupplier.address || "-"}</p>
-              </div>
-              <div className="col-span-full">
-                <p className="text-xs text-muted-foreground">{t("procurement.suppliers.labelNotes")}</p>
-                <p className="text-sm">{selectedSupplier.notes || "-"}</p>
-              </div>
-              <div className="col-span-full">
-                <p className="text-xs text-muted-foreground mb-1">{t("procurement.suppliers.columnTags", "الوسوم")}</p>
-                <div className="flex flex-wrap gap-1">
-                  {parseTags(selectedSupplier.tags).length > 0 ? (
-                    parseTags(selectedSupplier.tags).map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200/60 dark:border-zinc-700"
-                      >
-                        {tag}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground">-</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenViewDialog(false)}>{t("common.close")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* View Details Dialog */}
+      <SupplierDetailsModal
+        open={openViewDialog}
+        onOpenChange={setOpenViewDialog}
+        supplier={selectedSupplier}
+        onClose={() => setOpenViewDialog(false)}
+      />
 
-      <Dialog open={!!quickTagSupplier} onOpenChange={(open) => !open && setQuickTagSupplier(null)}>
-        <DialogContent className="sm:max-w-xs">
-          <DialogTitle>{t("procurement.suppliers.quickAddTagTitle", "إضافة وسم للمورد")}</DialogTitle>
-          <div className="py-2 space-y-2">
-            <Label>{t("procurement.suppliers.labelTags", "الوسم")}</Label>
-            <Input
-              value={quickTagInput}
-              onChange={(e) => setQuickTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleSaveQuickTag();
-                }
-              }}
-              placeholder={tr("procurement.suppliers.tagPlaceholder")}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setQuickTagSupplier(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button size="sm" onClick={handleSaveQuickTag} disabled={!quickTagInput.trim() || savingQuickTag}>
-              {t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Quick Add Tag Dialog */}
+      <SupplierQuickTagModal
+        supplier={quickTagSupplier}
+        onClose={() => setQuickTagSupplier(null)}
+        quickTagInput={quickTagInput}
+        setQuickTagInput={setQuickTagInput}
+        saving={savingQuickTag}
+        onSave={handleSaveQuickTag}
+      />
 
+      {/* Confirm Delete Dialog */}
       <ConfirmDialog
         open={deleteConfirmDialog.open}
         title={t("procurement.suppliers.deleteConfirm", "تأكيد حذف المورد")}
