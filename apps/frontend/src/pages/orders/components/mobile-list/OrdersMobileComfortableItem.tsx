@@ -41,6 +41,15 @@ export const OrdersMobileComfortableItem: React.FC<OrdersMobileComfortableItemPr
   const { t } = useTranslation();
   const { formatPrice, getOrderAmount, formatDate } = helpers;
 
+  const isAffiliateDirect =
+    order.orderSource === "AFFILIATE_DIRECT" ||
+    (typeof order.orderNumber === "string" && order.orderNumber.includes("-AFF-")) ||
+    (typeof compactOrderNumber === "string" && compactOrderNumber.includes("-AFF-"));
+  const affiliateCompanyName =
+    order.affiliate?.user?.company?.name ||
+    (order.affiliate as any)?.company?.name ||
+    null;
+
   return (
     <>
       {/* Row 1: Order # + Customer Name + Amount + Chevron */}
@@ -66,6 +75,14 @@ export const OrdersMobileComfortableItem: React.FC<OrdersMobileComfortableItemPr
             >
               #{compactOrderNumber}
             </span>
+            {isAffiliateDirect && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-500/30 dark:text-purple-300 shrink-0"
+                title={affiliateCompanyName ? `أوردر من شركة مرتبطة: ${affiliateCompanyName}` : "أوردر من شركة مرتبطة"}
+              >
+                <span>{affiliateCompanyName ? `مرتبط — ${affiliateCompanyName}` : "مرتبط"}</span>
+              </span>
+            )}
             {(order.status === "DUPLICATE_ORDER" || Boolean(order.metadata?.duplicate)) && (
               <span
                 className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-500/30 dark:text-amber-400 shrink-0"

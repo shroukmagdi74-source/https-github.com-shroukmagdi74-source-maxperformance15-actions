@@ -18,6 +18,14 @@ type AffiliateInfo = {
     firstName?: string;
     lastName?: string;
     email?: string;
+    company?: {
+      id?: string;
+      name?: string;
+    };
+  };
+  company?: {
+    id?: string;
+    name?: string;
   };
 };
 
@@ -188,6 +196,9 @@ const OrderPartnerOperationsCard: React.FC<OrderPartnerOperationsCardProps> = ({
   const affiliateName = getAffiliateDisplayName(affiliate);
   const affiliateEmail = formatOptionalText(affiliate?.user?.email);
   const affiliateCode = formatOptionalText(affiliate?.affiliateCode);
+  const affiliateCompanyName = formatOptionalText(
+    affiliate?.user?.company?.name || (affiliate as any)?.company?.name,
+  );
   const operationLabel = getMerchantOperationStatusText(
     merchantOrder?.operationStatus,
   );
@@ -231,7 +242,7 @@ const OrderPartnerOperationsCard: React.FC<OrderPartnerOperationsCardProps> = ({
       merchantOrder?.trackingNumber ||
       merchantOrder?.shipmentStatus,
   );
-  const hasAffiliateContext = Boolean(affiliateName || affiliateCommission);
+  const hasAffiliateContext = Boolean(affiliateName || affiliateCommission || affiliateCompanyName);
 
   if (!hasMerchantContext && !hasWarehouseContext && !hasAffiliateContext) {
     return null;
@@ -348,6 +359,7 @@ const OrderPartnerOperationsCard: React.FC<OrderPartnerOperationsCardProps> = ({
           action={affiliateAction}
           items={[
             { label: "المسوق", value: affiliateName, tone: "violet" },
+            { label: "الشركة المرتبطة", value: affiliateCompanyName, tone: "violet" },
             { label: "كود المسوق", value: affiliateCode },
             { label: "البريد", value: affiliateEmail },
             {

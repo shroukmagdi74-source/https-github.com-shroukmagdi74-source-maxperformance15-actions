@@ -6,6 +6,10 @@ export interface AffiliateFilterOption {
     firstName?: string;
     lastName?: string;
     email?: string;
+    company?: {
+      id?: string;
+      name?: string;
+    };
   };
 }
 
@@ -140,6 +144,7 @@ export interface Order {
   shipments?: any[];
   affiliateId?: string;
   affiliate?: AffiliateFilterOption;
+  orderSource?: string;
   merchantOrder?: MerchantOrderScope;
   isViewed?: boolean;
 }
@@ -209,6 +214,7 @@ export type RawOrder = {
   sourceType?: string;
   affiliateId?: string;
   affiliate?: AffiliateFilterOption;
+  orderSource?: string;
   merchantOrder?: MerchantOrderScope;
   turboShipmentStatus?: string;
   turboTrackingNumber?: string;

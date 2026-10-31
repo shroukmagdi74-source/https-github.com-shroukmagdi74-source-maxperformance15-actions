@@ -80,6 +80,8 @@ export const buildPaymentStatusOptions = (
   }));
 
 export const buildSourceOptions = (t: TFunction): MultiSelectOption[] => [
+  { code: "affiliate_direct", name: String(t("orders.sourceAffiliateDirect")) },
+  { code: "regular", name: String(t("orders.sourceRegular")) },
   { code: "ai_conversation", name: String(t("orders.sourceAutoConversation")) },
   { code: "manual", name: String(t("orders.sourceManual")) },
   { code: "storefront", name: String(t("orders.sourceStorefront")) },

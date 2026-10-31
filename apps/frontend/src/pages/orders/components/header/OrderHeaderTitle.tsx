@@ -73,6 +73,25 @@ export const OrderHeaderTitle: React.FC<OrderHeaderTitleProps> = ({
                   .toUpperCase()}`
               : order.orderNumber}
           </span>
+          {Boolean(
+            (order as any).orderSource === "AFFILIATE_DIRECT" ||
+              (typeof order.orderNumber === "string" && order.orderNumber.includes("-AFF-"))
+          ) && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 px-2 py-0.5 text-xs font-bold text-purple-700 dark:text-purple-300 border border-purple-500/20"
+              title={
+                (order as any).affiliate?.user?.company?.name
+                  ? `أوردر من شركة مرتبطة: ${(order as any).affiliate.user.company.name}`
+                  : "أوردر من شركة مرتبطة"
+              }
+            >
+              <span>
+                {(order as any).affiliate?.user?.company?.name
+                  ? `مرتبط — ${(order as any).affiliate.user.company.name}`
+                  : "مرتبط"}
+              </span>
+            </span>
+          )}
         </h1>
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
           <p className="text-muted-foreground whitespace-nowrap font-mono tabular-nums text-xs">

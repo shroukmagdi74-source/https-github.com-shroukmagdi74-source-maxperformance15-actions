@@ -204,6 +204,7 @@ export const transformOrder = (order: RawOrder): Order => {
     sourceType: order.sourceType || "",
     affiliateId: order.affiliateId || undefined,
     affiliate: order.affiliate,
+    orderSource: order.orderSource || (typeof order.orderNumber === "string" && order.orderNumber.includes("-AFF-") ? "AFFILIATE_DIRECT" : undefined),
     merchantOrder: order.merchantOrder,
     turboShipmentStatus: order.turboShipmentStatus || order.metadata?.turboShipmentStatus || undefined,
     turboTrackingNumber: order.turboTrackingNumber || order.metadata?.turboTrackingNumber || undefined,

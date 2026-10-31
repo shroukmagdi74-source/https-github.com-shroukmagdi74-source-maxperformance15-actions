@@ -14564,6 +14564,8 @@
     "allPaymentStatuses": "كل حالات الدفع",
     "allDates": "جميع الأوقات",
     "allSources": "كل المصادر",
+    "sourceAffiliateDirect": "أوردر من شركة مرتبطة",
+    "sourceRegular": "أوردر عادي",
     "sourceAutoConversation": "محادثة تلقائية",
     "sourceManual": "يدوي",
     "sourceStorefront": "المتجر",
