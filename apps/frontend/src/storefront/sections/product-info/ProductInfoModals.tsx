@@ -141,7 +141,7 @@ export interface ProductInfoSizeGuideDialogProps {
   rows: SizeGuideRow[];
   quickNote: string;
   guideHref?: string;
-  isExternalHref: (href: string) => boolean;
+  isExternalHref?: ((href: string) => boolean) | boolean;
   customSizeGuide?: string | null;
 }
 
@@ -158,6 +158,11 @@ export const ProductInfoSizeGuideDialog: React.FC<ProductInfoSizeGuideDialogProp
   customSizeGuide,
 }) => {
   const formattedCustomGuide = customSizeGuide ? formatCustomSizeGuide(customSizeGuide) : '';
+  const isExternal = typeof isExternalHref === 'function'
+    ? isExternalHref(guideHref || '')
+    : typeof isExternalHref === 'boolean'
+      ? isExternalHref
+      : Boolean(guideHref && /^(https?:\/\/|mailto:|tel:)/i.test(guideHref));
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -228,7 +233,7 @@ export const ProductInfoSizeGuideDialog: React.FC<ProductInfoSizeGuideDialogProp
               ) : null}
 
               {guideHref ? (
-                isExternalHref(guideHref) ? (
+                isExternal ? (
                   <a
                     href={guideHref}
                     target="_blank"

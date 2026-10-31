@@ -791,7 +791,7 @@ export const useProductInfoController = ({
       rows={[]}
       quickNote=""
       guideHref={rawSizeGuideHref}
-      isExternalHref={isExternalSizeGuideHref}
+      isExternalHref={isExternalHref}
       customSizeGuide={product?.['sizeGuide'] || null}
     />
   );
