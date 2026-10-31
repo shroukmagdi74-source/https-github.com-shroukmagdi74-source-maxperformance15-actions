@@ -10,7 +10,7 @@ import ReviewsSection from '../sections/ReviewsSection';
 
 const useDeferredSectionActivationMock = vi.hoisted(() =>
   vi.fn(() => ({
-    isActive: true,
+    isActive: false,
     sectionRef: { current: null },
   })),
 );
