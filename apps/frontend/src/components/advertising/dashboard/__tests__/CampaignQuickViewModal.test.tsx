@@ -1,17 +1,33 @@
+// @vitest-environment jsdom
 import React from "react";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import CampaignQuickViewModal from "../CampaignQuickViewModal";
-import { facebookAdsService, type FacebookCampaign } from "../../../../services/facebookAdsService";
+import {
+  facebookAdsService,
+  type FacebookCampaign,
+} from "../../../../services/facebookAdsService";
+import {
+  CampaignQuickViewHeader,
+  CampaignOverviewTab,
+  CampaignWeaknessesTab,
+  CampaignAdSetsTab,
+  CampaignQuickViewFooter,
+} from "../campaign-quick-view";
 
-jest.mock("../../../../services/facebookAdsService", () => ({
+vi.mock("../../../../services/facebookAdsService", () => ({
   facebookAdsService: {
-    getCampaign: jest.fn().mockResolvedValue({}),
-    getCampaignInsights: jest.fn().mockResolvedValue({}),
-    updateCampaign: jest.fn().mockResolvedValue({}),
-    pauseCampaign: jest.fn().mockResolvedValue({}),
-    resumeCampaign: jest.fn().mockResolvedValue({}),
-    updateAdSet: jest.fn().mockResolvedValue({}),
+    getCampaign: vi.fn().mockResolvedValue({}),
+    getCampaignInsights: vi.fn().mockResolvedValue({}),
+    updateCampaign: vi.fn().mockResolvedValue({}),
+    pauseCampaign: vi.fn().mockResolvedValue({}),
+    resumeCampaign: vi.fn().mockResolvedValue({}),
+    updateAdSet: vi.fn().mockResolvedValue({}),
+    pauseAdSet: vi.fn().mockResolvedValue({}),
+    resumeAdSet: vi.fn().mockResolvedValue({}),
+    pauseAd: vi.fn().mockResolvedValue({}),
+    resumeAd: vi.fn().mockResolvedValue({}),
   },
   CAMPAIGN_OBJECTIVES: [
     { value: "OUTCOME_SALES", label: "المبيعات والتحويلات" },
@@ -19,11 +35,11 @@ jest.mock("../../../../services/facebookAdsService", () => ({
   ],
 }));
 
-jest.mock("sonner", () => ({
+vi.mock("sonner", () => ({
   toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
   },
 }));
 
@@ -81,7 +97,15 @@ const mockCampaign: FacebookCampaign = {
   ],
 };
 
-describe("CampaignQuickViewModal", () => {
+describe("CampaignQuickViewModal - Modular Architecture", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
   it("renders nothing when isOpen is false", () => {
     const { container } = render(
       <MemoryRouter>
@@ -90,7 +114,7 @@ describe("CampaignQuickViewModal", () => {
           campaign={mockCampaign}
           selectedCurrency="EGP"
           selectedAdAccountId="act_123"
-          onClose={jest.fn()}
+          onClose={vi.fn()}
         />
       </MemoryRouter>,
     );
@@ -118,19 +142,16 @@ describe("CampaignQuickViewModal", () => {
             }}
             selectedCurrency="EGP"
             selectedAdAccountId="act_123"
-            onClose={jest.fn()}
+            onClose={vi.fn()}
           />
         </MemoryRouter>,
       );
     });
 
-    // Verify campaign name and ID are visible
-    expect(screen.getByDisplayValue("حملة الصيف للملابس")).toBeInTheDocument();
-    expect(screen.getByText(/ID: meta-camp-999/)).toBeInTheDocument();
-
-    // Verify telemetry metrics
-    expect(screen.getByText(/3.2x/)).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("حملة الصيف للملابس")).toBeDefined();
+    expect(screen.getByText(/ID: meta-camp-999/)).toBeDefined();
+    expect(screen.getByText(/3.2x/)).toBeDefined();
+    expect(screen.getByText("5")).toBeDefined();
   });
 
   it("diagnoses weaknesses such as budget bleed when spend is high with 0 purchases", async () => {
@@ -154,26 +175,22 @@ describe("CampaignQuickViewModal", () => {
             }}
             selectedCurrency="EGP"
             selectedAdAccountId="act_123"
-            onClose={jest.fn()}
+            onClose={vi.fn()}
           />
         </MemoryRouter>,
       );
     });
 
-    // Click on weaknesses tab
-    const weaknessesTab = screen.getByText(/نقاط الضعف والتشخيص/);
+    const weaknessesTab = screen.getByRole("button", { name: /نقاط الضعف والتشخيص/ });
     fireEvent.click(weaknessesTab);
 
-    // Verify critical bleed weakness is diagnosed
-    expect(screen.getByText(/نزيف ميزانية حرج/)).toBeInTheDocument();
-    // Verify weak hook weakness is diagnosed (CTR 0.6% < 1%)
-    expect(screen.getByText(/ضعف الـ Hook/)).toBeInTheDocument();
-    // Verify audience fatigue is diagnosed (Frequency 3.2 >= 2.8)
-    expect(screen.getByText(/إرهاق الجمهور/)).toBeInTheDocument();
+    expect(screen.getByText(/نزيف ميزانية حرج/)).toBeDefined();
+    expect(screen.getByText(/ضعف الـ Hook/)).toBeDefined();
+    expect(screen.getByText(/إرهاق الجمهور/)).toBeDefined();
   });
 
   it("renders ad set structure and allows editing targeting in Tab 3", async () => {
-    (facebookAdsService.updateAdSet as jest.Mock).mockResolvedValueOnce({
+    vi.mocked(facebookAdsService.updateAdSet).mockResolvedValueOnce({
       id: "adset-1",
       name: "مجموعة استهداف القاهرة والنساء المحدثة",
       budgetAmount: 150,
@@ -181,7 +198,7 @@ describe("CampaignQuickViewModal", () => {
       ageMax: 50,
       genders: ["2"],
       locations: ["Cairo", "Giza"],
-    });
+    } as any);
 
     await act(async () => {
       render(
@@ -191,44 +208,93 @@ describe("CampaignQuickViewModal", () => {
             campaign={mockCampaign}
             selectedCurrency="EGP"
             selectedAdAccountId="act_123"
-            onClose={jest.fn()}
+            onClose={vi.fn()}
           />
         </MemoryRouter>,
       );
     });
 
-    // Switch to Tab 3 (المجموعات وتعديل الاستهداف)
-    const structureTab = screen.getByText(/المجموعات وتعديل الاستهداف/);
+    const structureTab = screen.getByRole("button", { name: /المجموعات وتعديل الاستهداف/ });
     fireEvent.click(structureTab);
 
-    // Verify existing ad set name is present
-    expect(screen.getByText("مجموعة القاهرة والجيزة")).toBeInTheDocument();
+    expect(screen.getByText("مجموعة القاهرة والجيزة")).toBeDefined();
 
-    // Click "تعديل الاستهداف والمجموعة" button
     const editTargetingBtn = screen.getByText(/تعديل الاستهداف والمجموعة/);
     fireEvent.click(editTargetingBtn);
 
-    // Verify targeting editing fields are rendered
-    expect(screen.getByText("الفئة العمرية المستهدفة")).toBeInTheDocument();
-    expect(screen.getByText("الجنس المستهدف")).toBeInTheDocument();
-    expect(screen.getByText(/المحافظات المستهدفة/)).toBeInTheDocument();
+    expect(screen.getByText("الفئة العمرية المستهدفة")).toBeDefined();
+    expect(screen.getByText("الجنس المستهدف")).toBeDefined();
+    expect(screen.getByText(/المحافظات المستهدفة/)).toBeDefined();
 
-    // Select Women only gender
     const womenBtn = screen.getByText("نساء");
     fireEvent.click(womenBtn);
 
-    // Click Save targeting button
     const saveTargetingBtn = screen.getByText("حفظ استهداف المجموعة");
     await act(async () => {
       fireEvent.click(saveTargetingBtn);
     });
 
-    // Verify facebookAdsService.updateAdSet was called
     expect(facebookAdsService.updateAdSet).toHaveBeenCalledWith(
       "adset-1",
       expect.objectContaining({
         genders: ["2"],
       }),
     );
+  });
+
+  it("renders CampaignQuickViewHeader directly and supports status toggle", () => {
+    const onToggle = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <CampaignQuickViewHeader
+        isEn={false}
+        campaignStatus="ACTIVE"
+        togglingStatus={false}
+        campaignName="حملة تيست"
+        setCampaignName={vi.fn()}
+        deliveryBadgeClass="bg-emerald-100"
+        deliveryLabel="نشطة"
+        facebookCampaignId="12345"
+        copiedId={false}
+        loadingDetails={false}
+        selectedAdAccountId="act_1"
+        onToggleStatus={onToggle}
+        onCopyMetaId={vi.fn()}
+        onRefresh={vi.fn()}
+        onClose={onClose}
+      />
+    );
+
+    expect(screen.getByDisplayValue("حملة تيست")).toBeDefined();
+    const toggleBtn = screen.getByTitle("إيقاف الحملة مؤقتاً");
+    fireEvent.click(toggleBtn);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+
+    const closeBtn = screen.getByLabelText("إغلاق النافذة");
+    fireEvent.click(closeBtn);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders CampaignQuickViewFooter with navigation link and save button", () => {
+    const onSave = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <CampaignQuickViewFooter
+          isEn={false}
+          fullDetailsUrl="/campaigns/123"
+          saving={false}
+          onClose={onClose}
+          onSaveChanges={onSave}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("الانتقال لصفحة استوديو الحملة الكاملة")).toBeDefined();
+    const saveBtn = screen.getByText("حفظ التعديلات");
+    fireEvent.click(saveBtn);
+    expect(onSave).toHaveBeenCalledTimes(1);
   });
 });
