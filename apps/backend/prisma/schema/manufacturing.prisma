@@ -109,6 +109,11 @@ enum AttachmentReviewStatus {
   HIDDEN
 }
 
+enum BomPricingMode {
+  INCLUSIVE
+  ADDITIVE
+}
+
 /// Bill of Materials Header (قائمة مكونات ومواد التصنيع)
 model BillOfMaterials {
   id                  String             @id @default(cuid())
@@ -142,6 +147,9 @@ model BillOfMaterials {
 model BomComponentItem {
   id                 String          @id @default(cuid())
   bomId              String
+  parentId           String?
+  pricingMode        BomPricingMode  @default(ADDITIVE)
+  totalPrice         Decimal?        @db.Decimal(12, 2)
   rawMaterialId      String
   rawMaterialName    String?
   consumptionPerUnit Decimal         @db.Decimal(10, 4)
@@ -158,10 +166,13 @@ model BomComponentItem {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  bom                BillOfMaterials @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  bom                BillOfMaterials    @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  parent             BomComponentItem?  @relation("BomComponentTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children           BomComponentItem[] @relation("BomComponentTree")
 
   @@index([bomId])
   @@index([rawMaterialId])
+  @@index([parentId])
   @@map("bom_component_items")
 }
 
