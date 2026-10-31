@@ -1,19 +1,29 @@
+// @vitest-environment jsdom
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import MessageBubble from "./MessageBubble";
 
-jest.mock("../../../services/apiClient", () => ({
+afterEach(() => {
+  cleanup();
+});
+
+vi.mock("@/services/apiClient", () => ({
   apiClient: {
-    post: jest.fn(),
+    post: vi.fn(),
   },
 }));
 
-jest.mock("../../../utils/imageUrl", () => ({
+vi.mock("@/utils/imageUrl", () => ({
   getInboxExternalImageUrl: (rawUrl: string) => rawUrl,
   getInboxMessageMediaUrl: (
     messageId: string,
     rawUrl: string | null | undefined,
   ) => rawUrl || `/api/proxy-image?messageId=${messageId}`,
+  buildProxyImageUrl: (
+    rawUrl: string | null | undefined,
+    opts?: { messageId?: string; attachmentIndex?: number },
+  ) => rawUrl || `/api/proxy-image?messageId=${opts?.messageId || ""}`,
 }));
 
 const baseMessage = {
@@ -47,12 +57,11 @@ describe("MessageBubble", () => {
       />,
     );
 
-    expect(screen.getByAltText("صورة")).toHaveAttribute(
-      "src",
+    expect(screen.getByAltText("صورة").getAttribute("src")).toBe(
       "https://scontent.xx.fbcdn.net/customer-photo.jpg",
     );
-    expect(screen.getByText("عندك اي ده 45")).toBeInTheDocument();
-    expect(screen.queryByText(/\[attachment\]/i)).not.toBeInTheDocument();
+    expect(screen.getByText("عندك اي ده 45")).toBeDefined();
+    expect(screen.queryByText(/\[attachment\]/i)).toBeNull();
   });
 
   it("cleans queue batch markers around Facebook attachment placeholders", () => {
@@ -73,12 +82,11 @@ describe("MessageBubble", () => {
       />,
     );
 
-    expect(screen.getByAltText("صورة")).toHaveAttribute(
-      "src",
+    expect(screen.getByAltText("صورة").getAttribute("src")).toBe(
       "https://scontent.xx.fbcdn.net/batched-photo.jpg",
     );
-    expect(screen.getByText("عندك اي ده 45")).toBeInTheDocument();
-    expect(screen.queryByText(/\[1\]|\[2\]|\[attachment\]/i)).not.toBeInTheDocument();
+    expect(screen.getByText("عندك اي ده 45")).toBeDefined();
+    expect(screen.queryByText(/\[1\]|\[2\]|\[attachment\]/i)).toBeNull();
   });
 
   it("extracts and renders embedded IMAGE_URL tokens without showing the token", () => {
@@ -96,12 +104,11 @@ describe("MessageBubble", () => {
       />,
     );
 
-    expect(screen.getByAltText("صورة")).toHaveAttribute(
-      "src",
+    expect(screen.getByAltText("صورة").getAttribute("src")).toBe(
       "https://cdn.example.com/message-image.png",
     );
-    expect(screen.getByText("دي الصورة")).toBeInTheDocument();
-    expect(screen.queryByText(/\|IMAGE_URL\|/)).not.toBeInTheDocument();
+    expect(screen.getByText("دي الصورة")).toBeDefined();
+    expect(screen.queryByText(/\|IMAGE_URL\|/)).toBeNull();
   });
 
   it("renders quoted image thumbnail when replyTo contains imageUrl", () => {
@@ -122,10 +129,9 @@ describe("MessageBubble", () => {
       />,
     );
 
-    expect(screen.getByText("Ahmed Fares")).toBeInTheDocument();
-    expect(screen.getByText("دي")).toBeInTheDocument();
-    expect(screen.getByAltText("صورة مقتبسة")).toHaveAttribute(
-      "src",
+    expect(screen.getByText("Ahmed Fares")).toBeDefined();
+    expect(screen.getByText("دي")).toBeDefined();
+    expect(screen.getByAltText("صورة مقتبسة").getAttribute("src")).toBe(
       "https://example.com/quoted-product.jpg",
     );
   });
@@ -157,18 +163,17 @@ describe("MessageBubble", () => {
       />,
     );
 
-    expect(screen.getByText("Ahmed Fares")).toBeInTheDocument();
-    expect(screen.getByText("دول ف عرض 300")).toBeInTheDocument();
-    expect(screen.getByAltText("صورة مقتبسة")).toHaveAttribute(
-      "src",
+    expect(screen.getByText("Ahmed Fares")).toBeDefined();
+    expect(screen.getByText("دول ف عرض 300")).toBeDefined();
+    expect(screen.getByAltText("صورة مقتبسة").getAttribute("src")).toBe(
       "/uploads/products/product-1.webp",
     );
   });
 
   it("opens action buttons bar and triggers reply, star, and forward callbacks", () => {
-    const onReply = jest.fn();
-    const onStar = jest.fn();
-    const onForward = jest.fn();
+    const onReply = vi.fn();
+    const onStar = vi.fn();
+    const onForward = vi.fn();
 
     render(
       <MessageBubble
@@ -183,9 +188,9 @@ describe("MessageBubble", () => {
     );
 
     // Initial state: actions popup is not visible
-    expect(screen.queryByTitle("رد")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("تمييز الرسالة")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("إعادة توجيه")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("رد")).toBeNull();
+    expect(screen.queryByTitle("تمييز الرسالة")).toBeNull();
+    expect(screen.queryByTitle("إعادة توجيه")).toBeNull();
 
     // Click the More actions button (three dots)
     const moreButton = screen.getByTitle("إجراءات الرسالة");
@@ -196,9 +201,9 @@ describe("MessageBubble", () => {
     const starBtn = screen.getByTitle("تمييز الرسالة");
     const forwardBtn = screen.getByTitle("إعادة توجيه");
 
-    expect(replyBtn).toBeInTheDocument();
-    expect(starBtn).toBeInTheDocument();
-    expect(forwardBtn).toBeInTheDocument();
+    expect(replyBtn).toBeDefined();
+    expect(starBtn).toBeDefined();
+    expect(forwardBtn).toBeDefined();
 
     // Click Star button
     fireEvent.click(starBtn);
@@ -220,7 +225,7 @@ describe("MessageBubble", () => {
   });
 
   it("opens reaction selector and triggers reaction callback when emoji is clicked", () => {
-    const onReaction = jest.fn();
+    const onReaction = vi.fn();
 
     render(
       <MessageBubble
@@ -238,16 +243,16 @@ describe("MessageBubble", () => {
 
     // Smile button should be visible
     const smileBtn = screen.getByTitle("إضافة تفاعل");
-    expect(smileBtn).toBeInTheDocument();
+    expect(smileBtn).toBeDefined();
 
     // Click smile button to open reaction selector
     fireEvent.click(smileBtn);
 
-    // Reaction emojis should be visible in portal
+    // Reaction emojis should be visible
     const angryEmojiBtn = screen.getByTitle("😡");
-    expect(angryEmojiBtn).toBeInTheDocument();
+    expect(angryEmojiBtn).toBeDefined();
     const thumbsUpBtn = screen.getByTitle("👍");
-    expect(thumbsUpBtn).toBeInTheDocument();
+    expect(thumbsUpBtn).toBeDefined();
 
     // Click angry emoji reaction
     fireEvent.click(angryEmojiBtn);
@@ -273,7 +278,7 @@ describe("MessageBubble", () => {
     );
 
     // Count "2" for the laugh reaction
-    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeDefined();
   });
 
   it("suppresses internal proxy-image URLs from rendering as text content under image", () => {
@@ -297,8 +302,7 @@ describe("MessageBubble", () => {
       />,
     );
 
-    expect(screen.getByAltText("صورة")).toBeInTheDocument();
-    expect(screen.queryByText(/proxy-image/i)).not.toBeInTheDocument();
+    expect(screen.getByAltText("صورة")).toBeDefined();
+    expect(screen.queryByText(/proxy-image/i)).toBeNull();
   });
 });
-

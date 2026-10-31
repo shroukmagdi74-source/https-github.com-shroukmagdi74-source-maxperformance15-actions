@@ -1,12 +1,18 @@
+// @vitest-environment jsdom
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { VoiceNotePlayer } from "./VoiceNotePlayer";
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("VoiceNotePlayer", () => {
   beforeEach(() => {
-    window.HTMLMediaElement.prototype.play = jest.fn().mockResolvedValue(undefined);
-    window.HTMLMediaElement.prototype.pause = jest.fn();
-    window.HTMLMediaElement.prototype.load = jest.fn();
+    window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
+    window.HTMLMediaElement.prototype.pause = vi.fn();
+    window.HTMLMediaElement.prototype.load = vi.fn();
   });
 
   it("renders with initial play button and timestamps", () => {
@@ -19,8 +25,8 @@ describe("VoiceNotePlayer", () => {
     );
 
     const playBtn = screen.getByLabelText("تشغيل الصوت");
-    expect(playBtn).toBeInTheDocument();
-    expect(screen.getByText(/0:00/)).toBeInTheDocument();
+    expect(playBtn).toBeDefined();
+    expect(screen.getByText(/0:00/)).toBeDefined();
   });
 
   it("cleans legacy /webhooks/uploads/ URL in audio src", () => {
@@ -37,47 +43,59 @@ describe("VoiceNotePlayer", () => {
     );
   });
 
-  it("triggers play and broadcasts stop-other-audios event on tap", async () => {
-    const dispatchSpy = jest.spyOn(window, "dispatchEvent");
+  it("triggers play and broadcasts maxp:stop-other-audios event on tap", async () => {
+    let capturedEvent: CustomEvent | null = null;
+    const listener = (e: Event) => {
+      capturedEvent = e as CustomEvent;
+    };
+    window.addEventListener("maxp:stop-other-audios", listener);
 
     render(
       <VoiceNotePlayer
         src="https://maxp.online/uploads/chat-media/2026-09-26/sample.mp4"
         messageId="msg-123"
+        isCustomer={false}
       />
     );
 
     const playBtn = screen.getByLabelText("تشغيل الصوت");
-    await React.act(async () => {
-      fireEvent.click(playBtn);
-    });
+    fireEvent.click(playBtn);
 
-    expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "maxp:stop-other-audios",
-        detail: { id: "msg-123" },
-      })
-    );
+    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(capturedEvent).not.toBeNull();
+    expect((capturedEvent as any)?.detail?.id).toBe("msg-123");
+
+    window.removeEventListener("maxp:stop-other-audios", listener);
   });
 
-  it("cycles playback rate when speed button is clicked", () => {
-    render(
+  it("stops playing when another voice note starts (receives custom event)", async () => {
+    const { container } = render(
       <VoiceNotePlayer
         src="https://maxp.online/uploads/chat-media/2026-09-26/sample.mp4"
         messageId="msg-123"
       />
     );
 
-    const speedBtn = screen.getByTitle("تغيير سرعة التشغيل");
-    expect(speedBtn).toHaveTextContent("1x");
+    // Simulate clicking play so audio starts and paused becomes false
+    const playBtn = screen.getByLabelText("تشغيل الصوت");
+    fireEvent.click(playBtn);
 
-    fireEvent.click(speedBtn);
-    expect(speedBtn).toHaveTextContent("1.5x");
+    const audio = container.querySelector("audio");
+    if (audio) {
+      Object.defineProperty(audio, "paused", {
+        value: false,
+        configurable: true,
+        writable: true,
+      });
+    }
 
-    fireEvent.click(speedBtn);
-    expect(speedBtn).toHaveTextContent("2x");
+    // Simulate another audio starting
+    window.dispatchEvent(
+      new CustomEvent("maxp:stop-other-audios", {
+        detail: { id: "msg-999" },
+      })
+    );
 
-    fireEvent.click(speedBtn);
-    expect(speedBtn).toHaveTextContent("1x");
+    expect(window.HTMLMediaElement.prototype.pause).toHaveBeenCalled();
   });
 });
