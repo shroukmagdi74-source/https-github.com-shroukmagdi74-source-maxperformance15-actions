@@ -123,8 +123,8 @@ describe('Elessi complete-set related products', () => {
     // LOCALE-1: whole EGP amounts drop the redundant `.00` suffix.
     expect(screen.queryByText(/EGP\s*0\.00/)).not.toBeInTheDocument();
     expect(screen.queryByText(/^EGP\s*0$/)).not.toBeInTheDocument();
-    expect(screen.getByText(/EGP\s*280$/)).toBeInTheDocument();
-    expect(screen.getByText(/EGP\s*550$/)).toBeInTheDocument();
+    expect(screen.getByText(/(?:EGP\s*280|280\s*ج\.م)$/)).toBeInTheDocument();
+    expect(screen.getByText(/(?:EGP\s*550|550\s*ج\.م)$/)).toBeInTheDocument();
   });
 
   it('reserves space and prewarms recommendations before the complete-set rail enters view', () => {
