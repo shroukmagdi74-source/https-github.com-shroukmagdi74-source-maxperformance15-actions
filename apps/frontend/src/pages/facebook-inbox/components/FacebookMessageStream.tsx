@@ -39,6 +39,7 @@ interface FacebookMessageStreamProps {
   onOpenProductPicker: () => void;
   composerDraft: string;
   setComposerDraft: (draft: string) => void;
+  onRetryMessage?: (message: InboxMessage) => void;
 }
 
 export const FacebookMessageStream: React.FC<FacebookMessageStreamProps> = ({
@@ -75,8 +76,30 @@ export const FacebookMessageStream: React.FC<FacebookMessageStreamProps> = ({
   onOpenProductPicker,
   composerDraft,
   setComposerDraft,
+  onRetryMessage,
 }) => {
   const { t } = useTranslation();
+
+  const isFacebookConv = !selectedConversation.platform || selectedConversation.platform === 'facebook';
+
+  let isWindowExpired = Boolean(selectedConversation.isWindowExpired);
+  let hoursSinceExpiration = 0;
+
+  if (isFacebookConv) {
+    if (selectedConversation.windowExpiresAt) {
+      const expiresAt = new Date(selectedConversation.windowExpiresAt).getTime();
+      if (Date.now() > expiresAt) {
+        isWindowExpired = true;
+        hoursSinceExpiration = Math.max(0, Math.floor((Date.now() - expiresAt) / (1000 * 60 * 60)));
+      }
+    } else if (selectedConversation.lastInboundAt) {
+      const expiresAt = new Date(selectedConversation.lastInboundAt).getTime() + 24 * 60 * 60 * 1000;
+      if (Date.now() > expiresAt) {
+        isWindowExpired = true;
+        hoursSinceExpiration = Math.max(0, Math.floor((Date.now() - expiresAt) / (1000 * 60 * 60)));
+      }
+    }
+  }
 
   return (
     <>
@@ -142,6 +165,7 @@ export const FacebookMessageStream: React.FC<FacebookMessageStreamProps> = ({
                     onScrollToMessage={onScrollToMessage}
                     onCorrect={onReloadMessages}
                     currentUserId={userId}
+                    onRetry={onRetryMessage}
                   />
                 </div>
               );
@@ -187,6 +211,25 @@ export const FacebookMessageStream: React.FC<FacebookMessageStreamProps> = ({
           </div>
         )}
 
+        {/* ⏰ تحذير انتهاء نافذة الـ 24 ساعة لفيسبوك */}
+        {isFacebookConv && isWindowExpired && (
+          <div
+            className="flex items-center justify-between px-4 py-2.5 text-xs border-t bg-amber-500/10 border-amber-500/30 text-amber-300 backdrop-blur-sm"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-base flex-shrink-0">⚠️</span>
+              <span className="font-semibold text-amber-200">
+                {hoursSinceExpiration > 0
+                  ? `النافذة اتقفلت من ${hoursSinceExpiration} ساعة — لا يمكن إرسال رسائل جديدة`
+                  : 'انتهت نافذة الـ 24 ساعة للرد على العميل عبر فيسبوك'}
+              </span>
+            </div>
+            <div className="text-[11px] text-amber-300/80 hidden sm:block">
+              تواصل مع العميل هاتفياً أو انتظر رداً جديداً منه لفتح النافذة
+            </div>
+          </div>
+        )}
+
         <MessageInput
           onSendMessage={onSendMessage}
           onSendFile={onSendFile}
@@ -203,6 +246,14 @@ export const FacebookMessageStream: React.FC<FacebookMessageStreamProps> = ({
           onOpenProductPicker={onOpenProductPicker}
           draftMessage={composerDraft}
           onDraftMessageHandled={() => setComposerDraft('')}
+          disabled={isFacebookConv && isWindowExpired}
+          disabledReason={
+            isFacebookConv && isWindowExpired
+              ? (hoursSinceExpiration > 0
+                  ? `النافذة اتقفلت من ${hoursSinceExpiration} ساعة — لا يمكن إرسال رسائل جديدة`
+                  : 'انتهت نافذة الـ 24 ساعة للرد على العميل')
+              : undefined
+          }
         />
       </div>
     </>

@@ -515,6 +515,7 @@ export function useFacebookInboxActions({
     messagesById: scrollData.messagesById,
     handleScrollToMessage: scrollData.handleScrollToMessage,
     handleSendMessage: senderData.handleSendMessage,
+    handleRetryMessage: senderData.handleRetryMessage,
     handleSendFile: senderData.handleSendFile,
     handleSendFiles: senderData.handleSendFiles,
     handleSelectTextFromGallery: senderData.handleSelectTextFromGallery,

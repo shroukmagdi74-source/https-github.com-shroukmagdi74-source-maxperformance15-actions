@@ -214,10 +214,35 @@ const getMessages = async (req, res) => {
                     }
                 }
 
+                // Delivery status resolution:
+                let deliveryStatus = metadata?.deliveryStatus || null;
+                if (!deliveryStatus) {
+                    if (msg.isFromCustomer) {
+                        deliveryStatus = 'SENT';
+                    } else if (metadata?.sentToFacebook || metadata?.facebookMessageId) {
+                        deliveryStatus = 'SENT';
+                    } else if (metadata?.messengerStatus === 'sent' || metadata?.messengerStatus === 'sent_via_tag') {
+                        deliveryStatus = 'SENT';
+                    } else if (metadata?.messengerStatus === 'failed' || metadata?.messengerStatus === 'window_closed' || metadata?.facebookSendError) {
+                        deliveryStatus = 'FAILED';
+                    } else if (metadata?.instantSave || metadata?.messengerStatus === 'pending') {
+                        deliveryStatus = 'PENDING';
+                    } else {
+                        deliveryStatus = 'SENT';
+                    }
+                }
+
+                const failureReason = metadata?.failureReason || metadata?.messengerError || metadata?.facebookErrorMessage || null;
+                const facebookMessageId = metadata?.facebookMessageId || metadata?.messengerMessageId || null;
+
                 return {
                     ...normalizeMessageMediaForResponse(msg),
                     type: msg.type === 'IMAGE' ? 'image' : msg.type.toLowerCase(),
                     metadata: proxyFacebookMediaDeep(metadata, { messageId: msg.id }),
+                    deliveryStatus,
+                    failureReason,
+                    facebookMessageId,
+                    status: deliveryStatus === 'SENT' ? 'sent' : (deliveryStatus === 'FAILED' ? 'error' : 'pending'),
 
                     // Ensure frontend compatibility fields
                     // Priority: metadata.employeeName > sender relation > fallback

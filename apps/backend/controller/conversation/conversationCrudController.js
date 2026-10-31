@@ -433,6 +433,32 @@ const getConversations = async (req, res) => {
                 lastMessageIsFromCustomer = Boolean(conv.lastMessageIsFromCustomer);
             }
 
+            // ⏰ حساب نافذة الـ 24 ساعة لفيسبوك
+            let lastInboundAt = null;
+            if (conv.messages && conv.messages.length > 0 && conv.messages[0].isFromCustomer) {
+                lastInboundAt = conv.messages[0].createdAt;
+            } else {
+                const lastInboundMsg = await prisma.message.findFirst({
+                    where: { conversationId: conv.id, isFromCustomer: true },
+                    orderBy: { createdAt: 'desc' },
+                    select: { createdAt: true }
+                });
+                lastInboundAt = lastInboundMsg?.createdAt || null;
+            }
+
+            const isFacebookConv = !conv.channel || conv.channel === 'FACEBOOK';
+            let windowExpiresAt = null;
+            let isWindowExpired = false;
+
+            if (isFacebookConv) {
+                if (lastInboundAt) {
+                    windowExpiresAt = new Date(new Date(lastInboundAt).getTime() + 24 * 60 * 60 * 1000);
+                    isWindowExpired = Date.now() > windowExpiresAt.getTime();
+                } else {
+                    isWindowExpired = true;
+                }
+            }
+
             // Safety check for enum mapping
             const platformStr = conv.channel ? String(conv.channel).toLowerCase() : 'unknown';
 
@@ -466,7 +492,10 @@ const getConversations = async (req, res) => {
                 metadata: conv.metadata,
                 snoozedUntil: snoozedUntil,
                 pageName: pageName,
-                pageId: pageId
+                pageId: pageId,
+                lastInboundAt: lastInboundAt ? new Date(lastInboundAt).toISOString() : null,
+                windowExpiresAt: windowExpiresAt ? windowExpiresAt.toISOString() : null,
+                isWindowExpired: isWindowExpired
             };
         }));
 
@@ -524,6 +553,31 @@ const getConversation = async (req, res) => {
             metadata = conversation.metadata ? JSON.parse(conversation.metadata) : {};
         } catch (e) { }
 
+        // ⏰ حساب نافذة الـ 24 ساعة لفيسبوك
+        const isFacebookConv = !conversation.channel || conversation.channel === 'FACEBOOK';
+        let lastInboundAt = null;
+        let windowExpiresAt = null;
+        let isWindowExpired = false;
+
+        const lastInboundMsg = await getSharedPrismaClient().message.findFirst({
+            where: { conversationId: id, isFromCustomer: true },
+            orderBy: { createdAt: 'desc' },
+            select: { createdAt: true }
+        });
+
+        if (lastInboundMsg?.createdAt) {
+            lastInboundAt = lastInboundMsg.createdAt;
+        }
+
+        if (isFacebookConv) {
+            if (lastInboundAt) {
+                windowExpiresAt = new Date(new Date(lastInboundAt).getTime() + 24 * 60 * 60 * 1000);
+                isWindowExpired = Date.now() > windowExpiresAt.getTime();
+            } else {
+                isWindowExpired = true;
+            }
+        }
+
         res.json({
             success: true,
             data: {
@@ -543,7 +597,10 @@ const getConversation = async (req, res) => {
                 customerAvatar: getProxiedCustomerAvatar(conversation.customer),
                 snoozedUntil: metadata.snoozedUntil || null,
                 pageId: metadata.pageId,
-                postId: metadata.postId
+                postId: metadata.postId,
+                lastInboundAt: lastInboundAt ? new Date(lastInboundAt).toISOString() : null,
+                windowExpiresAt: windowExpiresAt ? windowExpiresAt.toISOString() : null,
+                isWindowExpired: isWindowExpired
             }
         });
 

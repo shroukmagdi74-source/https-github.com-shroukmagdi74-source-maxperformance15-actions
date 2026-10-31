@@ -30,6 +30,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(
     hasBeenReplied,
     onCorrect,
     currentUserId,
+    onRetry,
   }) => {
     const [showActions, setShowActions] = useState(false);
     const [showReactionSelector, setShowReactionSelector] = useState(false);
@@ -255,30 +256,50 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(
               </span>
               {!isCustomer && (
                 <span className="text-xs flex items-center gap-0.5">
-                  {message.status === "sending" && (
-                    <span className="flex items-center gap-1 text-white/70">
+                  {(message.deliveryStatus === "PENDING" || message.status === "sending") && (
+                    <span className="flex items-center gap-1 text-white/70" title="قيد الإرسال...">
                       <span className="animate-spin inline-block w-3 h-3 border border-white/50 border-t-white rounded-full" />
                     </span>
                   )}
-                  {message.status === "sent" && (
-                    <span className="text-white/90">✓</span>
+                  {(message.deliveryStatus === "SENT" || (!message.deliveryStatus && message.status === "sent")) && (
+                    <span className="text-white/90" title="تم الإرسال">✓</span>
                   )}
                   {message.status === "delivered" && (
-                    <span className="text-white">✓✓</span>
+                    <span className="text-white" title="تم التسليم">✓✓</span>
                   )}
                   {message.status === "read" && (
-                    <span style={{ color: "rgba(200, 235, 255, 0.92)" }}>
+                    <span style={{ color: "rgba(200, 235, 255, 0.92)" }} title="تمت القراءة">
                       ✓✓
                     </span>
                   )}
-                  {message.status === "error" && (
-                    <span style={{ color: "rgba(255, 206, 206, 0.92)" }}>
-                      ❌
+                  {(message.deliveryStatus === "FAILED" || message.status === "error") && (
+                    <span className="inline-flex items-center gap-1 text-amber-300 font-medium" title={message.failureReason || "فشل الإرسال"}>
+                      <span>⚠️</span>
                     </span>
                   )}
                 </span>
               )}
             </div>
+
+            {/* عرض سبب الفشل وزر إعادة المحاولة للرسائل الفاشلة */}
+            {!isCustomer && (message.deliveryStatus === "FAILED" || message.status === "error") && (
+              <div className="mt-2 pt-2 border-t border-red-400/30 text-xs flex flex-col gap-1.5 bg-red-950/30 -mx-2 px-2 pb-1 rounded-b-xl">
+                <div className="flex items-center gap-1 text-red-200 text-[11px] font-medium leading-tight">
+                  <span>⚠️</span>
+                  <span>{message.failureReason || "فشل إرسال الرسالة إلى فيسبوك"}</span>
+                </div>
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={() => onRetry(message)}
+                    className="self-end inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-red-600/90 hover:bg-red-600 text-white shadow-xs transition-colors cursor-pointer"
+                  >
+                    <span>🔄</span>
+                    <span>إعادة محاولة</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {!isCustomer && isAIResponse && (
               <AICorrectionBadge
@@ -308,6 +329,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = memo(
       prevProps.message.timestamp.getTime() ===
         nextProps.message.timestamp.getTime() &&
       prevProps.message.status === nextProps.message.status &&
+      prevProps.message.deliveryStatus === nextProps.message.deliveryStatus &&
+      prevProps.message.failureReason === nextProps.message.failureReason &&
+      prevProps.onRetry === nextProps.onRetry &&
       prevProps.message.type === nextProps.message.type &&
       prevProps.message.fileUrl === nextProps.message.fileUrl &&
       prevProps.message.attachments === nextProps.message.attachments &&

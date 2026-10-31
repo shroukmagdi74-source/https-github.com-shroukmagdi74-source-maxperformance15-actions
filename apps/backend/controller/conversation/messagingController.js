@@ -21,6 +21,7 @@ const { normalizeEnum, MESSAGE_TYPE } = require('../../utils/validator');
 const { recordSentMessageStat } = require('../../utils/statsRecorder');
 const { proxySocketMessageData } = require('../../utils/facebookMediaProxy');
 const { isValidMessageContent, getPageToken, processedMessages, getLastWebhookPageId } = require('./conversationShared');
+const { deliveryFailureMonitor } = require('../../utils/deliveryFailureMonitor');
 const aiServiceRouter = { isAiServiceEnabled: () => true, routeToAiService: async (p) => ({ status: 'ok', reply: '' }) };
 
 
@@ -102,6 +103,48 @@ const postMessageConverstation = async (req, res) => {
         });
       }, 3) : Promise.resolve(null)
     ]);
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        error: 'CONVERSATION_NOT_FOUND',
+        message: 'المحادثة غير موجودة'
+      });
+    }
+
+    // ⏰ فحص نافذة الـ 24 ساعة لفيسبوك قبل الحفظ وقبل استدعاء ميتا
+    const isFacebook = !conversation.channel || conversation.channel === 'FACEBOOK';
+    if (isFacebook) {
+      const lastInboundMsg = await executeWithRetry(async () => {
+        return await prisma.message.findFirst({
+          where: {
+            conversationId: id,
+            isFromCustomer: true
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+      }, 3);
+
+      const lastInboundAt = lastInboundMsg ? new Date(lastInboundMsg.createdAt) : null;
+      const windowExpiresAt = lastInboundAt ? new Date(lastInboundAt.getTime() + 24 * 60 * 60 * 1000) : null;
+      const isWindowExpired = !windowExpiresAt || Date.now() > windowExpiresAt.getTime();
+
+      if (isWindowExpired) {
+        const hoursSinceExpiration = windowExpiresAt
+          ? Math.max(0, Math.floor((Date.now() - windowExpiresAt.getTime()) / (1000 * 60 * 60)))
+          : 24;
+        console.warn(`🚫 [WINDOW_EXPIRED] Facebook 24h window closed for conversation ${id}. Last inbound: ${lastInboundAt?.toISOString() || 'None'}, expired ${hoursSinceExpiration}h ago. Rejecting without calling Meta.`);
+        return res.status(409).json({
+          success: false,
+          error: 'WINDOW_EXPIRED',
+          code: 'WINDOW_EXPIRED',
+          message: `انتهت نافذة الـ 24 ساعة للرد على العميل${hoursSinceExpiration ? ` (النافذة اتقفلت من ${hoursSinceExpiration} ساعة)` : ''}`,
+          lastInboundAt,
+          windowExpiresAt,
+          hoursSinceExpiration
+        });
+      }
+    }
 
     // ⚡ Parse metadata once and reuse
     let conversationMetadata = {};
@@ -191,6 +234,8 @@ const postMessageConverstation = async (req, res) => {
               isTelegramReply: conversation.channel === 'TELEGRAM',
               timestamp: new Date(),
               instantSave: true,
+              deliveryStatus: isFacebook ? 'PENDING' : 'SENT',
+              failureReason: null,
               ...(replyTo ? { replyTo } : {})
             }),
             createdAt: new Date(),
@@ -212,6 +257,8 @@ const postMessageConverstation = async (req, res) => {
           isFromCustomer: savedMessage.isFromCustomer,
           timestamp: savedMessage.createdAt,
           metadata: JSON.parse(savedMessage.metadata),
+          deliveryStatus: isFacebook ? 'PENDING' : 'SENT',
+          failureReason: null,
           senderId: senderId,
           senderName: senderName,
           lastMessageIsFromCustomer: false,
@@ -377,7 +424,7 @@ const postMessageConverstation = async (req, res) => {
                 console.error(`❌ [FACEBOOK-SEND] فشل إرسال الرسالة إلى Facebook: ${response.message || response.error}`);
               }
 
-              // 🔄 تحديث الرسالة المحفوظة بـ Facebook Message ID
+              // 🔄 تحديث الرسالة المحفوظة بـ Facebook Message ID وحالة التسليم
               if (facebookSent && facebookMessageId && savedMessage) {
                 try {
                   await getSharedPrismaClient().message.update({
@@ -386,13 +433,35 @@ const postMessageConverstation = async (req, res) => {
                       metadata: JSON.stringify({
                         ...JSON.parse(savedMessage.metadata),
                         facebookMessageId: facebookMessageId,
-                        sentToFacebook: true
+                        sentToFacebook: true,
+                        deliveryStatus: 'SENT',
+                        failureReason: null
                       })
                     }
                   });
-                  console.log(`✅ [FACEBOOK-SEND] تم تحديث الرسالة ${savedMessage.id.slice(-8)} بـ Facebook ID: ${facebookMessageId.slice(-8)}`);
+                  console.log(`✅ [FACEBOOK-SEND] تم تحديث الرسالة ${savedMessage.id.slice(-8)} بـ Facebook ID: ${facebookMessageId.slice(-8)} (SENT)`);
                 } catch (updateError) {
                   console.error('⚠️ [FACEBOOK-SEND] فشل تحديث الرسالة بـ Facebook ID:', updateError.message);
+                }
+
+                // 📈 تسجيل المحاولة الناجحة في مراقب التسليم
+                deliveryFailureMonitor.recordDeliveryAttempt({
+                  channel: 'FACEBOOK',
+                  success: true,
+                  companyId: conversation.companyId,
+                  messageId: savedMessage.id
+                });
+
+                // ⚡ إرسال تحديث السوكت لحالة الرسالة (SENT)
+                const io = socketService.getIO();
+                if (io) {
+                  io.to(`company_${conversation.companyId}`).emit('message_updated', {
+                    id: savedMessage.id,
+                    conversationId: id,
+                    deliveryStatus: 'SENT',
+                    facebookMessageId: facebookMessageId,
+                    status: 'sent'
+                  });
                 }
 
                 // 📊 تسجيل الإحصائيات
@@ -411,6 +480,45 @@ const postMessageConverstation = async (req, res) => {
                   savedAt: new Date(),
                   conversationCreatedAt: conversation.createdAt
                 });
+              } else if (!facebookSent && savedMessage) {
+                const failureReason = response.message || response.error || 'فشل إرسال الرسالة إلى فيسبوك';
+                try {
+                  await getSharedPrismaClient().message.update({
+                    where: { id: savedMessage.id },
+                    data: {
+                      metadata: JSON.stringify({
+                        ...JSON.parse(savedMessage.metadata),
+                        sentToFacebook: false,
+                        deliveryStatus: 'FAILED',
+                        failureReason: failureReason
+                      })
+                    }
+                  });
+                  console.log(`⚠️ [FACEBOOK-SEND] تم تحديث الرسالة ${savedMessage.id.slice(-8)} بحالة FAILED: ${failureReason}`);
+                } catch (failUpdateError) {
+                  console.error('⚠️ [FACEBOOK-SEND] فشل تحديث الرسالة كـ FAILED:', failUpdateError.message);
+                }
+
+                // 📈 تسجيل المحاولة الفاشلة في مراقب التسليم
+                deliveryFailureMonitor.recordDeliveryAttempt({
+                  channel: 'FACEBOOK',
+                  success: false,
+                  error: response.error || failureReason,
+                  companyId: conversation.companyId,
+                  messageId: savedMessage.id
+                });
+
+                // ⚡ إرسال تحديث السوكت بحالة الفشل FAILED
+                const io = socketService.getIO();
+                if (io) {
+                  io.to(`company_${conversation.companyId}`).emit('message_updated', {
+                    id: savedMessage.id,
+                    conversationId: id,
+                    deliveryStatus: 'FAILED',
+                    failureReason: failureReason,
+                    status: 'error'
+                  });
+                }
               }
 
               // NEW: Handle Facebook errors more gracefully
@@ -611,9 +719,30 @@ const postMessageConverstation = async (req, res) => {
       console.log(`⚡ [PERF] Message send completed in ${totalTime}ms`);
     }
 
+    if (isFacebook && !facebookSent) {
+      const statusCode = (facebookErrorDetails?.error === 'WINDOW_EXPIRED' || facebookErrorDetails?.code === 'WINDOW_EXPIRED') ? 409 : 502;
+      return res.status(statusCode).json({
+        success: false,
+        error: facebookErrorDetails?.error || 'FACEBOOK_SEND_FAILED',
+        code: facebookErrorDetails?.code || facebookErrorDetails?.error || 'FACEBOOK_SEND_FAILED',
+        message: facebookErrorDetails?.message || 'فشل إرسال الرسالة إلى فيسبوك',
+        deliveryStatus: 'FAILED',
+        failureReason: facebookErrorDetails?.message || 'فشل إرسال الرسالة إلى فيسبوك',
+        data: {
+          id: savedMessage?.id,
+          conversationId: id,
+          deliveryStatus: 'FAILED',
+          status: 'error'
+        },
+        facebookSent: false,
+        facebookError: facebookErrorDetails
+      });
+    }
+
     res.json({
       success: true,
       data: {
+        id: savedMessage?.id,
         conversationId: id,
         content: message,
         type: 'TEXT',
@@ -622,6 +751,8 @@ const postMessageConverstation = async (req, res) => {
         isInstagramReply: conversation.channel === 'INSTAGRAM',
         isTikTokReply: conversation.channel === 'TIKTOK',
         facebookMessageId: facebookMessageId,
+        deliveryStatus: isFacebook ? (facebookSent ? 'SENT' : 'FAILED') : 'SENT',
+        status: isFacebook ? (facebookSent ? 'sent' : 'error') : 'sent',
         sentAt: new Date()
       },
       message: facebookSent ? 'Reply sent successfully' : (instagramSent ? 'Reply sent to Instagram' : (tiktokSent ? 'Reply sent to TikTok' : 'Failed to send')),
@@ -682,6 +813,40 @@ const uploadFile = async (req, res) => {
         success: false,
         error: 'Conversation not found'
       });
+    }
+
+    // ⏰ فحص نافذة الـ 24 ساعة لفيسبوك قبل رفع الملفات وقبل استدعاء ميتا
+    const isFacebook = !conversation.channel || conversation.channel === 'FACEBOOK';
+    if (isFacebook) {
+      const lastInboundMsg = await executeWithRetry(async () => {
+        return await prisma.message.findFirst({
+          where: {
+            conversationId: id,
+            isFromCustomer: true
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+      }, 3);
+
+      const lastInboundAt = lastInboundMsg ? new Date(lastInboundMsg.createdAt) : null;
+      const windowExpiresAt = lastInboundAt ? new Date(lastInboundAt.getTime() + 24 * 60 * 60 * 1000) : null;
+      const isWindowExpired = !windowExpiresAt || Date.now() > windowExpiresAt.getTime();
+
+      if (isWindowExpired) {
+        const hoursSinceExpiration = windowExpiresAt
+          ? Math.max(0, Math.floor((Date.now() - windowExpiresAt.getTime()) / (1000 * 60 * 60)))
+          : 24;
+        console.warn(`🚫 [WINDOW_EXPIRED] Facebook 24h window closed for file upload in conversation ${id}. Rejecting without calling Meta.`);
+        return res.status(409).json({
+          success: false,
+          error: 'WINDOW_EXPIRED',
+          code: 'WINDOW_EXPIRED',
+          message: `انتهت نافذة الـ 24 ساعة للرد على العميل${hoursSinceExpiration ? ` (النافذة اتقفلت من ${hoursSinceExpiration} ساعة)` : ''}`,
+          lastInboundAt,
+          windowExpiresAt,
+          hoursSinceExpiration
+        });
+      }
     }
 
     if (!prisma) {
@@ -799,6 +964,10 @@ const uploadFile = async (req, res) => {
                 employeeId: senderId,
                 employeeName: senderName,
                 isFacebookReply: true,
+                deliveryStatus: 'PENDING',
+                failureReason: null,
+                facebookMessageId: null,
+                sentToFacebook: false,
                 timestamp: new Date(),
                 instantSave: true,
                 fileName: file.originalname,
@@ -823,6 +992,7 @@ const uploadFile = async (req, res) => {
             type: savedFileMessage.type === 'IMAGE' ? 'image' : savedFileMessage.type.toLowerCase(),
             isFromCustomer: savedFileMessage.isFromCustomer,
             timestamp: savedFileMessage.createdAt,
+            deliveryStatus: 'PENDING',
             metadata: JSON.parse(savedFileMessage.metadata),
             attachments: savedFileMessage.attachments,
             isFacebookReply: true,
@@ -957,6 +1127,7 @@ const uploadFile = async (req, res) => {
                           metadata: JSON.stringify({
                             ...JSON.parse(savedFileMessage.metadata),
                             facebookMessageId: facebookMessageId,
+                            deliveryStatus: 'SENT',
                             sentToFacebook: true
                           })
                         }
@@ -966,6 +1137,23 @@ const uploadFile = async (req, res) => {
                   } catch (updateError) {
                     console.error(`⚠️ [UPDATE-FILE] Failed to update ${messageType} with Facebook ID:`, updateError.message);
                   }
+
+                  try {
+                    deliveryFailureMonitor.recordDeliveryAttempt(conversation.companyId, true);
+                  } catch (_) {}
+
+                  try {
+                    const io = socketService.getIO();
+                    if (io) {
+                      io.to(`company_${conversation.companyId}`).emit('message_updated', {
+                        id: savedFileMessage.id,
+                        conversationId: id,
+                        deliveryStatus: 'SENT',
+                        facebookMessageId: facebookMessageId,
+                        status: 'sent'
+                      });
+                    }
+                  } catch (_) {}
 
                   // 📊 تسجيل الإحصائيات
                   await recordSentMessageStat({
@@ -984,44 +1172,104 @@ const uploadFile = async (req, res) => {
                     conversationCreatedAt: conversation.createdAt
                   });
                 }
-              } else if (result.blocked) {
-                console.warn(`🚫 [FACEBOOK-FILE] ${messageType} blocked: ${result.message}`);
-                if (result.solutions) {
-                  //console.log('🔧 [FACEBOOK-FILE] Suggested solutions:');
-                  result.solutions.forEach(solution => {
-                    //console.log(`   - ${solution}`);
-                  });
-                }
               } else {
-                console.error(`❌ [FACEBOOK-FILE] Failed to send ${messageType}: ${result.message}`);
-                if (result.solutions) {
-                  //console.log('🔧 [FACEBOOK-FILE] Suggested solutions:');
-                  result.solutions.forEach(solution => {
-                    //console.log(`   - ${solution}`);
-                  });
+                const failureReason = result.message || 'فشل إرسال الملف إلى فيسبوك';
+                facebookSent = false;
+                if (savedFileMessage) {
+                  try {
+                    await executeWithRetry(async () => {
+                      return await prisma.message.update({
+                        where: { id: savedFileMessage.id },
+                        data: {
+                          metadata: JSON.stringify({
+                            ...JSON.parse(savedFileMessage.metadata),
+                            deliveryStatus: 'FAILED',
+                            failureReason: failureReason,
+                            sentToFacebook: false
+                          })
+                        }
+                      });
+                    }, 3);
+                  } catch (_) {}
+
+                  try {
+                    deliveryFailureMonitor.recordDeliveryAttempt(conversation.companyId, false, failureReason);
+                  } catch (_) {}
+
+                  try {
+                    const io = socketService.getIO();
+                    if (io) {
+                      io.to(`company_${conversation.companyId}`).emit('message_updated', {
+                        id: savedFileMessage.id,
+                        conversationId: id,
+                        deliveryStatus: 'FAILED',
+                        failureReason: failureReason,
+                        status: 'error'
+                      });
+                    }
+                  } catch (_) {}
                 }
 
-                // Update conversation with error info for user experience
-                if (result.error === 'NO_MATCHING_USER') {
+                if (isFacebook) {
+                  const statusCode = (result.error === 'WINDOW_EXPIRED' || result.code === 'WINDOW_EXPIRED') ? 409 : 502;
+                  return res.status(statusCode).json({
+                    success: false,
+                    error: result.error || 'FACEBOOK_SEND_FAILED',
+                    code: result.code || result.error || 'FACEBOOK_SEND_FAILED',
+                    message: failureReason,
+                    deliveryStatus: 'FAILED',
+                    failureReason: failureReason,
+                    data: uploadedFiles
+                  });
+                }
+              }
+            } catch (error) {
+              console.error('Error uploading file to Facebook:', error);
+              const failureReason = error.message || 'خطأ أثناء إرسال الملف إلى فيسبوك';
+              if (savedFileMessage) {
+                try {
                   await executeWithRetry(async () => {
-                    return await prisma.conversation.update({
-                      where: { id: conversation.id },
+                    return await prisma.message.update({
+                      where: { id: savedFileMessage.id },
                       data: {
                         metadata: JSON.stringify({
-                          facebookSendError: 'FACEBOOK_INTEGRATION_ERROR',
-                          facebookErrorMessage: 'حدث خطأ في التكامل مع فيسبوك',
-                          lastFacebookErrorAt: new Date().toISOString()
+                          ...JSON.parse(savedFileMessage.metadata),
+                          deliveryStatus: 'FAILED',
+                          failureReason: failureReason,
+                          sentToFacebook: false
                         })
                       }
                     });
                   }, 3);
-                }
+                } catch (_) {}
 
+                try {
+                  deliveryFailureMonitor.recordDeliveryAttempt(conversation.companyId, false, failureReason);
+                } catch (_) {}
 
+                try {
+                  const io = socketService.getIO();
+                  if (io) {
+                    io.to(`company_${conversation.companyId}`).emit('message_updated', {
+                      id: savedFileMessage.id,
+                      conversationId: id,
+                      deliveryStatus: 'FAILED',
+                      failureReason: failureReason,
+                      status: 'error'
+                    });
+                  }
+                } catch (_) {}
               }
-            } catch (error) {
-              console.error('Error uploading file to Facebook:', error);
-              // Don't fail the request if Facebook upload fails, just log it
+
+              if (isFacebook) {
+                return res.status(502).json({
+                  success: false,
+                  error: 'FACEBOOK_SEND_ERROR',
+                  message: failureReason,
+                  deliveryStatus: 'FAILED',
+                  failureReason: failureReason
+                });
+              }
             }
           }
         }
@@ -1105,6 +1353,48 @@ const postReply = async (req, res) => {
       }, 3) : Promise.resolve(null)
     ]);
 
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Conversation not found'
+      });
+    }
+
+    // ⏰ فحص نافذة الـ 24 ساعة لفيسبوك قبل محاولة الإرسال وقبل استدعاء ميتا
+    const isFacebook = !conversation.channel || conversation.channel === 'FACEBOOK';
+    if (isFacebook) {
+      const prismaClient = getSharedPrismaClient();
+      const lastInboundMsg = await executeWithRetry(async () => {
+        return await prismaClient.message.findFirst({
+          where: {
+            conversationId: id,
+            isFromCustomer: true
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+      }, 3);
+
+      const lastInboundAt = lastInboundMsg ? new Date(lastInboundMsg.createdAt) : null;
+      const windowExpiresAt = lastInboundAt ? new Date(lastInboundAt.getTime() + 24 * 60 * 60 * 1000) : null;
+      const isWindowExpired = !windowExpiresAt || Date.now() > windowExpiresAt.getTime();
+
+      if (isWindowExpired) {
+        const hoursSinceExpiration = windowExpiresAt
+          ? Math.max(0, Math.floor((Date.now() - windowExpiresAt.getTime()) / (1000 * 60 * 60)))
+          : 24;
+        console.warn(`🚫 [WINDOW_EXPIRED] Facebook 24h window closed in postReply for conversation ${id}. Rejecting without calling Meta.`);
+        return res.status(409).json({
+          success: false,
+          error: 'WINDOW_EXPIRED',
+          code: 'WINDOW_EXPIRED',
+          message: `انتهت نافذة الـ 24 ساعة للرد على العميل${hoursSinceExpiration ? ` (النافذة اتقفلت من ${hoursSinceExpiration} ساعة)` : ''}`,
+          lastInboundAt,
+          windowExpiresAt,
+          hoursSinceExpiration
+        });
+      }
+    }
+
     let senderName = 'موظف';
     if (req.user && senderId && user) {
       senderName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'موظف';
@@ -1138,6 +1428,10 @@ const postReply = async (req, res) => {
             employeeName: senderName,
             isFacebookReply: conversation?.channel !== 'TELEGRAM',
             isTelegramReply: conversation?.channel === 'TELEGRAM',
+            deliveryStatus: isFacebook ? 'PENDING' : 'SENT',
+            failureReason: null,
+            facebookMessageId: null,
+            sentToFacebook: false,
             timestamp: new Date(),
             instantSave: true,
             quickReplyId: quickReplyId,
@@ -1161,6 +1455,7 @@ const postReply = async (req, res) => {
           type: savedMessage.type.toLowerCase(),
           isFromCustomer: savedMessage.isFromCustomer,
           timestamp: savedMessage.createdAt,
+          deliveryStatus: isFacebook ? 'PENDING' : 'SENT',
           metadata: JSON.parse(savedMessage.metadata),
           isFacebookReply: conversation?.channel !== 'TELEGRAM',
           senderId: senderId,
@@ -1370,6 +1665,7 @@ const postReply = async (req, res) => {
                       metadata: JSON.stringify({
                         ...JSON.parse(savedMessage.metadata),
                         facebookMessageId: facebookMessageId,
+                        deliveryStatus: 'SENT',
                         sentToFacebook: true
                       })
                     }
@@ -1378,6 +1674,23 @@ const postReply = async (req, res) => {
                 } catch (updateError) {
                   console.error('⚠️ [FACEBOOK-REPLY] فشل تحديث الرسالة بـ Facebook ID:', updateError.message);
                 }
+
+                try {
+                  deliveryFailureMonitor.recordDeliveryAttempt(conversation.companyId, true);
+                } catch (_) {}
+
+                try {
+                  const io = socketService.getIO();
+                  if (io) {
+                    io.to(`company_${conversation.companyId}`).emit('message_updated', {
+                      id: savedMessage.id,
+                      conversationId: id,
+                      deliveryStatus: 'SENT',
+                      facebookMessageId: facebookMessageId,
+                      status: 'sent'
+                    });
+                  }
+                } catch (_) {}
 
                 // 📊 تسجيل الإحصائيات
                 await recordSentMessageStat({
@@ -1395,6 +1708,38 @@ const postReply = async (req, res) => {
                   savedAt: new Date(),
                   conversationCreatedAt: conversation.createdAt
                 });
+              } else if (!facebookSent && savedMessage) {
+                const failureReason = facebookErrorDetails?.message || 'فشل إرسال الرسالة إلى فيسبوك';
+                try {
+                  await getSharedPrismaClient().message.update({
+                    where: { id: savedMessage.id },
+                    data: {
+                      metadata: JSON.stringify({
+                        ...JSON.parse(savedMessage.metadata),
+                        deliveryStatus: 'FAILED',
+                        failureReason: failureReason,
+                        sentToFacebook: false
+                      })
+                    }
+                  });
+                } catch (_) {}
+
+                try {
+                  deliveryFailureMonitor.recordDeliveryAttempt(conversation.companyId, false, failureReason);
+                } catch (_) {}
+
+                try {
+                  const io = socketService.getIO();
+                  if (io) {
+                    io.to(`company_${conversation.companyId}`).emit('message_updated', {
+                      id: savedMessage.id,
+                      conversationId: id,
+                      deliveryStatus: 'FAILED',
+                      failureReason: failureReason,
+                      status: 'error'
+                    });
+                  }
+                } catch (_) {}
               }
 
               // NEW: Handle Facebook errors more gracefully
@@ -1498,20 +1843,43 @@ const postReply = async (req, res) => {
 
       //console.log(`✅ Manual reply sent to Facebook - waiting for echo`);
 
+      if (!facebookSent) {
+        const statusCode = (facebookErrorDetails?.error === 'WINDOW_EXPIRED' || facebookErrorDetails?.code === 'WINDOW_EXPIRED') ? 409 : 502;
+        return res.status(statusCode).json({
+          success: false,
+          error: facebookErrorDetails?.error || 'FACEBOOK_SEND_FAILED',
+          code: facebookErrorDetails?.code || facebookErrorDetails?.error || 'FACEBOOK_SEND_FAILED',
+          message: facebookErrorDetails?.message || 'فشل إرسال الرسالة إلى فيسبوك',
+          deliveryStatus: 'FAILED',
+          failureReason: facebookErrorDetails?.message || 'فشل إرسال الرسالة إلى فيسبوك',
+          data: {
+            id: savedMessage?.id,
+            conversationId: id,
+            deliveryStatus: 'FAILED',
+            status: 'error'
+          },
+          facebookSent: false,
+          facebookError: facebookErrorDetails
+        });
+      }
+
       res.json({
         success: true,
         data: {
+          id: savedMessage?.id,
           conversationId: id,
           content: message,
           type: 'TEXT',
           isFromCustomer: false,
           isFacebookReply: true,
           facebookMessageId: facebookMessageId,
+          deliveryStatus: 'SENT',
+          status: 'sent',
           sentAt: new Date()
         },
-        message: facebookSent ? 'Reply sent successfully - message will appear when echo is received' : 'Failed to send to Facebook',
-        facebookSent: facebookSent,
-        facebookError: facebookErrorDetails
+        message: 'Reply sent successfully',
+        facebookSent: true,
+        facebookError: null
       });
 
     } // End of Facebook specific logic check
@@ -1622,6 +1990,40 @@ const sendExistingImage = async (req, res) => {
         success: false,
         error: 'Conversation not found'
       });
+    }
+
+    // ⏰ فحص نافذة الـ 24 ساعة لفيسبوك قبل رفع الملفات وقبل استدعاء ميتا
+    const isFacebook = !conversation.channel || conversation.channel === 'FACEBOOK';
+    if (isFacebook) {
+      const lastInboundMsg = await executeWithRetry(async () => {
+        return await prisma.message.findFirst({
+          where: {
+            conversationId: id,
+            isFromCustomer: true
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+      }, 3);
+
+      const lastInboundAt = lastInboundMsg ? new Date(lastInboundMsg.createdAt) : null;
+      const windowExpiresAt = lastInboundAt ? new Date(lastInboundAt.getTime() + 24 * 60 * 60 * 1000) : null;
+      const isWindowExpired = !windowExpiresAt || Date.now() > windowExpiresAt.getTime();
+
+      if (isWindowExpired) {
+        const hoursSinceExpiration = windowExpiresAt
+          ? Math.max(0, Math.floor((Date.now() - windowExpiresAt.getTime()) / (1000 * 60 * 60)))
+          : 24;
+        console.warn(`🚫 [WINDOW_EXPIRED] Facebook 24h window closed for file upload in conversation ${id}. Rejecting without calling Meta.`);
+        return res.status(409).json({
+          success: false,
+          error: 'WINDOW_EXPIRED',
+          code: 'WINDOW_EXPIRED',
+          message: `انتهت نافذة الـ 24 ساعة للرد على العميل${hoursSinceExpiration ? ` (النافذة اتقفلت من ${hoursSinceExpiration} ساعة)` : ''}`,
+          lastInboundAt,
+          windowExpiresAt,
+          hoursSinceExpiration
+        });
+      }
     }
 
     // إرسال الرسالة للـ socket
@@ -1823,6 +2225,40 @@ const sendMediaMessage = async (req, res) => {
       });
     }
 
+    // ⏰ فحص نافذة الـ 24 ساعة لفيسبوك قبل رفع الملفات وقبل استدعاء ميتا
+    const isFacebook = !conversation.channel || conversation.channel === 'FACEBOOK';
+    if (isFacebook) {
+      const lastInboundMsg = await executeWithRetry(async () => {
+        return await prisma.message.findFirst({
+          where: {
+            conversationId: id,
+            isFromCustomer: true
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+      }, 3);
+
+      const lastInboundAt = lastInboundMsg ? new Date(lastInboundMsg.createdAt) : null;
+      const windowExpiresAt = lastInboundAt ? new Date(lastInboundAt.getTime() + 24 * 60 * 60 * 1000) : null;
+      const isWindowExpired = !windowExpiresAt || Date.now() > windowExpiresAt.getTime();
+
+      if (isWindowExpired) {
+        const hoursSinceExpiration = windowExpiresAt
+          ? Math.max(0, Math.floor((Date.now() - windowExpiresAt.getTime()) / (1000 * 60 * 60)))
+          : 24;
+        console.warn(`🚫 [WINDOW_EXPIRED] Facebook 24h window closed for file upload in conversation ${id}. Rejecting without calling Meta.`);
+        return res.status(409).json({
+          success: false,
+          error: 'WINDOW_EXPIRED',
+          code: 'WINDOW_EXPIRED',
+          message: `انتهت نافذة الـ 24 ساعة للرد على العميل${hoursSinceExpiration ? ` (النافذة اتقفلت من ${hoursSinceExpiration} ساعة)` : ''}`,
+          lastInboundAt,
+          windowExpiresAt,
+          hoursSinceExpiration
+        });
+      }
+    }
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -1960,6 +2396,40 @@ const sendLocationMessage = async (req, res) => {
         success: false,
         error: 'Conversation not found'
       });
+    }
+
+    // ⏰ فحص نافذة الـ 24 ساعة لفيسبوك قبل رفع الملفات وقبل استدعاء ميتا
+    const isFacebook = !conversation.channel || conversation.channel === 'FACEBOOK';
+    if (isFacebook) {
+      const lastInboundMsg = await executeWithRetry(async () => {
+        return await prisma.message.findFirst({
+          where: {
+            conversationId: id,
+            isFromCustomer: true
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+      }, 3);
+
+      const lastInboundAt = lastInboundMsg ? new Date(lastInboundMsg.createdAt) : null;
+      const windowExpiresAt = lastInboundAt ? new Date(lastInboundAt.getTime() + 24 * 60 * 60 * 1000) : null;
+      const isWindowExpired = !windowExpiresAt || Date.now() > windowExpiresAt.getTime();
+
+      if (isWindowExpired) {
+        const hoursSinceExpiration = windowExpiresAt
+          ? Math.max(0, Math.floor((Date.now() - windowExpiresAt.getTime()) / (1000 * 60 * 60)))
+          : 24;
+        console.warn(`🚫 [WINDOW_EXPIRED] Facebook 24h window closed for file upload in conversation ${id}. Rejecting without calling Meta.`);
+        return res.status(409).json({
+          success: false,
+          error: 'WINDOW_EXPIRED',
+          code: 'WINDOW_EXPIRED',
+          message: `انتهت نافذة الـ 24 ساعة للرد على العميل${hoursSinceExpiration ? ` (النافذة اتقفلت من ${hoursSinceExpiration} ساعة)` : ''}`,
+          lastInboundAt,
+          windowExpiresAt,
+          hoursSinceExpiration
+        });
+      }
     }
 
     const senderId = req.user?.userId || req.user?.id;

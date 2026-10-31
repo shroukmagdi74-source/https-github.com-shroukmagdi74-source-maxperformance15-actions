@@ -606,6 +606,10 @@ class EnhancedOrderService {
         employeeName: data.createdByName || 'النظام (تأكيد الطلب)',
         messengerSent: false,
         messengerStatus: 'pending',
+        deliveryStatus: 'PENDING',
+        failureReason: null,
+        facebookMessageId: null,
+        sentToFacebook: false,
         timestamp: new Date().toISOString()
       };
 
@@ -651,6 +655,7 @@ class EnhancedOrderService {
             type: 'text',
             isFromCustomer: false,
             timestamp: savedMessage.createdAt,
+            deliveryStatus: 'PENDING',
             metadata: messageMeta,
             senderId: data.createdBy || 'system_order',
             senderName: data.createdByName || 'النظام (تأكيد الطلب)',
@@ -681,106 +686,166 @@ class EnhancedOrderService {
 
       const isFacebookChannel = !conv.channel || conv.channel === 'FACEBOOK' || String(data.platform).toLowerCase() === 'facebook';
 
-      if (isFacebookChannel && recipientId) {
-        try {
-          let pageId = null;
+      if (isFacebookChannel) {
+        if (!recipientId) {
+          messageMeta.deliveryStatus = 'FAILED';
+          messageMeta.failureReason = 'لا يوجد معرف فيسبوك (PSID) للعميل';
+          messageMeta.sentToFacebook = false;
+        } else {
           try {
-            const convMeta = typeof conv.metadata === 'string' ? JSON.parse(conv.metadata) : (conv.metadata || {});
-            pageId = convMeta.pageId || convMeta.facebookPageId || null;
-          } catch (_) {}
-
-          let pageAccessToken = null;
-          let actualPageId = null;
-
-          if (pageId) {
+            let pageId = null;
             try {
-              const { getPageToken } = require('../controller/conversation/conversationShared');
-              const pageData = await getPageToken(pageId);
-              if (pageData?.pageAccessToken) {
-                pageAccessToken = pageData.pageAccessToken;
-                actualPageId = pageId;
+              const convMeta = typeof conv.metadata === 'string' ? JSON.parse(conv.metadata) : (conv.metadata || {});
+              pageId = convMeta.pageId || convMeta.facebookPageId || null;
+            } catch (_) {}
+
+            let pageAccessToken = null;
+            let actualPageId = null;
+
+            if (pageId) {
+              try {
+                const { getPageToken } = require('../controller/conversation/conversationShared');
+                const pageData = await getPageToken(pageId);
+                if (pageData?.pageAccessToken) {
+                  pageAccessToken = pageData.pageAccessToken;
+                  actualPageId = pageId;
+                }
+              } catch (tokenErr) {
+                console.warn('⚠️ [ORDER-CONFIRMATION] Error fetching page token from cache/DB:', tokenErr.message);
               }
-            } catch (tokenErr) {
-              console.warn('⚠️ [ORDER-CONFIRMATION] Error fetching page token from cache/DB:', tokenErr.message);
             }
-          }
 
-          if (!pageAccessToken) {
-            const fbPage = await prisma.facebookPage.findFirst({
-              where: {
-                companyId: data.companyId,
-                status: 'connected',
-                pageAccessToken: { not: null }
-              },
-              orderBy: { connectedAt: 'desc' }
-            });
-            if (fbPage?.pageAccessToken) {
-              pageAccessToken = fbPage.pageAccessToken;
-              actualPageId = fbPage.pageId;
+            if (!pageAccessToken) {
+              const fbPage = await prisma.facebookPage.findFirst({
+                where: {
+                  companyId: data.companyId,
+                  status: 'connected',
+                  pageAccessToken: { not: null }
+                },
+                orderBy: { connectedAt: 'desc' }
+              });
+              if (fbPage?.pageAccessToken) {
+                pageAccessToken = fbPage.pageAccessToken;
+                actualPageId = fbPage.pageId;
+              }
             }
-          }
 
-          if (pageAccessToken && actualPageId) {
-            const { sendProductionFacebookMessage } = require('../utils/production-facebook-fix');
-            const sendResult = await sendProductionFacebookMessage(
-              recipientId,
-              confirmationText,
-              'TEXT',
-              actualPageId,
-              pageAccessToken
-            );
+            if (pageAccessToken && actualPageId) {
+              const { sendProductionFacebookMessage } = require('../utils/production-facebook-fix');
+              const sendResult = await sendProductionFacebookMessage(
+                recipientId,
+                confirmationText,
+                'TEXT',
+                actualPageId,
+                pageAccessToken
+              );
 
-            if (sendResult?.success) {
-              console.log(`✅ [ORDER-CONFIRMATION] Messenger message delivered to recipient ${recipientId}`);
-              messageMeta.messengerSent = true;
-              messageMeta.messengerStatus = 'sent';
-              messageMeta.messengerMessageId = sendResult.messageId;
-            } else {
-              console.warn(`⚠️ [ORDER-CONFIRMATION] Messenger direct send blocked/failed: ${sendResult?.message} (${sendResult?.error})`);
-              messageMeta.messengerSent = false;
-              messageMeta.messengerStatus = sendResult?.blocked ? 'window_closed' : 'failed';
-              messageMeta.messengerError = sendResult?.message || 'فشل الإرسال';
+              if (sendResult?.success && sendResult?.messageId) {
+                console.log(`✅ [ORDER-CONFIRMATION] Messenger message delivered to recipient ${recipientId}`);
+                messageMeta.messengerSent = true;
+                messageMeta.messengerStatus = 'sent';
+                messageMeta.messengerMessageId = sendResult.messageId;
+                messageMeta.deliveryStatus = 'SENT';
+                messageMeta.facebookMessageId = sendResult.messageId;
+                messageMeta.sentToFacebook = true;
+                messageMeta.failureReason = null;
+              } else {
+                console.warn(`⚠️ [ORDER-CONFIRMATION] Messenger direct send blocked/failed: ${sendResult?.message} (${sendResult?.error})`);
+                messageMeta.messengerSent = false;
+                messageMeta.messengerStatus = sendResult?.blocked ? 'window_closed' : 'failed';
+                messageMeta.messengerError = sendResult?.message || 'فشل الإرسال';
+                let tagDelivered = false;
 
-              // لو نافذة الـ 24 ساعة مقفولة، نحاول محاولة أخيرة عبر Tag POST_PURCHASE_UPDATE المعتمد من فيسبوك للطلبات
-              if (sendResult?.error === 'OUTSIDE_24_HOUR_WINDOW' || sendResult?.error === 'POLICY_VIOLATION_24H') {
-                try {
-                  const axios = require('axios');
-                  const { getMetaGraphApiVersion } = require('../config/metaApi');
-                  const tagRes = await axios.post(
-                    `https://graph.facebook.com/${getMetaGraphApiVersion()}/me/messages`,
-                    {
-                      recipient: { id: recipientId },
-                      message: { text: confirmationText },
-                      messaging_type: 'MESSAGE_TAG',
-                      tag: 'POST_PURCHASE_UPDATE'
-                    },
-                    {
-                      params: { access_token: pageAccessToken },
-                      timeout: 10000
+                // لو نافذة الـ 24 ساعة مقفولة، نحاول محاولة أخيرة عبر Tag POST_PURCHASE_UPDATE المعتمد من فيسبوك للطلبات
+                if (sendResult?.error === 'OUTSIDE_24_HOUR_WINDOW' || sendResult?.error === 'POLICY_VIOLATION_24H' || sendResult?.error === 'WINDOW_EXPIRED') {
+                  try {
+                    const axios = require('axios');
+                    const { getMetaGraphApiVersion } = require('../config/metaApi');
+                    const tagRes = await axios.post(
+                      `https://graph.facebook.com/${getMetaGraphApiVersion()}/me/messages`,
+                      {
+                        recipient: { id: recipientId },
+                        message: { text: confirmationText },
+                        messaging_type: 'MESSAGE_TAG',
+                        tag: 'POST_PURCHASE_UPDATE'
+                      },
+                      {
+                        params: { access_token: pageAccessToken },
+                        timeout: 10000
+                      }
+                    );
+                    if (tagRes.data?.message_id) {
+                      console.log(`✅ [ORDER-CONFIRMATION] Messenger delivered via POST_PURCHASE_UPDATE tag: ${tagRes.data.message_id}`);
+                      messageMeta.messengerSent = true;
+                      messageMeta.messengerStatus = 'sent_via_tag';
+                      messageMeta.messengerMessageId = tagRes.data.message_id;
+                      messageMeta.deliveryStatus = 'SENT';
+                      messageMeta.facebookMessageId = tagRes.data.message_id;
+                      messageMeta.sentToFacebook = true;
+                      messageMeta.failureReason = null;
+                      tagDelivered = true;
                     }
-                  );
-                  if (tagRes.data?.message_id) {
-                    console.log(`✅ [ORDER-CONFIRMATION] Messenger delivered via POST_PURCHASE_UPDATE tag: ${tagRes.data.message_id}`);
-                    messageMeta.messengerSent = true;
-                    messageMeta.messengerStatus = 'sent_via_tag';
-                    messageMeta.messengerMessageId = tagRes.data.message_id;
+                  } catch (tagErr) {
+                    console.warn(`ℹ️ [ORDER-CONFIRMATION] Tag fallback failed: ${tagErr.response?.data?.error?.message || tagErr.message}`);
                   }
-                } catch (tagErr) {
-                  console.warn(`ℹ️ [ORDER-CONFIRMATION] Tag fallback failed: ${tagErr.response?.data?.error?.message || tagErr.message}`);
+                }
+
+                if (!tagDelivered) {
+                  messageMeta.deliveryStatus = 'FAILED';
+                  messageMeta.failureReason = messageMeta.messengerError || sendResult?.message || 'فشل إرسال رسالة التأكيد عبر فيسبوك';
+                  messageMeta.sentToFacebook = false;
                 }
               }
+            } else {
+              console.log(`ℹ️ [ORDER-CONFIRMATION] No active Facebook page access token found for company ${data.companyId}`);
+              messageMeta.deliveryStatus = 'FAILED';
+              messageMeta.failureReason = 'لا يوجد توكن وصول صالح لصفحة فيسبوك';
+              messageMeta.sentToFacebook = false;
             }
-
-            // تحديث بيانات الـ message في الـ DB بحالة الإرسال
-            await prisma.message.update({
-              where: { id: savedMessage.id },
-              data: { metadata: JSON.stringify(messageMeta) }
-            }).catch(() => {});
-          } else {
-            console.log(`ℹ️ [ORDER-CONFIRMATION] No active Facebook page access token found for company ${data.companyId}`);
+          } catch (fbErr) {
+            console.error(`❌ [ORDER-CONFIRMATION] Error in Facebook Messenger send:`, fbErr.message);
+            messageMeta.deliveryStatus = 'FAILED';
+            messageMeta.failureReason = fbErr.message || 'خطأ غير متوقع أثناء إرسال رسالة التأكيد عبر فيسبوك';
+            messageMeta.sentToFacebook = false;
           }
-        } catch (fbErr) {
-          console.error(`❌ [ORDER-CONFIRMATION] Error in Facebook Messenger send:`, fbErr.message);
+        }
+
+        // تحديث بيانات الـ message في الـ DB بحالة الإرسال
+        await prisma.message.update({
+          where: { id: savedMessage.id },
+          data: { metadata: JSON.stringify(messageMeta) }
+        }).catch((upErr) => console.warn('⚠️ [ORDER-CONFIRMATION] Failed to update message metadata:', upErr.message));
+
+        // تسجيل في مراقب الفشل
+        try {
+          const deliveryFailureMonitor = require('../utils/deliveryFailureMonitor');
+          deliveryFailureMonitor.recordDeliveryAttempt(
+            data.companyId,
+            messageMeta.deliveryStatus === 'SENT',
+            messageMeta.failureReason
+          );
+        } catch (monErr) {
+          console.warn('⚠️ [ORDER-CONFIRMATION] Delivery monitor error:', monErr.message);
+        }
+
+        // إرسال Socket.IO message_updated لتحديث حالة الرسالة (SENT أو FAILED)
+        try {
+          const socketService = require('./socketService');
+          const io = socketService?.getIO?.();
+          if (io) {
+            io.to(`company_${data.companyId}`).emit('message_updated', {
+              id: savedMessage.id,
+              conversationId: conv.id,
+              deliveryStatus: messageMeta.deliveryStatus,
+              facebookMessageId: messageMeta.facebookMessageId || null,
+              failureReason: messageMeta.failureReason || null,
+              metadata: messageMeta,
+              status: messageMeta.deliveryStatus === 'SENT' ? 'sent' : 'error'
+            });
+            console.log(`📡 [SOCKET] Order confirmation message_updated emitted (${messageMeta.deliveryStatus})`);
+          }
+        } catch (sockErr) {
+          console.warn('⚠️ [ORDER-CONFIRMATION] Socket message_updated emit error:', sockErr.message);
         }
       }
 

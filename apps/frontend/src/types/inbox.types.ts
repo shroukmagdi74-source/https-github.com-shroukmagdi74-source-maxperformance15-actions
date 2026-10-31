@@ -110,6 +110,11 @@ export interface InboxConversation {
   lastOrderNumber?: string | null;
   lastOrderStatus?: string | null;
   totalOrders?: number;
+
+  // ⏰ 24-hour Facebook window enforcement
+  lastInboundAt?: string | Date | null;
+  windowExpiresAt?: string | Date | null;
+  isWindowExpired?: boolean;
 }
 
 export interface InboxFilters {
@@ -160,4 +165,7 @@ export interface InboxMessage {
   attachments?: any[]; // Add attachments array for checking buttons etc
   isStarred?: boolean;
   isAIResponse?: boolean;
+  deliveryStatus?: "PENDING" | "SENT" | "FAILED";
+  failureReason?: string | null;
+  facebookMessageId?: string | null;
 }
