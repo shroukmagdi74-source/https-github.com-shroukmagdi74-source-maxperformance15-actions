@@ -221,7 +221,12 @@ exports.handleStorefrontShell = async (req, res, next) => {
       !routeContext.storePageSlug &&
       !routeContext.landingSlug;
 
-    const [template, storefrontSettings, product, category, article, storePage, landing] =
+    const isShopRoute =
+      routeContext.pageSegment === "shop" ||
+      routeContext.pageSegment === "store" ||
+      (routeContext.pageSegment === "collections" && !routeContext.categorySlug);
+
+    const [template, storefrontSettings, product, category, article, storePage, landing, shopProducts] =
       await Promise.all([
         isHomepage
           ? safeQuery(() =>
@@ -300,8 +305,8 @@ exports.handleStorefrontShell = async (req, res, next) => {
             })
           : Promise.resolve(null),
         routeContext.categorySlug
-          ? safeQuery(() =>
-              prisma.category.findFirst({
+          ? safeQuery(async () => {
+              const cat = await prisma.category.findFirst({
                 where: {
                   companyId: req.companyId,
                   isActive: true,
@@ -316,8 +321,33 @@ exports.handleStorefrontShell = async (req, res, next) => {
                   metaTitle: true,
                   metaDescription: true,
                 },
-              }),
-            )
+              });
+              if (!cat) return null;
+              try {
+                const categoryProducts = await prisma.product.findMany({
+                  where: {
+                    companyId: req.companyId,
+                    categoryId: cat.id,
+                    isActive: true,
+                    deletedAt: null,
+                    isHidden: false,
+                  },
+                  take: 30,
+                  orderBy: { createdAt: "desc" },
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    image: true,
+                    mainImage: true,
+                    images: true,
+                  },
+                });
+                return { ...cat, products: categoryProducts || [] };
+              } catch (_) {
+                return cat;
+              }
+            })
           : Promise.resolve(null),
         routeContext.articleSlug
           ? safeQuery(() =>
@@ -391,6 +421,28 @@ exports.handleStorefrontShell = async (req, res, next) => {
               );
               return null;
             })
+          : Promise.resolve(null),
+        isShopRoute
+          ? safeQuery(() =>
+              prisma.product.findMany({
+                where: {
+                  companyId: req.companyId,
+                  isActive: true,
+                  deletedAt: null,
+                  isHidden: false,
+                },
+                take: 30,
+                orderBy: { createdAt: "desc" },
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  image: true,
+                  mainImage: true,
+                  images: true,
+                },
+              }),
+            )
           : Promise.resolve(null),
       ]);
 
@@ -643,6 +695,9 @@ exports.handleStorefrontShell = async (req, res, next) => {
       templateContent: template?.publishedContent || template?.content || {},
       product,
       category,
+      products: Array.isArray(category?.products)
+        ? category.products
+        : (Array.isArray(shopProducts) ? shopProducts : null),
       article,
       storePage,
       landing: landingMeta,
@@ -657,21 +712,19 @@ exports.handleStorefrontShell = async (req, res, next) => {
 
     // Semantic body snippet for non-JS crawlers
     let semanticSnippet = "";
+    const escape = (s) => (s ? String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "");
+    const h1Text = escape(metadata.h1 || metadata.entityName || metadata.title);
+
     if (product) {
-      const escape = (s) => (s ? String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "");
-      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${escape(metadata.entityName || metadata.title)}</h1><p>${escape(metadata.description)}</p><span>${metadata.price ? `${metadata.price} ${metadata.currency || "EGP"}` : ""}</span></div>`;
+      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${h1Text}</h1><p>${escape(metadata.description)}</p><span>${metadata.price ? `${metadata.price} ${metadata.currency || "EGP"}` : ""}</span></div>`;
     } else if (category) {
-      const escape = (s) => (s ? String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "");
-      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${escape(metadata.entityName || metadata.title)}</h1><p>${escape(metadata.description)}</p></div>`;
+      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${h1Text}</h1><p>${escape(metadata.description)}</p></div>`;
     } else if (article) {
-      const escape = (s) => (s ? String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "");
-      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${escape(metadata.entityName || metadata.title)}</h1><p>${escape(metadata.description)}</p></div>`;
+      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${h1Text}</h1><p>${escape(metadata.description)}</p></div>`;
     } else if (landingMeta) {
-      const escape = (s) => (s ? String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "");
-      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${escape(metadata.entityName || metadata.title)}</h1><p>${escape(metadata.description)}</p><span>${metadata.price ? `${metadata.price} ${metadata.currency || "EGP"}` : ""}</span></div>`;
+      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${h1Text}</h1><p>${escape(metadata.description)}</p><span>${metadata.price ? `${metadata.price} ${metadata.currency || "EGP"}` : ""}</span></div>`;
     } else if (metadata.title) {
-      const escape = (s) => (s ? String(s).replace(/</g, "&lt;").replace(/>/g, "&gt;") : "");
-      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${escape(metadata.entityName || metadata.title)}</h1><p>${escape(metadata.description || "")}</p></div>`;
+      semanticSnippet = `<div class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0" aria-hidden="true"><h1>${h1Text}</h1><p>${escape(metadata.description || "")}</p></div>`;
     }
 
     if (semanticSnippet && html.includes('<div id="root"></div>')) {

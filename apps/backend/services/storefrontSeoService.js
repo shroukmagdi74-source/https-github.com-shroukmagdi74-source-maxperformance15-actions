@@ -568,6 +568,7 @@ const buildStorefrontSeoMetadata = ({
   templateContent,
   product = null,
   category = null,
+  products = null,
   article = null,
   storePage = null,
   landing = null,
@@ -676,6 +677,9 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      h1: courseTitle,
+      ogTitle: courseTitle,
+      imageAlt: courseTitle,
       entityName,
       description,
       image,
@@ -744,8 +748,12 @@ const buildStorefrontSeoMetadata = ({
       },
     };
 
+    const cleanLandingTitle = entityName;
     return {
       title,
+      h1: cleanLandingTitle,
+      ogTitle: cleanLandingTitle,
+      imageAlt: cleanLandingTitle,
       entityName,
       description,
       image,
@@ -775,17 +783,27 @@ const buildStorefrontSeoMetadata = ({
       (routeContext.productKey ? titleizeSegment(routeContext.productKey) : null) ||
       storeName;
     const productTitle = candidateTitle;
-    entityName = trimToNull(productWithSeoOverrides.name) || candidateTitle;
+    const cleanTitle =
+      trimToNull(productWithSeoOverrides.name) ||
+      trimToNull(productWithSeoOverrides.metaTitle) ||
+      candidateTitle;
+    entityName = cleanTitle;
+    const h1 = cleanTitle;
+
+    const rawBrand = product.brand?.name || product.brand || product.brandName;
+    const productBrand = trimToNull(rawBrand);
+    const brandName = productBrand || storeName;
+    const ogTitle =
+      productBrand && productBrand.toLowerCase() !== storeName.toLowerCase()
+        ? `${cleanTitle} | ${productBrand}`
+        : cleanTitle;
+
     title = trimToNull(productWithSeoOverrides.metaTitle)
       ? productTitle
       : applyTitleTemplate(titleTemplate, productTitle, storeName);
-    description =
-      trimToNull(productWithSeoOverrides.metaDescription) ||
-      trimToNull(stripHtml(productWithSeoOverrides.description)) ||
-      (companyDescription
-        ? `${productTitle} من ${storeName} — تسوق أونلاين. ${companyDescription}`
-        : `${productTitle} من ${storeName} — تسوق أونلاين بأفضل جودة وسعر.`);
+
     image = resolveProductImage(productWithSeoOverrides, currentUrl) || defaultImage;
+    const imageAlt = cleanTitle || storeName;
     const preloadImageTarget = resolveClientMatchedProductPreloadTarget(
       productWithSeoOverrides,
       currentUrl,
@@ -801,6 +819,38 @@ const buildStorefrontSeoMetadata = ({
     availability = isOutOfStock
       ? "https://schema.org/OutOfStock"
       : "https://schema.org/InStock";
+
+    // Build rich description:
+    // "{name} — {category/type} من {brand}. السعر {price} {currency} · {متوفر/غير متوفر}. {أول 100 حرف من الوصف}"
+    const categoryTypeName = trimToNull(product.category?.name) || trimToNull(product.type) || "";
+    const catBrandPart = categoryTypeName ? `${categoryTypeName} من ${brandName}` : `من ${brandName}`;
+    const priceText = price !== null ? `السعر ${price} ${currency}` : "";
+    const availText = isOutOfStock ? "غير متوفر" : "متوفر";
+    const statusText = priceText ? `${priceText} · ${availText}` : availText;
+
+    const rawProductDesc = trimToNull(stripHtml(productWithSeoOverrides.description || "")) || "";
+    const cleanSnippet = rawProductDesc.replace(/\s+/g, " ").trim();
+    const shortDesc = cleanSnippet
+      ? (cleanSnippet.length > 100 ? `${cleanSnippet.slice(0, 100).trim()}…` : cleanSnippet)
+      : "";
+
+    const descSegments = [];
+    if (cleanTitle) {
+      descSegments.push(`${cleanTitle} — ${catBrandPart}.`);
+    }
+    if (statusText) {
+      descSegments.push(`${statusText}.`);
+    }
+    if (shortDesc) {
+      descSegments.push(shortDesc);
+    }
+    const richDescription = descSegments.join(" ");
+
+    description =
+      trimToNull(productWithSeoOverrides.metaDescription) ||
+      richDescription ||
+      fallbackDescription;
+    const ogDescription = richDescription || description;
 
     const prodSlug = product.slug
       ? getPublicProductSlug(product.slug)
@@ -827,12 +877,12 @@ const buildStorefrontSeoMetadata = ({
     const productSchema = {
       "@context": "https://schema.org",
       "@type": "Product",
-      name: productTitle,
-      description,
+      name: cleanTitle,
+      description: trimToNull(stripHtml(productWithSeoOverrides.description)) || description,
       image: image ? [image] : [],
       brand: {
         "@type": "Brand",
-        name: storeName,
+        name: brandName,
       },
       offers,
     };
@@ -885,6 +935,10 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      h1,
+      ogTitle,
+      ogDescription,
+      imageAlt,
       entityName,
       description,
       image,
@@ -912,7 +966,10 @@ const buildStorefrontSeoMetadata = ({
       trimToNull(category.name) ||
       (routeContext.categorySlug ? titleizeSegment(routeContext.categorySlug) : null) ||
       storeName;
-    entityName = trimToNull(category.name) || categoryTitle;
+    const cleanCategoryName = trimToNull(category.name) || categoryTitle;
+    entityName = cleanCategoryName;
+    const h1 = cleanCategoryName;
+    const ogTitle = categoryTitle;
     title = trimToNull(category.metaTitle)
       ? categoryTitle
       : applyTitleTemplate(titleTemplate, categoryTitle, storeName);
@@ -923,18 +980,48 @@ const buildStorefrontSeoMetadata = ({
         ? `تصفح منتجات قسم ${categoryTitle} من ${storeName}. ${companyDescription}`
         : `تصفح منتجات قسم ${categoryTitle} من ${storeName} واكتشف أحدث التشكيلات والأسعار.`);
     image = resolveAbsoluteUrl(category.image, currentUrl) || defaultImage;
+    const imageAlt = cleanCategoryName || storeName;
     type = "website";
 
     const catSlug = category.slug || routeContext.categorySlug;
     canonicalUrl = `${baseUrl}/collections/${encodeURIComponent(catSlug)}`;
 
+    const categoryProducts = Array.isArray(category.products)
+      ? category.products
+      : (Array.isArray(products) ? products : []);
+
+    const itemListElements = categoryProducts.slice(0, 30).map((prod, index) => {
+      const prodSlug = prod.slug
+        ? getPublicProductSlug(prod.slug)
+        : (prod.id ? String(prod.id) : "");
+      const prodUrl = `${baseUrl}/product/${encodeURIComponent(prodSlug)}`;
+      const prodImg = resolveProductImage(prod, currentUrl);
+      return {
+        "@type": "ListItem",
+        position: index + 1,
+        url: prodUrl,
+        name: prod.name || "",
+        ...(prodImg ? { image: prodImg } : {}),
+      };
+    });
+
     jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: categoryTitle,
+      url: canonicalUrl,
+      numberOfItems: itemListElements.length,
+      itemListElement: itemListElements,
+    };
+
+    const secondaryJsonLd = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
       name: categoryTitle,
       description,
       url: canonicalUrl,
     };
+
     const breadcrumbsJsonLd = {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
@@ -946,6 +1033,9 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      h1,
+      ogTitle,
+      imageAlt,
       entityName,
       description,
       image,
@@ -957,6 +1047,7 @@ const buildStorefrontSeoMetadata = ({
       direction,
       routeContext,
       jsonLd,
+      secondaryJsonLd,
       breadcrumbsJsonLd,
       noIndex,
       googleSiteVerification,
@@ -1018,6 +1109,9 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      h1: entityName,
+      ogTitle: entityName,
+      imageAlt: entityName || storeName,
       entityName,
       description,
       image,
@@ -1132,6 +1226,9 @@ const buildStorefrontSeoMetadata = ({
 
     return {
       title,
+      h1: storeName,
+      ogTitle: storeName,
+      imageAlt: storeName,
       entityName,
       description,
       image,
@@ -1169,6 +1266,34 @@ const buildStorefrontSeoMetadata = ({
       pageDescription = storeDesc
         ? `تسوق جميع منتجات ${storeName} أونلاين. ${storeDesc}`
         : `تسوق جميع منتجات ${storeName} أونلاين — اكتشف أحدث المنتجات والعروض الحصرية بأفضل الأسعار.`;
+
+      const shopProducts = Array.isArray(products)
+        ? products
+        : (Array.isArray(category?.products) ? category.products : []);
+
+      const shopElements = shopProducts.slice(0, 30).map((prod, index) => {
+        const prodSlug = prod.slug
+          ? getPublicProductSlug(prod.slug)
+          : (prod.id ? String(prod.id) : "");
+        const prodUrl = `${baseUrl}/product/${encodeURIComponent(prodSlug)}`;
+        const prodImg = resolveProductImage(prod, currentUrl);
+        return {
+          "@type": "ListItem",
+          position: index + 1,
+          url: prodUrl,
+          name: prod.name || "",
+          ...(prodImg ? { image: prodImg } : {}),
+        };
+      });
+
+      jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        name: `${storeName} — ${pageTitle}`,
+        url: canonicalUrl,
+        numberOfItems: shopElements.length,
+        itemListElement: shopElements,
+      };
     } else if (routeContext.pageSegment === "collections" || routeContext.pageSegment === "category") {
       const slugTitle = routeContext.categorySlug ? titleizeSegment(routeContext.categorySlug) : null;
       pageTitle = slugTitle || "التصنيفات";
@@ -1213,8 +1338,15 @@ const buildStorefrontSeoMetadata = ({
     description = pageDescription;
   }
 
+  const h1 = entityName || storeName;
+  const ogTitle = entityName || title;
+  const imageAlt = h1 || storeName;
+
   return {
     title,
+    h1,
+    ogTitle,
+    imageAlt,
     entityName,
     description,
     image,
@@ -1244,8 +1376,18 @@ const injectStorefrontSeoTags = (html, metadata) => {
   );
 
   nextHtml = setMetaTag(nextHtml, "name", "description", metadata.description);
-  nextHtml = setMetaTag(nextHtml, "property", "og:title", metadata.entityName || metadata.title);
-  nextHtml = setMetaTag(nextHtml, "property", "og:description", metadata.description);
+  nextHtml = setMetaTag(
+    nextHtml,
+    "property",
+    "og:title",
+    metadata.ogTitle || metadata.h1 || metadata.entityName || metadata.title,
+  );
+  nextHtml = setMetaTag(
+    nextHtml,
+    "property",
+    "og:description",
+    metadata.ogDescription || metadata.description,
+  );
   nextHtml = setMetaTag(nextHtml, "property", "og:type", metadata.type || "website");
   nextHtml = setMetaTag(nextHtml, "property", "og:url", metadata.url);
   nextHtml = setMetaTag(nextHtml, "property", "og:site_name", metadata.siteName);
@@ -1255,11 +1397,31 @@ const injectStorefrontSeoTags = (html, metadata) => {
     "twitter:card",
     metadata.image ? "summary_large_image" : "summary",
   );
-  nextHtml = setMetaTag(nextHtml, "name", "twitter:title", metadata.title);
-  nextHtml = setMetaTag(nextHtml, "name", "twitter:description", metadata.description);
+  nextHtml = setMetaTag(
+    nextHtml,
+    "name",
+    "twitter:title",
+    metadata.ogTitle || metadata.h1 || metadata.title,
+  );
+  nextHtml = setMetaTag(
+    nextHtml,
+    "name",
+    "twitter:description",
+    metadata.ogDescription || metadata.description,
+  );
 
   if (metadata.image) {
     nextHtml = setMetaTag(nextHtml, "property", "og:image", metadata.image);
+    const altText =
+      metadata.imageAlt ||
+      metadata.h1 ||
+      metadata.entityName ||
+      metadata.siteName ||
+      metadata.title;
+    if (altText) {
+      nextHtml = setMetaTag(nextHtml, "property", "og:image:alt", altText);
+      nextHtml = setMetaTag(nextHtml, "name", "twitter:image:alt", altText);
+    }
     nextHtml = setMetaTag(nextHtml, "name", "twitter:image", metadata.image);
     nextHtml = setMetaTag(nextHtml, "property", "og:image:width", "1200");
     nextHtml = setMetaTag(nextHtml, "property", "og:image:height", "630");

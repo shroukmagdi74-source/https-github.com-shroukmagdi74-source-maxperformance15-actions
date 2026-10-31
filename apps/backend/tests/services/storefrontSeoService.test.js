@@ -252,7 +252,9 @@ describe("storefrontSeoService", () => {
     expect(metadata.description).toBe("تسوق أفضل الأحذية الصيفية المريحة بأفضل الأسعار.");
     expect(metadata.jsonLd).toMatchObject({
       "@context": "https://schema.org",
-      "@type": "CollectionPage",
+      // T14: collection pages now emit ItemList (was CollectionPage) so Google
+      // can render the category carousel; the breadcrumb schema is unchanged.
+      "@type": "ItemList",
       name: "أحذية صيفية مريحة | Swan",
     });
     expect(metadata.breadcrumbsJsonLd).toMatchObject({
