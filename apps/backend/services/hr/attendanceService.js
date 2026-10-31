@@ -633,18 +633,82 @@ class AttendanceService {
       return { method: "network", attemptId };
     }
 
+    // 🏢 4.5) جهاز الشركة المكتبي المصرح به (OFFICE device)
+    // أجهزة سطح المكتب المعتمدة والموجودة في مقر الشركة لا تمتلك شريحة GPS
+    // التحقق من بصمة الجهاز المعتمدة يعفي من GPS ويوثق التواجد داخل مقر العمل
+    const deviceFingerprint = context?.deviceFingerprint || data?.fingerprint || null;
+    if (deviceFingerprint) {
+      try {
+        const registeredDevice = await this.prisma.userDevice.findFirst({
+          where: {
+            companyId,
+            fingerprint: String(deviceFingerprint).trim(),
+          },
+        });
+
+        if (registeredDevice) {
+          if (registeredDevice.deviceType === "OFFICE" && registeredDevice.isApproved !== false) {
+            const attemptId = await logAttempt("SUCCESS", {
+              reason: "office_device_verified",
+              branchIpMatch,
+              method: data.method === "desktop_workspace" ? "desktop_workspace" : "office_device",
+              deviceType: "OFFICE",
+            });
+            return {
+              method: data.method === "desktop_workspace" ? "desktop_workspace" : "office_device",
+              attemptId,
+              deviceName: registeredDevice.deviceName,
+            };
+          } else if (registeredDevice.isApproved === false) {
+            const attemptId = await logAttempt("ERROR", {
+              reason: "device_not_approved",
+              branchIpMatch,
+              deviceType: registeredDevice.deviceType,
+            });
+            const error = new AttendanceError("جهاز الشركة غير معتمد من قِبل الإدارة. يرجى مراجعة مسؤول النظام.");
+            error.statusCode = 403;
+            error.geofenceData = {
+              failure: "DEVICE_NOT_APPROVED",
+              attemptId,
+              requiresLocation: false,
+            };
+            throw error;
+          }
+        }
+      } catch (devCheckErr) {
+        if (devCheckErr instanceof AttendanceError) throw devCheckErr;
+        console.warn("⚠️ [ATTENDANCE] Error verifying office device:", devCheckErr?.message || devCheckErr);
+      }
+    }
+
+    // إذا كان الطلب قادماً من تطبيق سطح المكتب ولم يكن الجهاز مسجلاً كـ OFFICE
+    if (data.method === "desktop_workspace") {
+      const attemptId = await logAttempt("GEOFENCE_FAILED", {
+        reason: "unverified_desktop_workspace_device",
+        branchIpMatch,
+      });
+      const error = new AttendanceError("البصمة التلقائية من تطبيق سطح المكتب تتطلب اعتماد الجهاز كجهاز شركة (OFFICE) في لوحة التحكم.");
+      error.statusCode = 403;
+      error.geofenceData = {
+        failure: "DEVICE_CLASSIFICATION_REQUIRED",
+        attemptId,
+        requiresLocation: false,
+      };
+      throw error;
+    }
+
     // 5) مفيش موقع أصلاً
     if (!data.location) {
       const attemptId = await logAttempt("LOCATION_MISSING", { branchIpMatch: false });
       const error = new AttendanceError(
-        `يجب السماح بالوصول للموقع لتسجيل ${punchLabel} من المكتب`,
+        `يجب السماح بالوصول للموقع لتسجيل ${punchLabel} من المكتب، أو البصم من جهاز الشركة المعتمد`,
       );
       error.statusCode = 403;
       error.geofenceData = {
         requiresLocation: true,
         failure: "LOCATION_MISSING",
         attemptId,
-        canRequestException: false,
+        canRequestException: true,
         branchNetworkEnabled: Boolean(hrSettings.branchNetworkEnabled),
       };
       throw error;
@@ -729,6 +793,18 @@ class AttendanceService {
     const todayForCalc = getStartOfDayInTimezone(new Date(), timezone); // for time math only
     const now = getNowInTimezone(timezone);
 
+    // Support originalTimestamp from local offline queue
+    let punchTime = now;
+    if (data.originalTimestamp) {
+      const origDate = new Date(data.originalTimestamp);
+      if (!isNaN(origDate.getTime())) {
+        const origDateForDb = normalizeDateForDb(origDate, timezone);
+        if (origDateForDb.toISOString().split("T")[0] === todayForDb.toISOString().split("T")[0]) {
+          punchTime = origDate;
+        }
+      }
+    }
+
     try {
       // التحقق من حالة الموظف والحساب التجريبي لمنع التسجيل بحسابات معطلة أو تجريبية
       const empUser = await this.prisma.user.findUnique({
@@ -737,6 +813,43 @@ class AttendanceService {
       });
       if (empUser && empUser.isActive === false) {
         throw new AttendanceError("الحساب معطل أو تجريبي ولا يمكن تسجيل الحضور به");
+      }
+
+      // التحقق من قيد المستخدم كموظف في الشركة (hr_employees)
+      const employeeRecord = await this.prisma.employee.findFirst({
+        where: {
+          companyId,
+          userId: employeeId,
+        },
+      });
+
+      if (!employeeRecord) {
+        // تسجيل المحاولة المرفوضة في hr_attendance_attempts لتوثيق الواقعة
+        try {
+          await this.prisma.hrAttendanceAttempt.create({
+            data: {
+              companyId,
+              userId: employeeId,
+              action: "CHECK_IN",
+              attendanceDate: todayForDb,
+              result: "ERROR",
+              reason: "NOT_AN_EMPLOYEE: أنت غير مسجل كموظف في الشركة (لا يوجد ملف وظيفي في hr_employees)",
+              clientIp: context?.ip || null,
+              userAgent: context?.userAgent || null,
+              deviceType: context?.deviceType || null,
+              method: data?.method || null,
+              workMode: data?.workMode || null,
+            },
+          });
+        } catch (logErr) {
+          console.warn("⚠️ [ATTENDANCE-ATTEMPT] Failed to log unlinked employee attempt:", logErr?.message || logErr);
+        }
+
+        const notEmpError = new AttendanceError("أنت غير مسجل كموظف في هذه الشركة. يرجى مراجعة إدارة الشركة لربط حسابك أو إضافة ملفك الوظيفي.");
+        notEmpError.statusCode = 403;
+        notEmpError.code = "NOT_AN_EMPLOYEE";
+        notEmpError.canRequestLink = true;
+        throw notEmpError;
       }
 
       // Normalize location data to JSON string for database storage
@@ -839,9 +952,9 @@ class AttendanceService {
           workStart.getTime() + config.allowanceMinutes * 60000,
         );
 
-        if (now > graceTime) {
+        if (punchTime > graceTime) {
           lateMinutes = Math.floor(
-            (now.getTime() - graceTime.getTime()) / 60000,
+            (punchTime.getTime() - graceTime.getTime()) / 60000,
           );
           status = "LATE";
         }
@@ -851,12 +964,13 @@ class AttendanceService {
         ? await this.prisma.attendance.update({
             where: { id: existing.id },
             data: {
-              checkIn: now,
+              checkIn: punchTime,
               checkInLocation: normalizedLocation,
               checkInMethod: punchMethod,
               workMode: data.workMode || "OFFICE",
               lateMinutes,
               status,
+              employeeRelId: employeeRecord?.id || undefined,
             },
           })
         : await this.prisma.attendance.create({
@@ -864,8 +978,9 @@ class AttendanceService {
               id: uuidv4(),
               companyId,
               userId: employeeId,
+              employeeRelId: employeeRecord?.id || null,
               date: todayForDb, // ✅ FIX: Use normalized date for @db.Date column
-              checkIn: now,
+              checkIn: punchTime,
               checkInLocation: normalizedLocation,
               checkInMethod: punchMethod,
               workMode: data.workMode || "OFFICE",
@@ -1043,6 +1158,42 @@ class AttendanceService {
     const now = getNowInTimezone(timezone);
 
     try {
+      // التحقق من قيد المستخدم كموظف في الشركة (hr_employees)
+      const employeeRecord = await this.prisma.employee.findFirst({
+        where: {
+          companyId,
+          userId: employeeId,
+        },
+      });
+
+      if (!employeeRecord) {
+        try {
+          await this.prisma.hrAttendanceAttempt.create({
+            data: {
+              companyId,
+              userId: employeeId,
+              action: "CHECK_OUT",
+              attendanceDate: today,
+              result: "ERROR",
+              reason: "NOT_AN_EMPLOYEE: أنت غير مسجل كموظف في الشركة (لا يوجد ملف وظيفي في hr_employees)",
+              clientIp: context?.ip || null,
+              userAgent: context?.userAgent || null,
+              deviceType: context?.deviceType || null,
+              method: data?.method || null,
+              workMode: data?.workMode || null,
+            },
+          });
+        } catch (logErr) {
+          console.warn("⚠️ [ATTENDANCE-ATTEMPT] Failed to log unlinked employee attempt:", logErr?.message || logErr);
+        }
+
+        const notEmpError = new AttendanceError("أنت غير مسجل كموظف في هذه الشركة. يرجى مراجعة إدارة الشركة لربط حسابك أو إضافة ملفك الوظيفي.");
+        notEmpError.statusCode = 403;
+        notEmpError.code = "NOT_AN_EMPLOYEE";
+        notEmpError.canRequestLink = true;
+        throw notEmpError;
+      }
+
       // Normalize location data to JSON string for database storage
       const normalizedLocation =
         data.location && typeof data.location === "object"
@@ -3683,6 +3834,297 @@ class AttendanceService {
     } catch (error) {
       console.error("❌ [Attendance] Error calculating streak:", error);
       return 0;
+    }
+  }
+
+  /**
+   * 🔍 تقرير البصمات المفقودة (محاولات تمت على الأجهزة ولم تُسجل في الحضور)
+   * @param {string} companyId
+   * @param {object} filters
+   */
+  async getMissingPunchesReport(companyId, filters = {}) {
+    try {
+      const { startDate, endDate, userId, limit = 50, page = 1 } = filters;
+      const skip = (Math.max(1, Number(page)) - 1) * Math.max(1, Number(limit));
+      const take = Math.max(1, Math.min(200, Number(limit)));
+
+      const where = {
+        companyId,
+        action: "CHECK_IN",
+      };
+
+      if (userId) {
+        where.userId = userId;
+      }
+
+      if (startDate || endDate) {
+        where.attendanceDate = {};
+        if (startDate) {
+          where.attendanceDate.gte = new Date(startDate);
+        }
+        if (endDate) {
+          where.attendanceDate.lte = new Date(endDate);
+        }
+      }
+
+      // جلب المحاولات للفحص
+      const attempts = await this.prisma.hrAttendanceAttempt.findMany({
+        where,
+        orderBy: { attemptedAt: "desc" },
+        take: 500,
+      });
+
+      const userIds = [...new Set(attempts.map((a) => a.userId))];
+
+      const [users, employees, attendances] = await Promise.all([
+        this.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, firstName: true, lastName: true, email: true },
+        }),
+        this.prisma.employee.findMany({
+          where: { companyId, userId: { in: userIds } },
+          select: { id: true, userId: true, employeeId: true, departmentId: true },
+        }),
+        this.prisma.attendance.findMany({
+          where: {
+            companyId,
+            userId: { in: userIds },
+            ...(where.attendanceDate ? { date: where.attendanceDate } : {}),
+          },
+          select: { id: true, userId: true, date: true, checkIn: true },
+        }),
+      ]);
+
+      const userMap = new Map(users.map((u) => [u.id, u]));
+      const empMap = new Map(employees.map((e) => [e.userId, e]));
+      const attendanceMap = new Set(
+        attendances
+          .filter((a) => Boolean(a.checkIn))
+          .map((a) => {
+            const dateStr = a.date instanceof Date ? a.date.toISOString().split("T")[0] : String(a.date).split("T")[0];
+            return `${a.userId}_${dateStr}`;
+          }),
+      );
+
+      const missingAttempts = [];
+      const employeeCounter = new Map();
+
+      for (const attempt of attempts) {
+        const dateStr = attempt.attendanceDate instanceof Date
+          ? attempt.attendanceDate.toISOString().split("T")[0]
+          : String(attempt.attendanceDate).split("T")[0];
+        const key = `${attempt.userId}_${dateStr}`;
+        const hasAttendance = attendanceMap.has(key);
+
+        const isMissing = !hasAttendance || !attempt.attendanceId;
+
+        if (isMissing) {
+          const user = userMap.get(attempt.userId);
+          const emp = empMap.get(attempt.userId);
+          const userName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email : "غير معروف";
+
+          missingAttempts.push({
+            id: attempt.id,
+            userId: attempt.userId,
+            userName,
+            employeeCode: emp?.employeeId || null,
+            attendanceDate: attempt.attendanceDate,
+            attemptedAt: attempt.attemptedAt,
+            action: attempt.action,
+            result: attempt.result,
+            reason: attempt.reason,
+            deviceType: attempt.deviceType,
+            clientIp: attempt.clientIp,
+            method: attempt.method,
+            branchIpMatch: attempt.branchIpMatch,
+            hasAttendanceRecord: hasAttendance,
+            attendanceId: attempt.attendanceId,
+          });
+
+          const currentCount = employeeCounter.get(attempt.userId) || {
+            userId: attempt.userId,
+            userName,
+            employeeCode: emp?.employeeId || null,
+            count: 0,
+            latestAttemptAt: attempt.attemptedAt,
+          };
+          currentCount.count += 1;
+          if (new Date(attempt.attemptedAt) > new Date(currentCount.latestAttemptAt)) {
+            currentCount.latestAttemptAt = attempt.attemptedAt;
+          }
+          employeeCounter.set(attempt.userId, currentCount);
+        }
+      }
+
+      const totalCount = missingAttempts.length;
+      const paginatedAttempts = missingAttempts.slice(skip, skip + take);
+
+      return {
+        summary: {
+          totalMissingPunches: totalCount,
+          totalAffectedEmployees: employeeCounter.size,
+          byEmployee: Array.from(employeeCounter.values()).sort((a, b) => b.count - a.count),
+        },
+        attempts: paginatedAttempts,
+        pagination: {
+          page: Number(page),
+          limit: take,
+          total: totalCount,
+          pages: Math.ceil(totalCount / take) || 1,
+        },
+      };
+    } catch (error) {
+      console.error("❌ [Attendance] Error getting missing punches report:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🔄 فحص يومي للبصمات المفقودة وإرسال تنبيه للإدارة
+   * @param {string} companyId
+   * @param {Date|string|null} targetDate
+   */
+  async checkDailyMissingPunches(companyId, targetDate = null) {
+    try {
+      const timezone = await this.getCompanyTimezone(companyId);
+      const dateObj = targetDate ? new Date(targetDate) : new Date();
+      const checkDateForDb = normalizeDateForDb(dateObj, timezone);
+
+      const report = await this.getMissingPunchesReport(companyId, {
+        startDate: checkDateForDb,
+        endDate: checkDateForDb,
+        limit: 100,
+      });
+
+      const missingCount = report.summary.totalMissingPunches;
+      const affectedCount = report.summary.totalAffectedEmployees;
+
+      if (missingCount > 0) {
+        const topAffectedNames = report.summary.byEmployee
+          .slice(0, 3)
+          .map((e) => `${e.userName} (${e.count})`)
+          .join("، ");
+
+        await hrNotificationService.notifyHrEvent({
+          companyId,
+          notificationKey: "notifyOnAttendanceIssue",
+          includeManagers: true,
+          title: "⚠️ رصد بصمات مفقودة لم تُسجل",
+          message: `تم رصد ${missingCount} محاولة بصمة لم تُسجل في الحضور لـ ${affectedCount} موظف اليوم: ${topAffectedNames}.`,
+          type: "HR_ATTENDANCE_ISSUE",
+          data: {
+            date: checkDateForDb.toISOString().split("T")[0],
+            missingCount,
+            affectedEmployees: report.summary.byEmployee,
+          },
+          whatsApp: {
+            actionId: "ATTENDANCE_MISSING_PUNCHES",
+            actionName: "تقرير البصمات المفقودة",
+            details: `التاريخ: ${checkDateForDb.toISOString().split("T")[0]}\nعدد البصمات المفقودة: ${missingCount}\nعدد الموظفين المتأثرين: ${affectedCount}\nأبرز الموظفين: ${topAffectedNames}`,
+            requiresApproval: false,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        date: checkDateForDb.toISOString().split("T")[0],
+        missingCount,
+        affectedEmployeesCount: affectedCount,
+        details: report.summary,
+      };
+    } catch (error) {
+      console.error("❌ [Attendance] Error checking daily missing punches:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🛠️ تسوية بصمة مفقودة وإنشاء سجل حضور لها
+   * @param {string} companyId
+   * @param {string} attemptId
+   * @param {object} resolution
+   */
+  async resolveMissingPunch(companyId, attemptId, { actorId, actorName, notes, checkInTime }) {
+    try {
+      if (!attemptId) {
+        const error = new AttendanceError("معرّف المحاولة (attemptId) مطلوب");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const attempt = await this.prisma.hrAttendanceAttempt.findUnique({
+        where: { id: attemptId },
+      });
+
+      if (!attempt || attempt.companyId !== companyId) {
+        const error = new AttendanceError("محاولة البصمة غير موجودة أو غير تابعة للشركة");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      let attendance = await this.prisma.attendance.findUnique({
+        where: {
+          userId_date: {
+            userId: attempt.userId,
+            date: attempt.attendanceDate,
+          },
+        },
+      });
+
+      const punchTime = checkInTime ? new Date(checkInTime) : attempt.attemptedAt;
+      const resolverInfo = actorName || actorId || "الإدارة";
+
+      const empRecord = await this.prisma.employee.findFirst({
+        where: { companyId, userId: attempt.userId },
+      });
+
+      if (attendance) {
+        if (!attendance.checkIn) {
+          attendance = await this.prisma.attendance.update({
+            where: { id: attendance.id },
+            data: {
+              checkIn: punchTime,
+              checkInMethod: "resolved_missing_punch",
+              status: "PRESENT",
+              employeeRelId: empRecord?.id || undefined,
+            },
+          });
+        }
+      } else {
+        attendance = await this.prisma.attendance.create({
+          data: {
+            id: uuidv4(),
+            companyId,
+            userId: attempt.userId,
+            employeeRelId: empRecord?.id || null,
+            date: attempt.attendanceDate,
+            checkIn: punchTime,
+            checkInMethod: "resolved_missing_punch",
+            workMode: attempt.workMode || "OFFICE",
+            status: "PRESENT",
+            lateMinutes: 0,
+          },
+        });
+      }
+
+      const updatedReason = `${attempt.reason || ""} [تمت التسوية يدوياً بواسطة: ${resolverInfo}${notes ? ` - ملاحظات: ${notes}` : ""}]`.trim();
+      await this.prisma.hrAttendanceAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          attendanceId: attendance.id,
+          reason: updatedReason,
+        },
+      });
+
+      return {
+        success: true,
+        message: "تمت تسوية البصمة وتسجيل الحضور بنجاح",
+        attendance,
+      };
+    } catch (error) {
+      console.error("❌ [Attendance] Error resolving missing punch:", error);
+      throw error;
     }
   }
 }
