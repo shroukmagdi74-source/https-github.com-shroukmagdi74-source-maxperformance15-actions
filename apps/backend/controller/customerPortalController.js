@@ -72,4 +72,7 @@ class CustomerPortalController {
   }
 }
 
+// Wholesale Portal Controller integration (TASK 5)
+CustomerPortalController.wholesale = require('./wholesalePortalController');
+
 module.exports = CustomerPortalController;

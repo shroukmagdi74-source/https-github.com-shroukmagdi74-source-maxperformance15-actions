@@ -1546,4 +1546,7 @@ router._resetPlatformCompanyCache = () => {
   cachedPlatformCompany = { companyId: null, expiresAt: 0 };
 };
 
+// Wholesale Portal mount (TASK 5)
+router.use('/wholesale-portal', require('./wholesalePortalRoutes'));
+
 module.exports = router;
