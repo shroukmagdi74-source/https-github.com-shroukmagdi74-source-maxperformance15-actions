@@ -1314,6 +1314,21 @@ const CustomerWalletPage = React.lazy(
 const CustomerProfilePage = React.lazy(
   () => import("./pages/account/CustomerProfilePage"),
 );
+const WholesalePortalHub = React.lazy(
+  () => import("./pages/wholesale-portal/WholesalePortalHub"),
+);
+const WholesaleOrdersPage = React.lazy(
+  () => import("./pages/wholesale-portal/WholesaleOrdersPage").then(m => ({ default: m.WholesaleOrdersPage })),
+);
+const WholesaleStatementPage = React.lazy(
+  () => import("./pages/wholesale-portal/WholesaleStatementPage").then(m => ({ default: m.WholesaleStatementPage })),
+);
+const WholesalePricesPage = React.lazy(
+  () => import("./pages/wholesale-portal/WholesalePricesPage").then(m => ({ default: m.WholesalePricesPage })),
+);
+const WholesaleNewOrderPage = React.lazy(
+  () => import("./pages/wholesale-portal/WholesaleNewOrderPage").then(m => ({ default: m.WholesaleNewOrderPage })),
+);
 const FormsBuilderPage = React.lazy(
   () => import("./pages/admin/FormsBuilderPage"),
 );
@@ -2424,6 +2439,21 @@ const AppContent = () => {
             <Route path="/account" element={<CustomerPortalLayout><CustomerAccountHome /></CustomerPortalLayout>} />
             <Route path="/account/cashback" element={<CustomerPortalLayout><CustomerWalletPage /></CustomerPortalLayout>} />
             <Route path="/account/profile" element={<CustomerPortalLayout><CustomerProfilePage /></CustomerPortalLayout>} />
+            {/* Wholesale Portal Routes (TASK 5) */}
+            <Route
+              path="/wholesale-portal"
+              element={
+                <CustomerPortalLayout>
+                  <WholesalePortalHub />
+                </CustomerPortalLayout>
+              }
+            >
+              <Route index element={<WholesaleOrdersPage />} />
+              <Route path="orders" element={<WholesaleOrdersPage />} />
+              <Route path="statement" element={<WholesaleStatementPage />} />
+              <Route path="prices" element={<WholesalePricesPage />} />
+              <Route path="new-order" element={<WholesaleNewOrderPage />} />
+            </Route>
             {/* Public Application Form - For job applicants */}
             <Route path="/apply/:formId" element={<PublicApplicationForm />} />
             

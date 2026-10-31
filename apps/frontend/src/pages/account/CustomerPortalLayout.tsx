@@ -8,11 +8,16 @@ import {
   User,
   Wallet,
   X,
+  ShoppingBag,
+  FileText,
+  Tag,
+  PlusCircle,
 } from "lucide-react";
 
 import { useAuth } from "../../hooks/useAuthSimple";
 import { tokenManager } from "../../utils/tokenManager";
 import { useCompanyBranding } from "../../hooks/useCompanyBranding";
+import { apiClient } from "../../services/apiClient";
 
 interface CustomerPortalLayoutProps {
   children: React.ReactNode;
@@ -74,6 +79,21 @@ const CustomerPortalLayout: React.FC<CustomerPortalLayoutProps> = ({
   })();
   const branding = useCompanyBranding(tokenCompanyId);
   const accentColor = branding.accent || "#6366f1";
+
+  const [wholesaleProfile, setWholesaleProfile] = React.useState<{ isActive: boolean; availableCredit: number } | null>(null);
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      apiClient
+        .get("/wholesale-portal/me")
+        .then((res) => {
+          if (res.data?.success && res.data?.data?.isActive) {
+            setWholesaleProfile(res.data.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   const handleLogout = async () => {
     try {
@@ -189,6 +209,43 @@ const CustomerPortalLayout: React.FC<CustomerPortalLayoutProps> = ({
                 </Link>
               );
             })}
+
+            {wholesaleProfile?.isActive && (
+              <div className="pt-3 mt-3 border-t border-gray-100">
+                <div className="px-3 mb-2 flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">
+                    بوابة الموزع
+                  </span>
+                  <span className="text-[10px] font-mono bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold">
+                    معتمد
+                  </span>
+                </div>
+                {[
+                  { path: "/wholesale-portal/orders", label: "طلباتي (الجملة)", icon: ShoppingBag },
+                  { path: "/wholesale-portal/statement", label: "رصيدي وكشف الحساب", icon: FileText },
+                  { path: "/wholesale-portal/prices", label: "أسعاري وقائمتي", icon: Tag },
+                  { path: "/wholesale-portal/new-order", label: "طلب جملة جديد", icon: PlusCircle },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname.startsWith(item.path);
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setSidebarOpen(false)}
+                      className={`flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-indigo-50 text-indigo-700 font-bold"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      <Icon size={18} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </nav>
 
           <div className="absolute bottom-0 left-0 right-0 border-t p-4">
