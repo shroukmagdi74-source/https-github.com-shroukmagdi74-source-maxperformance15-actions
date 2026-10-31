@@ -35,6 +35,7 @@ function createInMemoryStore() {
     sampleOrderExpenses: new Map(),
     productionOrders: new Map(),
     boms: new Map(),
+    partnerFactories: new Map(),
     counter: 0,
   };
 
@@ -276,6 +277,20 @@ function createInMemoryStore() {
         return items[0] || null;
       },
     },
+    partnerFactory: {
+      findFirst: async ({ where } = {}) => {
+        let items = Array.from(store.partnerFactories.values());
+        if (where?.id) items = items.filter((f) => f.id === where.id);
+        if (where?.companyId) items = items.filter((f) => f.companyId === where.companyId);
+        return items[0] || null;
+      },
+      create: async ({ data }) => {
+        const id = data.id || `fac-${++store.counter}`;
+        const record = { id, isActive: true, ...data };
+        store.partnerFactories.set(id, record);
+        return record;
+      },
+    },
     $transaction: async (fn) => fn(currentPrisma),
     $executeRawUnsafe: async () => true,
     _store: store,
@@ -297,6 +312,14 @@ describe('Wave 5: Standalone Sample Orders & Conversion', () => {
       code: 'BOM-HOODIE-OVR-01',
       name: 'هودي أوفر سايز صيفي',
       status: 'APPROVED',
+      isActive: true,
+    });
+
+    // Seed sample Partner Factory
+    currentPrisma._store.partnerFactories.set('fac-1', {
+      id: 'fac-1',
+      companyId,
+      name: 'مصنع الأمل للطباعة',
       isActive: true,
     });
 
@@ -322,6 +345,7 @@ describe('Wave 5: Standalone Sample Orders & Conversion', () => {
           plannedQuantity,
           bomId: payload.bomId,
           variantMatrix: payload.variantMatrix,
+          defaultPartnerFactoryId: payload.defaultPartnerFactoryId,
           createdById: userId,
         },
       });
@@ -395,6 +419,7 @@ describe('Wave 5: Standalone Sample Orders & Conversion', () => {
       materialSource: 'CUSTOMER',
       fee: 2500,
       bomId: 'bom-hoodie-1',
+      partnerFactoryId: 'fac-1',
       stages: [
         { name: 'قص وتجهيز القماش', sequence: 1 },
         { name: 'خياطة وتجميع العينة', sequence: 2 },
@@ -582,5 +607,159 @@ describe('Wave 5: Standalone Sample Orders & Conversion', () => {
     });
     expect(unreceived.sampleReceived).toBe(false);
     expect(unreceived.receivedAt).toBeNull();
+  });
+
+  describe('T03: factory selection', () => {
+    test('1. convertSampleToOrder with factoryMode: DIFFERENT and valid factory calls createOrder with defaultPartnerFactoryId', async () => {
+      currentPrisma._store.partnerFactories.set('qafac-delta', {
+        id: 'qafac-delta',
+        companyId,
+        name: 'مصنع الدلتا للغزل',
+        isActive: true,
+      });
+
+      const sample = await ManufacturingSampleService.createSampleOrder(companyId, testUser, {
+        productName: 'عينة T03-اختبار 1',
+        bomId: 'bom-hoodie-1',
+        partnerFactoryId: 'fac-1',
+      });
+      await ManufacturingSampleService.approveSampleOrder(companyId, testUser, sample.id, { resultNotes: 'معتمد' });
+
+      const createOrderSpy = jest.spyOn(ManufacturingService, 'createOrder');
+      createOrderSpy.mockClear();
+
+      const result = await ManufacturingSampleService.convertSampleToOrder(companyId, testUser, sample.id, {
+        bomId: 'bom-hoodie-1',
+        plannedQuantity: 50,
+        factoryMode: 'DIFFERENT',
+        partnerFactoryId: 'qafac-delta',
+      });
+
+      expect(createOrderSpy).toHaveBeenCalledTimes(1);
+      const passedPayload = createOrderSpy.mock.calls[0][1];
+      expect(passedPayload.defaultPartnerFactoryId).toBe('qafac-delta');
+      expect(result.factory).toEqual({ id: 'qafac-delta', name: 'مصنع الدلتا للغزل' });
+    });
+
+    test('2. Missing factory rejects with clear error and zero calls to createOrder', async () => {
+      const sample = await ManufacturingSampleService.createSampleOrder(companyId, testUser, {
+        productName: 'عينة بلا مصنع',
+        bomId: 'bom-hoodie-1',
+      });
+      await ManufacturingSampleService.approveSampleOrder(companyId, testUser, sample.id, { resultNotes: 'معتمد' });
+
+      const createOrderSpy = jest.spyOn(ManufacturingService, 'createOrder');
+      createOrderSpy.mockClear();
+
+      await expect(
+        ManufacturingSampleService.convertSampleToOrder(companyId, testUser, sample.id, {
+          bomId: 'bom-hoodie-1',
+          plannedQuantity: 50,
+        })
+      ).rejects.toThrow('اختار مصنع التنفيذ قبل التحويل');
+
+      expect(createOrderSpy).not.toHaveBeenCalled();
+    });
+
+    test('3. Factory not belonging to company rejects with error', async () => {
+      currentPrisma._store.partnerFactories.set('fac-other-co', {
+        id: 'fac-other-co',
+        companyId: 'other-company-id',
+        name: 'مصنع شركة ثانية',
+        isActive: true,
+      });
+
+      const sample = await ManufacturingSampleService.createSampleOrder(companyId, testUser, {
+        productName: 'عينة اختبار شركة أخرى',
+        bomId: 'bom-hoodie-1',
+      });
+      await ManufacturingSampleService.approveSampleOrder(companyId, testUser, sample.id, { resultNotes: 'معتمد' });
+
+      await expect(
+        ManufacturingSampleService.convertSampleToOrder(companyId, testUser, sample.id, {
+          bomId: 'bom-hoodie-1',
+          plannedQuantity: 50,
+          factoryMode: 'DIFFERENT',
+          partnerFactoryId: 'fac-other-co',
+        })
+      ).rejects.toThrow('المصنع الشريك غير موجود أو لا ينتمي لهذه الشركة');
+    });
+
+    test('4. Inactive factory rejects with error', async () => {
+      currentPrisma._store.partnerFactories.set('fac-inactive', {
+        id: 'fac-inactive',
+        companyId,
+        name: 'مصنع متوقف',
+        isActive: false,
+      });
+
+      const sample = await ManufacturingSampleService.createSampleOrder(companyId, testUser, {
+        productName: 'عينة اختبار مصنع غير نشط',
+        bomId: 'bom-hoodie-1',
+      });
+      await ManufacturingSampleService.approveSampleOrder(companyId, testUser, sample.id, { resultNotes: 'معتمد' });
+
+      await expect(
+        ManufacturingSampleService.convertSampleToOrder(companyId, testUser, sample.id, {
+          bomId: 'bom-hoodie-1',
+          plannedQuantity: 50,
+          factoryMode: 'DIFFERENT',
+          partnerFactoryId: 'fac-inactive',
+        })
+      ).rejects.toThrow('غير نشط — اختار مصنع تاني');
+    });
+
+    test('5. factoryMode: SAME with sample.partnerFactoryId passes that factory to payload', async () => {
+      currentPrisma._store.partnerFactories.set('qafac-amal', {
+        id: 'qafac-amal',
+        companyId,
+        name: 'مصنع الأمل للطباعة',
+        isActive: true,
+      });
+
+      const sample = await ManufacturingSampleService.createSampleOrder(companyId, testUser, {
+        productName: 'عينة مصنع الأمل',
+        bomId: 'bom-hoodie-1',
+        partnerFactoryId: 'qafac-amal',
+      });
+      await ManufacturingSampleService.approveSampleOrder(companyId, testUser, sample.id, { resultNotes: 'معتمد' });
+
+      const createOrderSpy = jest.spyOn(ManufacturingService, 'createOrder');
+      createOrderSpy.mockClear();
+
+      const result = await ManufacturingSampleService.convertSampleToOrder(companyId, testUser, sample.id, {
+        bomId: 'bom-hoodie-1',
+        plannedQuantity: 60,
+        factoryMode: 'SAME',
+      });
+
+      expect(createOrderSpy).toHaveBeenCalledTimes(1);
+      const passedPayload = createOrderSpy.mock.calls[0][1];
+      expect(passedPayload.defaultPartnerFactoryId).toBe('qafac-amal');
+      expect(result.factory.name).toBe('مصنع الأمل للطباعة');
+    });
+
+    test('6. Double conversion rejects with original message (regression)', async () => {
+      const sample = await ManufacturingSampleService.createSampleOrder(companyId, testUser, {
+        productName: 'عينة تحويل مكرر',
+        bomId: 'bom-hoodie-1',
+        partnerFactoryId: 'fac-1',
+      });
+      await ManufacturingSampleService.approveSampleOrder(companyId, testUser, sample.id, { resultNotes: 'معتمد' });
+
+      await ManufacturingSampleService.convertSampleToOrder(companyId, testUser, sample.id, {
+        bomId: 'bom-hoodie-1',
+        plannedQuantity: 40,
+        factoryMode: 'SAME',
+      });
+
+      await expect(
+        ManufacturingSampleService.convertSampleToOrder(companyId, testUser, sample.id, {
+          bomId: 'bom-hoodie-1',
+          plannedQuantity: 40,
+          factoryMode: 'SAME',
+        })
+      ).rejects.toThrow('تم تحويل هذه العينة بالفعل إلى أمر تصنيع مسبقاً');
+    });
   });
 });

@@ -1282,7 +1282,42 @@ class ManufacturingSampleService {
       ];
     }
 
-    const conversionNote = `محوّل من أمر العينة ${sample.sampleNumber}`;
+    // T03: اختيار المصنع الصريح (نفس مصنع العينة / مصنع مختلف)
+    // ملاحظة: sample.partnerFactoryId ملك T06 — بنقراه بشكل متسامح (مفيش crash لو الحقل مش موجود)
+    const sampleFactoryId = sample.partnerFactoryId ? String(sample.partnerFactoryId) : null;
+    const factoryMode = String(data.factoryMode || '').toUpperCase();       // 'SAME' | 'DIFFERENT' | ''
+    const requestedFactoryId = data.partnerFactoryId ? String(data.partnerFactoryId) : null;
+
+    let resolvedFactoryId = null;
+    if (factoryMode === 'SAME' || (!factoryMode && sampleFactoryId && !requestedFactoryId)) {
+      resolvedFactoryId = sampleFactoryId;
+    } else if (factoryMode === 'DIFFERENT' || requestedFactoryId) {
+      resolvedFactoryId = requestedFactoryId;
+    }
+
+    if (!resolvedFactoryId) {
+      const err = new Error('اختار مصنع التنفيذ قبل التحويل: العينة مش مربوطة بمصنع، فلازم تحدد «مصنع مختلف»');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // تحقق الملكية + النشاط (نفس رسالة createOrder عشان الاتساق)
+    const factory = await prisma.partnerFactory.findFirst({
+      where: { id: resolvedFactoryId, companyId },
+      select: { id: true, name: true, isActive: true },
+    });
+    if (!factory) {
+      const err = new Error('المصنع الشريك غير موجود أو لا ينتمي لهذه الشركة');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (factory.isActive === false) {
+      const err = new Error(`المصنع «${factory.name}» غير نشط — اختار مصنع تاني`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const conversionNote = `محوّل من أمر العينة ${sample.sampleNumber} — مصنع التنفيذ: ${factory.name}`;
     const fullNotes = [data.notes ? String(data.notes).trim() : null, conversionNote].filter(Boolean).join('\n');
 
     const orderPayload = {
@@ -1295,6 +1330,7 @@ class ManufacturingSampleService {
       variantMatrix,
       sourceSampleOrderId: sample.id,
       notes: fullNotes,
+      defaultPartnerFactoryId: resolvedFactoryId,
       startDate: data.startDate || new Date().toISOString(),
       dueDate: data.dueDate || sample.dueDate || null,
       salePricePerUnit: data.salePricePerUnit !== undefined ? data.salePricePerUnit : null,
@@ -1320,8 +1356,9 @@ class ManufacturingSampleService {
 
     return {
       success: true,
-      message: 'تم تحويل العينة بنجاح إلى أمر تصنيع',
+      message: `تم تحويل العينة بنجاح إلى أمر تصنيع (مصنع التنفيذ: ${factory.name})`,
       order: createdOrder,
+      factory: { id: factory.id, name: factory.name },
       sampleOrder: this.decorateTotals({
         ...updatedSample,
         convertedOrder: createdOrder,

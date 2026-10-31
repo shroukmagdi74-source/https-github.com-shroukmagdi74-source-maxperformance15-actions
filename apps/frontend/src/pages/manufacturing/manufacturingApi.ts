@@ -1864,8 +1864,16 @@ export const manufacturingApi = {
       customerId?: string;
       customerOrderId?: string;
       notes?: string;
+      factoryMode?: 'SAME' | 'DIFFERENT';
+      partnerFactoryId?: string;
     }
-  ): Promise<{ success: boolean; message: string; order: ProductionOrder; sampleOrder: SampleOrder }> => {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    order: ProductionOrder;
+    sampleOrder: SampleOrder;
+    factory?: { id: string; name: string };
+  }> => {
     const res = await apiClient.post(`/manufacturing/sample-orders/${id}/convert-to-order`, data);
     return res.data;
   },

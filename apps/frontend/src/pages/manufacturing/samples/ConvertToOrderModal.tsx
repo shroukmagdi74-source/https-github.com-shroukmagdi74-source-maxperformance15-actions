@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowRightLeft, AlertCircle, CheckCircle2, Factory } from 'lucide-react';
-import { manufacturingApi, SampleOrder, BillOfMaterials } from '../manufacturingApi';
+import { manufacturingApi, SampleOrder, BillOfMaterials, PartnerFactory } from '../manufacturingApi';
 
 interface ConvertToOrderModalProps {
   isOpen: boolean;
@@ -25,6 +25,12 @@ export const ConvertToOrderModal: React.FC<ConvertToOrderModalProps> = ({
   const [notes, setNotes] = useState<string>('');
 
   const [boms, setBoms] = useState<BillOfMaterials[]>([]);
+  const [factories, setFactories] = useState<PartnerFactory[]>([]);
+  const [factoryMode, setFactoryMode] = useState<'SAME' | 'DIFFERENT'>('SAME');
+  const [partnerFactoryId, setPartnerFactoryId] = useState<string>('');
+  const sampleFactory = (sample as any)?.partnerFactory || null;      // جايه من T06 لو موجود
+  const sampleFactoryId = (sample as any)?.partnerFactoryId || sampleFactory?.id || null;
+  const sampleFactoryName = sampleFactory?.name || (sampleFactoryId ? 'مصنع العينة' : null);
 
   useEffect(() => {
     if (isOpen && sample) {
@@ -45,6 +51,20 @@ export const ConvertToOrderModal: React.FC<ConvertToOrderModalProps> = ({
           }
         })
         .catch(() => {});
+
+      manufacturingApi
+        .listPartnerFactories({ isActive: true })
+        .then((list: any) => setFactories(Array.isArray(list) ? list : (list?.items || [])))
+        .catch(() => setFactories([]));
+
+      // افتراضي: «نفس مصنع العينة» لو موجود، وإلا «مصنع مختلف» بلا اختيار
+      if (sampleFactoryId) {
+        setFactoryMode('SAME');
+        setPartnerFactoryId('');
+      } else {
+        setFactoryMode('DIFFERENT');
+        setPartnerFactoryId('');
+      }
     }
   }, [isOpen, sample]);
 
@@ -61,6 +81,15 @@ export const ConvertToOrderModal: React.FC<ConvertToOrderModalProps> = ({
       return;
     }
 
+    if (factoryMode === 'SAME' && !sampleFactoryId) {
+      setError('العينة مش مربوطة بمصنع — اختار «مصنع مختلف» وحدد المصنع');
+      return;
+    }
+    if (factoryMode === 'DIFFERENT' && !partnerFactoryId) {
+      setError('اختار المصنع المنفذ قبل التحويل');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -70,6 +99,8 @@ export const ConvertToOrderModal: React.FC<ConvertToOrderModalProps> = ({
         orderType,
         bomId,
         notes: notes.trim() || undefined,
+        factoryMode,
+        partnerFactoryId: factoryMode === 'DIFFERENT' ? partnerFactoryId : undefined,
       });
 
       onSuccess(res.order);
@@ -134,6 +165,12 @@ export const ConvertToOrderModal: React.FC<ConvertToOrderModalProps> = ({
                 {sample.materialSource === 'CUSTOMER' ? 'خامة من العميل (CMT)' : 'خامة من المصنع'}
               </span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">مصنع العينة:</span>
+              <span className={`font-medium ${sampleFactoryName ? '' : 'text-amber-600 dark:text-amber-400'}`}>
+                {sampleFactoryName || 'غير محدد — لازم تختار مصنع'}
+              </span>
+            </div>
           </div>
 
           {/* Planned Quantity */}
@@ -167,6 +204,35 @@ export const ConvertToOrderModal: React.FC<ConvertToOrderModalProps> = ({
               <option value="CMT">قص وتشغيل وتجهيز (CMT)</option>
               <option value="OUTSOURCED">تشغيل خارجي بمصنع شريك (OUTSOURCED)</option>
             </select>
+          </div>
+
+          {/* Partner Factory Choice */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              مصنع التنفيذ <span className="text-rose-500">*</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 cursor-pointer ${factoryMode==='SAME' ? 'border-primary bg-primary/5' : 'border-border'} ${!sampleFactoryId ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <input type="radio" name="factoryMode" checked={factoryMode==='SAME'} disabled={!sampleFactoryId}
+                       onChange={() => setFactoryMode('SAME')} className="mt-0.5" />
+                <span>
+                  <span className="font-semibold block">نفس مصنع العينة</span>
+                  <span className="text-[11px] text-muted-foreground">{sampleFactoryName || 'العينة مالهاش مصنع'}</span>
+                </span>
+              </label>
+              <label className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 cursor-pointer ${factoryMode==='DIFFERENT' ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                <input type="radio" name="factoryMode" checked={factoryMode==='DIFFERENT'}
+                       onChange={() => setFactoryMode('DIFFERENT')} className="mt-0.5" />
+                <span className="font-semibold">مصنع مختلف</span>
+              </label>
+            </div>
+            {factoryMode === 'DIFFERENT' && (
+              <select required value={partnerFactoryId} onChange={(e) => setPartnerFactoryId(e.target.value)}
+                      className="mt-2 w-full px-3 py-2 text-xs rounded-lg border border-border bg-background">
+                <option value="">اختر المصنع...</option>
+                {factories.map((f) => <option key={f.id} value={f.id}>{f.name}{f.code ? ` (${f.code})` : ''}</option>)}
+              </select>
+            )}
           </div>
 
           {/* BOM Selection */}

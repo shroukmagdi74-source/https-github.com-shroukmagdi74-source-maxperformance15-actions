@@ -829,6 +829,17 @@ class ManufacturingService {
       }
 
       // Initialize stages from custom input or BOM standard stages
+      // T03: مصنع افتراضي يُورَّث للمراحل (المصنع بيسكن على المرحلة — قرار T04)
+      const defaultPartnerFactoryId = data.defaultPartnerFactoryId ? String(data.defaultPartnerFactoryId) : null;
+      if (defaultPartnerFactoryId) {
+        const factory = await prisma.partnerFactory.findFirst({
+          where: { id: defaultPartnerFactoryId, companyId },
+          select: { id: true, isActive: true },
+        });
+        if (!factory) throw new Error('المصنع الشريك غير موجود أو لا ينتمي لهذه الشركة');
+        if (factory.isActive === false) throw new Error('المصنع الشريك غير نشط — اختار مصنع تاني أو فعّله أولاً');
+      }
+
       const stagesToCreate = Array.isArray(data.stages) && data.stages.length > 0 ? data.stages : bom.standardStages;
       if (Array.isArray(stagesToCreate) && stagesToCreate.length > 0) {
         for (let i = 0; i < stagesToCreate.length; i++) {
@@ -847,6 +858,9 @@ class ManufacturingService {
               stageLaborCost: 0.0,
               assignedWorker: st.assignedWorker || null,
               notes: st.notes || null,
+              partnerFactoryId: st.partnerFactoryId || defaultPartnerFactoryId || null,
+              executionEntity: st.executionEntity
+                || ((st.partnerFactoryId || defaultPartnerFactoryId) ? 'EXTERNAL' : 'INTERNAL'),
             },
           });
         }
