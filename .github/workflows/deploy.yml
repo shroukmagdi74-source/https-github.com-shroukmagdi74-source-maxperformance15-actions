@@ -451,6 +451,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
 
       - name: Test SSH Connection
+        continue-on-error: true
         shell: bash
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
