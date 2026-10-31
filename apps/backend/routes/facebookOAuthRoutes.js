@@ -478,7 +478,10 @@ const decodeAdsOAuthState = (state) => {
 
   const appKey = payload.appKey || payload.app || "primary";
   const appConfig = getFacebookAppKeyConfig(appKey);
-  const candidateSecrets = [appConfig.appSecret, getFacebookOAuthConfig().appSecret].filter(Boolean);
+  const candidateSecrets = [
+    appConfig.appSecret,
+    getFacebookOAuthConfig().appSecret,
+  ].filter((secret) => typeof secret === "string");
 
   let signatureValid = false;
   for (const secret of candidateSecrets) {
@@ -539,7 +542,10 @@ const decodeFacebookOAuthState = (state, fallbackType) => {
   let hmacValid = false;
   if (sig) {
     const appConfig = getFacebookAppKeyConfig(appKey);
-    const candidateSecrets = [appConfig.appSecret, getFacebookOAuthConfig().appSecret].filter(Boolean);
+    const candidateSecrets = [
+    appConfig.appSecret,
+    getFacebookOAuthConfig().appSecret,
+  ].filter((secret) => typeof secret === "string");
     for (const secret of candidateSecrets) {
       try {
         const expected = crypto.createHmac('sha256', secret).update(strippedState).digest('hex').substring(0, 16);
@@ -1863,7 +1869,7 @@ const handleAdsOAuthCallback = async ({
       {
         params: {
           access_token: userAccessToken,
-          fields: "account_id,name,currency,timezone_name",
+          fields: "account_id,name,currency,timezone_name,account_status,disable_reason",
           limit: 100,
         },
         timeout: 15000,
@@ -1875,11 +1881,13 @@ const handleAdsOAuthCallback = async ({
       name: account.name,
       currency: account.currency,
       timezone: account.timezone_name,
+      accountStatus: account.account_status != null ? String(account.account_status) : null,
+      disableReason: account.disable_reason != null ? String(account.disable_reason) : null,
     })).filter((account) => account.accountId);
 
     console.log(`✅ [ADS] Found ${adAccounts.length} ad accounts from Meta`);
 
-    // 4️⃣ Deactivate any saved ad accounts not returned by Meta for this company
+    // 4️⃣ Deactivate only previous ad accounts belonging to THIS specific source that Meta no longer returns
     if (adAccounts.length > 0) {
       const remoteAccountIds = adAccounts.map((account) => account.accountId);
       const accountIdNotMatch =
@@ -1889,6 +1897,7 @@ const handleAdsOAuthCallback = async ({
       await getSharedPrismaClient().facebookAdAccount.updateMany({
         where: {
           companyId,
+          connectionSourceId: source.id,
           accountId: accountIdNotMatch,
         },
         data: { isActive: false },
@@ -1912,6 +1921,10 @@ const handleAdsOAuthCallback = async ({
           connectionSourceId: source.id,
           facebookAppKey: callbackAppKey,
           fbAppKey: callbackAppKey,
+          settings: JSON.stringify({
+            accountStatus: account.accountStatus,
+            disableReason: account.disableReason,
+          }),
           isActive: true,
         },
         create: {
@@ -1925,6 +1938,10 @@ const handleAdsOAuthCallback = async ({
           connectionSourceId: source.id,
           facebookAppKey: callbackAppKey,
           fbAppKey: callbackAppKey,
+          settings: JSON.stringify({
+            accountStatus: account.accountStatus,
+            disableReason: account.disableReason,
+          }),
           isActive: true,
         },
       });
@@ -1979,6 +1996,7 @@ router.get("/callback", async (req, res) => {
   let callbackRedirectType = "page";
 
   try {
+    const { code, state, error } = req.query;
     const {
       decodedState: callbackDecodedState,
       redirectBaseUrl: resolvedRedirectBaseUrl,
@@ -3266,6 +3284,7 @@ router.get("/pixel-callback", async (req, res) => {
   let callbackRedirectType = "pixel";
 
   try {
+    const { code, state, error } = req.query;
     const {
       decodedState: callbackDecodedState,
       redirectBaseUrl: resolvedRedirectBaseUrl,

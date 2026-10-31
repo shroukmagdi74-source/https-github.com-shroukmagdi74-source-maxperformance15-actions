@@ -1,0 +1,173 @@
+export const safeStr = (v: unknown): string =>
+  v == null ? "" : typeof v === "string" ? v : String(v);
+
+export const i18nTexts = {
+  ar: {
+    badge: "ربط إعلانات Meta",
+    title: "ربط إعلانات Meta",
+    subtitle: "اربط حسابات فيسبوك الإعلانية المستقلة لإدارة الحملات والميزانية بكفاءة.",
+    refresh: "تحديث",
+    connected: "متصل",
+    disconnected: "غير متصل",
+    loading: "جار التحميل…",
+    switchLang: "English",
+
+    // Metric tiles
+    facebookAccounts: "حسابات فيس بوك",
+    adAccounts: "حسابات إعلانية",
+    isolatedTokens: "توكنات معزولة",
+    messengerPages: "صفحات الرسائل",
+
+    // Main section
+    isolatedSectionTitle: "مصادر الحسابات الإعلانية",
+    isolatedSectionSubtitle: "إدارة مصادر حسابات فيسبوك المربوطة لتمكين الحملات وتنبيهات الميزانية.",
+    connectAnother: "ربط حساب فيس بوك للإعلانات",
+    connecting: "جاري بدء الربط…",
+
+    // Connected accounts
+    connectedSourcesTitle: "حسابات فيس بوك المربوطة",
+    sourcesCount: "مصدر",
+    loadingSources: "جاري تحميل مصادر الربط…",
+    noSourcesFound: "لا توجد مصادر حسابات فيس بوك للإعلانات بعد.",
+    adAccountsCount: "حساب إعلاني",
+    lastSynced: "آخر مزامنة",
+    notSyncedYet: "لم تتم المزامنة بعد",
+    noErrors: "بدون أخطاء",
+    disconnect: "فصل",
+    confirmDisconnectPrompt: "تأكيد فصل هذا المصدر؟",
+    disconnecting: "جاري الفصل…",
+    fromMeta: "من Meta",
+    testFailed: "فشل الاختبار",
+    notTested: "لم يتم الاختبار",
+
+    // Table
+    tableAccount: "الحساب الإعلاني",
+    tableSource: "المصدر",
+    tableCurrency: "العملة",
+    tableStatus: "حالة الحساب",
+    tableTokenType: "نوع التوكن",
+    loadingAccounts: "جاري تحميل الحسابات…",
+    noSavedAccounts: "لا توجد حسابات إعلانية محفوظة بعد.",
+    statusActive: "نشط",
+    statusSaved: "محفوظ",
+    setActive: "تعيين كنشط",
+    settingActive: "جاري التفعيل…",
+    setActiveSuccess: "تم تعيين الحساب الإعلاني كنشط بنجاح.",
+    setActiveFailed: "فشل تعيين الحساب الإعلاني كنشط.",
+    statusMetaActive: "نشط في Meta",
+    statusMetaDisabled: "معطل في Meta",
+    statusMetaReview: "قيد المراجعة",
+    tokenFromSource: "من المصدر",
+    tokenIsolated: "معزول",
+    tokenMissing: "ناقص",
+    legacySource: "مصدر قديم",
+    facebookAccount: "حساب فيس بوك",
+
+    // Aside / Diagnostics
+    metaTestTitle: "فحص صحة اتصال Meta",
+    metaApiValid: "Meta API صالح",
+    needsTest: "يحتاج فحص",
+    metaReturnedCount: "Meta رجّعت {count} حساب.",
+    metaTestPending: "سيتم اختبار التوكن تلقائياً مع الاستخدام.",
+    metaTestFailed: "تعذر التحقق من التوكن مع Meta API.",
+
+    // Errors & toasts
+    oauthAccessDenied: "تم رفض طلب الوصول من Meta.",
+    oauthMissingParams: "بيانات الربط غير مكتملة. حاول مرة أخرى.",
+    oauthExpired: "انتهت صلاحية طلب الربط. ابدأ الربط من جديد.",
+    oauthFailed: "فشل استكمال ربط الإعلانات.",
+    oauthGeneralError: "فشل ربط إعلانات Meta.",
+    companyNotFound: "معرف الشركة غير متوفر",
+    startConnectFailed: "فشل بدء ربط الإعلانات",
+    disconnectSuccess: "تم فصل مصدر الإعلانات بنجاح.",
+    disconnectFailed: "فشل فصل مصدر الإعلانات.",
+    adsConnectedSuccess: "تم ربط إعلانات Meta بنجاح.",
+    adsConnectedCount: "تم ربط الإعلانات وتحديث {count} حساب.",
+    loadStatusFailed: "فشل تحميل حالة ربط الإعلانات",
+  },
+  en: {
+    badge: "Meta Ads Integration",
+    title: "Meta Ads Connection",
+    subtitle: "Connect independent Facebook ad accounts securely for campaign management and budget monitoring.",
+    refresh: "Refresh",
+    connected: "Connected",
+    disconnected: "Disconnected",
+    loading: "Loading…",
+    switchLang: "العربية",
+
+    // Metric tiles
+    facebookAccounts: "Facebook Accounts",
+    adAccounts: "Ad Accounts",
+    isolatedTokens: "Isolated Tokens",
+    messengerPages: "Messenger Pages",
+
+    // Main section
+    isolatedSectionTitle: "Ad Account Sources",
+    isolatedSectionSubtitle: "Manage connected Facebook ad sources to enable AI campaigns and budget alerts.",
+    connectAnother: "Connect Facebook Ad Account",
+    connecting: "Connecting…",
+
+    // Connected accounts
+    connectedSourcesTitle: "Connected Facebook Accounts",
+    sourcesCount: "source(s)",
+    loadingSources: "Loading connection sources…",
+    noSourcesFound: "No Facebook ad account sources connected yet.",
+    adAccountsCount: "ad accounts",
+    lastSynced: "Last synced",
+    notSyncedYet: "Not synced yet",
+    noErrors: "No errors",
+    disconnect: "Disconnect",
+    confirmDisconnectPrompt: "Confirm disconnect?",
+    disconnecting: "Disconnecting…",
+    fromMeta: "from Meta",
+    testFailed: "Test failed",
+    notTested: "Not tested",
+
+    // Table
+    tableAccount: "Ad Account",
+    tableSource: "Source Profile",
+    tableCurrency: "Currency",
+    tableStatus: "Account Status",
+    tableTokenType: "Token Type",
+    loadingAccounts: "Loading ad accounts…",
+    noSavedAccounts: "No saved ad accounts found yet.",
+    statusActive: "Active",
+    statusSaved: "Saved",
+    setActive: "Set Active",
+    settingActive: "Activating…",
+    setActiveSuccess: "Ad account set as active successfully.",
+    setActiveFailed: "Failed to set ad account as active.",
+    statusMetaActive: "Active on Meta",
+    statusMetaDisabled: "Disabled on Meta",
+    statusMetaReview: "Pending Review",
+    tokenFromSource: "From Source",
+    tokenIsolated: "Isolated",
+    tokenMissing: "Missing",
+    legacySource: "Legacy Source",
+    facebookAccount: "Facebook Profile",
+
+    // Aside / Diagnostics
+    metaTestTitle: "Meta API Health",
+    metaApiValid: "Meta API Valid",
+    needsTest: "Verification Needed",
+    metaReturnedCount: "Meta returned {count} account(s).",
+    metaTestPending: "Token will be validated automatically upon first use.",
+    metaTestFailed: "Failed to verify ad token with Meta API.",
+
+    // Errors & toasts
+    oauthAccessDenied: "Access request was denied by Meta.",
+    oauthMissingParams: "Incomplete authorization data. Please try again.",
+    oauthExpired: "Authorization request expired. Please reconnect.",
+    oauthFailed: "Failed to complete ads OAuth callback.",
+    oauthGeneralError: "Failed to connect Meta Ads.",
+    companyNotFound: "Company ID is not available",
+    startConnectFailed: "Failed to initialize Facebook Ads connection",
+    disconnectSuccess: "Ad source disconnected successfully.",
+    disconnectFailed: "Failed to disconnect ad source.",
+    adsConnectedSuccess: "Meta Ads connected successfully.",
+    adsConnectedCount: "Connected ads and synced {count} account(s).",
+    loadStatusFailed: "Failed to load Facebook Ads connection status",
+  },
+};
+
+export type AdsConnectionTexts = typeof i18nTexts.ar;

@@ -262,67 +262,50 @@ router.post('/accounts/save', facebookAdsController.saveAdAccount); // Convenien
 // GET /api/v1/facebook-ads/connection/status - حالة الربط المعزول (بلا توكنات)
 router.get('/connection/status', facebookAdsController.getAdsConnectionStatus);
 
-// DELETE /api/v1/facebook-ads/connection/sources/:sourceId - فصل مصدر إعلانات
-router.delete('/connection/sources/:sourceId', facebookAdsController.disconnectAdsConnectionSource);
+// DELETE /api/v1/facebook-ads/connection/sources/:sourceId - فصل مصدر إعلانات (حماية الصلاحيات: مدير أو مالك فقط)
+router.delete(
+  '/connection/sources/:sourceId',
+  verifyToken.requireRole(["OWNER", "MANAGER", "COMPANY_ADMIN", "SUPER_ADMIN"]),
+  facebookAdsController.disconnectAdsConnectionSource
+);
 
-// POST /api/v1/facebook-ads/connection/sources/:sourceId/update-token - تحديث توكن مصدر (مؤقت)
-router.post('/connection/sources/:sourceId/update-token', async (req, res) => {
-  try {
-    const { sourceId } = req.params;
-    const { accessToken } = req.body;
-    const companyId = req.user?.companyId;
-    
-    if (!companyId || !sourceId || !accessToken) {
-      return res.status(400).json({ success: false, error: 'Missing required fields' });
+// POST /api/v1/facebook-ads/connection/sources/:sourceId/update-token - مخصص للسوبر أدمن فقط عند الطوارئ
+router.post(
+  '/connection/sources/:sourceId/update-token',
+  verifyToken.requireRole(["SUPER_ADMIN"]),
+  async (req, res) => {
+    try {
+      const { sourceId } = req.params;
+      const { accessToken } = req.body;
+      const companyId = req.user?.companyId;
+      
+      if (!companyId || !sourceId || !accessToken) {
+        return res.status(400).json({ success: false, error: 'Missing required fields' });
+      }
+      
+      const { getSharedPrismaClient } = require('../services/sharedDatabase');
+      const prisma = getSharedPrismaClient();
+      
+      const source = await prisma.facebookAdsConnectionSource.findFirst({
+        where: { id: sourceId, companyId }
+      });
+      
+      if (!source) {
+        return res.status(404).json({ success: false, error: 'Source not found' });
+      }
+      
+      await prisma.facebookAdsConnectionSource.update({
+        where: { id: sourceId },
+        data: { accessToken, updatedAt: new Date() }
+      });
+      
+      res.json({ success: true, message: 'Token updated' });
+    } catch (error) {
+      console.error('Error updating token:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
-    
-    const { getSharedPrismaClient } = require('../services/sharedDatabase');
-    const prisma = getSharedPrismaClient();
-    
-    const source = await prisma.facebookAdsConnectionSource.findFirst({
-      where: { id: sourceId, companyId }
-    });
-    
-    if (!source) {
-      return res.status(404).json({ success: false, error: 'Source not found' });
-    }
-    
-    await prisma.facebookAdsConnectionSource.update({
-      where: { id: sourceId },
-      data: { accessToken, updatedAt: new Date() }
-    });
-    
-    res.json({ success: true, message: 'Token updated' });
-  } catch (error) {
-    console.error('Error updating token:', error);
-    res.status(500).json({ success: false, error: error.message });
   }
-});
-
-// POST /api/v1/facebook-ads/connection/update-company-token - Temp: update Company facebookAdsAccessToken
-router.post('/connection/update-company-token', async (req, res) => {
-  try {
-    const { accessToken } = req.body;
-    const companyId = req.user?.companyId;
-    
-    if (!companyId || !accessToken) {
-      return res.status(400).json({ success: false, error: 'Missing required fields' });
-    }
-    
-    const { getSharedPrismaClient } = require('../services/sharedDatabase');
-    const prisma = getSharedPrismaClient();
-    
-    await prisma.company.update({
-      where: { id: companyId },
-      data: { facebookAdsAccessToken: accessToken }
-    });
-    
-    res.json({ success: true, message: 'Company token updated' });
-  } catch (error) {
-    console.error('Error updating company token:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+);
 
 /**
  * ============================================

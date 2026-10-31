@@ -614,6 +614,10 @@ export interface FacebookAdsSavedAdAccountStatus {
   } | null;
   tokenSource?: string;
   hasIsolatedToken: boolean;
+  metaHealth?: {
+    accountStatus?: string | null;
+    disableReason?: string | null;
+  } | null;
 }
 
 export interface FacebookAdsRemoteSourceStatus {

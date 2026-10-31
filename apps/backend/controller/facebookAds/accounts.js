@@ -415,6 +415,21 @@ const getAdsConnectionStatus = async (req, res) => {
         : hasIsolatedToken
           ? "isolated"
           : "company_connection_only";
+
+      let metaHealth = null;
+      if (account.settings) {
+        try {
+          const parsed =
+            typeof account.settings === "string"
+              ? JSON.parse(account.settings)
+              : account.settings;
+          metaHealth = {
+            accountStatus: parsed?.accountStatus || null,
+            disableReason: parsed?.disableReason || null,
+          };
+        } catch (_) {}
+      }
+
       return {
         id: account.id,
         accountId: account.accountId,
@@ -432,50 +447,57 @@ const getAdsConnectionStatus = async (req, res) => {
           : null,
         tokenSource,
         hasIsolatedToken,
+        metaHealth,
       };
     });
 
     const activeAdAccount =
       adAccounts.find((account) => account.isActive) || null;
 
-    // فحص كل مصدر عبر Meta دون إرجاع التوكن
-    const remoteSources = [];
-    for (const source of sources) {
-      if (!source.accessToken) {
-        remoteSources.push({
-          sourceId: source.id,
-          checked: true,
-          ok: false,
-          accountsCount: 0,
-          error: "MISSING_TOKEN",
-        });
-        continue;
-      }
+    // فحص مصادر الربط عبر Meta بالتوازي دون تأخير متسلسل ودون إرجاع أي توكن
+    const remoteSources = await Promise.all(
+      sources.map(async (source) => {
+        if (!source.accessToken) {
+          return {
+            sourceId: source.id,
+            checked: true,
+            ok: false,
+            accountsCount: 0,
+            error: "MISSING_TOKEN",
+          };
+        }
 
-      try {
-        const adsService = new FacebookAdsService(source.accessToken);
-        const result = await adsService.getAdAccounts();
-        const accountsCount = result.success
-          ? (result.data || []).length
-          : 0;
-        remoteSources.push({
-          sourceId: source.id,
-          checked: true,
-          ok: result.success,
-          accountsCount,
-          error: result.success ? null : (typeof result.error === "string" ? result.error : result.error?.error?.message || result.error?.message || "FACEBOOK_API_ERROR"),
-        });
-      } catch (checkError) {
-        remoteSources.push({
-          sourceId: source.id,
-          checked: true,
-          ok: false,
-          accountsCount: 0,
-          error:
-            checkError.response?.data?.error?.message || checkError.message,
-        });
-      }
-    }
+        try {
+          const adsService = new FacebookAdsService(source.accessToken);
+          const result = await adsService.getAdAccounts();
+          const accountsCount = result.success
+            ? (result.data || []).length
+            : 0;
+          return {
+            sourceId: source.id,
+            checked: true,
+            ok: result.success,
+            accountsCount,
+            error: result.success
+              ? null
+              : typeof result.error === "string"
+                ? result.error
+                : result.error?.error?.message ||
+                  result.error?.message ||
+                  "FACEBOOK_API_ERROR",
+          };
+        } catch (checkError) {
+          return {
+            sourceId: source.id,
+            checked: true,
+            ok: false,
+            accountsCount: 0,
+            error:
+              checkError.response?.data?.error?.message || checkError.message,
+          };
+        }
+      }),
+    );
 
     const companyAdsToken = await getCompanyAdsAccessToken(companyId);
 
@@ -546,7 +568,21 @@ const disconnectAdsConnectionSource = async (req, res) => {
       });
     }
 
-    // فصل الحسابات المربوطة بهذا المصدر (بدون حذف التوكنات القديمة للشركة)
+    // محاولة إلغاء التوكن من طرف Meta Graph قبل حذفه
+    if (source.accessToken) {
+      try {
+        const { getMetaGraphApiBaseUrl } = require("../../config/metaApi");
+        const axios = require("axios");
+        await axios.delete(`${getMetaGraphApiBaseUrl()}/me/permissions`, {
+          params: { access_token: source.accessToken },
+          timeout: 4000,
+        });
+      } catch (revokeErr) {
+        console.warn("⚠️ [ADS-DISCONNECT] Could not revoke permissions at Meta:", revokeErr.message);
+      }
+    }
+
+    // فصل الحسابات المربوطة بهذا المصدر
     await getSharedPrismaClient().facebookAdAccount.updateMany({
       where: { companyId, connectionSourceId: sourceId },
       data: {
@@ -560,10 +596,30 @@ const disconnectAdsConnectionSource = async (req, res) => {
       data: {
         status: "disconnected",
         accessToken: null,
-        lastError: "FCM: disconnected by owner",
+        lastError: "disconnected by owner",
         updatedAt: new Date(),
       },
     });
+
+    // لو كان توكن الشركة العام يطابق هذا المصدر المفصول، نحدثه للمصدر النشط التالي
+    const remainingSource = await getSharedPrismaClient().facebookAdsConnectionSource.findFirst({
+      where: { companyId, status: "connected", id: { not: sourceId } },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const company = await getSharedPrismaClient().company.findUnique({
+      where: { id: companyId },
+      select: { facebookAdsAccessToken: true },
+    });
+
+    if (company?.facebookAdsAccessToken === source.accessToken) {
+      await getSharedPrismaClient().company.update({
+        where: { id: companyId },
+        data: {
+          facebookAdsAccessToken: remainingSource?.accessToken || null,
+        },
+      });
+    }
 
     res.json({
       success: true,

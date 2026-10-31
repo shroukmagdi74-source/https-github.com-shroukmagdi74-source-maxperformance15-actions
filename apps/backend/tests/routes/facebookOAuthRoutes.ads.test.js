@@ -237,7 +237,11 @@ describe("facebookOAuthRoutes ads OAuth", () => {
     expect(response.headers.location).toContain("sourceId=source-1");
     expect(mockPrisma.company.update).toHaveBeenCalledWith({
       where: { id: "company-1" },
-      data: { facebookAdsAccessToken: "ads-token" },
+      data: {
+        facebookAdsAccessToken: "ads-token",
+        facebookAppKey: "primary",
+        fbAppKey: "primary",
+      },
     });
     expect(mockPrisma.facebookAdsConnectionSource.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -263,6 +267,7 @@ describe("facebookOAuthRoutes ads OAuth", () => {
     expect(mockPrisma.facebookAdAccount.updateMany).toHaveBeenCalledWith({
       where: {
         companyId: "company-1",
+        connectionSourceId: "source-1",
         accountId: { not: "112" },
       },
       data: { isActive: false },
