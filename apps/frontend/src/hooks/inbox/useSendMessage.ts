@@ -70,7 +70,17 @@ export const useSendMessage = () => {
           },
         );
 
-        const data = response.data?.data || response.data;
+        const resData = response.data;
+        if (resData && resData.success === false) {
+          const errMsg = resData.message || resData.error || "فشل في إرسال الرسالة إلى فيسبوك";
+          throw new Error(errMsg);
+        }
+
+        const data = resData?.data || resData;
+        if (data?.deliveryStatus === 'FAILED' || resData?.deliveryStatus === 'FAILED') {
+          const errMsg = resData?.failureReason || data?.failureReason || resData?.message || "فشل في إرسال الرسالة إلى فيسبوك";
+          throw new Error(errMsg);
+        }
 
         // Format response as Message
         const message: Message = {
@@ -93,11 +103,12 @@ export const useSendMessage = () => {
         return message;
       } catch (error: any) {
         console.error("❌ Error sending message:", error);
+        const errMsg = error.response?.data?.message || error.message || "فشل في إرسال الرسالة";
         // 🆕 Mark optimistic message as error
         if (onMessageError) {
-          onMessageError(tempId, error.message || "فشل في إرسال الرسالة");
+          onMessageError(tempId, errMsg);
         }
-        throw new Error(error.message || "فشل في إرسال الرسالة");
+        throw new Error(errMsg);
       } finally {
         pendingMessagesRef.current--;
         setSending(pendingMessagesRef.current > 0);

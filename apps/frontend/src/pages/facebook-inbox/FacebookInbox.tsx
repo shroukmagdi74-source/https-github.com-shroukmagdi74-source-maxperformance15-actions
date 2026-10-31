@@ -292,6 +292,7 @@ export const FacebookInbox: React.FC<FacebookInboxProps> = ({
                 onOpenProductPicker={() => modals.setShowProductPicker(true)}
                 composerDraft={modals.composerDraft}
                 setComposerDraft={modals.setComposerDraft}
+                onRetryMessage={actions.handleRetryMessage}
               />
             </>
           ) : (

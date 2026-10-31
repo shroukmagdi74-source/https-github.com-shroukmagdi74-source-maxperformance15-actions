@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { apiClient } from '@/services/apiClient';
 import { useSendMessage } from '@/hooks/inbox/useSendMessage';
 import type {
@@ -75,8 +76,13 @@ export function useFacebookInboxMessageSender({
         if (activeTab === 'unreplied') {
           debouncedLoadConversations('unreplied');
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to send message:', error);
+        const errMsg =
+          error.response?.data?.message ||
+          error.message ||
+          t('conversations.messageSendFailed', 'فشل إرسال الرسالة إلى فيسبوك');
+        toast.error(errMsg);
       }
     },
     [
@@ -91,6 +97,7 @@ export function useFacebookInboxMessageSender({
       debouncedLoadConversations,
       addMessage,
       setReplyToMessage,
+      t,
     ],
   );
 
@@ -110,8 +117,12 @@ export function useFacebookInboxMessageSender({
         if (activeTab === 'unreplied') {
           debouncedLoadConversations('unreplied');
         }
-      } catch {
-        alert(t('conversations.fileSendFailed'));
+      } catch (error: any) {
+        const errMsg =
+          error.response?.data?.message ||
+          error.message ||
+          t('conversations.fileSendFailed', 'فشل إرسال الملف');
+        toast.error(errMsg);
       }
     },
     [
@@ -453,6 +464,14 @@ export function useFacebookInboxMessageSender({
     ],
   );
 
+  const handleRetryMessage = useCallback(
+    async (message: InboxMessage) => {
+      if (!message || !message.content) return;
+      await handleSendMessage(message.content);
+    },
+    [handleSendMessage],
+  );
+
   return {
     sending,
     uploadingFile,
@@ -464,6 +483,7 @@ export function useFacebookInboxMessageSender({
     handleSelectImageFromGallery,
     handleSelectMultipleImagesFromGallery,
     handleSendProductImages,
+    handleRetryMessage,
   };
 }
 

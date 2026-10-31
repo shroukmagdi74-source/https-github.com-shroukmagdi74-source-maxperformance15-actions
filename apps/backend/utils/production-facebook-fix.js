@@ -457,7 +457,8 @@ async function validateFacebookRecipientStrict(recipientId, pageId, accessToken)
       return {
         valid: false,
         canSend: false,
-        error: 'OUTSIDE_24_HOUR_WINDOW',
+        error: 'WINDOW_EXPIRED',
+        code: 'WINDOW_EXPIRED',
         message: `تجاوز نافذة 24 ساعة (آخر رسالة منذ ${hoursAgo} ساعة)`,
         solutions: [
           'انتظر حتى يرسل العميل رسالة جديدة',
@@ -774,12 +775,20 @@ function handleProductionFacebookError(fbError, recipientId, pageId) {
       ],
       canRetry: false
     };
-  } else if (errorCode === 100 && errorSubcode === 2018001) {
-    // 24-hour policy violation (the main error we're fixing)
+  } else if (
+    (errorCode === 100 && errorSubcode === 2018001) ||
+    (errorCode === 10 && errorSubcode === 2018278) ||
+    errorSubcode === 2018278 ||
+    /outside of allowed window/i.test(errorMessage) ||
+    /outside the allowed window/i.test(errorMessage) ||
+    /24-hour window/i.test(errorMessage)
+  ) {
+    // 24-hour policy violation (handling both #10/2018278 and #100/2018001)
     return {
       success: false,
-      error: 'POLICY_VIOLATION_24H',
-      message: 'انتهاك سياسة فيسبوك - خارج نافذة 24 ساعة',
+      error: 'WINDOW_EXPIRED',
+      code: 'WINDOW_EXPIRED',
+      message: 'انتهاك سياسة فيسبوك - خارج نافذة الـ 24 ساعة المسموحة للرد',
       details: errorMessage,
       solutions: [
         'انتظر حتى يرسل العميل رسالة جديدة',

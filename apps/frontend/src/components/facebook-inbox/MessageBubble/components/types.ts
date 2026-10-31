@@ -84,6 +84,9 @@ export interface Message {
   attachments?: MessageAttachment[];
   isStarred?: boolean;
   isAIResponse?: boolean;
+  deliveryStatus?: 'PENDING' | 'SENT' | 'FAILED';
+  failureReason?: string | null;
+  facebookMessageId?: string | null;
 }
 
 export interface MessageBubbleProps {
@@ -98,6 +101,7 @@ export interface MessageBubbleProps {
   currentUserId?: string;
   hasBeenReplied?: boolean;
   onCorrect?: () => void;
+  onRetry?: (message: Message) => void;
 }
 
 export type MediaKind = "image" | "video" | "audio" | "file";
