@@ -1,15 +1,23 @@
-import React from "react";
+import React, { useEffect } from "react";
 import CreateCompanyModal from "../../components/CreateCompanyModal";
+import { useAuth } from "../../hooks/useAuthSimple";
 import {
   useMyCompaniesDashboardController,
   MyCompaniesHeader,
   MyCompaniesOverviewTab,
   MyCompaniesAttendanceTab,
   MyCompaniesReportsTab,
+  MyCompaniesOrdersTab,
   DashboardSkeleton,
+  DashboardTab,
 } from "./my-companies-dashboard/index";
 
-const MyCompaniesDashboard: React.FC = () => {
+interface MyCompaniesDashboardProps {
+  defaultTab?: DashboardTab;
+}
+
+const MyCompaniesDashboard: React.FC<MyCompaniesDashboardProps> = ({ defaultTab }) => {
+  const { user } = useAuth();
   const {
     activeTab,
     setActiveTab,
@@ -30,6 +38,12 @@ const MyCompaniesDashboard: React.FC = () => {
     goToReports,
   } = useMyCompaniesDashboardController();
 
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab, setActiveTab]);
+
   if (isLoading && !dashboardData) {
     return <DashboardSkeleton />;
   }
@@ -44,6 +58,8 @@ const MyCompaniesDashboard: React.FC = () => {
 
   const overview = dashboardData?.overview;
   const companies = dashboardData?.byCompany || [];
+  const userCompaniesCount = user?.companies?.length ?? companies.length ?? 0;
+  const hasMultipleCompanies = userCompaniesCount > 1;
 
   return (
     <div
@@ -56,6 +72,7 @@ const MyCompaniesDashboard: React.FC = () => {
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
         onExport={handleExport}
         isExporting={isExporting}
+        hasMultipleCompanies={hasMultipleCompanies}
       />
 
       {activeTab === "overview" && overview && (
@@ -80,6 +97,10 @@ const MyCompaniesDashboard: React.FC = () => {
 
       {activeTab === "reports" && (
         <MyCompaniesReportsTab onGoToReports={goToReports} />
+      )}
+
+      {activeTab === "orders" && hasMultipleCompanies && (
+        <MyCompaniesOrdersTab companies={companies} />
       )}
 
       <CreateCompanyModal

@@ -1564,6 +1564,7 @@ export const getSidebarConfig = (
             icon: Building,
             items: [
                 { to: '/my-companies/hr', icon: BarChart3, label: t('sidebar.companiesDashboard'), hidden: !hasMultipleCompanies },
+                { to: '/my-companies/orders', icon: Archive, label: isEn ? 'Shared Workspace (Orders)' : 'مساحة العمل المشتركة (الطلبات)', hidden: !hasMultipleCompanies },
                 { to: '/my-companies/reports', icon: LineChart, label: t('sidebar.unifiedReports'), hidden: !hasMultipleCompanies || !isAnyAppActive(['pos', ...STORE_APP_SLUGS]) },
                 { to: '/my-companies/attendance', icon: CheckCircle2, label: t('sidebar.attendanceReport'), hidden: !hasMultipleCompanies || !isAnyAppActive(['hr-basic', 'hr-core', 'hr-attendance-pro', 'hr-payroll', 'hr-assets', 'hr-recruitment']) },
                 { to: '/my-companies/links', icon: Building, label: t('sidebar.companyLinks') },

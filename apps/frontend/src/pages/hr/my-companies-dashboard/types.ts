@@ -1,4 +1,51 @@
-export type DashboardTab = "overview" | "reports" | "attendance";
+export type DashboardTab = "overview" | "reports" | "attendance" | "orders";
+
+export interface CompanyOrderPermissions {
+  canView: boolean;
+  canEdit: boolean;
+  canChangeStatus: boolean;
+  canCancel: boolean;
+}
+
+export interface MyCompaniesOrder {
+  id: string;
+  companyId: string;
+  companyName: string;
+  orderNumber: string;
+  customer: {
+    name: string;
+    phone: string;
+  };
+  customerName: string;
+  customerPhone: string;
+  status: string;
+  total: number;
+  currency: string;
+  createdAt: string;
+  permissions: CompanyOrderPermissions;
+}
+
+export interface TotalsByCompany {
+  companyId: string;
+  companyName: string;
+  count: number;
+}
+
+export interface MyCompaniesOrdersData {
+  totalsByCompany: TotalsByCompany[];
+  totalOrders: number;
+  orders: MyCompaniesOrder[];
+  pageInfo: {
+    hasNextPage: boolean;
+    nextCursor: string | null;
+    limit: number;
+  };
+}
+
+export interface MyCompaniesOrdersResponse {
+  success: boolean;
+  data: MyCompaniesOrdersData;
+}
 
 export interface CompanyStats {
   company: {

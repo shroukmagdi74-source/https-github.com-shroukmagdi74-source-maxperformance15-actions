@@ -7627,6 +7627,22 @@ const AppContent = () => {
                   }
                 />
                 <Route
+                  path="/my-companies"
+                  element={
+                    <Layout>
+                      <MyCompaniesDashboard />
+                    </Layout>
+                  }
+                />
+                <Route
+                  path="/my-companies/orders"
+                  element={
+                    <Layout>
+                      <MyCompaniesDashboard defaultTab="orders" />
+                    </Layout>
+                  }
+                />
+                <Route
                   path="/my-companies/hr"
                   element={
                     <Layout>
