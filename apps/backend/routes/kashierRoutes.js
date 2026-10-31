@@ -6,6 +6,7 @@ const { extractSubdomainMiddleware, requireCompany } = require('../middleware/su
 const { resolvePublicShippingQuote } = require('../controller/shippingZoneController');
 const { toCanonicalE164 } = require('../utils/phoneNormalization');
 const { findCustomerByPhone, safeCreateCustomer, buildPhoneWhere } = require('../utils/customerIdentity');
+const { resolveCheckoutPricing, safeParseJson } = require('../utils/orderDiscountUtils');
 
 const router = express.Router();
 const getPrisma = () => getSharedPrismaClient();
@@ -60,6 +61,43 @@ router.post('/kashier/checkout', extractSubdomainMiddleware, requireCompany, asy
         },
         buildPhoneWhere(resolvedGuestPhone, companyId)
       );
+    }
+
+    // ─── Idempotency Check on Retry (pixelEventId / cartId) ─────────────────
+    // Prevents duplicate orders, double-discount, double-stock decrement, and repeated coupon usage
+    if (pixelEventId || cartId) {
+      const existingOrder = await prisma.order.findFirst({
+        where: {
+          companyId,
+          status: 'PENDING',
+          paymentStatus: 'PENDING',
+          OR: [
+            ...(pixelEventId ? [{ metadata: { contains: `"pixelEventId":"${pixelEventId}"` } }] : []),
+            ...(cartId ? [{ metadata: { contains: `"cartId":"${cartId}"` } }] : []),
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (existingOrder) {
+        const meta = safeParseJson(existingOrder.metadata, {});
+        if (meta.kashierSessionUrl && meta.kashierSessionId) {
+          console.log(`[KASHIER-CHECKOUT] Idempotent retry detected for pixelEventId=${pixelEventId || cartId}, returning existing session ${existingOrder.orderNumber}`);
+          return res.json({
+            success: true,
+            data: {
+              orderId: existingOrder.id,
+              orderNumber: existingOrder.orderNumber,
+              sessionUrl: meta.kashierSessionUrl,
+              sessionId: meta.kashierSessionId,
+              subtotal: existingOrder.subtotal,
+              discount: existingOrder.discount,
+              shipping: existingOrder.shipping,
+              total: existingOrder.total,
+            },
+          });
+        }
+      }
     }
 
     // Generate order number
@@ -135,51 +173,30 @@ router.post('/kashier/checkout', extractSubdomainMiddleware, requireCompany, asy
       orderShipping = 0;
     }
 
-    // ─── Server-side coupon validation & application ────────────────────────
-    // Mirrors the reference storefront flow (public/orders): company-scoped,
-    // active window, usage limit, min order amount, capped percentage.
-    let discountAmount = 0;
-    let appliedCoupon = null;
-    let couponFreeShipping = false;
-    if (couponCode) {
-      const now = new Date();
-      const coupon = await prisma.coupon.findFirst({
-        where: {
-          code: String(couponCode).trim().toUpperCase(),
-          companyId,
-          isActive: true,
-          validFrom: { lte: now },
-          validTo: { gte: now },
-        },
-      });
+    // ─── Unified Server-Side Checkout Pricing ───────────────────────────────
+    // Single source of truth (orderDiscountUtils.resolveCheckoutPricing):
+    // Computes subtotal, coupon, store promotion, loyalty rewards, and electronic
+    // payment discount (e.g. 10% for card) identically to /public/orders.
+    const pricing = await resolveCheckoutPricing({
+      prisma,
+      companyId,
+      items: orderItemsData,
+      subtotal: orderSubtotal,
+      couponCode,
+      paymentMethod: 'card',
+      customerId: customer.id,
+      customerPhone: resolvedGuestPhone,
+      shippingCost: orderShipping,
+      shippingAddress: resolvedShippingAddress,
+      company,
+    });
 
-      if (coupon) {
-        const usageLimitReached = coupon.usageLimit && coupon.usageCount >= coupon.usageLimit;
-        const minOrderMet = !coupon.minOrderAmount || orderSubtotal >= Number(coupon.minOrderAmount);
-
-        if (!usageLimitReached && minOrderMet) {
-          if (coupon.type === 'PERCENTAGE') {
-            discountAmount = (orderSubtotal * Number(coupon.value)) / 100;
-            if (coupon.maxDiscountAmount && discountAmount > Number(coupon.maxDiscountAmount)) {
-              discountAmount = Number(coupon.maxDiscountAmount);
-            }
-          } else if (coupon.type === 'FREE_SHIPPING') {
-            couponFreeShipping = true;
-            discountAmount = 0;
-          } else {
-            discountAmount = Number(coupon.value);
-          }
-          discountAmount = round2(Math.max(0, Math.min(orderSubtotal, Number(discountAmount))));
-          appliedCoupon = coupon;
-        }
-      }
-    }
-    if (couponFreeShipping) {
-      orderShipping = 0;
-    }
-
-    const orderTotal = round2(Math.max(0, orderSubtotal - discountAmount + orderShipping));
-    const orderDiscount = discountAmount;
+    const orderSubtotalFinal = pricing.subtotal;
+    const orderShippingFinal = pricing.shipping;
+    const orderDiscount = pricing.totalDiscount;
+    const orderTotal = pricing.total;
+    const appliedCoupon = pricing.appliedCoupon;
+    const couponDiscountAmount = pricing.couponDiscount;
 
     // Create Kashier session with store origin redirect
     const baseDomain = process.env.MAIN_DOMAIN || 'maxp.online';
@@ -224,8 +241,8 @@ router.post('/kashier/checkout', extractSubdomainMiddleware, requireCompany, asy
         customerAddress: JSON.stringify(resolvedShippingAddress),
         city: resolvedShippingAddress?.city || '',
         governorate: resolvedShippingAddress?.governorate || '',
-        subtotal: orderSubtotal,
-        shipping: orderShipping,
+        subtotal: orderSubtotalFinal,
+        shipping: orderShippingFinal,
         discount: orderDiscount,
         total: orderTotal,
         currency: 'EGP',
@@ -239,11 +256,13 @@ router.post('/kashier/checkout', extractSubdomainMiddleware, requireCompany, asy
         isViewed: false,
         metadata: JSON.stringify({
           kashierSessionId: session.sessionId,
+          kashierSessionUrl: session.sessionUrl,
           kashierMode: session.mode || process.env.KASHIER_MODE || 'live',
           cartId: cartId || null,
           pixelEventId: pixelEventId || null,
           attribution: attribution || null,
           ...(couponCode ? { couponCode } : {}),
+          ...(pricing.orderMetadata || {}),
         }),
         orderItems: {
           create: orderItemsData,
@@ -253,7 +272,7 @@ router.post('/kashier/checkout', extractSubdomainMiddleware, requireCompany, asy
 
     // Record coupon usage (same as the reference storefront flow) — only after
     // the order exists, so a failed payment session never consumes a use.
-    if (appliedCoupon) {
+    if (appliedCoupon && couponDiscountAmount > 0) {
       try {
         await prisma.$transaction([
           prisma.couponUsage.create({
@@ -262,7 +281,7 @@ router.post('/kashier/checkout', extractSubdomainMiddleware, requireCompany, asy
               companyId,
               customerId: customer.id,
               orderId: order.id,
-              discountAmount: Number(discountAmount || 0),
+              discountAmount: Number(couponDiscountAmount || 0),
               orderAmount: Number(orderTotal),
             },
           }),
@@ -304,6 +323,10 @@ router.post('/kashier/checkout', extractSubdomainMiddleware, requireCompany, asy
         orderNumber: order.orderNumber,
         sessionUrl: session.sessionUrl,
         sessionId: session.sessionId,
+        subtotal: order.subtotal,
+        discount: order.discount,
+        shipping: order.shipping,
+        total: order.total,
       },
     });
   } catch (error) {
