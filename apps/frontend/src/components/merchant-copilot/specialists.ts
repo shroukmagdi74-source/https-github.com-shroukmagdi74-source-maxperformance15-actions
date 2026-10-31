@@ -8,6 +8,7 @@ export interface SpecialistAgent {
   badge: string;
   icon?: string;
   isDefault?: boolean;
+  requiresApp?: string;
   suggestedPrompts: string[];
 }
 
@@ -81,6 +82,22 @@ export const SPECIALIST_AGENTS: SpecialistAgent[] = [
     suggestedPrompts: [
       'هات لي أفضل زوايا وهوكات إعلانات المنافسين الشغالة حالياً',
       'ما العروض الترويجية الأكثر تكراراً في سوقنا هذا الشهر؟',
+    ],
+  },
+  {
+    id: 'shipping-agent',
+    slug: 'shipping-agent',
+    name: 'مروان — منسق الشحن والعمليات اللوجستية',
+    role: 'SHIPPING',
+    title: 'منسق الشحن ومتابعة التوصيل وشركات الشحن',
+    description: 'متابعة بوالص وحالات الشحن، الرد على شركات الشحن وتذاكر الدعم، والرد على استفسارات العملاء بخصوص الشحنات.',
+    badge: 'الشحن واللوجستيات',
+    icon: '🚚',
+    requiresApp: 'order-shipping-turbo',
+    suggestedPrompts: [
+      'ما هي الشحنات المتأخرة التي تحتاج تذكرة أو متابعة مع شركة الشحن؟',
+      'افحص رسائل وتحديثات شركة الشحن على التذاكر المفتوحة',
+      'ما حالة شحنة العميل وما آخر تحديث من المندوب؟',
     ],
   },
 ];
