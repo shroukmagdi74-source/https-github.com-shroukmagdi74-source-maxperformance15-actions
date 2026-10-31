@@ -8,6 +8,7 @@ interface MyCompaniesHeaderProps {
   onOpenCreateModal: () => void;
   onExport: () => void;
   isExporting: boolean;
+  hasMultipleCompanies?: boolean;
 }
 
 export const MyCompaniesHeader: React.FC<MyCompaniesHeaderProps> = ({
@@ -16,6 +17,7 @@ export const MyCompaniesHeader: React.FC<MyCompaniesHeaderProps> = ({
   onOpenCreateModal,
   onExport,
   isExporting,
+  hasMultipleCompanies = true,
 }) => {
   return (
     <div className="flex flex-col md:flex-row justify-between items-center bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -59,6 +61,18 @@ export const MyCompaniesHeader: React.FC<MyCompaniesHeaderProps> = ({
           >
             التقارير
           </button>
+          {hasMultipleCompanies && (
+            <button
+              onClick={() => onTabChange("orders")}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                activeTab === "orders"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
+              }`}
+            >
+              مساحة العمل المشتركة (الطلبات)
+            </button>
+          )}
         </div>
         <button
           onClick={onOpenCreateModal}

@@ -247,7 +247,7 @@ const updateOrder = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, trackingNumber, notes } = req.body;
-    const companyId = req.user?.effectiveCompanyId || req.user?.companyId;
+    const companyId = req.body?.companyId || req.query?.companyId || req.user?.effectiveCompanyId || req.user?.companyId;
 
     console.log(`🔍 [ORDER-CONTROLLER-DEBUG] Update request received:`);
     console.log(`   - Order ID: ${id}`);
@@ -263,9 +263,41 @@ const updateOrder = async (req, res) => {
       });
     }
 
-    // --- ADD PERMISSION CHECK HERE ---
+    const prisma = getSharedPrismaClient();
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    // Cross-company verification: ensure user is member of companyId and has proper permission
+    if (userRole !== 'SUPER_ADMIN') {
+      const membership = await prisma.userCompany.findUnique({
+        where: { userId_companyId: { userId, companyId } }
+      });
+
+      if (!membership || !membership.isActive) {
+        return res.status(403).json({
+          success: false,
+          code: 'FORBIDDEN_COMPANY_ACCESS',
+          error: 'غير مصرح لك بالوصول لبيانات هذه الشركة'
+        });
+      }
+
+      if (membership.role !== 'OWNER') {
+        const permissionService = require('../services/permissionService');
+        const perms = await permissionService.getUserPermissions(userId, companyId);
+        const hasPerm = perms.includes('orders.edit') || perms.includes('orders.status.change');
+        if (!hasPerm) {
+          return res.status(403).json({
+            success: false,
+            code: 'INSUFFICIENT_PERMISSIONS',
+            error: 'ليس لديك صلاحية لتعديل الطلبات في هذه الشركة'
+          });
+        }
+      }
+    }
+
+    // --- ADD PERMISSION CHECK FOR MODERATORS ---
     if (req.user && ['MODERATOR', 'EMPLOYEE'].includes(req.user.role)) {
-      const existingOrder = await getSharedPrismaClient().order.findFirst({
+      const existingOrder = await prisma.order.findFirst({
         where: {
           OR: [
             { id: id, companyId: companyId },
@@ -279,7 +311,7 @@ const updateOrder = async (req, res) => {
         return res.status(404).json({ success: false, error: 'الطلب غير موجود' });
       }
 
-      if (existingOrder.createdBy !== req.user.id) {
+      if (existingOrder.createdBy && existingOrder.createdBy !== req.user.id) {
         return res.status(403).json({ 
           success: false, 
           error: 'ليس لديك صلاحية لتعديل أو تأكيد هذا الطلب لأنك لست من قام بتسجيله' 
@@ -302,6 +334,34 @@ const updateOrder = async (req, res) => {
       req.user?.id || null,
       req.user ? `${req.user.firstName} ${req.user.lastName}` : null
     );
+
+    // Audit log for order action
+    try {
+      await prisma.activityLog.create({
+        data: {
+          userId,
+          companyId,
+          category: 'orders',
+          action: 'order.update',
+          description: `تحديث الطلب ${updatedOrder?.orderNumber || id} إلى حالة ${status || 'محدث'}`,
+          metadata: JSON.stringify({
+            orderId: updatedOrder?.id || id,
+            orderNumber: updatedOrder?.orderNumber || id,
+            status,
+            notes: notes || null,
+            companyId,
+            crossCompany: req.body?.companyId ? true : false,
+            source: 'orders-controller'
+          }),
+          severity: 'INFO',
+          targetType: 'order',
+          targetId: updatedOrder?.id || id,
+          targetName: updatedOrder?.orderNumber || id
+        }
+      });
+    } catch (auditErr) {
+      console.warn('⚠️ [AUDIT-LOG] Failed to record order action in activityLog:', auditErr.message);
+    }
 
     if (updatedOrder?.workflowStatus === 'pending') {
       return res.json({
@@ -333,7 +393,139 @@ const updateOrder = async (req, res) => {
       error: error.message || 'Failed to update order'
     });
   }
-}
+};
+
+const updateOrderStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+    const companyId = req.body?.companyId || req.query?.companyId || req.user?.effectiveCompanyId || req.user?.companyId;
+
+    if (!companyId) {
+      return res.status(403).json({
+        success: false,
+        code: 'COMPANY_ID_REQUIRED',
+        error: 'معرف الشركة مطلوب'
+      });
+    }
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        error: 'حالة الطلب مطلوبة'
+      });
+    }
+
+    const prisma = getSharedPrismaClient();
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    // Cross-company verification: ensure user is member of target companyId and has status change permission
+    if (userRole !== 'SUPER_ADMIN') {
+      const membership = await prisma.userCompany.findUnique({
+        where: { userId_companyId: { userId, companyId } }
+      });
+
+      if (!membership || !membership.isActive) {
+        return res.status(403).json({
+          success: false,
+          code: 'FORBIDDEN_COMPANY_ACCESS',
+          error: 'غير مصرح لك بالوصول لبيانات هذه الشركة'
+        });
+      }
+
+      if (membership.role !== 'OWNER') {
+        const permissionService = require('../services/permissionService');
+        const perms = await permissionService.getUserPermissions(userId, companyId);
+        const hasPerm = perms.includes('orders.status.change') || perms.includes('orders.edit');
+        if (!hasPerm) {
+          return res.status(403).json({
+            success: false,
+            code: 'INSUFFICIENT_PERMISSIONS',
+            error: 'ليس لديك صلاحية لتعديل أو تغيير حالة الطلب في هذه الشركة'
+          });
+        }
+      }
+    }
+
+    // Check order exists in target company
+    const existingOrder = await prisma.order.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { id },
+          { orderNumber: id }
+        ]
+      }
+    });
+
+    if (!existingOrder) {
+      return res.status(404).json({
+        success: false,
+        error: 'الطلب غير موجود في هذه الشركة'
+      });
+    }
+
+    const orderService = require('../services/orderService');
+    const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() : 'User';
+
+    const updatedOrder = await orderService.updateOrderStatus(
+      existingOrder.id,
+      companyId,
+      status,
+      notes,
+      userId,
+      userName
+    );
+
+    // Audit Log for cross-company / company order action
+    try {
+      await prisma.activityLog.create({
+        data: {
+          userId,
+          companyId,
+          category: 'orders',
+          action: 'order.status.change',
+          description: `تغيير حالة الطلب ${existingOrder.orderNumber} إلى ${status}`,
+          metadata: JSON.stringify({
+            orderId: existingOrder.id,
+            orderNumber: existingOrder.orderNumber,
+            previousStatus: existingOrder.status,
+            newStatus: status,
+            notes: notes || null,
+            companyId,
+            crossCompany: req.body?.companyId ? true : false,
+            source: 'my-companies-orders'
+          }),
+          severity: 'INFO',
+          targetType: 'order',
+          targetId: existingOrder.id,
+          targetName: existingOrder.orderNumber
+        }
+      });
+    } catch (auditErr) {
+      console.warn('⚠️ [AUDIT-LOG] Failed to record order action in activityLog:', auditErr.message);
+    }
+
+    return res.json({
+      success: true,
+      message: 'تم تحديث حالة الطلب بنجاح',
+      data: {
+        id: updatedOrder.id,
+        orderNumber: updatedOrder.orderNumber,
+        status: updatedOrder.status,
+        companyId,
+        updatedAt: updatedOrder.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error in updateOrderStatus controller:', error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message || 'فشل تحديث حالة الطلب'
+    });
+  }
+};
 
 const getOneOrder = async (req, res) => {
   try {
@@ -542,4 +734,4 @@ const restoreOrdersFromTrash = async (req, res) => {
   }
 };
 
-module.exports = { getAllOrders, updateOrder, getOneOrder, deleteAllOrders, moveOrdersToTrash, restoreOrdersFromTrash }
+module.exports = { getAllOrders, updateOrder, updateOrderStatus, getOneOrder, deleteAllOrders, moveOrdersToTrash, restoreOrdersFromTrash };

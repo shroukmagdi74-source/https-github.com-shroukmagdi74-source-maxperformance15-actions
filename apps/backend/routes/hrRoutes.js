@@ -645,6 +645,7 @@ router.delete('/policies/:id', verifyToken.authenticateToken, verifyToken.requir
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get('/my-companies/today', verifyToken.authenticateToken, hrController.getMyCompaniesToday);
+router.get('/my-companies/orders', verifyToken.authenticateToken, hrController.getMyCompaniesOrders);
 router.get('/my-companies/attendance-report', verifyToken.authenticateToken, hrController.getMyCompaniesAttendanceReport);
 router.get('/my-companies/export', verifyToken.authenticateToken, hrController.exportMyCompaniesReport);
 
