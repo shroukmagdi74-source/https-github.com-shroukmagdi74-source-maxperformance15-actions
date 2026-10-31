@@ -698,9 +698,16 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                 onStartTask?.(task);
               }}
               style={rowStyles.startBtn}
-              title="بدء العمل على المهمة واحتساب الوقت"
+              title={
+                rawStatus === 'PENDING' || rawStatus === 'TODO' || rawStatus === 'DRAFT'
+                  ? 'بدء تنفيذ المهمة وتشغيل المؤقت'
+                  : 'بدء العمل على المهمة واحتساب الوقت'
+              }
             >
               <Play size={12} fill="currentColor" color="currentColor" />
+              {(rawStatus === 'PENDING' || rawStatus === 'TODO' || rawStatus === 'DRAFT') && (
+                <span style={{ fontSize: 10, fontWeight: 600, marginInlineStart: 2 }}>بدء</span>
+              )}
             </button>
           ) : (
             <span
