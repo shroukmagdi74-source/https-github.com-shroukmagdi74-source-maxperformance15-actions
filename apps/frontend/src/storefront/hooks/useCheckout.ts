@@ -292,7 +292,7 @@ export const useCheckout = () => {
               eventId: pixelEventId,
               orderNumber: String(response.data.orderNumber || pixelEventId),
               companyId: companyId || undefined,
-              total: Number(payload.total),
+              total: Number(response.data.total ?? payload.total),
               phone: data.phone,
               customerName: data.customerName,
               paymentMethod: 'card',

@@ -45,7 +45,7 @@ const {
   getVolumeDiscountsFromMetadata,
 } = require('../utils/volumeDiscountUtils');
 const { calculateDiscount: calcStorePromotionDiscount } = require('../utils/storePromotionUtils');
-const { buildCompositeDiscountReason } = require('../utils/orderDiscountUtils');
+const { buildCompositeDiscountReason, resolveCheckoutPricing } = require('../utils/orderDiscountUtils');
 const customerBlocklistService = require('../services/customerBlocklistService');
 
 /**
@@ -1411,256 +1411,63 @@ router.post('/', async (req, res) => {
       (summary) => Boolean(summary.freeShipping),
     );
 
-    let freeShippingAdjustment = null;
-    const originalShippingCost = Number(shippingCost) || 0;
-
-    if (quantityOfferFreeShipping) {
-      console.log('✅ [CREATE-ORDER] Free shipping applied by quantity offer');
-      freeShippingAdjustment = {
-        source: 'quantity-offer',
-        originalShippingCost,
-        discountAmount: originalShippingCost,
-        appliedShippingCost: 0,
-      };
-      shippingCost = 0;
-    } else {
-      const conversionFreeShipping = await getConversionSuiteFreeShippingPromotion(
-        prisma,
-        company.id,
-        cartTotal,
-      );
-
-      if (conversionFreeShipping.eligible) {
-        console.log(
-          '✅ [CREATE-ORDER] Free shipping applied by conversion-suite threshold:',
-          conversionFreeShipping.threshold,
-        );
-        freeShippingAdjustment = {
-          source: conversionFreeShipping.source,
-          threshold: conversionFreeShipping.threshold,
-          originalShippingCost,
-          discountAmount: originalShippingCost,
-          appliedShippingCost: 0,
-        };
-        shippingCost = 0;
-      }
-    }
-
-    // Apply coupon
-    let discountAmount = 0;
-    if (req.headers['x-admin-convert'] && req.body?.discountAmount !== undefined) {
-      discountAmount = Number(req.body.discountAmount) || 0;
-    }
-    let appliedCoupon = null;
-    if (couponCode) {
-      const now = new Date();
-      const coupon = await prisma.coupon.findFirst({
-        where: {
-          code: String(couponCode).trim().toUpperCase(),
-          companyId: company.id,
-          isActive: true,
-          validFrom: { lte: now },
-          validTo: { gte: now }
-        }
-      });
-
-      if (coupon) {
-        const usageLimitReached = coupon.usageLimit && coupon.usageCount >= coupon.usageLimit;
-        const minOrderMet = !coupon.minOrderAmount || Number(cartTotal) >= Number(coupon.minOrderAmount);
-
-        if (!usageLimitReached && minOrderMet) {
-          if (coupon.type === 'PERCENTAGE') {
-            discountAmount = (cartTotal * Number(coupon.value)) / 100;
-            if (coupon.maxDiscountAmount && discountAmount > Number(coupon.maxDiscountAmount)) {
-              discountAmount = Number(coupon.maxDiscountAmount);
-            }
-          } else if (coupon.type === 'FREE_SHIPPING') {
-            discountAmount = 0;
-            if (shippingCost > 0) {
-              freeShippingAdjustment = {
-                source: 'coupon-free-shipping',
-                threshold: 0,
-                originalShippingCost,
-                discountAmount: originalShippingCost,
-                appliedShippingCost: 0,
-              };
-              shippingCost = 0;
-            }
-          } else {
-            discountAmount = Number(coupon.value);
-          }
-          discountAmount = Math.max(0, Math.min(cartTotal, Number(discountAmount)));
-          appliedCoupon = coupon;
-        }
-      }
-    }
-
-    // Company settings for discount approval & auto-discounts
-    const companySettingsRaw = company?.settings || (await prisma.company.findUnique({
-      where: { id: company.id },
-      select: { settings: true }
-    }))?.settings;
-    const parsedCompanySettings = typeof companySettingsRaw === 'string'
-      ? JSON.parse(companySettingsRaw || '{}')
-      : (companySettingsRaw || {});
-
-    const disableAutoDiscountsWithoutApproval = parsedCompanySettings.disableAutoDiscountsWithoutApproval !== undefined
-      ? Boolean(parsedCompanySettings.disableAutoDiscountsWithoutApproval)
-      : true;
-    const requireDiscountApproval = parsedCompanySettings.requireDiscountApproval !== undefined
-      ? Boolean(parsedCompanySettings.requireDiscountApproval)
-      : true;
-
-    // Store-wide promotion discount
-    let promoDiscount = 0;
-    let promoLabel = '';
-    if (!disableAutoDiscountsWithoutApproval) {
-      const storePromotion = await prisma.storePromotion.findFirst({
-        where: {
-          companyId: company.id,
-          isActive: true,
-          AND: [
-            { OR: [{ startDate: null }, { startDate: { lte: new Date() } }] },
-            { OR: [{ endDate: null }, { endDate: { gte: new Date() } }] },
-          ],
-        },
-      });
-      if (storePromotion) {
-        if (storePromotion.disableOtherDiscounts) {
-          discountAmount = 0;
-        }
-        const promoCartItems = cartItems.map(i => ({
-          productId: i.productId || i.id,
-          price: i.basePrice || i.price,
-          comparePrice: i.comparePrice || 0,
-          quantity: i.quantity,
-        }));
-        const result = calcStorePromotionDiscount({
-          cartItems: promoCartItems,
-          tiers: storePromotion.tiers,
-          disableOtherDiscounts: storePromotion.disableOtherDiscounts,
-        });
-        promoDiscount = result.discount;
-        promoLabel = result.tier?.label || storePromotion.title || 'عرض الكمية';
-        discountAmount += promoDiscount;
-      }
-    }
-
-    // مزايا مستوى الولاء (شحن مجاني + خصم تلقائي) / أو كوبون الخصم التلقائي
-    let loyaltyDiscount = 0;
-    let loyaltyRewards = null;
-    let loyaltyTierInfo = null;
-    let autoDiscountVoucherId = null;
     let loyaltyCustomer = null;
     try {
       loyaltyCustomer = await findCustomerByPhone(prisma, guestPhone, company.id);
-      if (loyaltyCustomer) {
-        const autoDiscountService = require('../services/autoDiscountService');
-        const loyaltySettings = await autoDiscountService.getSettings(company.id);
-        const autoActive = !disableAutoDiscountsWithoutApproval && loyaltySettings.autoDiscountEnabled === true && loyaltySettings.enabled !== false;
-        const hasTiers = await prisma.customerLoyaltyTier.count({ where: { companyId: company.id } });
-        const tiersActive = loyaltySettings.tiersEnabled === true || hasTiers > 0;
-        const discountCombination = loyaltySettings.discountCombination || 'ADDITIVE';
-        const maxTotalDiscountPercent = Number(loyaltySettings.maxTotalDiscountPercent || 0);
+    } catch (_) {}
 
-        let tierDiscount = 0;
-        let voucherDiscount = 0;
+    // ─── Single Source of Truth: Centralized Checkout Pricing ──────────────
+    const pricing = await resolveCheckoutPricing({
+      prisma,
+      companyId: company.id,
+      items: cartItems,
+      subtotal: cartTotal,
+      couponCode,
+      paymentMethod,
+      customerId: loyaltyCustomer?.id,
+      customerPhone: guestPhone,
+      shippingCost,
+      shippingAddress,
+      company,
+      appliedAdminDiscount: req.headers['x-admin-convert'] && req.body?.discountAmount !== undefined
+        ? Number(req.body.discountAmount) || 0
+        : undefined,
+      markVoucherUsed: true,
+    });
 
-        // نظام "المستويات": مزايا المستوى (شحن مجاني + خصم %) — مستقل عن الخصم التلقائي
-        if (tiersActive) {
-          loyaltyRewards = await customerLoyaltyService.getCustomerActiveRewards(company.id, loyaltyCustomer.id);
-          const progress = await customerLoyaltyService.getCustomerTierProgress(company.id, loyaltyCustomer.id);
-          loyaltyTierInfo = progress?.tier || null;
+    let freeShippingAdjustment = pricing.freeShippingAdjustment;
+    shippingCost = pricing.shipping;
+    const originalShippingCost = pricing.originalShippingCost;
 
-          if (loyaltyRewards?.freeShipping && Number(shippingCost) > 0) {
-            freeShippingAdjustment = {
-              source: 'loyalty_tier',
-              originalShippingCost: Number(shippingCost),
-              discountAmount: Number(shippingCost),
-              appliedShippingCost: 0,
-            };
-            shippingCost = 0;
-          }
+    let appliedCoupon = pricing.appliedCoupon;
+    let discountAmount = pricing.totalDiscount;
+    let promoDiscount = pricing.storePromotionDiscount;
+    let promoLabel = pricing.storePromotionLabel;
 
-          const lp = Number(loyaltyRewards?.discountPercent || 0);
-          if (lp > 0) {
-            tierDiscount = (Number(cartTotal) || 0) * (lp / 100);
-          }
-        }
+    let loyaltyDiscount = pricing.loyaltyDiscount;
+    let loyaltyRewards = pricing.loyaltyRewards;
+    let loyaltyTierInfo = pricing.loyaltyTierInfo;
+    let autoDiscountVoucherId = pricing.autoDiscountVoucherId;
+    let walletDiscount = pricing.walletDiscount;
 
-        // نظام "الخصم التلقائي": كوبون الخصم — مستقل عن المستويات
-        if (autoActive) {
-          const voucherRes = await autoDiscountService.applyVoucherDiscount({
-            companyId: company.id,
-            customerId: loyaltyCustomer.id,
-            cartTotal
-          });
-          if (voucherRes.discount > 0 && voucherRes.voucher) {
-            voucherDiscount = voucherRes.discount;
-            autoDiscountVoucherId = voucherRes.voucher.id;
-            await autoDiscountService.markVoucherUsed(voucherRes.voucher.id);
-          }
-        }
 
-        // دمج خصم المستوى + كوبون الخصم حسب وضع الدمج (discountCombination) + حد أقصى
-        const base = Number(cartTotal) || 0;
-        let combined = 0;
-        if (discountCombination === 'BEST') {
-          combined = Math.max(tierDiscount, voucherDiscount);
-        } else if (discountCombination === 'COMPOUND') {
-          const tierPct = base > 0 ? (tierDiscount / base) * 100 : 0;
-          const voucherPct = base > 0 ? (voucherDiscount / base) * 100 : 0;
-          combined = base * (1 - (1 - tierPct / 100) * (1 - voucherPct / 100));
-        } else {
-          // ADDITIVE: جمع النسب
-          combined = tierDiscount + voucherDiscount;
-        }
-        // 🛡️ حد أقصى لإجمالي الخصم
-        if (maxTotalDiscountPercent > 0) {
-          const capAmount = base * (maxTotalDiscountPercent / 100);
-          if (combined > capAmount) combined = capAmount;
-        }
 
-        // 🛡️ B) سقف الخصم الشامل (Company.maxDiscountCap) + منع دمج الكوبون مع الولاء
-        try {
-          const customerLoyaltyService = require('../services/hr/customerLoyaltyService');
-          const couponCode = req.body && req.body.couponCode;
-          let couponAllowWithLoyalty = true;
-          if (couponCode && prisma.coupon) {
-            const cp = await prisma.coupon.findFirst({ where: { companyId: company.id, code: couponCode } }).catch(() => null);
-            if (cp) couponAllowWithLoyalty = cp.allowWithLoyalty !== false;
-          }
-          const capResult = await customerLoyaltyService.enforceDiscountCap({
-            companyId: company.id,
-            orderTotal: cartTotal,
-            couponDiscount: combined,
-            walletAmount: Number(walletAmount) || 0,
-            pointsAmount: 0,
-            couponAllowWithLoyalty
-          });
-          if (!capResult.loyaltyAllowed) {
-            // الكوبون لا يُسمح بدمجه مع الولاء → أزل خصم الولاء من المجموع
-            combined = capResult.couponDiscount;
-          } else if (capResult.capped) {
-            combined = capResult.cappedTotal;
-          }
-        } catch (capErr) {
-          console.warn('⚠️ [LOYALTY] discount cap check failed:', capErr && capErr.message);
-        }
 
-        loyaltyDiscount = combined;
-        if (loyaltyDiscount > 0) {
-          discountAmount += loyaltyDiscount;
-        }
-      }
-    } catch (loyaltyError) {
-      console.error('⚠️ [LOYALTY] Failed to apply rewards at checkout:', loyaltyError?.message);
-    }
 
-    // خصم الدفع الإلكتروني (من إعدادات المتجر: discountEnabled + discountPercent) — يُطبّق على الدفع بالبطاقة أو المحفظة
-    let walletDiscount = 0;
-    let walletDiscountPercent = 0;
-    if (paymentMethod === 'card' || paymentMethod === 'wallet') {
+
+
+
+
+
+
+
+
+
+
+
+
+    let walletDiscountPercent = pricing.walletDiscountPercent;
+    if (paymentMethod === 'wallet') {
       try {
         const walletSettingsRow = await prisma.storefrontSettings.findUnique({
           where: { companyId: company.id },
@@ -1687,26 +1494,6 @@ router.post('/', async (req, res) => {
           });
         }
 
-        const discountEnabled =
-          walletSettings?.discountEnabled === true ||
-          walletSettings?.discountEnabled === 'true';
-        const percent = Math.max(0, Number(walletSettings?.discountPercent || 0));
-        if (discountEnabled && percent > 0 && (paymentMethod === 'card' || isWalletActive)) {
-          walletDiscountPercent = percent;
-          walletDiscount = Number(
-            (((Number(cartTotal) || 0) * percent) / 100).toFixed(2)
-          );
-          discountAmount += walletDiscount;
-          console.log(
-            '🎁 [WALLET-DISCOUNT] Applied:',
-            walletDiscount,
-            'EGP (',
-            percent,
-            '% of cartTotal ',
-            cartTotal,
-            ')'
-          );
-        }
       } catch (walletDiscountError) {
         console.error(
           '⚠️ [WALLET-DISCOUNT] Failed to apply wallet discount:',
@@ -1715,7 +1502,7 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const finalTotal = (Number(cartTotal) || 0) + (Number(shippingCost) || 0) - (Number(discountAmount) || 0);
+    const finalTotal = pricing.total;
 
     // Wallet usage (optional - requires CUSTOMER token)
     const customerAuth = tryDecodeCustomerToken(req.headers.authorization);
