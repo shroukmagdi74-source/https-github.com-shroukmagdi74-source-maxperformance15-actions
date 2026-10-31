@@ -232,5 +232,15 @@ router.patch('/factory-agreements/:id/payments/:paymentId/cancel', controller.ca
 router.post('/factory-agreements/:id/files', upload.single('file'), controller.uploadAgreementFile);
 router.delete('/factory-agreements/:id/files/:fileId', controller.deleteAgreementFile);
 
+// ============================================================================
+// 12. Manufacturing WhatsApp Notifications (T01)
+// ============================================================================
+const ADMIN_ROLES = ['OWNER', 'COMPANY_ADMIN', 'ADMIN', 'MANAGER'];
+router.get('/notification-settings', controller.getNotificationSettings);
+router.put('/notification-settings', verifyToken.requireRole(ADMIN_ROLES), controller.updateNotificationSettings);
+router.get('/notification-logs', controller.listNotificationLogs);
+router.post('/notification-logs/:id/retry', verifyToken.requireRole(ADMIN_ROLES), controller.retryNotificationLog);
+router.post('/notifications/emit', verifyToken.requireRole(ADMIN_ROLES), controller.emitNotificationEvent);
+
 module.exports = router;
 

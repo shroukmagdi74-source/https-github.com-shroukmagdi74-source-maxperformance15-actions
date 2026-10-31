@@ -794,6 +794,7 @@ export interface ManufacturingSettings {
   overheadAppliedAccountId?: string | null;
   finishedGoodsAccountId?: string | null;
   autoPostingEnabled: boolean;
+  manufacturingNotifications?: MfgNotificationSettings | string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1063,6 +1064,28 @@ export const manufacturingApi = {
   updateSettings: async (data: Partial<ManufacturingSettings>): Promise<ManufacturingSettings> => {
     const res = await apiClient.put('/manufacturing/settings', data);
     return res.data?.data;
+  },
+
+  // WhatsApp Notifications (T01)
+  getNotificationSettings: async (): Promise<MfgNotificationSettings> => {
+    const res = await apiClient.get('/manufacturing/notification-settings');
+    return res.data?.data;
+  },
+  updateNotificationSettings: async (patch: Partial<MfgNotificationSettings>): Promise<MfgNotificationSettings> => {
+    const res = await apiClient.put('/manufacturing/notification-settings', patch);
+    return res.data?.data;
+  },
+  listNotificationLogs: async (params?: Record<string, any>): Promise<{ items: MfgNotificationLog[]; pagination: { total: number; page: number; limit: number; totalPages: number } }> => {
+    const res = await apiClient.get('/manufacturing/notification-logs', { params });
+    return res.data;
+  },
+  retryNotificationLog: async (id: string): Promise<MfgNotificationLog> => {
+    const res = await apiClient.post(`/manufacturing/notification-logs/${id}/retry`);
+    return res.data?.data;
+  },
+  emitNotificationEvent: async (payload: { eventKey: MfgNotificationEventKey; entityType?: string; entityId: string }): Promise<any> => {
+    const res = await apiClient.post('/manufacturing/notifications/emit', payload);
+    return res.data;
   },
 
   // Bill of Materials (BOM)
@@ -2451,4 +2474,63 @@ export const publicSampleShareApi = {
     return res.data;
   },
 };
+
+// ============================================================================
+// Manufacturing WhatsApp Notifications Types (T01)
+// ============================================================================
+
+export type MfgNotificationEventKey =
+  | 'SAMPLE_CREATED'
+  | 'SAMPLE_APPROVED'
+  | 'SAMPLE_REJECTED'
+  | 'SAMPLE_CONVERTED'
+  | 'SAMPLE_RECEIVED'
+  | 'PRODUCTION_STAGE_STARTED'
+  | 'PRODUCTION_STAGE_COMPLETED'
+  | 'PRODUCTION_ORDER_DELAYED'
+  | 'PRODUCTION_ORDER_COMPLETED';
+
+export type MfgNotificationRecipientType = 'CUSTOMER' | 'FACTORY' | 'TEAM';
+
+export interface MfgNotificationEventConfig {
+  enabled: boolean;
+  recipients: {
+    CUSTOMER: boolean;
+    FACTORY: boolean;
+    TEAM: boolean;
+  };
+  templateId?: string | null;
+  body?: string;
+}
+
+export interface MfgNotificationSettings {
+  isEnabled: boolean;
+  teamPhone?: string | null;
+  events: Record<MfgNotificationEventKey, MfgNotificationEventConfig>;
+}
+
+export interface MfgNotificationLog {
+  id: string;
+  companyId?: string;
+  eventKey: MfgNotificationEventKey | string;
+  entityType?: string;
+  entityId?: string;
+  sampleOrderId?: string | null;
+  productionOrderId?: string | null;
+  stageId?: string | null;
+  recipientType?: MfgNotificationRecipientType | string;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  channel?: string;
+  status: 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED' | string;
+  reason?: string | null;
+  errorCode?: string | null;
+  whatsappLogId?: string | null;
+  dedupKey?: string;
+  payload?: any;
+  sentAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 

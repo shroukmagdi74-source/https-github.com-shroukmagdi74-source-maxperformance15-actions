@@ -1559,6 +1559,18 @@ try {
   );
 }
 
+// Start Manufacturing WhatsApp Notification Overdue Scan Cron Service (T01)
+try {
+  const { startManufacturingNotificationCron } = require("./cron/manufacturingNotificationCron");
+  startManufacturingNotificationCron();
+  console.log("✅ [MANUFACTURING-NOTIFICATION-CRON] Manufacturing overdue notification service started");
+} catch (error) {
+  console.error(
+    "❌ [MANUFACTURING-NOTIFICATION-CRON] Failed to start manufacturing notification service:",
+    error
+  );
+}
+
 // Start YouTube Publish Scheduling Cron Service
 if (process.env.YOUTUBE_CRON !== "off") {
   try {

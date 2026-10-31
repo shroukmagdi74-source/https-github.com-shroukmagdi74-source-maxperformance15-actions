@@ -15,6 +15,7 @@ const ManufacturingSampleShareService = require('../services/manufacturingSample
 const ManufacturingStageTemplateService = require('../services/manufacturingStageTemplateService');
 const ManufacturingFactoryAgreementService = require('../services/manufacturingFactoryAgreementService');
 const CustomerPortalService = require('../services/customerPortalService');
+const ManufacturingNotificationService = require('../services/manufacturingNotificationService');
 
 class ManufacturingController {
   static getCompanyId(req) {
@@ -1566,6 +1567,123 @@ class ManufacturingController {
         req.params.id,
         req.params.fileId
       );
+      res.json(result);
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  // ==========================================================================
+  // 12. Manufacturing WhatsApp Notifications (T01)
+  // ==========================================================================
+
+  static async getNotificationSettings(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingNotificationService.getNotificationSettings(companyId);
+      res.json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async updateNotificationSettings(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingNotificationService.updateNotificationSettings(companyId, req.body);
+      res.json({ success: true, data, message: 'تم تحديث إعدادات إشعارات التصنيع' });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async listNotificationLogs(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const result = await ManufacturingNotificationService.listNotificationLogs(companyId, req.query);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async retryNotificationLog(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const data = await ManufacturingNotificationService.retryNotificationLog(companyId, req.params.id, req.user);
+      res.status(201).json({ success: true, data });
+    } catch (error) {
+      res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+  }
+
+  static async emitNotificationEvent(req, res) {
+    try {
+      const companyId = ManufacturingController.getCompanyId(req);
+      const { eventKey, entityType, entityId } = req.body || {};
+
+      if (!eventKey || !ManufacturingNotificationService.MFG_EVENTS[eventKey]) {
+        return res.status(400).json({ success: false, message: 'حدث تصنيع غير معروف' });
+      }
+
+      if (!entityId) {
+        return res.status(400).json({ success: false, message: 'معرف الكيان مطلوب' });
+      }
+
+      const { getSharedPrismaClient } = require('../services/sharedDatabase');
+      const prisma = getSharedPrismaClient();
+
+      let sampleOrder = null;
+      let productionOrder = null;
+      let stage = null;
+
+      if (entityType === 'SAMPLE_ORDER' || (!entityType && eventKey.startsWith('SAMPLE_'))) {
+        sampleOrder = await prisma.sampleOrder.findFirst({
+          where: { id: entityId, companyId },
+          include: { stages: true },
+        });
+        if (!sampleOrder) {
+          return res.status(404).json({ success: false, message: 'طلب العينة غير موجود' });
+        }
+        if (sampleOrder.convertedOrderId) {
+          productionOrder = await prisma.productionOrder.findFirst({
+            where: { id: sampleOrder.convertedOrderId, companyId },
+          });
+        }
+      } else if (entityType === 'STAGE' || (!entityType && eventKey.startsWith('PRODUCTION_STAGE_'))) {
+        stage = await prisma.productionStage.findFirst({
+          where: { id: entityId, order: { companyId } },
+          include: { order: true, partnerFactory: true },
+        });
+        if (!stage) {
+          return res.status(404).json({ success: false, message: 'مرحلة الإنتاج غير موجودة' });
+        }
+        productionOrder = stage.order;
+      } else {
+        // PRODUCTION_ORDER
+        productionOrder = await prisma.productionOrder.findFirst({
+          where: { id: entityId, companyId },
+          include: { stages: true },
+        });
+        if (!productionOrder) {
+          return res.status(404).json({ success: false, message: 'أمر الإنتاج غير موجود' });
+        }
+        if (productionOrder.sourceSampleOrderId) {
+          sampleOrder = await prisma.sampleOrder.findFirst({
+            where: { id: productionOrder.sourceSampleOrderId, companyId },
+          });
+        }
+      }
+
+      const result = await ManufacturingNotificationService.emit(eventKey, {
+        companyId,
+        entityId,
+        sampleOrder,
+        productionOrder,
+        stage,
+        actorId: req.user?.id,
+      });
+
       res.json(result);
     } catch (error) {
       res.status(error.statusCode || 400).json({ success: false, message: error.message });

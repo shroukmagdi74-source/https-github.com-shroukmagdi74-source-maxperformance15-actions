@@ -16,6 +16,7 @@ import {
   Ruler,
   FlaskConical,
   FileSignature,
+  MessageCircle,
 } from 'lucide-react';
 import { manufacturingApi } from './manufacturingApi';
 
@@ -41,6 +42,7 @@ const NAV_ITEMS: NavItemConfig[] = [
   { to: '/manufacturing/size-charts', label: 'جداول المقاسات', icon: Ruler },
   { to: '/manufacturing/fabric-calculator', label: 'حاسبة القماش', icon: Calculator },
   { to: '/manufacturing/reports', label: 'تقارير الإنتاج والتكاليف', icon: LineChart },
+  { to: '/manufacturing/notifications', label: 'سجل إشعارات التصنيع', icon: MessageCircle },
   { to: '/manufacturing/settings', label: 'إعدادات التصنيع', icon: Settings },
 ];
 

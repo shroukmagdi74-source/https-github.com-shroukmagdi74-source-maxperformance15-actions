@@ -18,6 +18,7 @@
 
 const { getSharedPrismaClient } = require('./sharedDatabase');
 const ManufacturingService = require('./manufacturingService');
+const ManufacturingNotificationService = require('./manufacturingNotificationService');
 
 const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
 
@@ -594,7 +595,7 @@ class ManufacturingSampleService {
         attempts++;
         const sampleNumber = data.sampleNumber || (await this.generateSampleNumber(companyId));
 
-        return await prisma.$transaction(async (tx) => {
+        const created = await prisma.$transaction(async (tx) => {
           const sample = await tx.sampleOrder.create({
             data: {
               companyId,
@@ -712,6 +713,8 @@ class ManufacturingSampleService {
             overdueDays,
           });
         });
+        ManufacturingNotificationService.emit('SAMPLE_CREATED', { companyId, sampleOrder: created, actorId: user?.id }).catch(() => {});
+        return created;
       } catch (err) {
         if (err.code === 'P2002' && attempts < 5) {
           // Unique constraint collision on sampleNumber -> retry next sequence
@@ -1173,6 +1176,7 @@ class ManufacturingSampleService {
         expenses: { orderBy: { createdAt: 'asc' } },
       },
     });
+    ManufacturingNotificationService.emit('SAMPLE_APPROVED', { companyId, sampleOrder: { ...sample, ...updated } }).catch(() => {});
     return this.decorateTotals(updated);
   }
 
@@ -1217,6 +1221,7 @@ class ManufacturingSampleService {
         expenses: { orderBy: { createdAt: 'asc' } },
       },
     });
+    ManufacturingNotificationService.emit('SAMPLE_REJECTED', { companyId, sampleOrder: { ...sample, ...updated } }).catch(() => {});
     return this.decorateTotals(updated);
   }
 
@@ -1317,6 +1322,13 @@ class ManufacturingSampleService {
         expenses: { orderBy: { createdAt: 'asc' } },
       },
     });
+
+    ManufacturingNotificationService.emit('SAMPLE_CONVERTED', {
+      companyId,
+      sampleOrder: updatedSample,
+      productionOrder: createdOrder,
+      actorId: user?.id,
+    }).catch(() => {});
 
     return {
       success: true,
