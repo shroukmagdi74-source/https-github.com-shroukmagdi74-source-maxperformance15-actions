@@ -20,6 +20,314 @@ const ManufacturingNotificationService = require('./manufacturingNotificationSer
 const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
 const round4 = (val) => Math.round((Number(val) || 0) * 10000) / 10000;
 
+const MAX_TREE_DEPTH = 5;
+
+/**
+ * DFS with visited tracking: returns { hasCycle: boolean, path: string[] }
+ * path contains component names for clear Arabic error messaging.
+ */
+function detectComponentCycle(components = []) {
+  if (!Array.isArray(components) || components.length === 0) {
+    return { hasCycle: false, path: [] };
+  }
+
+  const byKey = new Map();
+  const parentKeyMap = new Map();
+  const nameMap = new Map();
+
+  for (const c of components) {
+    const key = String(c.clientRef || c.id || '');
+    if (!key) continue;
+    byKey.set(key, c);
+    const parentKey =
+      c.parentRef !== undefined && c.parentRef !== null && String(c.parentRef).trim() !== ''
+        ? String(c.parentRef).trim()
+        : c.parentId !== undefined && c.parentId !== null && String(c.parentId).trim() !== ''
+        ? String(c.parentId).trim()
+        : null;
+    parentKeyMap.set(key, parentKey);
+    const name = c.rawMaterialName || c.name || c.rawMaterialId || key;
+    nameMap.set(key, name);
+  }
+
+  for (const startKey of byKey.keys()) {
+    const currentPath = [];
+    const inPath = new Set();
+    let curr = startKey;
+
+    while (curr && byKey.has(curr)) {
+      if (inPath.has(curr)) {
+        const cycleStartIdx = currentPath.indexOf(curr);
+        const cycleKeys = currentPath.slice(cycleStartIdx);
+        cycleKeys.push(curr);
+        const pathNames = cycleKeys.map((k) => nameMap.get(k) || k);
+        return { hasCycle: true, path: pathNames };
+      }
+      inPath.add(curr);
+      currentPath.push(curr);
+      curr = parentKeyMap.get(curr);
+    }
+  }
+
+  return { hasCycle: false, path: [] };
+}
+
+/**
+ * Normalizes client payload: validates clientRef uniqueness, parentRef existence,
+ * prices, cycles, and tree depth <= MAX_TREE_DEPTH.
+ * Returns { rows: [...], clientRefs: Set }
+ */
+function normalizeComponentPayload(components = []) {
+  if (!Array.isArray(components) || components.length === 0) {
+    return { rows: [], clientRefs: new Set() };
+  }
+
+  const clientRefs = new Set();
+  const rows = [];
+
+  for (let i = 0; i < components.length; i++) {
+    const raw = components[i];
+    const item = { ...raw };
+
+    const clientRef =
+      item.clientRef !== undefined && item.clientRef !== null && String(item.clientRef).trim() !== ''
+        ? String(item.clientRef).trim()
+        : item.id
+        ? String(item.id).trim()
+        : `ref-${Date.now()}-${i}`;
+
+    if (
+      (item.clientRef !== undefined && item.clientRef !== null && String(item.clientRef).trim() !== '') ||
+      item.id
+    ) {
+      if (clientRefs.has(clientRef)) {
+        const err = new Error(`تكرار في معرف البند (${clientRef})`);
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+    clientRefs.add(clientRef);
+
+    // Validate totalPrice
+    if (item.totalPrice !== undefined && item.totalPrice !== null && String(item.totalPrice).trim() !== '') {
+      const priceNum = Number(item.totalPrice);
+      if (isNaN(priceNum)) {
+        const err = new Error('سعر البند غير صالح');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (priceNum < 0) {
+        const err = new Error('سعر البند لا يقبل قيمة سالبة');
+        err.statusCode = 400;
+        throw err;
+      }
+      if (priceNum > 9999999999) {
+        const err = new Error('سعر البند يتجاوز الحد الأقصى المسموح');
+        err.statusCode = 400;
+        throw err;
+      }
+      item.totalPrice = round2(priceNum);
+    } else {
+      item.totalPrice = null;
+    }
+
+    const mode = String(item.pricingMode || 'ADDITIVE').trim().toUpperCase();
+    item.pricingMode = mode === 'INCLUSIVE' ? 'INCLUSIVE' : 'ADDITIVE';
+
+    let parentRef = null;
+    if (item.parentRef !== undefined && item.parentRef !== null && String(item.parentRef).trim() !== '') {
+      parentRef = String(item.parentRef).trim();
+    } else if (item.parentId !== undefined && item.parentId !== null && String(item.parentId).trim() !== '') {
+      parentRef = String(item.parentId).trim();
+    }
+
+    item.clientRef = clientRef;
+    item.parentRef = parentRef;
+    rows.push(item);
+  }
+
+  // Validate parentRef existence
+  for (const item of rows) {
+    if (item.parentRef) {
+      if (!clientRefs.has(item.parentRef)) {
+        const err = new Error('البند الأب غير موجود في نفس القائمة');
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+  }
+
+  // Detect cycle
+  const cycle = detectComponentCycle(rows);
+  if (cycle.hasCycle) {
+    const err = new Error(`دوران في شجرة المكونات: ${cycle.path.join(' → ')}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Check depth <= MAX_TREE_DEPTH
+  const getDepth = (ref, visited = new Set()) => {
+    if (!ref) return 0;
+    if (visited.has(ref)) return 1;
+    visited.add(ref);
+    const it = rows.find((r) => r.clientRef === ref);
+    if (!it || !it.parentRef) return 1;
+    return 1 + getDepth(it.parentRef, visited);
+  };
+
+  for (const item of rows) {
+    const depth = getDepth(item.clientRef);
+    if (depth > MAX_TREE_DEPTH) {
+      const err = new Error('تجاوزت أقصى عمق مسموح (5 مستويات)');
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  return { rows, clientRefs };
+}
+
+/**
+ * nodeTotal = pricingMode === 'INCLUSIVE' ? totalPrice : totalPrice + Σ nodeTotal(child)
+ * Returns { byId, roots, bomTotal, nodeCount, rootCount, warnings }
+ */
+function computeComponentPricing(components = []) {
+  if (!Array.isArray(components) || components.length === 0) {
+    return {
+      byId: {},
+      roots: [],
+      bomTotal: 0,
+      nodeCount: 0,
+      rootCount: 0,
+      warnings: [],
+    };
+  }
+
+  const cycle = detectComponentCycle(components);
+  if (cycle.hasCycle) {
+    const err = new Error(`دوران في شجرة المكونات: ${cycle.path.join(' → ')}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const byId = {};
+  const parentMap = new Map();
+
+  for (const c of components) {
+    const key = String(c.id || c.clientRef || '');
+    if (!key) continue;
+
+    const parentKey =
+      c.parentId !== undefined && c.parentId !== null && String(c.parentId).trim() !== ''
+        ? String(c.parentId).trim()
+        : c.parentRef !== undefined && c.parentRef !== null && String(c.parentRef).trim() !== ''
+        ? String(c.parentRef).trim()
+        : null;
+
+    const price =
+      c.totalPrice !== undefined && c.totalPrice !== null && String(c.totalPrice).trim() !== ''
+        ? Number(c.totalPrice) || 0
+        : 0;
+
+    const mode = String(c.pricingMode || 'ADDITIVE').trim().toUpperCase() === 'INCLUSIVE'
+      ? 'INCLUSIVE'
+      : 'ADDITIVE';
+
+    byId[key] = {
+      ...c,
+      id: c.id || key,
+      clientRef: c.clientRef || key,
+      parentId: parentKey,
+      parentRef: parentKey,
+      totalPrice: round2(price),
+      pricingMode: mode,
+      children: [],
+      nodeTotal: 0,
+    };
+    parentMap.set(key, parentKey);
+  }
+
+  const roots = [];
+  for (const key of Object.keys(byId)) {
+    const parentKey = parentMap.get(key);
+    if (parentKey && byId[parentKey]) {
+      byId[parentKey].children.push(byId[key]);
+    } else {
+      roots.push(byId[key]);
+    }
+  }
+
+  const calculateNodeTotal = (node, depth = 1) => {
+    if (depth > MAX_TREE_DEPTH) {
+      const err = new Error('تجاوزت أقصى عمق مسموح (5 مستويات)');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    let childrenSum = 0;
+    for (const child of node.children) {
+      childrenSum += calculateNodeTotal(child, depth + 1);
+    }
+    childrenSum = round2(childrenSum);
+
+    const ownPrice = round2(Number(node.totalPrice) || 0);
+    if (node.pricingMode === 'INCLUSIVE') {
+      node.nodeTotal = ownPrice;
+    } else {
+      node.nodeTotal = round2(ownPrice + childrenSum);
+    }
+    return node.nodeTotal;
+  };
+
+  let bomTotal = 0;
+  for (const root of roots) {
+    bomTotal += calculateNodeTotal(root, 1);
+  }
+  bomTotal = round2(bomTotal);
+
+  const warnings = [];
+  for (const key of Object.keys(byId)) {
+    const node = byId[key];
+    if (node.children && node.children.length > 0) {
+      const name = node.rawMaterialName || node.name || node.rawMaterialId || key;
+      warnings.push(`البند "${name}" له أبناء — استهلاكه (consumptionPerUnit) مش محسوب في متطلبات الخامات`);
+    }
+  }
+
+  return {
+    byId,
+    roots,
+    bomTotal,
+    nodeCount: Object.keys(byId).length,
+    rootCount: roots.length,
+    warnings,
+  };
+}
+
+/**
+ * Builds component tree returning root nodes with children and nodeTotal populated.
+ */
+function buildComponentTree(components = []) {
+  const result = computeComponentPricing(components);
+  return result.roots;
+}
+
+const withTree = (bom) => {
+  if (!bom) return bom;
+  const comps = bom.components || [];
+  const p = computeComponentPricing(comps);
+  return {
+    ...bom,
+    componentTree: buildComponentTree(comps),
+    pricing: {
+      bomTotal: p.bomTotal,
+      nodeCount: p.nodeCount,
+      rootCount: p.rootCount,
+      warnings: p.warnings,
+    },
+  };
+};
+
 const resolveExecutionFactory = (stages = []) => {
   const withFactory = stages
     .filter((s) => s.partnerFactoryId && s.partnerFactory)
@@ -113,6 +421,18 @@ class ManufacturingService {
         ALTER TABLE "bom_component_items" ADD COLUMN IF NOT EXISTS "fabricWidthM" DECIMAL(8,3);
         ALTER TABLE "bom_component_items" ADD COLUMN IF NOT EXISTS "targetGsm" DECIMAL(8,2);
         ALTER TABLE "bom_component_items" ADD COLUMN IF NOT EXISTS "composition" TEXT;
+        DO $$ BEGIN CREATE TYPE "BomPricingMode" AS ENUM ('INCLUSIVE','ADDITIVE'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+        ALTER TABLE "bom_component_items" ADD COLUMN IF NOT EXISTS "parentId" TEXT;
+        ALTER TABLE "bom_component_items" ADD COLUMN IF NOT EXISTS "pricingMode" "BomPricingMode" NOT NULL DEFAULT 'ADDITIVE';
+        ALTER TABLE "bom_component_items" ADD COLUMN IF NOT EXISTS "totalPrice" DECIMAL(12,2);
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'bom_component_items_parentId_fkey') THEN
+            ALTER TABLE "bom_component_items"
+              ADD CONSTRAINT "bom_component_items_parentId_fkey"
+              FOREIGN KEY ("parentId") REFERENCES "bom_component_items"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+          END IF;
+        END $$;
+        CREATE INDEX IF NOT EXISTS "bom_component_items_parentId_idx" ON "bom_component_items"("parentId");
         CREATE INDEX IF NOT EXISTS "bom_component_items_bomId_idx" ON "bom_component_items"("bomId");
         CREATE INDEX IF NOT EXISTS "bom_component_items_rawMaterialId_idx" ON "bom_component_items"("rawMaterialId");
 
@@ -394,6 +714,12 @@ class ManufacturingService {
       throw new Error(`كود قائمة المكونات "${code}" مستخدم بالفعل لهذه الشركة`);
     }
 
+    // (0) Validate components outside transaction
+    let normalizedComponents = null;
+    if (Array.isArray(data.components) && data.components.length > 0) {
+      normalizedComponents = normalizeComponentPayload(data.components);
+    }
+
     return await prisma.$transaction(async (tx) => {
       const bom = await tx.billOfMaterials.create({
         data: {
@@ -411,12 +737,18 @@ class ManufacturingService {
         },
       });
 
-      // Insert components if provided
-      if (Array.isArray(data.components) && data.components.length > 0) {
-        for (const item of data.components) {
-          await tx.bomComponentItem.create({
+      // Insert components with two-pass logic
+      if (normalizedComponents && normalizedComponents.rows.length > 0) {
+        const refToIdMap = new Map();
+
+        // Pass A: create all rows with parentId = null
+        for (const item of normalizedComponents.rows) {
+          const created = await tx.bomComponentItem.create({
             data: {
               bomId: bom.id,
+              parentId: null,
+              pricingMode: item.pricingMode === 'INCLUSIVE' ? 'INCLUSIVE' : 'ADDITIVE',
+              totalPrice: item.totalPrice !== undefined && item.totalPrice !== null ? round2(item.totalPrice) : null,
               rawMaterialId: String(item.rawMaterialId),
               rawMaterialName: item.rawMaterialName || null,
               consumptionPerUnit: round4(item.consumptionPerUnit || 0),
@@ -432,6 +764,23 @@ class ManufacturingService {
               notes: item.notes || null,
             },
           });
+          if (item.clientRef) {
+            refToIdMap.set(String(item.clientRef), created.id);
+          }
+        }
+
+        // Pass B: update parentId for rows that have parentRef
+        for (const item of normalizedComponents.rows) {
+          if (item.parentRef && refToIdMap.has(String(item.parentRef))) {
+            const currentId = refToIdMap.get(String(item.clientRef));
+            const parentDbId = refToIdMap.get(String(item.parentRef));
+            if (currentId && parentDbId) {
+              await tx.bomComponentItem.update({
+                where: { id: currentId },
+                data: { parentId: parentDbId },
+              });
+            }
+          }
         }
       }
 
@@ -452,13 +801,14 @@ class ManufacturingService {
         }
       }
 
-      return await tx.billOfMaterials.findFirst({
+      const createdBom = await tx.billOfMaterials.findFirst({
         where: { id: bom.id, companyId },
         include: {
           components: true,
           standardStages: { orderBy: { sequence: 'asc' } },
         },
       });
+      return withTree(createdBom);
     });
   }
 
@@ -472,7 +822,7 @@ class ManufacturingService {
       },
     });
     if (!bom) throw new Error('قائمة المكونات غير موجودة');
-    return bom;
+    return withTree(bom);
   }
 
   static async listBoms(companyId, filters = {}) {
@@ -510,6 +860,12 @@ class ManufacturingService {
     });
     if (!existing) throw new Error('قائمة المكونات غير موجودة');
 
+    // (0) تحقق بره الـ transaction
+    let normalizedComponents = null;
+    if (Array.isArray(data.components)) {
+      normalizedComponents = normalizeComponentPayload(data.components);
+    }
+
     return await prisma.$transaction(async (tx) => {
       await tx.billOfMaterials.update({
         where: { id: bomId },
@@ -526,12 +882,21 @@ class ManufacturingService {
         },
       });
 
-      if (Array.isArray(data.components)) {
+      if (normalizedComponents) {
+        // (1) إبطال الأبوة قبل الحذف — يمنع FK violation ومش محتاج CASCADE
+        await tx.bomComponentItem.updateMany({ where: { bomId }, data: { parentId: null } });
+        // (2) الحذف
         await tx.bomComponentItem.deleteMany({ where: { bomId } });
-        for (const item of data.components) {
-          await tx.bomComponentItem.create({
+
+        // (3) نفس تمريرتي createBom (A ثم B)
+        const refToIdMap = new Map();
+        for (const item of normalizedComponents.rows) {
+          const created = await tx.bomComponentItem.create({
             data: {
               bomId,
+              parentId: null,
+              pricingMode: item.pricingMode === 'INCLUSIVE' ? 'INCLUSIVE' : 'ADDITIVE',
+              totalPrice: item.totalPrice !== undefined && item.totalPrice !== null ? round2(item.totalPrice) : null,
               rawMaterialId: String(item.rawMaterialId),
               rawMaterialName: item.rawMaterialName || null,
               consumptionPerUnit: round4(item.consumptionPerUnit || 0),
@@ -547,6 +912,22 @@ class ManufacturingService {
               notes: item.notes || null,
             },
           });
+          if (item.clientRef) {
+            refToIdMap.set(String(item.clientRef), created.id);
+          }
+        }
+
+        for (const item of normalizedComponents.rows) {
+          if (item.parentRef && refToIdMap.has(String(item.parentRef))) {
+            const currentId = refToIdMap.get(String(item.clientRef));
+            const parentDbId = refToIdMap.get(String(item.parentRef));
+            if (currentId && parentDbId) {
+              await tx.bomComponentItem.update({
+                where: { id: currentId },
+                data: { parentId: parentDbId },
+              });
+            }
+          }
         }
       }
 
@@ -567,13 +948,14 @@ class ManufacturingService {
         }
       }
 
-      return await tx.billOfMaterials.findFirst({
+      const updatedBom = await tx.billOfMaterials.findFirst({
         where: { id: bomId, companyId },
         include: {
           components: true,
           standardStages: { orderBy: { sequence: 'asc' } },
         },
       });
+      return withTree(updatedBom);
     });
   }
 
@@ -614,6 +996,10 @@ class ManufacturingService {
       overheadCostPerUnit: original.overheadCostPerUnit,
       notes: `نسخة من ${original.code} (${original.version})`,
       components: original.components.map((c) => ({
+        clientRef: c.id,
+        parentRef: c.parentId || null,
+        pricingMode: c.pricingMode,
+        totalPrice: c.totalPrice,
         rawMaterialId: c.rawMaterialId,
         rawMaterialName: c.rawMaterialName,
         consumptionPerUnit: c.consumptionPerUnit,
@@ -653,6 +1039,7 @@ class ManufacturingService {
       throw new Error('مصفوفة الكميات والمتغيرات مطلوبة لحساب متطلبات التشغيل');
     }
 
+    const parentIds = new Set((bom.components || []).map((c) => c.parentId).filter(Boolean));
     const materialMap = {};
     let totalPlannedQuantity = 0;
 
@@ -665,6 +1052,8 @@ class ManufacturingService {
       const vColor = String(v.color || '').trim().toUpperCase();
 
       for (const comp of bom.components) {
+        if (parentIds.has(comp.id)) continue; // عقدة تجميع: استهلاكها بيتحسب من أبنائها
+
         // Size rule match: null / empty / ["ALL"] or contains vSize
         const sizes = Array.isArray(comp.appliesToSizes) ? comp.appliesToSizes.map((s) => String(s).toUpperCase()) : ['ALL'];
         const matchesSize = sizes.includes('ALL') || (vSize && sizes.includes(vSize));
@@ -1847,7 +2236,11 @@ class ManufacturingService {
     let stdMaterialCost = 0;
     if (bom && Array.isArray(bom.components)) {
       const prisma = getSharedPrismaClient();
-      const rawIds = bom.components.map((c) => c.rawMaterialId).filter(Boolean);
+      const parentIdSet = new Set((bom.components || []).map((c) => c.parentId).filter(Boolean));
+      const rawIds = bom.components
+        .filter((c) => !parentIdSet.has(c.id))
+        .map((c) => c.rawMaterialId)
+        .filter(Boolean);
       let costMap = {};
       if (rawIds.length > 0 && prisma?.product?.findMany) {
         try {
@@ -1864,6 +2257,7 @@ class ManufacturingService {
       }
 
       for (const c of bom.components) {
+        if (parentIdSet.has(c.id)) continue;
         const prodCost = costMap[c.rawMaterialId];
         const unitCost = prodCost && prodCost > 0 ? prodCost : 1.0;
         stdMaterialCost += plannedQty * Number(c.consumptionPerUnit) * unitCost;
@@ -2264,3 +2658,7 @@ class ManufacturingService {
 }
 
 module.exports = ManufacturingService;
+module.exports.computeComponentPricing = computeComponentPricing;
+module.exports.detectComponentCycle = detectComponentCycle;
+module.exports.buildComponentTree = buildComponentTree;
+module.exports.normalizeComponentPayload = normalizeComponentPayload;

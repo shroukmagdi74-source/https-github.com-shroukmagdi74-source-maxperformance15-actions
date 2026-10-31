@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Layers, Copy, Edit, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { BillOfMaterials } from '../manufacturingApi';
+import BomComponentsTree from './components/BomComponentsTree';
 
 interface BomDetailDrawerProps {
   bom: BillOfMaterials | null;
@@ -80,66 +81,79 @@ export const BomDetailDrawer: React.FC<BomDetailDrawerProps> = ({
           </div>
 
           {/* Components Section */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-foreground">
-                بنود الخامات والمستلزمات ({(bom.components || []).length} خامة)
+                شجرة المكونات والتسعير ({(bom.components || []).length} خامة)
               </h3>
             </div>
-            <div className="rounded-xl border border-border/70 overflow-hidden bg-card">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-muted/40 text-muted-foreground border-b border-border/60">
-                  <tr>
-                    <th className="p-2.5 font-semibold">الخامة</th>
-                    <th className="p-2.5 font-semibold">الاستهلاك</th>
-                    <th className="p-2.5 font-semibold">الهالك %</th>
-                    <th className="p-2.5 font-semibold">المقاسات المطبقة</th>
-                    <th className="p-2.5 font-semibold">الألوان</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {(bom.components || []).length === 0 ? (
+
+            <BomComponentsTree
+              nodes={bom.componentTree || []}
+              bomTotal={Number(bom.pricing?.bomTotal ?? 0)}
+              warnings={bom.pricing?.warnings}
+            />
+
+            <details className="text-xs group border border-border/60 rounded-xl overflow-hidden bg-card">
+              <summary className="p-2.5 bg-muted/20 font-semibold cursor-pointer hover:bg-muted/40 transition select-none flex items-center justify-between">
+                <span>عرض قائمة الخامات المسطحة ({bom.components?.length || 0})</span>
+                <span className="text-muted-foreground text-[10px]">اضغط للتوسيع</span>
+              </summary>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-muted/40 text-muted-foreground border-b border-border/60">
                     <tr>
-                      <td colSpan={5} className="p-4 text-center text-muted-foreground">
-                        لا توجد خامات مسجلة في هذه القائمة
-                      </td>
+                      <th className="p-2.5 font-semibold">الخامة</th>
+                      <th className="p-2.5 font-semibold">الاستهلاك</th>
+                      <th className="p-2.5 font-semibold">الهالك %</th>
+                      <th className="p-2.5 font-semibold">المقاسات المطبقة</th>
+                      <th className="p-2.5 font-semibold">الألوان</th>
                     </tr>
-                  ) : (
-                    bom.components!.map((comp, idx) => (
-                      <tr key={idx} className="hover:bg-muted/20 transition">
-                        <td className="p-2.5 font-medium text-foreground">
-                          <div>{comp.rawMaterialName || comp.rawMaterialId}</div>
-                          {(comp.composition || comp.fabricWidthM || comp.targetGsm || comp.purchaseUnit) && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5 flex flex-wrap gap-1.5 font-normal">
-                              {comp.composition && <span className="text-foreground/80 font-medium">{comp.composition}</span>}
-                              {comp.fabricWidthM && <span className="bg-muted px-1.5 py-0.5 rounded border border-border/50">عرض: {comp.fabricWidthM} م</span>}
-                              {comp.targetGsm && <span className="bg-muted px-1.5 py-0.5 rounded border border-border/50">{comp.targetGsm} GSM</span>}
-                              {comp.purchaseUnit && <span className="text-primary font-medium">شراء: {comp.purchaseUnit}</span>}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-2.5 font-mono tabular-nums text-foreground">
-                          {comp.consumptionPerUnit} {comp.consumptionUnit || comp.unit}
-                        </td>
-                        <td className="p-2.5 font-mono tabular-nums text-amber-600">
-                          {comp.scrapRate}%
-                        </td>
-                        <td className="p-2.5">
-                          <span className="font-mono text-[11px] text-muted-foreground">
-                            {(comp.appliesToSizes || ['ALL']).join(', ')}
-                          </span>
-                        </td>
-                        <td className="p-2.5">
-                          <span className="font-mono text-[11px] text-muted-foreground">
-                            {(comp.appliesToColors || ['ALL']).join(', ')}
-                          </span>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {(bom.components || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                          لا توجد خامات مسجلة في هذه القائمة
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      bom.components!.map((comp, idx) => (
+                        <tr key={idx} className="hover:bg-muted/20 transition">
+                          <td className="p-2.5 font-medium text-foreground">
+                            <div>{comp.rawMaterialName || comp.rawMaterialId}</div>
+                            {(comp.composition || comp.fabricWidthM || comp.targetGsm || comp.purchaseUnit) && (
+                              <div className="text-[10px] text-muted-foreground mt-0.5 flex flex-wrap gap-1.5 font-normal">
+                                {comp.composition && <span className="text-foreground/80 font-medium">{comp.composition}</span>}
+                                {comp.fabricWidthM && <span className="bg-muted px-1.5 py-0.5 rounded border border-border/50">عرض: {comp.fabricWidthM} م</span>}
+                                {comp.targetGsm && <span className="bg-muted px-1.5 py-0.5 rounded border border-border/50">{comp.targetGsm} GSM</span>}
+                                {comp.purchaseUnit && <span className="text-primary font-medium">شراء: {comp.purchaseUnit}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-2.5 font-mono tabular-nums text-foreground">
+                            {comp.consumptionPerUnit} {comp.consumptionUnit || comp.unit}
+                          </td>
+                          <td className="p-2.5 font-mono tabular-nums text-amber-600">
+                            {comp.scrapRate}%
+                          </td>
+                          <td className="p-2.5">
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              {(comp.appliesToSizes || ['ALL']).join(', ')}
+                            </span>
+                          </td>
+                          <td className="p-2.5">
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              {(comp.appliesToColors || ['ALL']).join(', ')}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </div>
 
           {/* Standard Stages Section */}

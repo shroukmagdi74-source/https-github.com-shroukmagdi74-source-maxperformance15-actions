@@ -52,10 +52,10 @@ export const BomModal: React.FC<BomModalProps> = ({
 
   // Components & Stages
   const [components, setComponents] = useState<BomComponentItem[]>([
-    { rawMaterialId: 'raw_fabric_01', rawMaterialName: 'قماش ميلتون قطن شتوي', consumptionPerUnit: 1.6, unit: 'METER', scrapRate: 2.0, appliesToSizes: ['ALL'], appliesToColors: ['ALL'] },
-    { rawMaterialId: 'raw_rib_02', rawMaterialName: 'ريب قطني للأسورة والياقة', consumptionPerUnit: 0.25, unit: 'METER', scrapRate: 1.0, appliesToSizes: ['ALL'], appliesToColors: ['ALL'] },
-    { rawMaterialId: 'raw_zipper_03', rawMaterialName: 'سوستة معدنية عريضة 65 سم', consumptionPerUnit: 1.0, unit: 'PIECE', scrapRate: 0.0, appliesToSizes: ['ALL'], appliesToColors: ['ALL'] },
-    { rawMaterialId: 'raw_thread_04', rawMaterialName: 'خيوط حياكة بوليستر متينة', consumptionPerUnit: 0.1, unit: 'SPOOL', scrapRate: 5.0, appliesToSizes: ['ALL'], appliesToColors: ['ALL'] },
+    { clientRef: 'def-1', rawMaterialId: 'raw_fabric_01', rawMaterialName: 'قماش ميلتون قطن شتوي', consumptionPerUnit: 1.6, unit: 'METER', scrapRate: 2.0, appliesToSizes: ['ALL'], appliesToColors: ['ALL'], pricingMode: 'ADDITIVE', totalPrice: 0, parentRef: null },
+    { clientRef: 'def-2', rawMaterialId: 'raw_rib_02', rawMaterialName: 'ريب قطني للأسورة والياقة', consumptionPerUnit: 0.25, unit: 'METER', scrapRate: 1.0, appliesToSizes: ['ALL'], appliesToColors: ['ALL'], pricingMode: 'ADDITIVE', totalPrice: 0, parentRef: null },
+    { clientRef: 'def-3', rawMaterialId: 'raw_zipper_03', rawMaterialName: 'سوستة معدنية عريضة 65 سم', consumptionPerUnit: 1.0, unit: 'PIECE', scrapRate: 0.0, appliesToSizes: ['ALL'], appliesToColors: ['ALL'], pricingMode: 'ADDITIVE', totalPrice: 0, parentRef: null },
+    { clientRef: 'def-4', rawMaterialId: 'raw_thread_04', rawMaterialName: 'خيوط حياكة بوليستر متينة', consumptionPerUnit: 0.1, unit: 'SPOOL', scrapRate: 5.0, appliesToSizes: ['ALL'], appliesToColors: ['ALL'], pricingMode: 'ADDITIVE', totalPrice: 0, parentRef: null },
   ]);
 
   const [standardStages, setStandardStages] = useState<BomStandardStage[]>(DEFAULT_STAGES);
@@ -79,7 +79,15 @@ export const BomModal: React.FC<BomModalProps> = ({
       setIsActive(initialBom.isActive !== false);
 
       if (initialBom.components && initialBom.components.length > 0) {
-        setComponents(initialBom.components.map((c) => ({ ...c })));
+        setComponents(
+          initialBom.components.map((c) => ({
+            ...c,
+            clientRef: c.id,
+            parentRef: c.parentId || null,
+            pricingMode: c.pricingMode || 'ADDITIVE',
+            totalPrice: Number(c.totalPrice) || 0,
+          }))
+        );
       }
       if (initialBom.standardStages && initialBom.standardStages.length > 0) {
         setStandardStages(initialBom.standardStages.map((s) => ({ ...s })));
@@ -102,9 +110,11 @@ export const BomModal: React.FC<BomModalProps> = ({
   if (!isOpen) return null;
 
   const handleAddComponent = () => {
+    const idx = components.length;
     setComponents([
       ...components,
       {
+        clientRef: 'new-' + Date.now() + '-' + idx,
         rawMaterialId: `raw_${Date.now()}`,
         rawMaterialName: '',
         consumptionPerUnit: 1.0,
@@ -112,6 +122,9 @@ export const BomModal: React.FC<BomModalProps> = ({
         scrapRate: 0.0,
         appliesToSizes: ['ALL'],
         appliesToColors: ['ALL'],
+        pricingMode: 'ADDITIVE',
+        totalPrice: 0,
+        parentRef: null,
       },
     ]);
   };
@@ -176,7 +189,15 @@ export const BomModal: React.FC<BomModalProps> = ({
         overheadCostPerUnit: Number(overheadCostPerUnit) || 0,
         notes: notes.trim() || null,
         isActive,
-        components: components.filter((c) => c.rawMaterialName?.trim() || c.rawMaterialId),
+        components: components
+          .filter((c) => c.rawMaterialName?.trim() || c.rawMaterialId)
+          .map(({ clientRef, parentRef, pricingMode, totalPrice, ...rest }) => ({
+            ...rest,
+            clientRef,
+            parentRef: parentRef || null,
+            pricingMode: pricingMode || 'ADDITIVE',
+            totalPrice: totalPrice ?? 0,
+          })),
         standardStages,
       };
 
@@ -306,6 +327,14 @@ export const BomModal: React.FC<BomModalProps> = ({
             onRemoveComponent={handleRemoveComponent}
             onChangeComponent={handleComponentChange}
           />
+          {mode === 'edit' && initialBom?.pricing?.bomTotal !== undefined && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-primary/5 border border-primary/20 text-xs">
+              <span className="text-muted-foreground font-medium">إجمالي تسعير شجرة المكونات الحالي (BOM Total):</span>
+              <span className="font-mono font-bold text-primary">
+                {Number(initialBom.pricing.bomTotal || 0).toFixed(2)} ج.م
+              </span>
+            </div>
+          )}
 
           {/* Section 3: Standard Stages */}
           <BomStagesTable

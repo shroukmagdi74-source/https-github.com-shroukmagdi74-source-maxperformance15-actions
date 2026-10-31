@@ -350,10 +350,21 @@ export type ProductionStageStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'S
 
 export type MaterialIssueStatus = 'DRAFT' | 'ISSUED' | 'CANCELLED';
 export type FinishedGoodsReceiptStatus = 'DRAFT' | 'RECEIVED' | 'CANCELLED';
+export type BomPricingMode = 'INCLUSIVE' | 'ADDITIVE';
+
+export interface BomComponentNode extends BomComponentItem {
+  children?: BomComponentNode[];
+  nodeTotal?: number;
+}
 
 export interface BomComponentItem {
   id?: string;
   bomId?: string;
+  parentId?: string | null;
+  parentRef?: string | null;     // للـ payload بس
+  clientRef?: string;            // للـ payload بس
+  pricingMode?: BomPricingMode;
+  totalPrice?: number | null;
   rawMaterialId: string;
   rawMaterialName?: string | null;
   consumptionPerUnit: number;
@@ -395,6 +406,8 @@ export interface BillOfMaterials {
   createdAt: string;
   updatedAt: string;
   components?: BomComponentItem[];
+  componentTree?: BomComponentNode[];
+  pricing?: { bomTotal: number; nodeCount: number; rootCount: number; warnings: string[] };
   standardStages?: BomStandardStage[];
   _count?: {
     orders?: number;
