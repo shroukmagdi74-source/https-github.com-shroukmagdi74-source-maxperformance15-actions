@@ -69,6 +69,7 @@ export const EnhancedOrderModal: React.FC<EnhancedOrderModalProps> = (props) => 
             <ModalHeader
               orderNumber={order.orderNumber}
               isIncompleteCart={order.metadata?.isIncompleteCart}
+              order={order}
               onClose={onClose}
             />
 

@@ -14564,6 +14564,8 @@
     "allPaymentStatuses": "All Payment Statuses",
     "allDates": "All Dates",
     "allSources": "All Sources",
+    "sourceAffiliateDirect": "Affiliate Direct",
+    "sourceRegular": "Regular Order",
     "sourceAutoConversation": "Automated Conversation",
     "sourceManual": "Manual",
     "sourceStorefront": "Storefront",

@@ -1,4 +1,6 @@
 export const sourceTypeLabels: Record<string, string> = {
+  affiliate_direct: "orders.sourceAffiliateDirect",
+  regular: "orders.sourceRegular",
   ai_conversation: "orders.sourceAutoConversation",
   manual: "orders.sourceManual",
   storefront: "orders.sourceStorefront",

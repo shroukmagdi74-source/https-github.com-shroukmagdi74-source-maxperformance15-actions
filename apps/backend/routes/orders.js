@@ -313,8 +313,20 @@ const buildMerchantOperationWhere = (operationStatus) => {
   }
 };
 
+const appendAnd = (clause, condition) => {
+  if (!condition) return;
+  if (!clause.AND) clause.AND = [];
+  clause.AND.push(condition);
+};
+
 const buildRegularSourceCondition = (source) => {
   switch (String(source).toLowerCase()) {
+    case 'affiliate_direct':
+    case 'affiliate-direct':
+    case 'affiliatedirect':
+      return { orderSource: 'AFFILIATE_DIRECT' };
+    case 'regular':
+      return { orderSource: 'REGULAR' };
     case 'manual':
       return {
         OR: [
@@ -3323,7 +3335,7 @@ router.get('/simple', verifyToken.authenticateToken, async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const status = req.query.status;
     const paymentStatus = req.query.paymentStatus;
-    const sourceType = req.query.sourceType;
+    const sourceType = req.query.sourceType || req.query.source;
     const search = req.query.search;
     const startDate = req.query.startDate;
     const endDate = req.query.endDate;
@@ -3794,7 +3806,8 @@ router.get('/simple', verifyToken.authenticateToken, async (req, res) => {
     const includeIncompleteCarts =
       showIncompleteCarts &&
       !onlyUnseen &&
-      (!status || String(status).toLowerCase() === 'all' || Boolean(incompleteFilterStatus));
+      (!status || String(status).toLowerCase() === 'all' || Boolean(incompleteFilterStatus)) &&
+      (!sourceTypes.length || sourceTypes.includes('storefront'));
     let cartQueryWhere = null;
     if (includeIncompleteCarts) {
       cartQueryWhere = { companyId };
@@ -3975,7 +3988,13 @@ router.get('/simple', verifyToken.authenticateToken, async (req, res) => {
                 select: {
                   firstName: true,
                   lastName: true,
-                  email: true
+                  email: true,
+                  company: {
+                    select: {
+                      id: true,
+                      name: true
+                    }
+                  }
                 }
               }
             }
@@ -7045,7 +7064,13 @@ router.get('/simple/:orderNumber', verifyToken.authenticateToken, async (req, re
               select: {
                 firstName: true,
                 lastName: true,
-                email: true
+                email: true,
+                company: {
+                  select: {
+                    id: true,
+                    name: true
+                  }
+                }
               }
             }
           }
@@ -7147,7 +7172,13 @@ router.get('/simple/:orderNumber', verifyToken.authenticateToken, async (req, re
                 select: {
                   firstName: true,
                   lastName: true,
-                  email: true
+                  email: true,
+                  company: {
+                    select: {
+                      id: true,
+                      name: true
+                    }
+                  }
                 }
               }
             }
@@ -8147,11 +8178,29 @@ router.get('/export', verifyToken.authenticateToken, async (req, res) => {
     if (!companyId) return res.status(403).json({ success: false, message: 'Unauthorized' });
 
     const { status, paymentStatus, search, startDate, endDate } = req.query;
+    const sourceType = req.query.sourceType || req.query.source;
 
     // Build Filters (Same as /simple)
     const whereClause = { companyId };
     const guestWhereClause = { companyId };
     const duplicateSettings = await orderService.getDuplicateSettings(companyId);
+
+    const sourceTypes = String(sourceType || '')
+      .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (sourceTypes.length > 0) {
+      const regularSourceConditions = sourceTypes
+        .map(buildRegularSourceCondition)
+        .filter(Boolean);
+      if (regularSourceConditions.length === 1) {
+        appendAnd(whereClause, regularSourceConditions[0]);
+      } else if (regularSourceConditions.length > 1) {
+        appendAnd(whereClause, { OR: regularSourceConditions });
+      }
+      const excludesGuests = sourceTypes.some((s) => s !== 'storefront');
+      if (excludesGuests) {
+        appendAnd(guestWhereClause, { id: '__none__' });
+      }
+    }
 
     if (status && status !== 'all') {
       const normalizedStatus = String(status);
@@ -8211,8 +8260,25 @@ router.get('/export', verifyToken.authenticateToken, async (req, res) => {
           status: true,
           total: true,
           paymentStatus: true,
+          orderSource: true,
           customer: { select: { firstName: true, lastName: true, phone: true } },
-          orderItems: { select: { quantity: true } }
+          orderItems: { select: { quantity: true } },
+          affiliate: {
+            select: {
+              id: true,
+              affiliateCode: true,
+              user: {
+                select: {
+                  company: {
+                    select: {
+                      id: true,
+                      name: true
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }),
       getSharedPrismaClient().guestOrder.findMany({
@@ -8264,6 +8330,8 @@ router.get('/export', verifyToken.authenticateToken, async (req, res) => {
         const totalPieces = (o.orderItems || []).reduce((s, it) => s + (Number(it.quantity) || 1), 0);
         const isMulti = totalPieces > 1;
         const eligible = !isExcludedFromAnalytics(o.status);
+        const isAffiliateDirect = o.orderSource === 'AFFILIATE_DIRECT';
+        const affiliateCompanyName = o.affiliate?.user?.company?.name || '';
         return {
           'Order Number': o.orderNumber,
           'Date': o.createdAt,
@@ -8272,6 +8340,9 @@ router.get('/export', verifyToken.authenticateToken, async (req, res) => {
           'Total': o.total,
           'Status': o.status,
           'Payment Status': o.paymentStatus,
+          'Order Source': isAffiliateDirect ? 'Affiliate Direct' : (o.orderSource || 'Regular'),
+          'نوع الطلب': isAffiliateDirect ? 'شركة مرتبطة' : 'عادي',
+          'الشركة المرتبطة': affiliateCompanyName,
           'Total Pieces': totalPieces,
           'عدد القطع': totalPieces,
           'Is Multi-Piece': isMulti ? 'Yes' : 'No',
@@ -8292,6 +8363,9 @@ router.get('/export', verifyToken.authenticateToken, async (req, res) => {
           'Total': o.total,
           'Status': o.status,
           'Payment Status': 'Unavailable',
+          'Order Source': 'Storefront',
+          'نوع الطلب': 'عادي',
+          'الشركة المرتبطة': '',
           'Total Pieces': totalPieces,
           'عدد القطع': totalPieces,
           'Is Multi-Piece': isMulti ? 'Yes' : 'No',
@@ -9934,6 +10008,8 @@ router.post('/simple/:orderNumber/schedule', verifyToken.authenticateToken, asyn
     res.status(statusCode).json({ success: false, message, error: error.message });
   }
 });
+
+router._buildRegularSourceCondition = buildRegularSourceCondition;
 
 module.exports = router;
 

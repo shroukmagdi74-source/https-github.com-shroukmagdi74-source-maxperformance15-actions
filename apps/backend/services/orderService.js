@@ -1733,7 +1733,27 @@ class OrderService {
                 product: true
               }
             },
-            customer: true
+            customer: true,
+            affiliate: {
+              select: {
+                id: true,
+                affiliateCode: true,
+                status: true,
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    company: {
+                      select: {
+                        id: true,
+                        name: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         });
       }, 3);
