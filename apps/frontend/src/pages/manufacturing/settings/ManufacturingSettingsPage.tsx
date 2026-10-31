@@ -8,6 +8,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Info,
+  MessageCircle,
+  Phone,
+  Bell,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { ManufacturingHeader } from '../ManufacturingHeader';
 import {
@@ -15,9 +20,59 @@ import {
   ManufacturingSettings,
   WarehouseOption,
   AccountOption,
+  MfgNotificationSettings,
+  MfgNotificationEventKey,
 } from '../manufacturingApi';
 import { SettingsGlMappingCard } from './components/SettingsGlMappingCard';
 import { SettingsExpenseCatalogCard } from './components/SettingsExpenseCatalogCard';
+
+const EVENT_META: Record<MfgNotificationEventKey, { label: string; desc: string; allowedRecipients: Array<'CUSTOMER' | 'FACTORY' | 'TEAM'> }> = {
+  SAMPLE_CREATED: {
+    label: 'إنشاء طلب العينة',
+    desc: 'إشعار فوري عند تسجيل طلب عينة تصنيع جديد',
+    allowedRecipients: ['CUSTOMER', 'FACTORY', 'TEAM'],
+  },
+  SAMPLE_APPROVED: {
+    label: 'اعتماد العينة',
+    desc: 'إشعار عند الموافقة على جودة العينة وجاهزيتها للتحويل',
+    allowedRecipients: ['CUSTOMER', 'FACTORY', 'TEAM'],
+  },
+  SAMPLE_REJECTED: {
+    label: 'رفض العينة',
+    desc: 'إشعار عند رفض العينة مع توضيح سبب الرفض',
+    allowedRecipients: ['CUSTOMER', 'FACTORY', 'TEAM'],
+  },
+  SAMPLE_CONVERTED: {
+    label: 'تحويل العينة لأمر إنتاج',
+    desc: 'إشعار عند تحويل العينة المعتمدة إلى أمر تشغيل فعلي',
+    allowedRecipients: ['CUSTOMER', 'FACTORY', 'TEAM'],
+  },
+  SAMPLE_RECEIVED: {
+    label: 'استلام العينة',
+    desc: 'إشعار عند تأكيد وصول واستلام العينة في المقر',
+    allowedRecipients: ['CUSTOMER', 'TEAM'],
+  },
+  PRODUCTION_STAGE_STARTED: {
+    label: 'بدء مرحلة إنتاج',
+    desc: 'إشعار عند بدء العمل على مرحلة تشغيلية في خط الإنتاج',
+    allowedRecipients: ['FACTORY', 'TEAM'],
+  },
+  PRODUCTION_STAGE_COMPLETED: {
+    label: 'إتمام مرحلة إنتاج',
+    desc: 'إشعار عند اكتمال مرحلة تشغيلية بنجاح',
+    allowedRecipients: ['FACTORY', 'TEAM'],
+  },
+  PRODUCTION_ORDER_DELAYED: {
+    label: 'تأخر أمر الإنتاج عن الموعد',
+    desc: 'إشعار يومي تنبيهي عند تجاوز موعد التسليم المحدد',
+    allowedRecipients: ['CUSTOMER', 'FACTORY', 'TEAM'],
+  },
+  PRODUCTION_ORDER_COMPLETED: {
+    label: 'اكتمال أمر الإنتاج',
+    desc: 'إشعار عند إقفال أمر الإنتاج واكتمال تصنيع كامل الكمية',
+    allowedRecipients: ['CUSTOMER', 'FACTORY', 'TEAM'],
+  },
+};
 
 export const ManufacturingSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<ManufacturingSettings | null>(null);
@@ -27,6 +82,79 @@ export const ManufacturingSettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+
+  const getNotifSettings = (): MfgNotificationSettings => {
+    const raw = settings?.manufacturingNotifications;
+    if (raw && typeof raw === 'object' && 'events' in (raw as any)) {
+      return raw as MfgNotificationSettings;
+    }
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch (_) {}
+    }
+    return {
+      isEnabled: true,
+      teamPhone: '',
+      events: {
+        SAMPLE_CREATED: { enabled: true, recipients: { CUSTOMER: true, FACTORY: true, TEAM: true }, body: '', templateId: '' },
+        SAMPLE_APPROVED: { enabled: true, recipients: { CUSTOMER: true, FACTORY: true, TEAM: true }, body: '', templateId: '' },
+        SAMPLE_REJECTED: { enabled: true, recipients: { CUSTOMER: true, FACTORY: true, TEAM: true }, body: '', templateId: '' },
+        SAMPLE_CONVERTED: { enabled: true, recipients: { CUSTOMER: true, FACTORY: true, TEAM: true }, body: '', templateId: '' },
+        SAMPLE_RECEIVED: { enabled: true, recipients: { CUSTOMER: true, FACTORY: false, TEAM: true }, body: '', templateId: '' },
+        PRODUCTION_STAGE_STARTED: { enabled: true, recipients: { CUSTOMER: false, FACTORY: true, TEAM: true }, body: '', templateId: '' },
+        PRODUCTION_STAGE_COMPLETED: { enabled: true, recipients: { CUSTOMER: false, FACTORY: true, TEAM: true }, body: '', templateId: '' },
+        PRODUCTION_ORDER_DELAYED: { enabled: true, recipients: { CUSTOMER: true, FACTORY: true, TEAM: true }, body: '', templateId: '' },
+        PRODUCTION_ORDER_COMPLETED: { enabled: true, recipients: { CUSTOMER: true, FACTORY: true, TEAM: true }, body: '', templateId: '' },
+      },
+    };
+  };
+
+  const updateNotifConfig = (patch: Partial<MfgNotificationSettings>) => {
+    if (!settings) return;
+    const current = getNotifSettings();
+    const updated: MfgNotificationSettings = {
+      ...current,
+      ...patch,
+      events: {
+        ...current.events,
+        ...(patch.events || {}),
+      },
+    };
+    setSettings({
+      ...settings,
+      manufacturingNotifications: updated,
+    });
+  };
+
+  const updateEventConfig = (
+    key: MfgNotificationEventKey,
+    eventPatch: Partial<MfgNotificationSettings['events'][MfgNotificationEventKey]>
+  ) => {
+    const current = getNotifSettings();
+    const curEvent = current.events[key] || {
+      enabled: true,
+      recipients: { CUSTOMER: true, FACTORY: true, TEAM: true },
+      templateId: '',
+      body: '',
+    };
+    const updatedEvent = {
+      ...curEvent,
+      ...eventPatch,
+      recipients: {
+        ...curEvent.recipients,
+        ...(eventPatch.recipients || {}),
+      },
+    };
+    updateNotifConfig({
+      events: {
+        ...current.events,
+        [key]: updatedEvent,
+      },
+    });
+  };
 
   const loadData = async () => {
     try {
@@ -85,6 +213,7 @@ export const ManufacturingSettingsPage: React.FC = () => {
         overheadAppliedAccountId: settings.overheadAppliedAccountId || null,
         finishedGoodsAccountId: settings.finishedGoodsAccountId || null,
         autoPostingEnabled: Boolean(settings.autoPostingEnabled),
+        manufacturingNotifications: settings.manufacturingNotifications,
       });
       setSettings(updated);
       setSuccessMessage('تم حفظ إعدادات التصنيع والتوجيه المحاسبي بنجاح.');
@@ -194,6 +323,207 @@ export const ManufacturingSettingsPage: React.FC = () => {
                 <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
               </label>
             </div>
+
+            {/* WhatsApp Notifications Card (T01) */}
+            {(() => {
+              const notifCfg = getNotifSettings();
+              return (
+                <div className="p-5 rounded-xl bg-card border border-border/70 shadow-xs space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/50">
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                        <MessageCircle className="w-4 h-4 text-emerald-600" />
+                        <span>إشعارات واتساب للتصنيع</span>
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        إرسال تحديثات حالة العينات ومراحل أوامر الإنتاج آلياً للعميل والمصنع وفريق الإدارة
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {notifCfg.isEnabled ? 'مفعّل' : 'معطّل'}
+                      </span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notifCfg.isEnabled}
+                          onChange={(e) => updateNotifConfig({ isEnabled: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Admin Phone Input */}
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50 space-y-2">
+                    <label className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-primary" />
+                      <span>الرقم الإداري لفريق الشركة (إشعارات الفريق)</span>
+                    </label>
+                    <div className="max-w-md">
+                      <input
+                        type="text"
+                        value={notifCfg.teamPhone || ''}
+                        onChange={(e) => updateNotifConfig({ teamPhone: e.target.value })}
+                        placeholder="مثال: 01000000000 أو 201000000000"
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-border/70 bg-background text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                        dir="ltr"
+                      />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      في حال ترك الحقل فارغاً، سيتم استخدام رقم الهاتف المسجل لبيانات الشركة افتراضياً.
+                    </p>
+                  </div>
+
+                  {/* Events Configuration Table */}
+                  <div className="space-y-3">
+                    <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <Bell className="w-3.5 h-3.5 text-primary" />
+                      <span>أحداث الإشعارات والمستلمون</span>
+                    </h5>
+
+                    <div className="border border-border/70 rounded-lg overflow-hidden divide-y divide-border/60">
+                      {(Object.keys(EVENT_META) as MfgNotificationEventKey[]).map((key) => {
+                        const meta = EVENT_META[key];
+                        const ev = notifCfg.events[key] || {
+                          enabled: true,
+                          recipients: { CUSTOMER: true, FACTORY: true, TEAM: true },
+                          templateId: '',
+                          body: '',
+                        };
+                        const isExpanded = expandedEvent === key;
+
+                        return (
+                          <div key={key} className={`p-3.5 transition-colors ${ev.enabled ? 'bg-card' : 'bg-muted/20 opacity-75'}`}>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                              {/* Event info & switch */}
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={ev.enabled}
+                                  onChange={(e) => updateEventConfig(key, { enabled: e.target.checked })}
+                                  className="mt-0.5 rounded border-border text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                                />
+                                <div>
+                                  <div className="text-xs font-bold text-foreground">{meta.label}</div>
+                                  <div className="text-[11px] text-muted-foreground line-clamp-1">{meta.desc}</div>
+                                </div>
+                              </div>
+
+                              {/* Recipients Checkboxes */}
+                              <div className="flex items-center gap-4 text-xs shrink-0">
+                                <span className="text-[11px] text-muted-foreground font-medium">المستلم:</span>
+                                {meta.allowedRecipients.includes('CUSTOMER') && (
+                                  <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      disabled={!ev.enabled}
+                                      checked={ev.recipients?.CUSTOMER !== false}
+                                      onChange={(e) =>
+                                        updateEventConfig(key, {
+                                          recipients: { ...ev.recipients, CUSTOMER: e.target.checked },
+                                        })
+                                      }
+                                      className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                                    />
+                                    <span>العميل</span>
+                                  </label>
+                                )}
+
+                                {meta.allowedRecipients.includes('FACTORY') && (
+                                  <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      disabled={!ev.enabled}
+                                      checked={ev.recipients?.FACTORY !== false}
+                                      onChange={(e) =>
+                                        updateEventConfig(key, {
+                                          recipients: { ...ev.recipients, FACTORY: e.target.checked },
+                                        })
+                                      }
+                                      className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                                    />
+                                    <span>المصنع</span>
+                                  </label>
+                                )}
+
+                                {meta.allowedRecipients.includes('TEAM') && (
+                                  <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      disabled={!ev.enabled}
+                                      checked={ev.recipients?.TEAM !== false}
+                                      onChange={(e) =>
+                                        updateEventConfig(key, {
+                                          recipients: { ...ev.recipients, TEAM: e.target.checked },
+                                        })
+                                      }
+                                      className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                                    />
+                                    <span>الفريق</span>
+                                  </label>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedEvent(isExpanded ? null : key)}
+                                  className="px-2 py-1 text-[11px] rounded border border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center gap-1 transition-all"
+                                >
+                                  <span>{isExpanded ? 'إخفاء النص' : 'تخصيص القالب'}</span>
+                                  {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Expandable template / body section */}
+                            {isExpanded && (
+                              <div className="mt-3 pt-3 border-t border-border/50 space-y-3 bg-muted/20 p-3 rounded-lg text-xs">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div className="md:col-span-1">
+                                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                                      معرّف قالب Meta Cloud (اختياري)
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={ev.templateId || ''}
+                                      onChange={(e) => updateEventConfig(key, { templateId: e.target.value })}
+                                      placeholder="مثل: mfg_sample_approved"
+                                      className="w-full px-2.5 py-1.5 text-xs rounded border border-border/70 bg-background font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                                      dir="ltr"
+                                    />
+                                    <span className="text-[10px] text-muted-foreground block mt-1">
+                                      يُستخدم للقوالب المعتمدة لدى Meta خارج نافذة الـ 24 ساعة.
+                                    </span>
+                                  </div>
+
+                                  <div className="md:col-span-2">
+                                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                                      نص الرسالة / القالب الافتراضي
+                                    </label>
+                                    <textarea
+                                      value={ev.body || ''}
+                                      onChange={(e) => updateEventConfig(key, { body: e.target.value })}
+                                      rows={3}
+                                      placeholder="اكتب نص الرسالة هنا..."
+                                      className="w-full px-2.5 py-1.5 text-xs rounded border border-border/70 bg-background focus:outline-none focus:ring-1 focus:ring-primary font-sans leading-relaxed"
+                                    />
+                                    <span className="text-[10px] text-muted-foreground block mt-1">
+                                      المتغيرات: {'{sampleNumber}'} {'{productName}'} {'{orderNumber}'} {'{stageName}'} {'{dueDate}'} {'{customerName}'} {'{factoryName}'} {'{brandName}'} {'{plannedQuantity}'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* 2. Warehouses & Operational Rates */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -11,6 +11,7 @@
  */
 
 const { getSharedPrismaClient } = require('./sharedDatabase');
+const ManufacturingNotificationService = require('./manufacturingNotificationService');
 
 const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
 
@@ -538,6 +539,11 @@ class ManufacturingSubcontractService {
         partnerFactory: true,
       },
     });
+
+    const evt = updated.status === 'COMPLETED' ? 'PRODUCTION_STAGE_COMPLETED' : (updated.status === 'IN_PROGRESS' && stage.status !== 'IN_PROGRESS' ? 'PRODUCTION_STAGE_STARTED' : null);
+    if (evt) {
+      ManufacturingNotificationService.emit(evt, { companyId, productionOrder: order, stage: updated }).catch(() => {});
+    }
 
     return updated;
   }

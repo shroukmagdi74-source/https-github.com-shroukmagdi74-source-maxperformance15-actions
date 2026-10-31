@@ -15,6 +15,7 @@
 const { getSharedPrismaClient } = require('./sharedDatabase');
 const AccountingService = require('./accountingService');
 const AccountingAutoPostingService = require('./accountingAutoPostingService');
+const ManufacturingNotificationService = require('./manufacturingNotificationService');
 
 const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
 const round4 = (val) => Math.round((Number(val) || 0) * 10000) / 10000;
@@ -334,6 +335,7 @@ class ManufacturingService {
         overheadAppliedAccountId: null,
         finishedGoodsAccountId: null,
         autoPostingEnabled: false,
+        manufacturingNotifications: null,
       };
     }
     return settings;
@@ -352,6 +354,7 @@ class ManufacturingService {
       overheadAppliedAccountId: data.overheadAppliedAccountId !== undefined ? data.overheadAppliedAccountId : undefined,
       finishedGoodsAccountId: data.finishedGoodsAccountId !== undefined ? data.finishedGoodsAccountId : undefined,
       autoPostingEnabled: data.autoPostingEnabled !== undefined ? Boolean(data.autoPostingEnabled) : undefined,
+      manufacturingNotifications: data.manufacturingNotifications !== undefined ? data.manufacturingNotifications : undefined,
     };
 
     if (prisma.manufacturingSettings?.upsert) {
@@ -1344,6 +1347,13 @@ class ManufacturingService {
 
       return await tx.productionStage.findFirst({ where: { id: stageId } });
     });
+
+    const evt = status === 'COMPLETED' ? 'PRODUCTION_STAGE_COMPLETED' : (status === 'IN_PROGRESS' && stage.status !== 'IN_PROGRESS' ? 'PRODUCTION_STAGE_STARTED' : null);
+    if (evt) {
+      ManufacturingNotificationService.emit(evt, { companyId, productionOrder: order, stage: updatedStage }).catch(() => {});
+    }
+
+    return updatedStage;
   }
 
   // ==========================================================================
@@ -1734,6 +1744,11 @@ class ManufacturingService {
     } catch (err) {
       console.warn('[MES] WIP completion GL auto-posting deferred:', err.message);
     }
+
+    ManufacturingNotificationService.emit('PRODUCTION_ORDER_COMPLETED', {
+      companyId,
+      productionOrder: finalUpdatedOrder,
+    }).catch(() => {});
 
     return finalUpdatedOrder;
   }

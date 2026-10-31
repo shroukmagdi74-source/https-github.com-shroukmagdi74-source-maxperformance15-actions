@@ -438,6 +438,7 @@ model ManufacturingSettings {
   overheadAppliedAccountId    String?
   finishedGoodsAccountId      String?
   autoPostingEnabled          Boolean  @default(false)
+  manufacturingNotifications  Json?
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 
@@ -1093,3 +1094,52 @@ model FactoryAgreementFile {
   @@index([agreementId])
   @@map("factory_agreement_files")
 }
+
+// ============================================================================
+// Manufacturing WhatsApp Notifications (T01)
+// ============================================================================
+
+enum ManufacturingNotificationRecipient {
+  CUSTOMER
+  FACTORY
+  TEAM
+}
+
+enum ManufacturingNotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model ManufacturingNotificationLog {
+  id                 String                             @id @default(cuid())
+  companyId          String
+  eventKey           String
+  entityType         String
+  entityId           String
+  sampleOrderId      String?
+  productionOrderId  String?
+  stageId            String?
+  recipientType      ManufacturingNotificationRecipient
+  recipientName      String?
+  recipientPhone     String?
+  channel            String                             @default("WHATSAPP")
+  status             ManufacturingNotificationStatus    @default(PENDING)
+  reason             String?
+  errorCode          String?
+  whatsappLogId      String?
+  dedupKey           String
+  payload            Json?
+  sentAt             DateTime?
+  createdAt          DateTime                           @default(now())
+  updatedAt          DateTime                           @updatedAt
+
+  @@unique([companyId, dedupKey], map: "mfg_notif_logs_company_dedup_key")
+  @@index([companyId, createdAt], map: "mfg_notif_logs_company_created_idx")
+  @@index([companyId, eventKey, status], map: "mfg_notif_logs_company_event_status_idx")
+  @@index([sampleOrderId], map: "mfg_notif_logs_sample_idx")
+  @@index([productionOrderId], map: "mfg_notif_logs_order_idx")
+  @@map("manufacturing_notification_logs")
+}
+

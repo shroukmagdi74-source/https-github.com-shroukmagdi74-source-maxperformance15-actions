@@ -16,6 +16,7 @@ import SizeChartsPage from './size-charts/SizeChartsPage';
 import StageTemplatesLibraryPage from './stageTemplates/StageTemplatesLibraryPage';
 import SampleOrdersPage from './samples/SampleOrdersPage';
 import FactoryAgreementsPage from './agreements/FactoryAgreementsPage';
+import ManufacturingNotificationsPage from './notifications/ManufacturingNotificationsPage';
 
 export const ManufacturingRoutes: React.FC = () => {
   return (
@@ -37,6 +38,7 @@ export const ManufacturingRoutes: React.FC = () => {
       <Route path="size-charts" element={<SizeChartsPage />} />
       <Route path="fabric-calculator" element={<FabricCalculatorPage />} />
       <Route path="reports" element={<ManufacturingReportsPage />} />
+      <Route path="notifications" element={<ManufacturingNotificationsPage />} />
       <Route path="settings" element={<ManufacturingSettingsPage />} />
       <Route path="*" element={<Navigate to="/manufacturing" replace />} />
     </Routes>
