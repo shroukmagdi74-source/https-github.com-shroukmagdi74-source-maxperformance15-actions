@@ -22,6 +22,16 @@ const DEFAULT_NOTIFICATION_TYPES = [
     canDisable: true,
   },
   {
+    id: "duplicate_order",
+    name: "طلب مكرر",
+    description: "إشعار عند رصد طلب مكرر من نفس العميل",
+    category: "orders",
+    priority: "high",
+    defaultEnabled: true,
+    channels: ["push", "inApp", "browser", "whatsapp"],
+    canDisable: true,
+  },
+  {
     id: "customer_message",
     name: "رسالة من عميل",
     description: "إشعار عند استلام رسالة من عميل",

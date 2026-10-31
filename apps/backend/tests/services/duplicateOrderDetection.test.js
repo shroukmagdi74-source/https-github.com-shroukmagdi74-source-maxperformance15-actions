@@ -183,6 +183,55 @@ describe('Duplicate Order Detection System', () => {
       expect(capturedWhere.createdAt.gte).toBeInstanceOf(Date);
       expect(duplicate).toBeNull();
     });
+
+    test('scenario 5: windowEnabled=true with 60m ignores 90m old order, while windowEnabled=false matches it', async () => {
+      const ninetyMinsAgo = new Date(Date.now() - 90 * 60 * 1000);
+      mockPrisma.order.findMany.mockImplementation(async ({ where }) => {
+        if (where.createdAt && where.createdAt.gte) {
+          return [];
+        }
+        return [
+          {
+            id: 'ord-old-90',
+            orderNumber: 'ORD-OLD-90',
+            customerPhone: '01012345678',
+            status: 'PREPARING',
+            total: 300,
+            createdAt: ninetyMinsAgo,
+          },
+        ];
+      });
+
+      const withWindow = await orderService.findDuplicateOrder({
+        companyId: 'comp-1',
+        customerPhone: '01012345678',
+        total: 300,
+        settings: {
+          enabled: true,
+          criteria: 'phone',
+          windowEnabled: true,
+          windowMinutes: 60,
+          activeStatuses: ['PREPARING'],
+        },
+        includeGuest: false,
+      });
+      expect(withWindow).toBeNull();
+
+      const withoutWindow = await orderService.findDuplicateOrder({
+        companyId: 'comp-1',
+        customerPhone: '01012345678',
+        total: 300,
+        settings: {
+          enabled: true,
+          criteria: 'phone',
+          windowEnabled: false,
+          activeStatuses: ['PREPARING'],
+        },
+        includeGuest: false,
+      });
+      expect(withoutWindow).not.toBeNull();
+      expect(withoutWindow.order.id).toBe('ord-old-90');
+    });
   });
 
   describe('Acceptance Criteria 4: Tenant settings isolation', () => {
@@ -403,6 +452,74 @@ describe('Duplicate Order Detection System', () => {
       expect(match).not.toBeNull();
       expect(match.type).toBe('guest');
       expect(match.order.id).toBe('guest-1');
+    });
+  });
+
+  describe('Scenario 7 & Whitelist Edge Cases', () => {
+    test('scenario 7: exempt phone returns null even when previous order is in PREPARING', async () => {
+      const match = await orderService.findDuplicateOrder({
+        companyId: 'comp-1',
+        customerPhone: '01099998888',
+        total: 500,
+        settings: {
+          enabled: true,
+          criteria: 'phone',
+          exemptPhones: ['01099998888'],
+          activeStatuses: ['PREPARING'],
+          windowEnabled: false,
+        },
+      });
+      expect(match).toBeNull();
+      expect(mockPrisma.order.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Team Alerts & Notification format', () => {
+    test('alertTeamAboutDuplicate passes notification data as an object (Json), not a string', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'mgr-1' }]);
+      mockPrisma.notification.create.mockResolvedValue({ id: 'notif-1' });
+
+      await orderService.alertTeamAboutDuplicate(
+        'comp-1',
+        '01012345678',
+        { id: 'matched-1', orderNumber: 'ORD-999' },
+        'ORD-1000'
+      );
+
+      expect(mockPrisma.notification.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'mgr-1',
+          companyId: 'comp-1',
+          title: 'تنبيه: طلب مكرر',
+          message: expect.stringContaining('ORD-1000'),
+          type: 'duplicate_order',
+          data: {
+            newOrderNumber: 'ORD-1000',
+            matchedOrderId: 'matched-1',
+            matchedOrderNumber: 'ORD-999',
+            customerPhone: '01012345678',
+          },
+        },
+      });
+
+      const callData = mockPrisma.notification.create.mock.calls[0][0].data.data;
+      expect(typeof callData).toBe('object');
+      expect(callData.matchedOrderNumber).toBe('ORD-999');
+    });
+
+    test('alertTeamAboutDuplicate catches notification creation errors gracefully without throwing', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([{ id: 'mgr-1' }]);
+      mockPrisma.notification.create.mockRejectedValue(new Error('DB failure'));
+
+      // Should not throw
+      await expect(
+        orderService.alertTeamAboutDuplicate(
+          'comp-1',
+          '01012345678',
+          { id: 'matched-1', orderNumber: 'ORD-999' },
+          'ORD-1000'
+        )
+      ).resolves.not.toThrow();
     });
   });
 

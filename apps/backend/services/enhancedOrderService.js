@@ -306,7 +306,8 @@ class EnhancedOrderService {
           originalStatus
         };
         if (duplicateSettings?.alertTeam) {
-          orderService.alertTeamAboutDuplicate(data.companyId, customerPhoneToCheck, duplicateMatch.order, null);
+          orderService.alertTeamAboutDuplicate(data.companyId, customerPhoneToCheck, duplicateMatch.order, null)
+            .catch(err => console.warn('⚠️ [DUPLICATE-ALERT]', err.message));
         }
       }
 

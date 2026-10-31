@@ -953,6 +953,9 @@ const getDetailedOrderReport = async (req, res) => {
         const duplicateDailyMap = {};
         const duplicateCustomerMap = {};
 
+        const dupSettings = await require('../services/orderService').getDuplicateSettings(companyId);
+        const treatDuplicateAsCancelled = dupSettings?.reportTreatment === 'cancelled';
+
         const branchMap = {};
 
         const totalOrders = unifiedOrdersList.length;
@@ -992,9 +995,11 @@ const getDetailedOrderReport = async (req, res) => {
                                 ['DELIVERED', 'PARTIALLY_DELIVERED', 'COMPLETED'].includes(rawStatus) ||
                                 turboStatus.includes('delivered') || turboStatus.includes('remitted');
 
+            const CANCELLED_STATUSES = ['CANCELLED', 'REJECTED', 'FAILED']
+                .concat(treatDuplicateAsCancelled ? ['DUPLICATE_ORDER'] : []);
             const isCancelled = !isDelivered && (
-                ['CANCELLED', 'REJECTED', 'FAILED', 'DUPLICATE_ORDER'].includes(effectiveStatus) ||
-                ['CANCELLED', 'REJECTED', 'FAILED', 'DUPLICATE_ORDER'].includes(rawStatus) ||
+                CANCELLED_STATUSES.includes(effectiveStatus) ||
+                CANCELLED_STATUSES.includes(rawStatus) ||
                 turboStatus.includes('cancelled')
             );
 

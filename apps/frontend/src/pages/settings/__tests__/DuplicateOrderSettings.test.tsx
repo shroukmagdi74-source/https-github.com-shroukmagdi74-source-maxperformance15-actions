@@ -107,6 +107,8 @@ describe("DuplicateOrderSettings Component", () => {
         expect.objectContaining({
           criteria: "phone_amount",
           enabled: true,
+          reportTreatment: "separate",
+          exemptPhones: expect.any(Array),
         })
       );
     });
@@ -165,6 +167,54 @@ describe("DuplicateOrderSettings Component", () => {
         expect.objectContaining({
           windowEnabled: true,
           windowMinutes: 1440,
+          reportTreatment: "separate",
+          exemptPhones: expect.any(Array),
+        })
+      );
+    });
+  });
+
+  it("preserves and submits reportTreatment and exemptPhones in save payload", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          enabled: true,
+          criteria: "phone",
+          activeStatuses: ["PENDING", "CONFIRMED"],
+          windowEnabled: false,
+          windowMinutes: 60,
+          action: "record_visible",
+          alertTeam: true,
+          includeStoreOrders: true,
+          reportTreatment: "cancelled",
+          exemptPhones: ["01011112222", "01099998888"],
+        },
+      },
+    });
+
+    mockApiPut.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {},
+      },
+    });
+
+    render(<DuplicateOrderSettings />);
+
+    await waitFor(() => {
+      expect(screen.getByText("إعدادات فحص الطلبات المكررة")).toBeTruthy();
+    });
+
+    const saveButton = screen.getByRole("button", { name: /حفظ الإعدادات/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockApiPut).toHaveBeenCalledWith(
+        "/order-settings/duplicates",
+        expect.objectContaining({
+          reportTreatment: "cancelled",
+          exemptPhones: expect.arrayContaining(["01011112222", "01099998888"]),
         })
       );
     });
