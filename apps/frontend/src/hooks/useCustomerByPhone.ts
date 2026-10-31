@@ -85,6 +85,13 @@ export interface CustomerLookupResult {
   previousOrders?: PreviousOrder[];
   eligiblePreviousOrders?: EligiblePreviousOrder[];
   exchangeReturnPolicy?: ExchangeReturnPolicy;
+  isWholesale?: boolean;
+  wholesaleCustomerId?: string | null;
+  wholesaleCustomer?: {
+    id: string;
+    creditLimit: number;
+    currentBalance: number;
+  } | null;
 }
 
 const toDigits = (value?: string | null): string =>

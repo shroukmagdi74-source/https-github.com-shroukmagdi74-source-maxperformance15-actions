@@ -69,9 +69,19 @@ const CartColumn: React.FC<CartColumnProps> = ({
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-start gap-1">
                                                 <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-1 flex-1">{item.name}</h3>
-                                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                                                    {item.price.toLocaleString()} {t('manualOrder.k_75')}
-                                                </span>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    {item.isWholesalePrice && (
+                                                        <span
+                                                            className="inline-flex items-center rounded-full bg-purple-100 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 text-[9px] font-bold text-purple-700 dark:text-purple-300"
+                                                            title={item.wholesalePriceListName || 'سعر جملة'}
+                                                        >
+                                                            سعر جملة
+                                                        </span>
+                                                    )}
+                                                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                                                        {item.price.toLocaleString()} {t('manualOrder.k_75')}
+                                                    </span>
+                                                </div>
                                             </div>
                                             {(item.color || item.size) && (
                                                 <div className="flex flex-wrap gap-1.5 mt-1">
@@ -193,7 +203,25 @@ const CartColumn: React.FC<CartColumnProps> = ({
                                             </div>
                                         )}
 
-                                        {!isAffiliate && item.price !== item.originalPrice && (
+                                        {!isAffiliate && item.isWholesalePrice && ['OWNER', 'ADMIN', 'COMPANY_ADMIN', 'SUPER_ADMIN'].includes(user?.role || '') && (
+                                            <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 flex items-center justify-between bg-purple-50/50 dark:bg-purple-950/20 px-2 py-1 rounded border border-purple-100 dark:border-purple-900/40">
+                                                <span>السعر العادي: {item.regularPrice || item.originalPrice} {t('manualOrder.k_75')}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const targetPrice = item.price === item.wholesalePrice
+                                                            ? (item.regularPrice || item.originalPrice)
+                                                            : (item.wholesalePrice || item.originalPrice);
+                                                        onUpdateItem(item.productId, { price: targetPrice }, item.variantId);
+                                                    }}
+                                                    className="text-purple-600 dark:text-purple-400 font-bold hover:underline"
+                                                >
+                                                    {item.price === item.wholesalePrice ? 'تبديل للعادي' : 'إعادة للجملة'}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {!isAffiliate && item.price !== item.originalPrice && !item.isWholesalePrice && (
                                             <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 text-right flex justify-end gap-1">
                                                 <span>{t('manualOrder.k_78')}{item.originalPrice}</span>
                                                 <button

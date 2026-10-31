@@ -142,6 +142,9 @@ export interface Order {
   affiliate?: AffiliateFilterOption;
   merchantOrder?: MerchantOrderScope;
   isViewed?: boolean;
+  orderSource?: string;
+  isWholesale?: boolean;
+  wholesaleCustomerId?: string | null;
 }
 
 export type RawOrderItem = {
@@ -215,4 +218,7 @@ export type RawOrder = {
   carrierType?: string;
   shipment?: any;
   shipments?: any[];
+  orderSource?: string;
+  isWholesale?: boolean;
+  wholesaleCustomerId?: string | null;
 };

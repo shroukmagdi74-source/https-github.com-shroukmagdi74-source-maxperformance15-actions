@@ -382,6 +382,7 @@ model Order {
   codDepositSessionId     String?
   codDepositRefunded      Boolean                   @default(false)
   orderSource             OrderSource               @default(REGULAR)
+  wholesaleCustomerId     String?
   externalId              String?
   createdBy               String?
   createdByName           String?
@@ -405,6 +406,7 @@ model Order {
   conversation            Conversation?             @relation(fields: [conversationId], references: [id])
   createdByUser           User?                     @relation("OrderCreatedBy", fields: [createdBy], references: [id])
   customer                Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  wholesaleCustomer       WholesaleCustomer?        @relation(fields: [wholesaleCustomerId], references: [id])
   userRel                 User?                     @relation(fields: [userRelId], references: [id])
   returnRequests          ReturnRequest[]
   walletTransactions      WalletTransaction[]
@@ -426,6 +428,7 @@ model Order {
   @@index([assignedTo])
   @@index([isScheduled])
   @@index([orderSource])
+  @@index([wholesaleCustomerId])
   @@index([scheduledDeliveryDate])
   @@index([turboTrackingNumber])
   @@index([wooCommerceId])

@@ -63,6 +63,15 @@ export function useCheckoutCustomer({
   const [customerBlock, setCustomerBlock] = useState<CustomerBlockEvaluation | null>(null);
   const [allowBlockedCustomerOverride, setAllowBlockedCustomerOverride] = useState(false);
 
+  // Wholesale State
+  const [wholesaleCustomer, setWholesaleCustomer] = useState<{
+    id: string;
+    customerId?: string;
+    creditLimit: number;
+    currentBalance: number;
+  } | null>(null);
+  const [allowWholesaleOverdraft, setAllowWholesaleOverdraft] = useState(false);
+
   const [governments, setGovernments] = useState<GovernmentOption[]>([]);
   const [availableAreas, setAvailableAreas] = useState<AreaOption[]>([]);
   const [loadingGovernments, setLoadingGovernments] = useState(false);
@@ -143,7 +152,18 @@ export function useCheckoutCustomer({
           setGovernorate(normalizeLocationLabel(customer.governorate || ""));
           setArea(normalizeLocationLabel(customer.area || ""));
           if (customer.notes) setNotes(customer.notes);
+          if (customer.isWholesale || customer.wholesaleCustomer) {
+            setWholesaleCustomer(customer.wholesaleCustomer || {
+              id: customer.wholesaleCustomerId || "",
+              creditLimit: 0,
+              currentBalance: 0,
+            });
+          } else {
+            setWholesaleCustomer(null);
+          }
           toast.success(t("manualOrder.k_52"));
+        } else {
+          setWholesaleCustomer(null);
         }
 
         if (customer.eligiblePreviousOrders) {
@@ -286,6 +306,8 @@ export function useCheckoutCustomer({
     setNotes("");
     setCustomerBlock(null);
     setAllowBlockedCustomerOverride(false);
+    setWholesaleCustomer(null);
+    setAllowWholesaleOverdraft(false);
   };
 
   return {
@@ -310,6 +332,10 @@ export function useCheckoutCustomer({
     allowBlockedCustomerOverride,
     setAllowBlockedCustomerOverride,
     canOverrideBlockedCustomer,
+    wholesaleCustomer,
+    setWholesaleCustomer,
+    allowWholesaleOverdraft,
+    setAllowWholesaleOverdraft,
     governments,
     availableAreas,
     loadingGovernments,

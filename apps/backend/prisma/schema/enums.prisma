@@ -1920,6 +1920,7 @@ enum OrderSource {
   AFFILIATE_REFERRAL
   AFFILIATE_DIRECT
   INTERNAL_IMPORT
+  WHOLESALE
 }
 
 enum BillingHistoryType {

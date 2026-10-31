@@ -542,7 +542,15 @@ class OrderConfirmationService {
       }
 
       if (filters.sourceType) {
-        builder.add(builder.equals('o."sourceType"', String(filters.sourceType).toLowerCase()));
+        if (String(filters.sourceType).toLowerCase() === 'wholesale') {
+          builder.add('(o."orderSource" = \'WHOLESALE\' OR o."wholesaleCustomerId" IS NOT NULL)');
+        } else {
+          builder.add(builder.equals('o."sourceType"', String(filters.sourceType).toLowerCase()));
+        }
+      }
+
+      if (filters.isWholesale === 'true' || filters.orderSource === 'WHOLESALE') {
+        builder.add('(o."orderSource" = \'WHOLESALE\' OR o."wholesaleCustomerId" IS NOT NULL)');
       }
 
       if (filters.startDate || filters.endDate) {
@@ -581,6 +589,13 @@ class OrderConfirmationService {
 
     const buildGuestSql = () => {
       if (guestFilters.disabled) return null;
+      if (
+        String(filters.sourceType || '').toLowerCase() === 'wholesale' ||
+        filters.isWholesale === 'true' ||
+        filters.orderSource === 'WHOLESALE'
+      ) {
+        return null;
+      }
       const builder = createSqlBuilder();
       builder.add(builder.equals('g."companyId"', companyId));
 
@@ -840,6 +855,9 @@ class OrderConfirmationService {
           image: item.productImage || null,
           metadata: item.metadata || null
         })),
+        isWholesale: order.orderSource === 'WHOLESALE' || Boolean(order.wholesaleCustomerId),
+        orderSource: order.orderSource || 'REGULAR',
+        wholesaleCustomerId: order.wholesaleCustomerId || null,
         isGuestOrder: false
       };
     });
@@ -1556,6 +1574,13 @@ class OrderConfirmationService {
       });
 
       if (targetStatus === 'CONFIRMED') {
+        try {
+          const { wholesaleService } = require('./wholesaleService');
+          wholesaleService.recordOrderInvoice(confirmed).catch(err => {
+            console.warn('⚠️ [WHOLESALE-INVOICE] orderConfirmationService regular error:', err.message);
+          });
+        } catch (_) {}
+
         try {
           const orderService = require('./orderService');
           orderService.autoCreateTurboShipmentForOrder(confirmed, companyId).catch(err => {

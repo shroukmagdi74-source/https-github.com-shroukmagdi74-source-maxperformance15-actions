@@ -207,6 +207,9 @@ export const transformOrder = (order: RawOrder): Order => {
     merchantOrder: order.merchantOrder,
     turboShipmentStatus: order.turboShipmentStatus || order.metadata?.turboShipmentStatus || undefined,
     turboTrackingNumber: order.turboTrackingNumber || order.metadata?.turboTrackingNumber || undefined,
+    orderSource: order.orderSource || (order.metadata as any)?.orderSource,
+    isWholesale: Boolean(order.isWholesale || order.orderSource === 'WHOLESALE' || (order.metadata as any)?.isWholesale || order.wholesaleCustomerId),
+    wholesaleCustomerId: order.wholesaleCustomerId || (order.metadata as any)?.wholesaleCustomerId || null,
   };
 };
 

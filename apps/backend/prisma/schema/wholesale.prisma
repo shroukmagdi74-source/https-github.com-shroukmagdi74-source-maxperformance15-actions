@@ -71,6 +71,7 @@ model WholesaleCustomer {
   company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   transactions  WholesaleTransaction[]
   statements    WholesaleStatement[]
+  orders        Order[]
 
   @@index([companyId])
   @@index([companyId, isActive])
@@ -95,6 +96,7 @@ model WholesaleTransaction {
   @@index([wholesaleCustomerId])
   @@index([companyId])
   @@index([createdAt])
+  @@index([referenceType, referenceId])
   @@map("wholesale_transactions")
 }
 
