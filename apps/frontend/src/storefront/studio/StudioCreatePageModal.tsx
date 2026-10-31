@@ -7,6 +7,8 @@ import {
   PlusIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
+import { createTemplateSections } from "./utils/studioPageTemplates";
 import {
   STUDIO_PAGE_PRESETS,
   STUDIO_PAGE_PRESET_CATEGORIES,
@@ -115,13 +117,21 @@ export const StudioCreatePageModal: React.FC<StudioCreatePageModalProps> = ({
   }, [searchQuery, selectedCategory]);
 
   const canSubmit =
+    Boolean(selectedPresetId) &&
     title.trim().length > 0 &&
     slugValidation.isValid &&
     !isSubmitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || !selectedPresetId) return;
+
+    // Verify template application: sections.length must be >= 1 (presets have >= 4)
+    const templateSections = createTemplateSections(selectedPresetId, title.trim());
+    if (!templateSections || templateSections.length === 0) {
+      toast.error("لم يتم تطبيق القالب — أعد المحاولة");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -315,16 +325,22 @@ export const StudioCreatePageModal: React.FC<StudioCreatePageModalProps> = ({
                   <button
                     key={preset.id}
                     type="button"
+                    data-testid={`preset-card-${preset.id}`}
+                    data-selected={isSelected ? "true" : "false"}
                     onClick={() => {
-                      setSelectedPresetId(preset.id);
-                      if (!slugEdited) {
-                        setSlug(preset.suggestedSlug);
-                        setTitle(preset.label);
+                      if (isSelected) {
+                        setSelectedPresetId("");
+                      } else {
+                        setSelectedPresetId(preset.id);
+                        if (!slugEdited) {
+                          setSlug(preset.suggestedSlug);
+                          setTitle(preset.label);
+                        }
                       }
                     }}
                     className={`text-start flex flex-col justify-between p-3 rounded-xl border transition-all text-xs active:scale-[0.98] ${
                       isSelected
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/40 shadow-xs"
+                        ? "border-primary bg-primary/10 ring-2 ring-primary shadow-xs"
                         : "border-border bg-card hover:border-border/80 hover:bg-muted/30"
                     }`}
                   >
@@ -343,8 +359,9 @@ export const StudioCreatePageModal: React.FC<StudioCreatePageModalProps> = ({
                             </span>
                           )}
                           {isSelected ? (
-                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                              <CheckIcon className="h-2.5 w-2.5 stroke-[3]" />
+                            <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground shadow-xs">
+                              <CheckIcon className="h-3 w-3 stroke-[3]" />
+                              <span>محدد</span>
                             </span>
                           ) : (
                             <span className="h-4 w-4 rounded-full border border-border" />
@@ -386,6 +403,11 @@ export const StudioCreatePageModal: React.FC<StudioCreatePageModalProps> = ({
                 </div>
               )}
             </div>
+            {!selectedPresetId && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                يرجى تحديد قالب من القائمة أعلاه لمتابعة إنشاء الصفحة
+              </p>
+            )}
           </div>
 
           {/* Menu Option Checkbox */}

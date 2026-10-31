@@ -682,6 +682,9 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     handlePublish,
     variables,
     handleUpdateVariables,
+    handleDeletePage,
+    handleDuplicatePage,
+    handleRenamePage,
   } = useStorefrontStudioState({
     themeId,
     externalDesignTokens,
@@ -1203,6 +1206,41 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     return Array.from(set);
   }, [customPages, dbCustomPages]);
 
+  const handleStudioDeletePage = useCallback(
+    (pageKey: string) => {
+      const res = handleDeletePage(pageKey);
+      if (res !== false) {
+        setDbCustomPages((prev) => prev.filter((p) => p.slug !== pageKey && p.id !== pageKey));
+        try {
+          fetch(`${getApiUrl()}/store-pages/${pageKey}`, {
+            method: "DELETE",
+            headers: tokenManager.createAuthHeaders(),
+          }).catch(() => {});
+        } catch {}
+      }
+      return res;
+    },
+    [handleDeletePage]
+  );
+
+  const handleStudioRenamePage = useCallback(
+    (pageKey: string, newTitle: string, newSlug?: string) => {
+      const res = handleRenamePage(pageKey, newTitle, newSlug);
+      if (res !== false) {
+        const cleanSlug = newSlug
+          ? newSlug.trim().toLowerCase().replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "")
+          : pageKey;
+        setDbCustomPages((prev) =>
+          prev.map((p) =>
+            p.slug === pageKey ? { ...p, slug: cleanSlug || p.slug, title: newTitle.trim() } : p
+          )
+        );
+      }
+      return res;
+    },
+    [handleRenamePage]
+  );
+
   const handleCreateCustomPage = useCallback(
     async (pageData: {
       title: string;
@@ -1212,6 +1250,13 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
     }) => {
       const { title, slug, template, showInMenu } = pageData;
       const cleanSlug = slug.trim().toLowerCase();
+
+      // Ticket MANAGE-PAGES: Generate template sections FIRST and verify template application
+      const templateSections = createTemplateSections(template, title);
+      if (!templateSections || templateSections.length === 0) {
+        toast.error("لم يتم تطبيق القالب — أعد المحاولة");
+        return;
+      }
 
       const pageTypeMap: Record<string, string> = {
         about: "ABOUT_US",
@@ -1248,9 +1293,6 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
       } catch (err) {
         console.warn("DB page creation warning (proceeding to designTokens):", err);
       }
-
-      // Generate template sections
-      const templateSections = createTemplateSections(template, title);
 
       // Write to BOTH designTokens.pages[cleanSlug] and designTokens.pageOverrides[cleanSlug]
       const nextPages = {
@@ -1620,6 +1662,10 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
         activePageKey={activePageKey}
         customPages={customPages}
         onOpenCreatePageModal={() => setShowCreatePageModal(true)}
+        onDeletePage={handleStudioDeletePage}
+        onDuplicatePage={handleDuplicatePage}
+        onRenamePage={handleStudioRenamePage}
+        existingSlugs={existingSlugs}
         pageStyle={activePageStyle}
         onApplyPageStylePreset={handleApplyPageStylePreset}
         onUpdatePageStyle={handleUpdatePageStyle}
@@ -1844,6 +1890,10 @@ export const StorefrontStudioShell: React.FC<StorefrontStudioShellProps> = ({
                     pageSectionCounts={pageSectionCounts}
                     customPages={customPages}
                     onOpenCreatePageModal={() => setShowCreatePageModal(true)}
+                    onDeletePage={handleStudioDeletePage}
+                    onDuplicatePage={handleDuplicatePage}
+                    onRenamePage={handleStudioRenamePage}
+                    existingSlugs={existingSlugs}
                   />
                 )}
 

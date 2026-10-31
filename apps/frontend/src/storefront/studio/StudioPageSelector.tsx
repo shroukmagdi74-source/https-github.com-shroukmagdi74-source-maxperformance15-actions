@@ -8,7 +8,6 @@ import {
   ShoppingBagIcon,
   ShoppingCartIcon,
   Squares2X2Icon,
-  CheckCircleIcon,
   TagIcon,
   FolderIcon,
   SparklesIcon,
@@ -16,14 +15,22 @@ import {
   ShieldCheckIcon,
   DocumentTextIcon,
   PlusIcon,
+  TrashIcon,
+  DocumentDuplicateIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 import { STUDIO_PAGES, type StudioPageDefinition } from "./StudioTypes";
+import { useStudioBridge } from "./hooks/useStorefrontStudioState";
 
 interface StudioPageSelectorProps {
   activePageKey: string;
   onPageChange: (pageKey: string) => void;
   customPages?: StudioPageDefinition[];
   onOpenCreatePageModal?: () => void;
+  onDeletePage?: (pageKey: string) => void;
+  onDuplicatePage?: (pageKey: string) => void;
+  onRenamePage?: (pageKey: string, newTitle: string, newSlug?: string) => void;
+  existingSlugs?: string[];
 }
 
 const PAGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -32,7 +39,7 @@ const PAGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   pdp: CubeIcon,
   cart: ShoppingCartIcon,
   checkout: CreditCardIcon,
-  "thank-you": CheckCircleIcon,
+  "thank-you": ShieldCheckIcon,
   sale: TagIcon,
   collections: FolderIcon,
   "size-guide": SparklesIcon,
@@ -46,9 +53,23 @@ export const StudioPageSelector: React.FC<StudioPageSelectorProps> = ({
   onPageChange,
   customPages = [],
   onOpenCreatePageModal,
+  onDeletePage,
+  onDuplicatePage,
+  onRenamePage,
+  existingSlugs = [],
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const bridge = useStudioBridge();
+  const handleDelete = onDeletePage || bridge.handleDeletePage;
+  const handleDuplicate = onDuplicatePage || bridge.handleDuplicatePage;
+  const handleRename = onRenamePage || bridge.handleRenamePage;
+
+  const [deletingPageId, setDeletingPageId] = useState<string | null>(null);
+  const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState("");
+  const [renamingSlug, setRenamingSlug] = useState("");
 
   const allPages = useMemo(() => {
     return [...STUDIO_PAGES, ...customPages];
@@ -67,6 +88,38 @@ export const StudioPageSelector: React.FC<StudioPageSelectorProps> = ({
 
   const ActiveIcon = PAGE_ICONS[activePageDef.id] || DocumentTextIcon;
 
+  const normalizedRenameSlug = useMemo(() => {
+    return renamingSlug
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^a-z0-9-]/g, "");
+  }, [renamingSlug]);
+
+  const allKnownSlugs = useMemo(() => {
+    if (existingSlugs && existingSlugs.length > 0) return existingSlugs;
+    return allPages.map((p) => p.id.toLowerCase());
+  }, [existingSlugs, allPages]);
+
+  const renameSlugValidation = useMemo(() => {
+    if (!renamingPageId) return { isValid: true, message: null };
+    if (!normalizedRenameSlug) {
+      return { isValid: false, message: "رابط الصفحة مطلوب" };
+    }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalizedRenameSlug)) {
+      return { isValid: false, message: "يجب أن يحتوي الرابط على أحرف إنجليزية وأرقام وشرطات فقط" };
+    }
+    const isTaken = allKnownSlugs.some(
+      (s) => s.toLowerCase() === normalizedRenameSlug && s.toLowerCase() !== renamingPageId.toLowerCase()
+    );
+    if (isTaken) {
+      return { isValid: false, message: `الرابط "${normalizedRenameSlug}" مستخدم بالفعل` };
+    }
+    return { isValid: true, message: null };
+  }, [renamingPageId, normalizedRenameSlug, allKnownSlugs]);
+
+  const canSaveRename = renamingTitle.trim().length > 0 && renameSlugValidation.isValid;
+
   // Close on outside click
   useEffect(() => {
     if (!isOpen) return;
@@ -74,12 +127,16 @@ export const StudioPageSelector: React.FC<StudioPageSelectorProps> = ({
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setDeletingPageId(null);
+        setRenamingPageId(null);
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsOpen(false);
+        setDeletingPageId(null);
+        setRenamingPageId(null);
       }
     };
 
@@ -95,6 +152,8 @@ export const StudioPageSelector: React.FC<StudioPageSelectorProps> = ({
     (pageId: string) => {
       onPageChange(pageId);
       setIsOpen(false);
+      setDeletingPageId(null);
+      setRenamingPageId(null);
     },
     [onPageChange]
   );
@@ -177,19 +236,21 @@ export const StudioPageSelector: React.FC<StudioPageSelectorProps> = ({
                 const PageIcon = PAGE_ICONS[page.id] || Squares2X2Icon;
 
                 return (
-                  <button
+                  <div
                     key={page.id}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => handleSelect(page.id)}
-                    className={`group flex w-full items-center justify-between rounded-xl p-2 text-start transition-all active:scale-[0.98] ${
+                    className={`group flex w-full items-center justify-between rounded-xl p-1.5 transition-all ${
                       isSelected
                         ? "border border-primary/25 bg-primary/10 text-primary"
                         : "border border-transparent text-foreground hover:bg-muted/70"
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => handleSelect(page.id)}
+                      className="flex flex-1 items-center gap-2.5 min-w-0 text-start"
+                    >
                       <span
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
                           isSelected
@@ -211,14 +272,28 @@ export const StudioPageSelector: React.FC<StudioPageSelectorProps> = ({
                           {page.description}
                         </p>
                       </div>
-                    </div>
+                    </button>
 
-                    {isSelected && (
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                        <CheckIcon className="h-3.5 w-3.5 stroke-[2.5]" />
-                      </span>
-                    )}
-                  </button>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        data-testid={`duplicate-page-${page.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicate(page.id);
+                        }}
+                        className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                        title="تكرار الصفحة"
+                      >
+                        <DocumentDuplicateIcon className="h-3.5 w-3.5" />
+                      </button>
+                      {isSelected && (
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary ms-0.5">
+                          <CheckIcon className="h-3.5 w-3.5 stroke-[2.5]" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -239,20 +314,131 @@ export const StudioPageSelector: React.FC<StudioPageSelectorProps> = ({
               ) : (
                 customPages.map((page) => {
                   const isSelected = page.id === activePageKey;
+
+                  if (deletingPageId === page.id) {
+                    return (
+                      <div
+                        key={page.id}
+                        className="flex flex-col gap-1.5 rounded-xl border border-destructive/40 bg-destructive/10 p-2.5 text-xs animate-in fade-in duration-100"
+                      >
+                        <p className="font-bold text-destructive text-[11px] leading-tight">
+                          هل أنت متأكد من حذف صفحة «{page.label}»؟
+                        </p>
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            data-testid={`confirm-delete-${page.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(page.id);
+                              setDeletingPageId(null);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground text-[10.5px] font-bold hover:bg-destructive/90 active:scale-95 transition-all shadow-xs"
+                          >
+                            تأكيد الحذف
+                          </button>
+                          <button
+                            type="button"
+                            data-testid={`cancel-delete-${page.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeletingPageId(null);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground text-[10.5px]"
+                          >
+                            إلغاء
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (renamingPageId === page.id) {
+                    return (
+                      <div
+                        key={page.id}
+                        className="flex flex-col gap-2 rounded-xl border border-primary/50 bg-card p-2.5 shadow-sm text-xs animate-in fade-in duration-100"
+                      >
+                        <span className="text-[10px] text-muted-foreground font-bold">إعادة تسمية وتعديل الرابط</span>
+                        <div className="space-y-1.5">
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-0.5">عنوان الصفحة</label>
+                            <input
+                              type="text"
+                              value={renamingTitle}
+                              onChange={(e) => setRenamingTitle(e.target.value)}
+                              data-testid={`rename-title-input-${page.id}`}
+                              className="w-full bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground outline-none focus:border-primary font-bold"
+                              placeholder="عنوان الصفحة"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-0.5">رابط الصفحة (Slug)</label>
+                            <div className="relative flex items-center">
+                              <span className="absolute start-2 font-mono text-[10px] text-muted-foreground select-none">/</span>
+                              <input
+                                type="text"
+                                value={renamingSlug}
+                                onChange={(e) => setRenamingSlug(e.target.value)}
+                                data-testid={`rename-slug-input-${page.id}`}
+                                dir="ltr"
+                                className="w-full bg-background border border-border rounded-lg ps-5 pe-2 py-1 text-xs font-mono text-foreground outline-none focus:border-primary"
+                                placeholder="page-slug"
+                              />
+                            </div>
+                            {renameSlugValidation.message && (
+                              <p className="text-[10px] text-destructive mt-0.5 font-medium">{renameSlugValidation.message}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 justify-end pt-1">
+                          <button
+                            type="button"
+                            data-testid={`rename-save-${page.id}`}
+                            disabled={!canSaveRename}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (canSaveRename) {
+                                handleRename(page.id, renamingTitle.trim(), normalizedRenameSlug);
+                                setRenamingPageId(null);
+                              }
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold disabled:opacity-50 active:scale-95 transition-all shadow-xs"
+                          >
+                            حفظ
+                          </button>
+                          <button
+                            type="button"
+                            data-testid={`rename-cancel-${page.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenamingPageId(null);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-muted text-muted-foreground hover:text-foreground text-[11px]"
+                          >
+                            إلغاء
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <button
+                    <div
                       key={page.id}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => handleSelect(page.id)}
-                      className={`group flex w-full items-center justify-between rounded-xl p-2 text-start transition-all active:scale-[0.98] ${
+                      className={`group flex w-full items-center justify-between rounded-xl p-1.5 transition-all ${
                         isSelected
                           ? "border border-primary/25 bg-primary/10 text-primary"
                           : "border border-transparent text-foreground hover:bg-muted/70"
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => handleSelect(page.id)}
+                        className="flex flex-1 items-center gap-2.5 min-w-0 text-start"
+                      >
                         <span
                           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
                             isSelected
@@ -274,14 +460,55 @@ export const StudioPageSelector: React.FC<StudioPageSelectorProps> = ({
                             {page.description}
                           </p>
                         </div>
-                      </div>
+                      </button>
 
-                      {isSelected && (
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                          <CheckIcon className="h-3.5 w-3.5 stroke-[2.5]" />
-                        </span>
-                      )}
-                    </button>
+                      {/* Action buttons for custom page */}
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          data-testid={`duplicate-page-${page.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicate(page.id);
+                          }}
+                          className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          title="تكرار الصفحة"
+                        >
+                          <DocumentDuplicateIcon className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`rename-page-${page.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingPageId(page.id);
+                            setRenamingTitle(page.label);
+                            setRenamingSlug(page.id);
+                          }}
+                          className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          title="إعادة تسمية وتعديل الرابط"
+                        >
+                          <PencilSquareIcon className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`delete-page-${page.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingPageId(page.id);
+                          }}
+                          className="p-1 rounded-md text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
+                          title="حذف الصفحة"
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" />
+                        </button>
+                        {isSelected && (
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary ms-0.5">
+                            <CheckIcon className="h-3.5 w-3.5 stroke-[2.5]" />
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   );
                 })
               )}

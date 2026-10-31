@@ -29,6 +29,10 @@ interface StudioTopBarProps {
   activePageKey: string;
   customPages?: StudioPageDefinition[];
   onOpenCreatePageModal?: () => void;
+  onDeletePage?: (pageKey: string) => void;
+  onDuplicatePage?: (pageKey: string) => void;
+  onRenamePage?: (pageKey: string, newTitle: string, newSlug?: string) => void;
+  existingSlugs?: string[];
   pageStyle?: PageStyleScope;
   onApplyPageStylePreset?: (presetId: string) => void;
   onUpdatePageStyle?: (partial: Partial<PageStyleScope>) => void;
@@ -75,6 +79,10 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
   activePageKey,
   customPages,
   onOpenCreatePageModal,
+  onDeletePage,
+  onDuplicatePage,
+  onRenamePage,
+  existingSlugs,
   pageStyle,
   onApplyPageStylePreset,
   onUpdatePageStyle,
@@ -141,6 +149,10 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({
             onPageChange={onPageChange}
             customPages={customPages}
             onOpenCreatePageModal={onOpenCreatePageModal}
+            onDeletePage={onDeletePage}
+            onDuplicatePage={onDuplicatePage}
+            onRenamePage={onRenamePage}
+            existingSlugs={existingSlugs}
           />
           {onApplyPageStylePreset && (
             <StudioPageStylePopover

@@ -1408,11 +1408,28 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
         delete (nextStyles as any)[pageKey];
       }
 
+      // Ticket MANAGE-PAGES: Remove page from navigation menu if present
+      let nextNavigation = currentTokens.navigation as Record<string, unknown> | undefined;
+      if (nextNavigation && Array.isArray((nextNavigation as any).menu)) {
+        const currentMenu = (nextNavigation as any).menu as Array<{ label: string; url: string }>;
+        const pageUrl = `/${pageKey}`;
+        const filteredMenu = currentMenu.filter(
+          (item) => item.url !== pageUrl && item.url !== pageKey && item.url !== `/${pageKey}/`
+        );
+        if (filteredMenu.length !== currentMenu.length) {
+          nextNavigation = {
+            ...nextNavigation,
+            menu: filteredMenu,
+          };
+        }
+      }
+
       const nextTokens = {
         ...currentTokens,
         pages: currentPages,
         pageOverrides: currentOverrides,
         ...(nextStyles ? { pageStyles: nextStyles } : {}),
+        ...(nextNavigation ? { navigation: nextNavigation } : {}),
       };
 
       if (activePageKeyRef.current === pageKey) {
@@ -1503,34 +1520,95 @@ export function useStorefrontStudioState(props: UseStorefrontStudioStateProps & 
   );
 
   const handleRenamePage = useCallback(
-    (pageKey: string, newTitle: string) => {
-      const trimmed = newTitle.trim();
-      if (!trimmed) return;
+    (pageKey: string, newTitle: string, newSlug?: string) => {
+      const trimmedTitle = newTitle.trim();
+      if (!trimmedTitle) return false;
 
       const currentTokens = currentDesignTokensRef.current || {};
       const currentPages = { ...((currentTokens.pages as Record<string, any>) || {}) };
       const currentOverrides = { ...((currentTokens.pageOverrides as Record<string, any>) || {}) };
 
+      // Slug normalization if newSlug is passed
+      const cleanSlug = newSlug
+        ? newSlug.trim().toLowerCase().replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "")
+        : pageKey;
+
+      if (!cleanSlug) {
+        toast.error("رابط الصفحة مطلوب");
+        return false;
+      }
+
+      // If slug is changing, validate uniqueness against standard pages & other custom pages
+      if (cleanSlug !== pageKey) {
+        const isStandard = STUDIO_PAGES.some((p) => p.id === cleanSlug);
+        const isTakenByCustom =
+          Boolean(currentPages[cleanSlug]) || Boolean(currentOverrides[cleanSlug]);
+        if (isStandard || isTakenByCustom) {
+          toast.error(`الرابط "${cleanSlug}" مستخدم بالفعل، يرجى اختيار رابط آخر`);
+          return false;
+        }
+      }
+
       const existingPage = currentPages[pageKey] || currentOverrides[pageKey] || {};
       const updatedPage = {
         ...existingPage,
-        id: pageKey,
-        title: trimmed,
-        label: trimmed,
+        id: cleanSlug,
+        slug: cleanSlug,
+        title: trimmedTitle,
+        label: trimmedTitle,
       };
 
-      currentPages[pageKey] = updatedPage;
-      currentOverrides[pageKey] = updatedPage;
+      // If slug changed, delete old keys and assign to new cleanSlug
+      if (cleanSlug !== pageKey) {
+        delete currentPages[pageKey];
+        delete currentOverrides[pageKey];
+      }
+      currentPages[cleanSlug] = updatedPage;
+      currentOverrides[cleanSlug] = updatedPage;
+
+      // Handle pageStyles key migration if slug changed
+      let nextStyles = currentTokens.pageStyles;
+      if (cleanSlug !== pageKey && nextStyles && typeof nextStyles === "object") {
+        if ((nextStyles as any)[pageKey]) {
+          nextStyles = { ...(nextStyles as any), [cleanSlug]: (nextStyles as any)[pageKey] };
+          delete (nextStyles as any)[pageKey];
+        }
+      }
+
+      // Update navigation menu item label and url
+      let nextNavigation = currentTokens.navigation as Record<string, unknown> | undefined;
+      if (nextNavigation && Array.isArray((nextNavigation as any).menu)) {
+        const currentMenu = (nextNavigation as any).menu as Array<{ label: string; url: string }>;
+        const oldUrl = `/${pageKey}`;
+        const newUrl = `/${cleanSlug}`;
+        const updatedMenu = currentMenu.map((item) => {
+          if (item.url === oldUrl || item.url === pageKey) {
+            return { ...item, label: trimmedTitle, url: newUrl };
+          }
+          return item;
+        });
+        nextNavigation = {
+          ...nextNavigation,
+          menu: updatedMenu,
+        };
+      }
 
       const nextTokens = {
         ...currentTokens,
         pages: currentPages,
         pageOverrides: currentOverrides,
+        ...(nextStyles ? { pageStyles: nextStyles } : {}),
+        ...(nextNavigation ? { navigation: nextNavigation } : {}),
       };
+
+      if (cleanSlug !== pageKey && activePageKeyRef.current === pageKey) {
+        setActivePageKeyInternal(cleanSlug);
+      }
 
       handleDesignTokensChange(nextTokens);
       onSave();
       toast.success("تمت إعادة تسمية الصفحة بنجاح");
+      return true;
     },
     [handleDesignTokensChange, onSave]
   );
@@ -2256,7 +2334,7 @@ export interface StudioBridgeState {
   savedSections: SavedStudioSection[];
   handleDeletePage: (pageKey: string) => boolean | void;
   handleDuplicatePage: (pageKey: string) => string | undefined;
-  handleRenamePage: (pageKey: string, newTitle: string) => void;
+  handleRenamePage: (pageKey: string, newTitle: string, newSlug?: string) => boolean | void;
   handleSaveSection: (customLabel?: string) => SavedStudioSection | null;
   handleDeleteSavedSection: (id: string) => void;
   handleAddSavedSection: (saved: SavedStudioSection, insertAtIndex?: number) => string | void;

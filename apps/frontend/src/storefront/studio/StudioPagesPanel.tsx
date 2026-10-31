@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   XMarkIcon,
   HomeIcon,
@@ -32,7 +32,8 @@ interface StudioPagesPanelProps {
   onOpenCreatePageModal?: () => void;
   onDeletePage?: (pageKey: string) => void;
   onDuplicatePage?: (pageKey: string) => void;
-  onRenamePage?: (pageKey: string, newTitle: string) => void;
+  onRenamePage?: (pageKey: string, newTitle: string, newSlug?: string) => void;
+  existingSlugs?: string[];
 }
 
 const PAGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -60,6 +61,7 @@ export const StudioPagesPanel: React.FC<StudioPagesPanelProps> = ({
   onDeletePage,
   onDuplicatePage,
   onRenamePage,
+  existingSlugs = [],
 }) => {
   const bridge = useStudioBridge();
   const handleDelete = onDeletePage || bridge.handleDeletePage;
@@ -68,7 +70,40 @@ export const StudioPagesPanel: React.FC<StudioPagesPanelProps> = ({
 
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState<string>("");
+  const [renamingSlug, setRenamingSlug] = useState<string>("");
   const [deletingPageId, setDeletingPageId] = useState<string | null>(null);
+
+  const normalizedRenameSlug = useMemo(() => {
+    return renamingSlug
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^a-z0-9-]/g, "");
+  }, [renamingSlug]);
+
+  const allKnownSlugs = useMemo(() => {
+    if (existingSlugs && existingSlugs.length > 0) return existingSlugs;
+    return [...STUDIO_PAGES.map((p) => p.id.toLowerCase()), ...customPages.map((p) => p.id.toLowerCase())];
+  }, [existingSlugs, customPages]);
+
+  const renameSlugValidation = useMemo(() => {
+    if (!renamingPageId) return { isValid: true, message: null };
+    if (!normalizedRenameSlug) {
+      return { isValid: false, message: "رابط الصفحة مطلوب" };
+    }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalizedRenameSlug)) {
+      return { isValid: false, message: "أحرف إنجليزية وأرقام وشرطات فقط" };
+    }
+    const isTaken = allKnownSlugs.some(
+      (s) => s.toLowerCase() === normalizedRenameSlug && s.toLowerCase() !== renamingPageId.toLowerCase()
+    );
+    if (isTaken) {
+      return { isValid: false, message: `الرابط "${normalizedRenameSlug}" مستخدم بالفعل` };
+    }
+    return { isValid: true, message: null };
+  }, [renamingPageId, normalizedRenameSlug, allKnownSlugs]);
+
+  const canSaveRename = renamingTitle.trim().length > 0 && renameSlugValidation.isValid;
   return (
     <div className="flex h-full w-[280px] max-w-[85vw] shrink-0 flex-col border-e border-[#0c0d0f] bg-[#202226] text-[#e8eaee] select-none z-10">
       {/* Header */}
@@ -200,47 +235,63 @@ export const StudioPagesPanel: React.FC<StudioPagesPanelProps> = ({
                     key={page.id}
                     className="flex flex-col gap-2 rounded-xl border border-[#2b6cf6] bg-[#1d1f24] p-2.5 shadow-sm"
                   >
-                    <span className="text-[10px] text-[#8b9199] font-bold">إعادة تسمية الصفحة</span>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        value={renamingTitle}
-                        onChange={(e) => setRenamingTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && renamingTitle.trim()) {
-                            handleRename(page.id, renamingTitle.trim());
-                            setRenamingPageId(null);
-                          } else if (e.key === "Escape") {
-                            setRenamingPageId(null);
-                          }
-                        }}
-                        autoFocus
-                        data-testid={`rename-input-${page.id}`}
-                        className="flex-1 bg-[#26292f] border border-[#3b414d] rounded-lg px-2.5 py-1 text-xs text-white outline-none focus:border-[#2b6cf6] font-bold"
-                        placeholder="اسم الصفحة"
-                      />
+                    <span className="text-[10px] text-[#8b9199] font-bold">إعادة تسمية وتعديل الرابط</span>
+                    <div className="space-y-1.5">
+                      <div>
+                        <label className="text-[9.5px] text-[#8b9199] block mb-0.5">عنوان الصفحة</label>
+                        <input
+                          type="text"
+                          value={renamingTitle}
+                          onChange={(e) => setRenamingTitle(e.target.value)}
+                          autoFocus
+                          data-testid={`rename-title-input-${page.id}`}
+                          className="w-full bg-[#26292f] border border-[#3b414d] rounded-lg px-2.5 py-1 text-xs text-white outline-none focus:border-[#2b6cf6] font-bold"
+                          placeholder="اسم الصفحة"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9.5px] text-[#8b9199] block mb-0.5">رابط الصفحة (Slug)</label>
+                        <div className="relative flex items-center">
+                          <span className="absolute start-2 font-mono text-[10px] text-[#8a8f96] select-none">/</span>
+                          <input
+                            type="text"
+                            value={renamingSlug}
+                            onChange={(e) => setRenamingSlug(e.target.value)}
+                            dir="ltr"
+                            data-testid={`rename-slug-input-${page.id}`}
+                            className="w-full bg-[#26292f] border border-[#3b414d] rounded-lg ps-5 pe-2.5 py-1 text-xs font-mono text-white outline-none focus:border-[#2b6cf6]"
+                            placeholder="page-slug"
+                          />
+                        </div>
+                        {renameSlugValidation.message && (
+                          <p className="text-[9.5px] text-red-400 mt-0.5">{renameSlugValidation.message}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 justify-end pt-1">
                       <button
                         type="button"
                         data-testid={`rename-save-${page.id}`}
+                        disabled={!canSaveRename}
                         onClick={() => {
-                          if (renamingTitle.trim()) {
-                            handleRename(page.id, renamingTitle.trim());
+                          if (canSaveRename) {
+                            handleRename(page.id, renamingTitle.trim(), normalizedRenameSlug);
                             setRenamingPageId(null);
                           }
                         }}
-                        className="p-1.5 rounded-lg bg-[#2b6cf6] text-white hover:bg-[#2b6cf6]/80 active:scale-95 transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-[#2b6cf6] text-white text-[10.5px] font-bold disabled:opacity-50 hover:bg-[#2b6cf6]/80 active:scale-95 transition-all"
                         title="حفظ"
                       >
-                        <CheckIcon className="h-3.5 w-3.5 stroke-[2.5]" />
+                        حفظ
                       </button>
                       <button
                         type="button"
                         data-testid={`rename-cancel-${page.id}`}
                         onClick={() => setRenamingPageId(null)}
-                        className="p-1.5 rounded-lg bg-[#2c2f35] text-[#8a8f96] hover:text-white"
+                        className="px-2.5 py-1 rounded-lg bg-[#2c2f35] text-[#8a8f96] hover:text-white text-[10.5px]"
                         title="إلغاء"
                       >
-                        <XMarkIcon className="h-3.5 w-3.5" />
+                        إلغاء
                       </button>
                     </div>
                   </div>
@@ -345,6 +396,7 @@ export const StudioPagesPanel: React.FC<StudioPagesPanelProps> = ({
                         e.stopPropagation();
                         setRenamingPageId(page.id);
                         setRenamingTitle(page.label);
+                        setRenamingSlug(page.id);
                       }}
                       className="p-1 rounded-md text-[#8a8f96] hover:bg-[#343840] hover:text-white transition-colors"
                       title="إعادة تسمية"
