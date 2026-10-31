@@ -690,7 +690,8 @@ class OrderService {
 
       // تنبيه الفريق عند وجود مكرر
       if (isDuplicate && duplicateSettings?.alertTeam) {
-        this.alertTeamAboutDuplicate(companyId, customerPhone, duplicateMatch.order, orderNumber);
+        this.alertTeamAboutDuplicate(companyId, customerPhone, duplicateMatch.order, orderNumber)
+          .catch(err => console.warn('⚠️ [DUPLICATE-ALERT]', err.message));
       }
 
       // حفظ عنوان العميل تلقائياً من الطلب (يظهر في "بياناتي")
@@ -1400,12 +1401,12 @@ class OrderService {
             title,
             message,
             type: 'duplicate_order',
-            data: JSON.stringify({
+            data: {
               newOrderNumber,
               matchedOrderId: matchedOrder?.id,
               matchedOrderNumber: matchedOrder?.orderNumber,
               customerPhone
-            })
+            }
           }
         }).catch(err => console.warn('⚠️ [DUPLICATE-ALERT] Notification create error:', err.message));
       }
