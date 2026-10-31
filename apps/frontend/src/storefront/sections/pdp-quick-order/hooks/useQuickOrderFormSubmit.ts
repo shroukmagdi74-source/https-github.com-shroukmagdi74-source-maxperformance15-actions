@@ -298,7 +298,33 @@ export const useQuickOrderFormSubmit = ({
             ? 'يرجى استكمال بيانات التوصيل المطلوبة أولاً للانتقال إلى صفحة الدفع بالبطاقة.'
             : 'Please complete required delivery details first to proceed to card payment.',
         );
+      } else {
+        toast.error(
+          prefersArabicCopy
+            ? 'يرجى استكمال بيانات التوصيل المطلوبة لتأكيد طلبك.'
+            : 'Please complete required delivery details to confirm your order.',
+        );
       }
+
+      if (typeof window !== 'undefined') {
+        const checkoutTarget =
+          document.getElementById('pdp-checkout') ||
+          document.querySelector('[data-section="pdp-checkout"]') ||
+          document.querySelector('#storefront-pdp-checkout');
+
+        if (checkoutTarget) {
+          checkoutTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          window.setTimeout(() => {
+            const firstInput = checkoutTarget.querySelector<HTMLInputElement | HTMLSelectElement>(
+              'input[name="customerName"], input[name="phone"], select[name="governorate"], input[name="address"]',
+            );
+            if (firstInput && !firstInput.value?.trim()) {
+              firstInput.focus();
+            }
+          }, 450);
+        }
+      }
+
       return;
     }
 

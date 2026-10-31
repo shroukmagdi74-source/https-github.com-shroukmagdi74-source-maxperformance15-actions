@@ -98,7 +98,8 @@ export const normalizeStorefrontProduct = (
     ? product.variants.map((variant) =>
         normalizeStorefrontProductVariant(variant),
       )
-    : normalizedVariants;
+    : undefined;
+  const resolvedVariants = normalizedVariants || normalizedLegacyVariants;
 
   return {
     ...product,
@@ -106,8 +107,8 @@ export const normalizeStorefrontProduct = (
     comparePrice: toOptionalFiniteNumber(product.comparePrice),
     mainImage: normalizeStorefrontImageValue(product.mainImage),
     images: getProductImageCandidates(product),
-    productVariants: normalizedVariants,
-    variants: normalizedLegacyVariants,
+    productVariants: resolvedVariants,
+    variants: resolvedVariants,
   };
 };
 
