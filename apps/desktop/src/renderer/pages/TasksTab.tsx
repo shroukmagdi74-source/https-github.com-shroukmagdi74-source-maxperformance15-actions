@@ -36,6 +36,8 @@ import {
   defaultUnifiedTaskFilters,
   matchesUnifiedFilter,
   parseUnifiedFiltersFromUrl,
+  loadPersistedUnifiedFilters,
+  persistUnifiedFilters,
 } from '../components/tasks/taskFilterEngine';
 import { audioAlerts } from '../utils/audioAlerts';
 
@@ -65,11 +67,13 @@ export interface TeamActiveTimer {
   elapsedSeconds: number;
 }
 
+export type TaskStatusFilter = 'ALL' | 'PENDING' | 'IN_PROGRESS' | 'IN_REVIEW' | 'REVISION' | 'COMPLETED';
+
 export const TasksTab: React.FC = () => {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'my-tasks' | 'assigned-by-me' | 'all' | 'analytics'>(() => (localStorage.getItem('maxp_tasks_view') as any) || 'my-tasks');
-  const [statusFilter, setStatusFilter] = useState<'IN_PROGRESS' | 'IN_REVIEW' | 'REVISION' | 'COMPLETED'>(() => (localStorage.getItem('maxp_tasks_status') as any) || 'IN_PROGRESS');
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>(() => (localStorage.getItem('maxp_tasks_status') as any) || 'ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'smart' | 'due' | 'priority' | 'alpha'>(() => (localStorage.getItem('maxp_tasks_sort') as any) || 'smart');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -419,7 +423,10 @@ export const TasksTab: React.FC = () => {
       // Role gate evaluated once — team fetch runs in the parallel batch below
       const roleStr = String(authState?.user?.role || '').toUpperCase();
       const isMgr = ['COMPANY_ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER', 'HR_MANAGER'].includes(roleStr);
-      const fetchScope = activeView === 'analytics' ? 'my-tasks' : activeView;
+      let fetchScope = activeView === 'analytics' ? 'my-tasks' : activeView;
+      if (fetchScope === 'all' && !isMgr) {
+        fetchScope = 'my-tasks';
+      }
 
       // Independent fetches run in parallel (auth state already resolved above)
       const [tokenRes, res, usersRes, runningRes, activeRes] = await Promise.all([
@@ -572,6 +579,17 @@ export const TasksTab: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [loadData]);
 
+  const userRole = String(currentUser?.role || '').toUpperCase();
+  const isAdminOrManager = ['COMPANY_ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER'].includes(userRole);
+
+  // If a non-admin user somehow has activeView === 'all', reset it to 'my-tasks'
+  useEffect(() => {
+    if (currentUser && !isAdminOrManager && activeView === 'all') {
+      setActiveView('my-tasks');
+      setErrorToast('عرض كل مهام الفريق متاح فقط للإدارة (المدير والمسؤولين).');
+    }
+  }, [currentUser, isAdminOrManager, activeView]);
+
   // Persist view/filter so the employee finds his context after restart
   useEffect(() => {
     try {
@@ -579,8 +597,11 @@ export const TasksTab: React.FC = () => {
       localStorage.setItem('maxp_tasks_status', statusFilter);
       localStorage.setItem('maxp_tasks_sort', sortBy);
       localStorage.setItem('maxp_tasks_mode', listMode);
+      if (typeof persistUnifiedFilters === 'function' && unifiedFilters) {
+        persistUnifiedFilters(unifiedFilters);
+      }
     } catch {}
-  }, [activeView, statusFilter, sortBy, listMode]);
+  }, [activeView, statusFilter, sortBy, listMode, unifiedFilters]);
 
   // Undo toast auto-dismiss
   useEffect(() => {
@@ -616,11 +637,12 @@ export const TasksTab: React.FC = () => {
   };
 
   // Kanban: click-to-move through the standard flow
-  const KANBAN_FLOW = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'];
+  const KANBAN_FLOW = ['PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'];
   const moveTask = (taskId: string, dir: 1 | -1) => {
     const t = tasks.find((x) => x.id === taskId);
     if (!t) return;
-    const cur = String(t.status || 'TODO').toUpperCase();
+    const raw = String(t.status || 'PENDING').toUpperCase();
+    const cur = (raw === 'TODO' || raw === 'DRAFT') ? 'PENDING' : raw === 'PENDING_REVIEW' ? 'IN_REVIEW' : raw;
     const idx = KANBAN_FLOW.indexOf(cur);
     const nextIdx = idx === -1 ? (dir === 1 ? 0 : 0) : Math.min(KANBAN_FLOW.length - 1, Math.max(0, idx + dir));
     const next = KANBAN_FLOW[nextIdx];
@@ -641,9 +663,6 @@ export const TasksTab: React.FC = () => {
       setBulkBusy(false);
     }
   };
-
-  const userRole = String(currentUser?.role || '').toUpperCase();
-  const isAdminOrManager = ['COMPANY_ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER'].includes(userRole);
 
   const handleUpdateStatus = async (
     taskId: string,
@@ -912,9 +931,75 @@ export const TasksTab: React.FC = () => {
     return false;
   };
 
-  const [unifiedFilters, setUnifiedFilters] = useState<UnifiedTaskFilters>(() =>
-    parseUnifiedFiltersFromUrl(typeof window !== 'undefined' ? (window.location.hash || window.location.search) : '')
-  );
+  const [unifiedFilters, setUnifiedFilters] = useState<UnifiedTaskFilters>(() => {
+    const urlStr = typeof window !== 'undefined' ? (window.location.hash || window.location.search) : '';
+    const hasQuery = urlStr.includes('?');
+    if (hasQuery) {
+      return parseUnifiedFiltersFromUrl(urlStr);
+    }
+    return typeof loadPersistedUnifiedFilters === 'function'
+      ? loadPersistedUnifiedFilters()
+      : defaultUnifiedTaskFilters;
+  });
+
+  // Base tasks filtered by non-status unified filters (e.g. team member assignedTo)
+  // so that tab badges immediately and accurately reflect that member's tasks!
+  const baseTasksForCounts = tasks.filter((t) => {
+    if (unifiedFilters.assignedTo && unifiedFilters.assignedTo !== 'all') {
+      const targetUserId = String(unifiedFilters.assignedTo).trim().toLowerCase();
+      const taskAssignedTo = String(
+        t.assignedTo ||
+        t.assignedToId ||
+        t.userId ||
+        t.assignee?.id ||
+        t.assignedUser?.id ||
+        ''
+      ).trim().toLowerCase();
+      const taskAssigneeName = String(
+        t.assignedToName ||
+        (t.assignee ? `${t.assignee.firstName || ''} ${t.assignee.lastName || ''}` : '') ||
+        (t.assignedUser ? `${t.assignedUser.firstName || ''} ${t.assignedUser.lastName || ''}` : '') ||
+        t.userName ||
+        ''
+      ).trim().toLowerCase();
+      if (taskAssignedTo !== targetUserId && !taskAssigneeName.includes(targetUserId)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const allCount = baseTasksForCounts.length;
+
+  const pendingCount = baseTasksForCounts.filter((t) => {
+    const raw = String(t.status || '').toUpperCase();
+    const isRev = isTaskReturned(t);
+    const isDone = raw === 'COMPLETED';
+    return (raw === 'PENDING' || raw === 'TODO' || raw === 'DRAFT') && !isRev && !isDone;
+  }).length;
+
+  const inProgressCount = baseTasksForCounts.filter((t) => {
+    const raw = String(t.status || '').toUpperCase();
+    const isRev = isTaskReturned(t);
+    const isDone = raw === 'COMPLETED';
+    const isReview = raw === 'IN_REVIEW' || raw === 'PENDING_REVIEW';
+    const isPending = raw === 'PENDING' || raw === 'TODO' || raw === 'DRAFT';
+    return !isDone && !isReview && !isPending && !isRev;
+  }).length;
+
+  const inReviewCount = baseTasksForCounts.filter((t) => {
+    const s = String(t.status || '').toUpperCase();
+    return (s === 'IN_REVIEW' || s === 'PENDING_REVIEW') && s !== 'COMPLETED';
+  }).length;
+
+  const revisionCount = baseTasksForCounts.filter((t) => {
+    const s = String(t.status || '').toUpperCase();
+    return s !== 'COMPLETED' && isTaskReturned(t);
+  }).length;
+
+  const completedCount = baseTasksForCounts.filter(
+    (t) => String(t.status || '').toUpperCase() === 'COMPLETED'
+  ).length;
 
   const filteredTasks = tasks.filter((t) => {
     // If status filter is set in unifiedFilters, respect it
@@ -926,11 +1011,16 @@ export const TasksTab: React.FC = () => {
     const isDone = raw === 'COMPLETED';
     const isReview = raw === 'IN_REVIEW' || raw === 'PENDING_REVIEW';
     const isRev = isTaskReturned(t);
+    const isPending = (raw === 'PENDING' || raw === 'TODO' || raw === 'DRAFT') && !isRev && !isDone;
+    const isInProgress = (raw === 'IN_PROGRESS' || (!isPending && !isReview && !isDone)) && !isRev;
 
+    if (statusFilter === 'ALL') return true;
+    if (statusFilter === 'PENDING') return isPending;
+    if (statusFilter === 'IN_PROGRESS') return isInProgress;
+    if (statusFilter === 'IN_REVIEW') return isReview && !isDone;
     if (statusFilter === 'REVISION') return !isDone && isRev;
-    if (statusFilter === 'IN_REVIEW') return isReview;
     if (statusFilter === 'COMPLETED') return isDone;
-    return !isDone && !isReview;
+    return true;
   });
 
   const displayTasks = filteredTasks.filter((t) => {
@@ -952,20 +1042,6 @@ export const TasksTab: React.FC = () => {
     }
     return true;
   });
-
-  const completedCount = tasks.filter(
-    (t) => String(t.status || '').toUpperCase() === 'COMPLETED'
-  ).length;
-
-  const inReviewCount = tasks.filter((t) => {
-    const s = String(t.status || '').toUpperCase();
-    return s === 'IN_REVIEW' || s === 'PENDING_REVIEW';
-  }).length;
-
-  const inProgressCount = tasks.filter((t) => {
-    const s = String(t.status || '').toUpperCase();
-    return s !== 'COMPLETED' && s !== 'IN_REVIEW' && s !== 'PENDING_REVIEW';
-  }).length;
 
   const revisionCount = tasks.filter((t) => {
     const s = String(t.status || '').toUpperCase();
@@ -1265,20 +1341,22 @@ export const TasksTab: React.FC = () => {
             <Users size={12} />
             <span>مهام أنشأتها</span>
           </button>
-          <button
-            onClick={() => setActiveView('all')}
-            style={{
-              ...styles.segBtn,
-              backgroundColor: activeView === 'all' ? 'var(--bg-elevated)' : 'transparent',
-              color: activeView === 'all' ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontWeight: activeView === 'all' ? 600 : 400,
-              boxShadow: activeView === 'all' ? 'var(--shadow-card)' : 'none',
-            }}
-            title="عرض جميع مهام الفريق على مستوى الشركة"
-          >
-            <Layers size={12} />
-            <span>مهام الفريق</span>
-          </button>
+          {isAdminOrManager && (
+            <button
+              onClick={() => setActiveView('all')}
+              style={{
+                ...styles.segBtn,
+                backgroundColor: activeView === 'all' ? 'var(--bg-elevated)' : 'transparent',
+                color: activeView === 'all' ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontWeight: activeView === 'all' ? 600 : 400,
+                boxShadow: activeView === 'all' ? 'var(--shadow-card)' : 'none',
+              }}
+              title="عرض جميع مهام الفريق على مستوى الشركة"
+            >
+              <Layers size={12} />
+              <span>مهام الفريق</span>
+            </button>
+          )}
           <button
             onClick={() => setActiveView('analytics')}
             style={{
@@ -1409,13 +1487,23 @@ export const TasksTab: React.FC = () => {
 
           {/* Status Tabs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {(['IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'] as const).map((s) => {
-              const count = s === 'IN_PROGRESS' ? inProgressCount : s === 'IN_REVIEW' ? inReviewCount : completedCount;
-              const isSelected = statusFilter === s;
+            {([
+              { key: 'ALL', label: 'الكل', count: allCount },
+              { key: 'PENDING', label: 'قيد الانتظار', count: pendingCount },
+              { key: 'IN_PROGRESS', label: 'قيد التنفيذ', count: inProgressCount },
+              { key: 'IN_REVIEW', label: 'بانتظار الاعتماد', count: inReviewCount },
+              { key: 'COMPLETED', label: 'المكتملة', count: completedCount },
+            ] as const).map(({ key, label, count }) => {
+              const isSelected = statusFilter === key;
               return (
                 <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
+                  key={key}
+                  onClick={() => {
+                    setStatusFilter(key);
+                    if (unifiedFilters.status !== 'all') {
+                      setUnifiedFilters((prev) => ({ ...prev, status: 'all' }));
+                    }
+                  }}
                   style={{
                     ...styles.statusTabBtn,
                     backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
@@ -1424,21 +1512,21 @@ export const TasksTab: React.FC = () => {
                     fontWeight: isSelected ? 600 : 500,
                   }}
                 >
-                  <span>
-                    {s === 'IN_PROGRESS' && 'قيد التنفيذ'}
-                    {s === 'IN_REVIEW' && 'بانتظار الاعتماد'}
-                    {s === 'COMPLETED' && 'المكتملة'}
-                  </span>
+                  <span>{label}</span>
                   <span
                     style={{
                       ...styles.countBadge,
                       backgroundColor: isSelected
-                        ? s === 'IN_REVIEW' && inReviewCount > 0
+                        ? key === 'PENDING' && pendingCount > 0
+                          ? 'rgba(56, 189, 248, 0.25)'
+                          : key === 'IN_REVIEW' && inReviewCount > 0
                           ? 'rgba(168, 85, 247, 0.25)'
                           : 'rgba(255, 255, 255, 0.12)'
                         : 'rgba(255, 255, 255, 0.04)',
                       color: isSelected
-                        ? s === 'IN_REVIEW' && inReviewCount > 0
+                        ? key === 'PENDING' && pendingCount > 0
+                          ? 'var(--accent-blue)'
+                          : key === 'IN_REVIEW' && inReviewCount > 0
                           ? 'var(--accent-purple-soft)'
                           : 'var(--text-primary)'
                         : 'var(--text-dim)',
@@ -1452,7 +1540,12 @@ export const TasksTab: React.FC = () => {
 
             {(revisionCount > 0 || statusFilter === 'REVISION') && (
               <button
-                onClick={() => setStatusFilter('REVISION')}
+                onClick={() => {
+                  setStatusFilter('REVISION');
+                  if (unifiedFilters.status !== 'all') {
+                    setUnifiedFilters((prev) => ({ ...prev, status: 'all' }));
+                  }
+                }}
                 style={{
                   ...styles.statusTabBtn,
                   backgroundColor: statusFilter === 'REVISION' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.05)',
@@ -1507,8 +1600,13 @@ export const TasksTab: React.FC = () => {
         {listMode === 'board' ? (
           /* ── Kanban board (click-to-move; no drag libs) ── */
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, alignItems: 'start' }}>
-            {([['TODO', 'قيد الانتظار'], ['IN_PROGRESS', 'قيد التنفيذ'], ['IN_REVIEW', 'بانتظار الاعتماد'], ['COMPLETED', 'مكتملة']] as const).map(([status, label]) => {
-              const colTasks = sortedDisplayTasks.filter((t) => String(t.status || '').toUpperCase() === status).slice(0, 25);
+            {([['PENDING', 'قيد الانتظار'], ['IN_PROGRESS', 'قيد التنفيذ'], ['IN_REVIEW', 'بانتظار الاعتماد'], ['COMPLETED', 'مكتملة']] as const).map(([status, label]) => {
+              const colTasks = sortedDisplayTasks.filter((t) => {
+                const s = String(t.status || '').toUpperCase();
+                if (status === 'PENDING') return s === 'PENDING' || s === 'TODO' || s === 'DRAFT';
+                if (status === 'IN_REVIEW') return s === 'IN_REVIEW' || s === 'PENDING_REVIEW';
+                return s === status;
+              }).slice(0, 25);
               return (
                 <div key={status} style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px' }}>
@@ -1521,7 +1619,9 @@ export const TasksTab: React.FC = () => {
                     </div>
                   )}
                   {colTasks.map((t) => {
-                    const idx = KANBAN_FLOW.indexOf(String(t.status || 'TODO').toUpperCase());
+                    const rawStatus = String(t.status || 'PENDING').toUpperCase();
+                    const curStatus = (rawStatus === 'TODO' || rawStatus === 'DRAFT') ? 'PENDING' : rawStatus === 'PENDING_REVIEW' ? 'IN_REVIEW' : rawStatus;
+                    const idx = KANBAN_FLOW.indexOf(curStatus);
                     return (
                       <div
                         key={t.id}
@@ -1600,7 +1700,7 @@ export const TasksTab: React.FC = () => {
             ) : (
               <div>
                 <div>لا توجد مهام في هذا التصنيف حالياً.</div>
-                {activeView === 'my-tasks' && (
+                {activeView === 'my-tasks' && isAdminOrManager && (
                   <button
                     onClick={() => setActiveView('all')}
                     style={styles.emptySwitchBtn}

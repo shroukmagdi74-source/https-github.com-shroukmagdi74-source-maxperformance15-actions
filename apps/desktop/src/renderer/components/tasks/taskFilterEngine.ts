@@ -38,6 +38,7 @@ export function normalizeTaskStatus(status: unknown): string {
   const s = String(status || '').trim().toLowerCase();
   if (s === 'in_review' || s === 'pending_review') return 'in_review';
   if (s === 'in_progress') return 'in_progress';
+  if (s === 'pending' || s === 'todo' || s === 'draft') return 'pending';
   return s;
 }
 

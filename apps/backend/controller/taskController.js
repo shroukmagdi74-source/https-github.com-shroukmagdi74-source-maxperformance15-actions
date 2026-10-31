@@ -260,6 +260,12 @@ function buildLegacyTaskWhereClause(filters) {
     params.push(filters.createdBy);
   }
 
+  if (filters.restrictUser) {
+    const idx = params.length + 1;
+    clauses.push(`("assignedTo" = $${idx} OR "createdBy" = $${idx})`);
+    params.push(filters.restrictUser);
+  }
+
   if (filters.status) {
     clauses.push(`"status" = $${params.length + 1}`);
     params.push(normalizeStatus(filters.status));
@@ -313,7 +319,11 @@ async function fetchLegacyTaskSummaries({
   priority,
   assignedTo,
   createdBy,
+  restrictUser,
   search,
+  dueDateFrom,
+  dueDateTo,
+  tag,
   page = 1,
   limit = 50,
   sortBy = "createdAt",
@@ -326,7 +336,11 @@ async function fetchLegacyTaskSummaries({
     priority,
     assignedTo,
     createdBy,
+    restrictUser,
     search,
+    dueDateFrom,
+    dueDateTo,
+    tag,
   });
   const parsedPage = Math.max(1, Number(page) || 1);
   const parsedLimit = Math.max(1, Number(limit) || 50);
@@ -962,6 +976,17 @@ const taskController = {
         });
       }
 
+      const userRole = String(req.user?.role || "").toUpperCase();
+      const isManagerOrAdmin = ["SUPER_ADMIN", "COMPANY_ADMIN", "OWNER", "MANAGER"].includes(userRole);
+      const currentUserId = req.user?.userId || req.user?.id;
+
+      if (!isManagerOrAdmin && !currentUserId) {
+        return res.status(403).json({
+          success: false,
+          message: "غير مصرح بالوصول إلى مهام الشركة",
+        });
+      }
+
       if (await shouldUseLegacyTaskQueries()) {
         const result = await fetchLegacyTaskSummaries({
           companyId,
@@ -970,6 +995,7 @@ const taskController = {
           status,
           priority,
           assignedTo,
+          restrictUser: !isManagerOrAdmin ? currentUserId : undefined,
           search,
           dueDateFrom,
           dueDateTo,
@@ -991,10 +1017,6 @@ const taskController = {
           },
         });
       }
-
-      const userRole = String(req.user?.role || "").toUpperCase();
-      const isManagerOrAdmin = ["SUPER_ADMIN", "COMPANY_ADMIN", "OWNER", "MANAGER"].includes(userRole);
-      const currentUserId = req.user?.userId || req.user?.id;
 
       // Build filter conditions
       const where = {
@@ -1023,7 +1045,6 @@ const taskController = {
           OR: [
             { assignedTo: currentUserId },
             { createdBy: currentUserId },
-            { taskWatchers: { some: { userId: currentUserId } } },
           ],
         });
       }

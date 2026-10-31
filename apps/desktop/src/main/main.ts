@@ -1204,7 +1204,13 @@ function registerIpcHandlers(): void {
 
   // ── Tasks Engine Handlers ──
   ipcMain.handle('tasks:get', async (_, type?: 'my-tasks' | 'assigned-by-me' | 'all') => {
-    const scope = type || 'my-tasks';
+    let scope = type || 'my-tasks';
+    const currentUser = store.get('user', null);
+    const userRole = String(currentUser?.role || '').toUpperCase();
+    const isManagerOrAdmin = ['COMPANY_ADMIN', 'SUPER_ADMIN', 'OWNER', 'MANAGER'].includes(userRole);
+    if (scope === 'all' && !isManagerOrAdmin) {
+      scope = 'my-tasks';
+    }
     try {
       const tasks = await apiClient.getTasks(scope);
       if (Array.isArray(tasks) && tasks.length > 0) {
