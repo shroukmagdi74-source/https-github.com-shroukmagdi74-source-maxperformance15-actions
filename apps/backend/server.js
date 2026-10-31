@@ -1182,6 +1182,8 @@ app.use("/api/v1/proxy", proxyRoutes);
 app.use("/api/v1/internal", internalDeployRoutes);
 app.use("/api/v1/super-admin", superAdminRoutes);
 app.use("/api/v1/super-admin/platform", superAdminPlatformRoutes);
+app.use("/api/v1/super-admin", superAdminPlatformRoutes);
+app.use("/super-admin", superAdminPlatformRoutes);
 app.use(
   "/api/v1/super-admin/storefront-theme-catalog",
   storefrontThemeCatalogRoutes,

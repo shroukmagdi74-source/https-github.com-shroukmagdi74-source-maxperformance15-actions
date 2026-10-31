@@ -24,6 +24,13 @@ const socketService = require('./socketService');
 const { sendBrowserPushToCompany } = require('./browserPushService');
 const telegramAlertService = require('./telegramAlertService');
 
+let redisCacheService = null;
+try {
+    redisCacheService = require('./redisCacheService');
+} catch (_) {
+    redisCacheService = null;
+}
+
 function getWhatsAppNotificationService() {
     try {
         return require('./whatsapp/WhatsAppNotificationService');
@@ -672,20 +679,12 @@ class SystemIncidentAlertService {
     }
 
     /**
-     * إضافة الحادث إلى طابور التجميع الساعي
+     * إضافة الحادث إلى طابور التجميع الساعي (يدعم Redis والذاكرة المحلية)
      */
-    queueForHourlyDigest({ companyId, companyName, incidentType, title, message, severity, entityId, url, metadata }) {
-        if (!this.hourlyDigestQueue.has(companyId)) {
-            this.hourlyDigestQueue.set(companyId, []);
-        }
+    async queueForHourlyDigest({ companyId, companyName, incidentType, title, message, severity, entityId, url, metadata }) {
+        if (!companyId) return false;
 
-        const queue = this.hourlyDigestQueue.get(companyId);
-        // حماية الذاكرة من تراكم الآلاف في حالات عواصف الأخطاء (أقصى سعة 50 عنصراً في الساعة)
-        if (queue.length >= 50) {
-            queue.shift();
-        }
-
-        queue.push({
+        const item = {
             incidentType,
             title,
             message,
@@ -695,23 +694,89 @@ class SystemIncidentAlertService {
             metadata,
             companyName,
             queuedAt: Date.now()
-        });
+        };
+
+        // 1. إضافة إلى الذاكرة المحلية
+        if (!this.hourlyDigestQueue.has(companyId)) {
+            this.hourlyDigestQueue.set(companyId, []);
+        }
+        const queue = this.hourlyDigestQueue.get(companyId);
+
+        // تفادي تكرار نفس البند حرفياً في نفس الساعة
+        const isDuplicate = queue.some(i => i.incidentType === incidentType && i.title === title && (entityId ? i.entityId === entityId : true));
+        if (!isDuplicate) {
+            if (queue.length >= 50) queue.shift();
+            queue.push(item);
+
+            // 2. مزامنة فورية في Redis (لمشاركة الطابور بين كافة عمال PM2 Cluster والنجاة من إعادة التشغيل)
+            if (redisCacheService?.client && redisCacheService.isConnected) {
+                try {
+                    const redisKey = `maxp:hourly_incident_queue:${companyId}`;
+                    const existingRedis = await redisCacheService.client.lrange(redisKey, 0, -1);
+                    const existsInRedis = (existingRedis || []).some(str => {
+                        try {
+                            const p = JSON.parse(str);
+                            return p.incidentType === incidentType && p.title === title && (entityId ? p.entityId === entityId : true);
+                        } catch (_) { return false; }
+                    });
+                    if (!existsInRedis) {
+                        await redisCacheService.client.rpush(redisKey, JSON.stringify(item));
+                        await redisCacheService.client.expire(redisKey, 7200); // صلاحية ساعتين
+                    }
+                } catch (redisErr) {
+                    console.warn('⚠️ [SYSTEM-INCIDENT] Redis queue push failed, using local memory:', redisErr.message);
+                }
+            }
+        }
 
         console.log(`📦 [SYSTEM-INCIDENT] Queued ${incidentType} (${severity}) for hourly digest for company ${companyId}`);
         return true;
     }
 
     /**
-     * تفريغ وإرسال التقرير الساعي لشركة معينة
+     * تفريغ وإرسال التقرير الساعي لشركة معينة (يجمع من Redis والذاكرة المحلية)
      */
     async flushHourlyDigest(companyId) {
-        const queue = this.hourlyDigestQueue.get(companyId);
+        if (!companyId) return { sent: false, reason: 'missing_company_id' };
+
+        let queue = [];
+
+        // 1. جلب عناصر الطابور من Redis
+        if (redisCacheService?.client && redisCacheService.isConnected) {
+            try {
+                const redisKey = `maxp:hourly_incident_queue:${companyId}`;
+                const rawItems = await redisCacheService.client.lrange(redisKey, 0, -1);
+                if (rawItems && rawItems.length > 0) {
+                    await redisCacheService.client.del(redisKey);
+                    queue = rawItems.map(str => {
+                        try { return JSON.parse(str); } catch (_) { return null; }
+                    }).filter(Boolean);
+                }
+            } catch (redisErr) {
+                console.warn('⚠️ [SYSTEM-INCIDENT] Redis hourly queue read error:', redisErr.message);
+            }
+        }
+
+        // 2. دمج وتفريغ الذاكرة المحلية
+        const localItems = this.hourlyDigestQueue.get(companyId) || [];
+        this.hourlyDigestQueue.delete(companyId);
+
+        if (queue.length === 0 && localItems.length > 0) {
+            queue = localItems;
+        } else if (localItems.length > 0) {
+            const existingKeys = new Set(queue.map(q => `${q.incidentType}:${q.title}:${q.entityId || ''}`));
+            for (const item of localItems) {
+                const k = `${item.incidentType}:${item.title}:${item.entityId || ''}`;
+                if (!existingKeys.has(k)) {
+                    queue.push(item);
+                    existingKeys.add(k);
+                }
+            }
+        }
+
         if (!queue || queue.length === 0) {
             return { sent: false, reason: 'empty_queue' };
         }
-
-        // تفريغ فوري ذري لتجنب أي سباق وصول أثناء الإرسال اللاتزامني
-        this.hourlyDigestQueue.delete(companyId);
 
         const isEnabled = await this.isWhatsAppAlertsEnabled(companyId);
         if (!isEnabled) {
@@ -792,13 +857,46 @@ class SystemIncidentAlertService {
      * تفريغ وإرسال كل التقارير الساعية لجميع الشركات
      */
     async flushAllHourlyDigests() {
-        const companyIds = Array.from(this.hourlyDigestQueue.keys());
+        const companyIds = new Set(this.hourlyDigestQueue.keys());
+
+        if (redisCacheService?.client && redisCacheService.isConnected) {
+            try {
+                const keys = await redisCacheService.client.keys('maxp:hourly_incident_queue:*');
+                for (const k of keys) {
+                    const cid = k.replace('maxp:hourly_incident_queue:', '');
+                    if (cid) companyIds.add(cid);
+                }
+            } catch (_) {}
+        }
+
         const results = [];
         for (const cid of companyIds) {
             const res = await this.flushHourlyDigest(cid);
             results.push({ companyId: cid, ...res });
         }
         return results;
+    }
+
+    /**
+     * معاينة محتوى طابور الملخص الساعي الحالي للشركة
+     */
+    async getHourlyDigestQueue(companyId) {
+        if (!companyId) return [];
+        let items = [];
+        if (redisCacheService?.client && redisCacheService.isConnected) {
+            try {
+                const redisKey = `maxp:hourly_incident_queue:${companyId}`;
+                const rawItems = await redisCacheService.client.lrange(redisKey, 0, -1);
+                if (rawItems && rawItems.length > 0) {
+                    items = rawItems.map(str => {
+                        try { return JSON.parse(str); } catch (_) { return null; }
+                    }).filter(Boolean);
+                }
+            } catch (_) {}
+        }
+        const local = this.hourlyDigestQueue.get(companyId) || [];
+        if (items.length === 0) return local;
+        return items;
     }
 
     /**
@@ -833,6 +931,12 @@ class SystemIncidentAlertService {
             return { sent: false, reason: 'missing_company_id' };
         }
 
+        // تطبيع درجة الخطورة لدعم 'warning', 'WARNING', 'warn', إلخ بدون حساسية لحالة الأحرف
+        const normSeverity = String(severity || SEVERITIES.WARNING).toUpperCase().trim();
+        const isWarningOrInfo = (normSeverity === 'WARNING' || normSeverity === 'INFO' || normSeverity === 'WARN');
+        const isCritical = (normSeverity === 'CRITICAL' || normSeverity === 'FATAL' || normSeverity === 'HIGH');
+        const normalizedSeverity = isCritical ? SEVERITIES.CRITICAL : (normSeverity === 'INFO' ? SEVERITIES.INFO : SEVERITIES.WARNING);
+
         // فحص الـ Cooldown لمنع التكرار المزعج (30 دقيقة افتراضياً)
         if (!force && this.isCoolingDown(companyId, incidentType, entityId, cooldownMinutes, metadata)) {
             console.log(`⏳ [SYSTEM-INCIDENT] Suppressed by cooldown (${incidentType} on company ${companyId})`);
@@ -858,7 +962,7 @@ class SystemIncidentAlertService {
 
         const notificationData = {
             incidentType,
-            severity,
+            severity: normalizedSeverity,
             entityId,
             url: targetUrl,
             metadata: metadata || {},
@@ -900,16 +1004,16 @@ class SystemIncidentAlertService {
             if (io) {
                 const socketPayload = {
                     id: notificationData.id || `inc_${Date.now()}`,
-                    type: severity === SEVERITIES.CRITICAL ? 'error' : severity === SEVERITIES.WARNING ? 'warning' : 'info',
+                    type: normalizedSeverity === SEVERITIES.CRITICAL ? 'error' : normalizedSeverity === SEVERITIES.WARNING ? 'warning' : 'info',
                     title,
                     message,
                     incidentType,
-                    severity,
+                    severity: normalizedSeverity,
                     data: notificationData,
                     metadata: notificationData,
                     createdAt: new Date().toISOString(),
                     isRead: false,
-                    requireAlarm: severity === SEVERITIES.CRITICAL
+                    requireAlarm: normalizedSeverity === SEVERITIES.CRITICAL
                 };
 
                 // إرسال لغرفة الشركة
@@ -932,11 +1036,11 @@ class SystemIncidentAlertService {
                 compactBody: title,
                 url: targetUrl,
                 tag: `incident-${incidentType}-${companyId}`,
-                requireInteraction: severity === SEVERITIES.CRITICAL,
-                forceVisibleNotification: severity === SEVERITIES.CRITICAL,
+                requireInteraction: normalizedSeverity === SEVERITIES.CRITICAL,
+                forceVisibleNotification: normalizedSeverity === SEVERITIES.CRITICAL,
                 data: {
                     incidentType,
-                    severity,
+                    severity: normalizedSeverity,
                     entityId,
                     url: targetUrl
                 }
@@ -953,7 +1057,7 @@ class SystemIncidentAlertService {
                 title,
                 message,
                 incidentType,
-                severity,
+                severity: normalizedSeverity,
                 url: targetUrl,
                 metadata
             });
@@ -976,15 +1080,15 @@ class SystemIncidentAlertService {
                 dispatchResults.whatsappReason = 'in_cooldown';
                 dispatchResults.whatsappDeduplicated = true;
                 console.log(`⏳ [SYSTEM-INCIDENT] WhatsApp alert suppressed by dedupe (${incidentType}:${companyId})`);
-            } else if (!force && (severity === SEVERITIES.WARNING || severity === SEVERITIES.INFO)) {
-                // التحذيرات تتجمع كل ساعة في ملخص دوري
-                this.queueForHourlyDigest({
+            } else if (isWarningOrInfo && !metadata?.forceImmediate) {
+                // التحذيرات تتجمع كل ساعة في ملخص دوري (إلا إذا تم طلب forceImmediate صراحة)
+                await this.queueForHourlyDigest({
                     companyId,
                     companyName,
                     incidentType,
                     title,
                     message,
-                    severity,
+                    severity: normalizedSeverity,
                     entityId,
                     url: targetUrl,
                     metadata
@@ -1001,13 +1105,15 @@ class SystemIncidentAlertService {
                     title,
                     message,
                     incidentType,
-                    severity,
+                    severity: normalizedSeverity,
                     url: targetUrl,
                     metadata
                 });
                 dispatchResults.whatsapp = Boolean(waSent);
                 dispatchResults.whatsappMode = 'immediate';
-                this.markWhatsAppIncidentSent(incidentType, companyId);
+                if (waSent) {
+                    this.markWhatsAppIncidentSent(incidentType, companyId);
+                }
             }
         } catch (waErr) {
             console.error('❌ [SYSTEM-INCIDENT] WhatsApp alert processing failed:', waErr.message || waErr);
@@ -1017,7 +1123,7 @@ class SystemIncidentAlertService {
         // تسجيل إتمام الإرسال في الكاش لمنع التكرار خلال 30 دقيقة
         this.markIncidentSent(companyId, incidentType, entityId, metadata);
 
-        console.log(`🚨 [SYSTEM-INCIDENT] Incident dispatched (${incidentType} - ${severity}):`, {
+        console.log(`🚨 [SYSTEM-INCIDENT] Incident dispatched (${incidentType} - ${normalizedSeverity}):`, {
             companyId,
             title,
             results: dispatchResults

@@ -68,8 +68,8 @@ function resolveVerifyTokenFromRef(tokenRef) {
 function getDefaultAppsDefinition() {
   const primaryOAuth = getFacebookOAuthConfig();
 
-  const growthAppId = (process.env.FACEBOOK_GROWTH_APP_ID || '').trim();
-  const growthConfigId = (process.env.FACEBOOK_GROWTH_LOGIN_CONFIG_ID || '').trim();
+  const growthAppId = (process.env.FB_GROWTH_APP_ID || process.env.FACEBOOK_GROWTH_APP_ID || '').trim();
+  const growthConfigId = (process.env.FB_GROWTH_LOGIN_CONFIG_ID || process.env.FACEBOOK_GROWTH_LOGIN_CONFIG_ID || process.env.FB_GROWTH_CONFIG_ID || '').trim();
 
   return [
     {
@@ -86,9 +86,9 @@ function getDefaultAppsDefinition() {
     {
       key: GROWTH_APP_KEY,
       appId: growthAppId || 'growth-facebook-app-id',
-      appSecretRef: 'FACEBOOK_GROWTH_APP_SECRET',
+      appSecretRef: 'FB_GROWTH_APP_SECRET',
       configId: growthConfigId || '',
-      webhookVerifyTokenRef: 'FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN',
+      webhookVerifyTokenRef: 'FB_GROWTH_VERIFY_TOKEN',
       isActive: process.env.META_GROWTH_ACTIVE !== 'false',
       label: 'Growth App',
       createdAt: new Date(),
@@ -114,8 +114,8 @@ async function getAllApps() {
       if (Array.isArray(dbApps) && dbApps.length > 0) {
         return dbApps.map((dbApp) => {
           const key = String(dbApp.key || PRIMARY_APP_KEY).trim().toLowerCase();
-          const secretRef = dbApp.appSecretRef || (key === GROWTH_APP_KEY ? 'FACEBOOK_GROWTH_APP_SECRET' : 'FACEBOOK_APP_SECRET');
-          const tokenRef = dbApp.webhookVerifyTokenRef || (key === GROWTH_APP_KEY ? 'FACEBOOK_GROWTH_WEBHOOK_VERIFY_TOKEN' : 'FACEBOOK_WEBHOOK_VERIFY_TOKEN');
+          const secretRef = dbApp.appSecretRef || (key === GROWTH_APP_KEY ? 'FB_GROWTH_APP_SECRET' : 'FACEBOOK_APP_SECRET');
+          const tokenRef = dbApp.webhookVerifyTokenRef || (key === GROWTH_APP_KEY ? 'FB_GROWTH_VERIFY_TOKEN' : 'FACEBOOK_WEBHOOK_VERIFY_TOKEN');
 
           const resolvedSecret = resolveSecretFromRef(secretRef) || (key === PRIMARY_APP_KEY ? getFacebookOAuthConfig().appSecret : '');
           const resolvedVerifyToken = resolveVerifyTokenFromRef(tokenRef) || (key === PRIMARY_APP_KEY ? getFacebookOAuthConfig().facebookWebhookVerifyToken : '');
