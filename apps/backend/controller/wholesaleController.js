@@ -135,6 +135,37 @@ const wholesaleController = {
       res.json({ success: true, data });
     } catch (err) { res.status(500).json({ success: false, error: err.message }); }
   },
+
+  // Price Resolution
+  async resolvePrice(req, res) {
+    try {
+      const { customerId, productId, variantId, quantity } = req.query;
+      const data = await wholesaleService.resolveWholesalePrice({
+        customerId,
+        productId,
+        companyId: req.user.companyId,
+        variantId: variantId || null,
+        quantity: quantity ? Number(quantity) : 1,
+      });
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+  },
+
+  // Customer Prices
+  async getCustomerPrices(req, res) {
+    try {
+      const data = await wholesaleService.getCustomerPrices(req.params.id || req.params.customerId, req.user.companyId);
+      res.json({ success: true, data });
+    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+  },
+
+  // Customer Orders
+  async getWholesaleCustomerOrders(req, res) {
+    try {
+      const result = await wholesaleService.getWholesaleCustomerOrders(req.params.id || req.params.customerId, req.user.companyId, req.query);
+      res.json({ success: true, ...result });
+    } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+  },
 };
 
 module.exports = wholesaleController;

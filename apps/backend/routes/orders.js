@@ -387,6 +387,15 @@ const buildRegularSourceCondition = (source) => {
           { orderSource: 'INTERNAL_IMPORT' }
         ]
       };
+    case 'wholesale':
+      return {
+        OR: [
+          { orderSource: 'WHOLESALE' },
+          { wholesaleCustomerId: { not: null } },
+          { metadata: { contains: '"wholesaleCustomerId"' } },
+          { metadata: { contains: 'wholesale', mode: 'insensitive' } }
+        ]
+      };
     case 'unknown':
       return {
         OR: [
@@ -4756,6 +4765,8 @@ router.get('/simple', verifyToken.authenticateToken, async (req, res) => {
         orderSource: (order.sourceType === 'storefront' || orderMetadata?.source === 'storefront' || order.orderSource === 'STOREFRONT')
           ? (order.orderSource || 'STOREFRONT')
           : (order.orderSource || 'REGULAR'),
+        isWholesale: order.orderSource === 'WHOLESALE' || Boolean(order.wholesaleCustomerId) || Boolean(orderMetadata?.wholesaleCustomerId),
+        wholesaleCustomerId: order.wholesaleCustomerId || orderMetadata?.wholesaleCustomerId || null,
         conversationId: order.conversationId,
         conversation: order.conversation,
         affiliateId: order.affiliateId,
@@ -7880,6 +7891,8 @@ router.get('/simple/:orderNumber', verifyToken.authenticateToken, async (req, re
         orderSource: (order.sourceType === 'storefront' || orderMetadata?.source === 'storefront' || order.orderSource === 'STOREFRONT')
           ? (order.orderSource || 'STOREFRONT')
           : (order.orderSource || 'REGULAR'),
+        isWholesale: order.orderSource === 'WHOLESALE' || Boolean(order.wholesaleCustomerId) || Boolean(orderMetadata?.wholesaleCustomerId),
+        wholesaleCustomerId: order.wholesaleCustomerId || orderMetadata?.wholesaleCustomerId || null,
         conversationId: order.conversationId,
         conversation: order.conversation,
         affiliateId: order.affiliateId,

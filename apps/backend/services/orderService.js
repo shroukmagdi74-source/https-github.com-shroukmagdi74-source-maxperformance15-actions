@@ -2326,7 +2326,31 @@ class OrderService {
             });
           }
 
+          // 💳 Wholesale Auto-Credit Note on Cancel / Return (Requirement 4)
+          const isWholesaleReversalStatus = status === 'CANCELLED' || status === 'RETURNED' || status === 'REFUNDED' || shouldCreateReturn;
+          if (isWholesaleReversalStatus) {
+            try {
+              const { wholesaleService } = require('./wholesaleService');
+              wholesaleService.recordOrderCreditNote(order).catch(err => {
+                console.warn(`⚠️ [WHOLESALE-CREDIT-NOTE] Failed for order ${orderNumber}:`, err.message);
+              });
+            } catch (wErr) {
+              console.warn('⚠️ [WHOLESALE-CREDIT-NOTE] require failed:', wErr.message);
+            }
+          }
+
           if (normalizedStatus === 'CONFIRMED' || normalizedStatus === 'DELIVERED') {
+            // 💳 Wholesale Auto-Invoice Hook on Confirmation (Requirement 4)
+            if (normalizedStatus === 'CONFIRMED') {
+              try {
+                const { wholesaleService } = require('./wholesaleService');
+                wholesaleService.recordOrderInvoice(order).catch(err => {
+                  console.warn(`⚠️ [WHOLESALE-INVOICE] Failed for order ${orderNumber}:`, err.message);
+                });
+              } catch (wErr) {
+                console.warn('⚠️ [WHOLESALE-INVOICE] require failed:', wErr.message);
+              }
+            }
             const dropshippingService = require('./dropshippingService');
             const prisma = this.getPrisma();
 

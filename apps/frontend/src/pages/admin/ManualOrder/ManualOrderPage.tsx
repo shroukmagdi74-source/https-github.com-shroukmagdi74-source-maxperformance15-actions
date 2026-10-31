@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import ProductSearchColumn from "./components/ProductSearchColumn";
 import CartColumn from "./components/CartColumn";
 import CheckoutColumn from "./components/CheckoutColumn";
@@ -51,8 +52,83 @@ const ManualOrderPage = () => {
   const isEn = Boolean(i18n.language && i18n.language.startsWith("en"));
   const { user } = useAuth();
   const isAffiliate = user?.role === "AFFILIATE";
+  const [searchParams] = useSearchParams();
+  const wholesaleCustomerIdParam = searchParams.get("wholesaleCustomerId");
+  const [wholesaleCustomer, setWholesaleCustomer] = useState<{
+    id: string;
+    customerName: string;
+    customerPhone?: string;
+    creditLimit: number;
+    currentBalance: number;
+  } | null>(null);
+
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  useEffect(() => {
+    if (!wholesaleCustomerIdParam) return;
+    let cancelled = false;
+    apiClient
+      .get(`/wholesale/customers/${wholesaleCustomerIdParam}`)
+      .then((res) => {
+        const d = res?.data?.data;
+        if (!cancelled && d) {
+          setWholesaleCustomer({
+            id: d.id,
+            customerName: d.customer ? `${d.customer.firstName} ${d.customer.lastName}`.trim() : (d.customerName || "تاجر جملة"),
+            customerPhone: d.customer?.phone || d.customerPhone,
+            creditLimit: Number(d.creditLimit || 0),
+            currentBalance: Number(d.currentBalance || 0),
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [wholesaleCustomerIdParam]);
+
+  // Recalculate cart prices when wholesale customer is attached
+  useEffect(() => {
+    const targetWholesaleId = wholesaleCustomerIdParam || wholesaleCustomer?.id;
+    if (targetWholesaleId && cartItems.length > 0) {
+      cartItems.forEach((item) => {
+        if (!item.isWholesalePrice) {
+          apiClient
+            .get(`/wholesale/resolve-price`, {
+              params: {
+                customerId: targetWholesaleId,
+                productId: item.productId,
+                variantId: item.variantId,
+              },
+            })
+            .then((res) => {
+              const data = res?.data?.data;
+              if (data && data.isWholesale) {
+                setCartItems((prev) =>
+                  prev.map((ci) => {
+                    const isMatch = item.variantId
+                      ? ci.productId === item.productId && ci.variantId === item.variantId
+                      : ci.productId === item.productId && !ci.variantId;
+                    return isMatch
+                      ? {
+                          ...ci,
+                          price: Number(data.price),
+                          regularPrice: Number(data.originalPrice || ci.price),
+                          isWholesalePrice: true,
+                          wholesalePrice: Number(data.price),
+                          wholesalePriceListName: data.priceListName,
+                        }
+                      : ci;
+                  })
+                );
+              }
+            })
+            .catch(() => {});
+        }
+      });
+    }
+  }, [wholesaleCustomer?.id, wholesaleCustomerIdParam]);
   const [activeMobilePanel, setActiveMobilePanel] =
     useState<MobilePanel>("products");
   const [access, setAccess] = useState<ManualAccessState | null>(null);
@@ -212,6 +288,42 @@ const ManualOrderPage = () => {
           sku,
         },
       ]);
+
+      // Resolve wholesale price if ordering for wholesale customer
+      const targetWholesaleId = wholesaleCustomerIdParam || wholesaleCustomer?.id;
+      if (targetWholesaleId) {
+        apiClient
+          .get(`/wholesale/resolve-price`, {
+            params: {
+              customerId: targetWholesaleId,
+              productId: product.id,
+              variantId: variant?.id,
+            },
+          })
+          .then((res) => {
+            const data = res?.data?.data;
+            if (data && data.isWholesale) {
+              setCartItems((prev) =>
+                prev.map((item) => {
+                  const isMatch = variant?.id
+                    ? item.productId === product.id && item.variantId === variant.id
+                    : item.productId === product.id && !item.variantId;
+                  return isMatch
+                    ? {
+                        ...item,
+                        price: Number(data.price),
+                        regularPrice: Number(data.originalPrice || price),
+                        isWholesalePrice: true,
+                        wholesalePrice: Number(data.price),
+                        wholesalePriceListName: data.priceListName,
+                      }
+                    : item;
+                })
+              );
+            }
+          })
+          .catch(() => {});
+      }
     }
 
     if (typeof window !== "undefined" && window.innerWidth < 1024) {

@@ -75,6 +75,15 @@ const buildSourceCondition = (source) => {
           { orderSource: 'INTERNAL_IMPORT' }
         ]
       };
+    case 'wholesale':
+      return {
+        OR: [
+          { orderSource: 'WHOLESALE' },
+          { wholesaleCustomerId: { not: null } },
+          { metadata: { contains: '"wholesaleCustomerId"' } },
+          { metadata: { contains: 'wholesale', mode: 'insensitive' } }
+        ]
+      };
     case 'unknown':
       return {
         OR: [
@@ -1315,10 +1324,21 @@ class EnhancedOrderService {
       sourceType: 'ai_conversation',
       extractionTimestamp: new Date(),
 
+      // Wholesale support
+      ...(data.wholesaleCustomerId && {
+        wholesaleCustomerId: data.wholesaleCustomerId,
+        orderSource: data.orderSource || 'WHOLESALE'
+      }),
+
       // Affiliate support
       ...(data.affiliateId && {
         affiliateId: data.affiliateId,
         orderSource: data.orderSource || 'AFFILIATE_DIRECT'
+      }),
+
+      // Explicit order source if provided
+      ...(data.orderSource && !data.affiliateId && !data.wholesaleCustomerId && {
+        orderSource: data.orderSource
       }),
 
       // Creator info

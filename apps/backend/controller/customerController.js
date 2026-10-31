@@ -1996,6 +1996,15 @@ const getCustomerLookupByPhone = async (req, res) => {
       policy: exchangeReturnPolicy
     });
 
+    let wholesaleCustomer = null;
+    try {
+      if (customer?.id) {
+        wholesaleCustomer = await prisma.wholesaleCustomer.findFirst({
+          where: { customerId: customer.id, companyId, isActive: true },
+        });
+      }
+    } catch (_) {}
+
     const formattedCustomer = customer
       ? {
           id: customer.id,
@@ -2018,6 +2027,13 @@ const getCustomerLookupByPhone = async (req, res) => {
           deliveryRate: customer.deliveryRate ?? 0,
           totalOrdersCount: Math.max(customer.totalOrdersCount || 0, formattedPreviousOrders.length),
           totalDelivered: customer.totalDelivered ?? 0,
+          isWholesale: Boolean(wholesaleCustomer),
+          wholesaleCustomerId: wholesaleCustomer?.id || null,
+          wholesaleCustomer: wholesaleCustomer ? {
+            id: wholesaleCustomer.id,
+            creditLimit: Number(wholesaleCustomer.creditLimit || 0),
+            currentBalance: Number(wholesaleCustomer.currentBalance || 0),
+          } : null,
         }
       : (latestOrder ? {
           id: null,

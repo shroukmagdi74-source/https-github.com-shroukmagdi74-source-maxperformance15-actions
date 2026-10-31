@@ -22,6 +22,11 @@ router.get('/customers', ctrl.listWholesaleCustomers);
 router.get('/customers/:id', ctrl.getWholesaleCustomer);
 router.post('/customers', ctrl.createWholesaleCustomer);
 router.put('/customers/:id', ctrl.updateWholesaleCustomer);
+router.get('/customers/:id/prices', ctrl.getCustomerPrices);
+router.get('/customers/:id/orders', ctrl.getWholesaleCustomerOrders);
+
+// Price Resolution
+router.get('/resolve-price', ctrl.resolvePrice);
 
 // Price List ↔ Customer Assignment
 router.post('/customers/:customerId/assign-price-list', ctrl.assignPriceList);

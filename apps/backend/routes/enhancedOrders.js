@@ -847,6 +847,87 @@ router.post('/', manualOrderAccess, async (req, res) => {
       req.body.customerAddress = req.body.address;
     }
 
+    const { resolveWholesalePrice } = require('../services/wholesalePricing');
+
+    const privilegedRetailOverride =
+      req.body.useRetailPrice === true && (req.user.role === 'OWNER' || req.user.role === 'ADMIN');
+
+    let wholesaleCtx = null;
+    let wholesaleTotal = 0;
+    let wholesaleOverdraftApproved = false;
+
+    if (!privilegedRetailOverride) {
+      let wholesaleCustomerId = null;
+
+      if (req.body.wholesaleCustomerId) {
+        const wc = await getSharedPrismaClient().wholesaleCustomer.findUnique({
+          where: { id: req.body.wholesaleCustomerId },
+        });
+        if (wc && wc.companyId === req.user.companyId) {
+          wholesaleCtx = wc;
+          wholesaleCustomerId = wc.customerId;
+        }
+      } else {
+        let customerId = req.body.customerId || null;
+        if (customerId && /^\d+$/.test(String(customerId))) {
+          const fbCustomer = await getSharedPrismaClient().customer.findFirst({
+            where: { companyId: req.user.companyId, facebookId: String(customerId) },
+          });
+          if (fbCustomer) customerId = fbCustomer.id;
+        }
+        if (customerId) {
+          const wc = await getSharedPrismaClient().wholesaleCustomer.findFirst({
+            where: { customerId, companyId: req.user.companyId, isActive: true },
+          });
+          if (wc) {
+            wholesaleCtx = wc;
+            wholesaleCustomerId = wc.customerId;
+          }
+        }
+      }
+
+      if (wholesaleCtx) {
+        for (let i = 0; i < products.length; i += 1) {
+          const item = products[i];
+          if (!item.productId) continue;
+          const resolved = await resolveWholesalePrice({
+            prisma: getSharedPrismaClient(),
+            companyId: req.user.companyId,
+            customerId: wholesaleCustomerId,
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+          });
+          if (resolved) {
+            products[i].price = resolved.price;
+            products[i].total = resolved.price * item.quantity;
+          }
+        }
+
+        wholesaleTotal = products.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
+
+        const creditLimit = Number(wholesaleCtx.creditLimit);
+        const currentBalance = Number(wholesaleCtx.currentBalance);
+        const allowOverdraft =
+          req.body.allowWholesaleOverdraft === true && (req.user.role === 'OWNER' || req.user.role === 'ADMIN');
+
+        if (creditLimit > 0 && currentBalance + wholesaleTotal > creditLimit) {
+          if (allowOverdraft) {
+            wholesaleOverdraftApproved = true;
+          } else {
+            return res.status(400).json({
+              success: false,
+              code: 'WHOLESALE_CREDIT_LIMIT_EXCEEDED',
+              message: 'تجاوز حد الائتمان للموزع',
+              creditLimit,
+              currentBalance,
+              orderTotal: wholesaleTotal,
+            });
+          }
+        }
+      }
+    }
+
     const orderData = {
       ...req.body,
       products,
@@ -877,7 +958,25 @@ router.post('/', manualOrderAccess, async (req, res) => {
         originalOrderId: req.body.originalOrderId,
         originalOrderNumber: req.body.originalOrderNumber || null,
       } : {})),
+
+      ...(wholesaleCtx && {
+        orderSource: 'WHOLESALE',
+        wholesaleCustomerId: wholesaleCtx.id,
+        metadata: JSON.stringify({
+          ...(typeof req.body.metadata === 'object' && req.body.metadata ? req.body.metadata : {}),
+          wholesaleCustomerId: wholesaleCtx.id,
+          wholesalePriced: true,
+          wholesaleTotal,
+          ...(wholesaleOverdraftApproved ? { wholesaleOverdraftApproved: true } : {}),
+        }),
+      }),
     };
+
+    if (wholesaleCtx) {
+      delete orderData.subtotal;
+      delete orderData.total;
+      orderData.productPrice = products[0]?.price || 0;
+    }
 
     console.log('📦 [ENHANCED-ORDERS] Processing order data:', JSON.stringify(orderData.products || orderData.productName, null, 2));
 
@@ -934,6 +1033,46 @@ router.post('/', manualOrderAccess, async (req, res) => {
         console.log('✅ [WHATSAPP] Order notification sent for:', result.order.orderNumber);
       } catch (whatsappError) {
         console.log('⚠️ [WHATSAPP] Failed to send notification:', whatsappError.message);
+      }
+
+      // 🔔 إشعار داخلي لمسؤول/موظف طلب الجملة (Requirement 7)
+      if (wholesaleCtx && result.order?.id) {
+        try {
+          const prisma = getSharedPrismaClient();
+          const targetUserId = result.order.assignedTo || req.user.id;
+          await prisma.notification.create({
+            data: {
+              companyId: req.user.companyId,
+              userId: targetUserId,
+              title: `طلب جملة جديد #${result.order.orderNumber}`,
+              message: `تم إنشاء طلب جملة جديد للتاجر ${result.order.customerName || ''} بقيمة ${wholesaleTotal || result.order.total} ج.م`,
+              type: 'WHOLESALE_ORDER_CREATED',
+              data: {
+                orderId: result.order.id,
+                orderNumber: result.order.orderNumber,
+                wholesaleCustomerId: wholesaleCtx.id,
+                total: result.order.total || wholesaleTotal,
+                eventType: 'ORDER_CREATED',
+              },
+            },
+          });
+        } catch (notifErr) {
+          console.warn('⚠️ [NOTIF] Failed to create wholesale order notification:', notifErr.message);
+        }
+      }
+
+      // 💳 في حالة إنشاء الطلب كـ CONFIRMED، تسجيل فاتورة الجملة فوراً (Requirement 4)
+      if (wholesaleCtx && String(result.order?.status || '').toUpperCase() === 'CONFIRMED') {
+        try {
+          const { wholesaleService } = require('../services/wholesaleService');
+          await wholesaleService.recordOrderInvoice({
+            ...result.order,
+            wholesaleCustomerId: wholesaleCtx.id,
+            companyId: req.user.companyId,
+          });
+        } catch (invoiceErr) {
+          console.warn('⚠️ [WHOLESALE-INVOICE] Failed to record auto-invoice on creation:', invoiceErr.message);
+        }
       }
 
       res.status(201).json(result);

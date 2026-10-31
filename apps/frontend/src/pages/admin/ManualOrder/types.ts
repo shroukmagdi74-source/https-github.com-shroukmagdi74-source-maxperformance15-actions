@@ -12,4 +12,8 @@ export interface CartItem {
   color?: string;
   size?: string;
   sku?: string;
+  isWholesalePrice?: boolean;
+  wholesalePrice?: number;
+  regularPrice?: number;
+  wholesalePriceListName?: string;
 }

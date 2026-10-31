@@ -99,6 +99,17 @@ const CheckoutColumn: React.FC<CheckoutColumnProps> = ({
       return;
     }
 
+    // Wholesale Credit Limit Validation
+    if (customer.wholesaleCustomer && customer.wholesaleCustomer.creditLimit > 0) {
+      const curBal = Number(customer.wholesaleCustomer.currentBalance || 0);
+      const credLim = Number(customer.wholesaleCustomer.creditLimit || 0);
+      const orderTot = Number(orderState.grandTotal || 0);
+      if (curBal + orderTot > credLim && !customer.allowWholesaleOverdraft) {
+        toast.error(`تجاوز الحد الائتماني للموزع (${credLim.toLocaleString()} ج.م). الرصيد الحالي: ${curBal.toLocaleString()} ج.م. يرجى تفعيل الموافقة على التجاوز.`);
+        return;
+      }
+    }
+
     orderState.setShowConfirmModal(true);
   };
 
@@ -144,7 +155,11 @@ const CheckoutColumn: React.FC<CheckoutColumnProps> = ({
         conversationId: "manual",
         platform: isAffiliate ? "affiliate" : "manual",
         source: isAffiliate ? "affiliate_direct" : "manual_entry",
-        orderSource: isAffiliate ? "AFFILIATE_DIRECT" : "manual",
+        orderSource: isAffiliate ? "AFFILIATE_DIRECT" : (customer.wholesaleCustomer ? "WHOLESALE" : "manual"),
+        ...(customer.wholesaleCustomer ? {
+          wholesaleCustomerId: customer.wholesaleCustomer.id,
+          allowWholesaleOverdraft: customer.allowWholesaleOverdraft,
+        } : {}),
         createAsAffiliate: isAffiliate,
         requestType: orderState.requestType,
         returnAmount: orderState.returnAmount
@@ -247,6 +262,54 @@ const CheckoutColumn: React.FC<CheckoutColumnProps> = ({
           loadingAreas={customer.loadingAreas}
           t={t}
         />
+
+        {customer.wholesaleCustomer && (
+          <div className="rounded-xl border border-purple-200/80 bg-purple-50/60 p-3 text-xs dark:border-purple-800/60 dark:bg-purple-950/20">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-purple-800 dark:text-purple-300 flex items-center gap-1.5">
+                <span>🏷️</span>
+                <span>عميل جملة معتمد</span>
+              </span>
+              <span className="text-[10px] bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 font-mono px-2 py-0.5 rounded-full">
+                طلب موزع
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 font-mono text-[11px] mb-2">
+              <div>
+                <span className="text-muted-foreground block text-[10px]">الرصيد الحالي:</span>
+                <span className="font-bold text-foreground">
+                  {Number(customer.wholesaleCustomer.currentBalance || 0).toLocaleString()} ج.م
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[10px]">الحد الائتماني:</span>
+                <span className="font-bold text-foreground">
+                  {Number(customer.wholesaleCustomer.creditLimit || 0).toLocaleString()} ج.م
+                </span>
+              </div>
+            </div>
+            {customer.wholesaleCustomer.creditLimit > 0 &&
+              Number(customer.wholesaleCustomer.currentBalance || 0) + Number(orderState.grandTotal || 0) >
+                Number(customer.wholesaleCustomer.creditLimit || 0) && (
+                <div className="mt-2 pt-2 border-t border-purple-200/60 dark:border-purple-800/60 space-y-1">
+                  <div className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                    ⚠️ إجمالي الطلب يتجاوز الحد الائتماني المتبقي
+                  </div>
+                  {['OWNER', 'ADMIN', 'COMPANY_ADMIN', 'SUPER_ADMIN'].includes(user?.role || '') && (
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-purple-900 dark:text-purple-200">
+                      <input
+                        type="checkbox"
+                        checked={customer.allowWholesaleOverdraft}
+                        onChange={(e) => customer.setAllowWholesaleOverdraft(e.target.checked)}
+                        className="rounded border-purple-300 text-purple-600 focus:ring-purple-500 size-3.5"
+                      />
+                      <span>الموافقة كمسؤول على تجاوز الحد الائتماني</span>
+                    </label>
+                  )}
+                </div>
+              )}
+          </div>
+        )}
 
         <hr className="border-gray-100 dark:border-gray-700" />
 

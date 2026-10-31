@@ -46,6 +46,14 @@ export const OrdersTableOrderNumberCell: React.FC<OrdersTableOrderNumberCellProp
               <span>{affiliateCompanyName ? `مرتبط — ${affiliateCompanyName}` : "مرتبط"}</span>
             </span>
           )}
+          {(Boolean(order.isWholesale) || order.orderSource === "WHOLESALE" || Boolean(order.wholesaleCustomerId)) && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 dark:text-purple-300 border border-purple-500/20"
+              title="طلب موزع جملة"
+            >
+              <span>موزع</span>
+            </span>
+          )}
           {hasPostPurchaseOffer(order) && (
             <span
               className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 border border-amber-500/20"
