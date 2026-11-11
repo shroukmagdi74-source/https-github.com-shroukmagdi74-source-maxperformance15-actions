@@ -42,6 +42,8 @@ interface PaymentSummaryCardProps {
   isBoutiquePayment: boolean;
   isMarketPayment: boolean;
   hasNaturePaymentTone: boolean;
+  isMarketplaceAvenue?: boolean;
+  items?: any[];
 }
 
 export const PaymentSummaryCard: React.FC<PaymentSummaryCardProps> = ({
@@ -84,6 +86,8 @@ export const PaymentSummaryCard: React.FC<PaymentSummaryCardProps> = ({
   isBoutiquePayment,
   isMarketPayment,
   hasNaturePaymentTone,
+  isMarketplaceAvenue,
+  items,
 }) => {
   return (
     <>
@@ -96,8 +100,31 @@ export const PaymentSummaryCard: React.FC<PaymentSummaryCardProps> = ({
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
               {summaryTitle}
             </h3>
-            <p className="text-sm text-muted-foreground">{summaryDescription}</p>
+            {summaryDescription ? (
+              <p className="text-sm text-muted-foreground">{summaryDescription}</p>
+            ) : null}
           </div>
+          {isMarketplaceAvenue && items && items.length > 0 ? (
+            <div className="border-b border-[#eaeaea] pb-4 mb-4">
+              <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-[#777777] pb-2 border-b border-[#eaeaea]">
+                <span>المنتج</span>
+                <span>المجموع الفرعي</span>
+              </div>
+              <div className="divide-y divide-[#f2f2f2]">
+                {items.map((item: any, idx: number) => (
+                  <div key={item.id || idx} className="flex justify-between items-center py-2.5 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[#242424] font-medium">{item.name || item.title}</span>
+                      <span className="text-[#777777] text-xs">× {item.quantity}</span>
+                    </div>
+                    <span className="font-semibold text-[#242424] tabular-nums">
+                      {formatStorefrontCurrency((Number(item.price) || 0) * (Number(item.quantity) || 1), currency)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">{subtotalLabel}</span>
             <span className="font-medium text-foreground tabular-nums">
@@ -167,7 +194,9 @@ export const PaymentSummaryCard: React.FC<PaymentSummaryCardProps> = ({
                   ? 'border-[#f0d4b0]'
                   : hasNaturePaymentTone
                     ? 'border-[#dbe3d4]'
-                    : 'border-border'
+                    : isMarketplaceAvenue
+                      ? 'border-[#eaeaea]'
+                      : 'border-border'
             }`}
           >
             <span className="text-foreground">{totalLabel}</span>
@@ -179,7 +208,9 @@ export const PaymentSummaryCard: React.FC<PaymentSummaryCardProps> = ({
                     ? 'text-[#8b6037]'
                     : hasNaturePaymentTone
                       ? 'text-[#4a6843]'
-                      : 'text-primary'
+                      : isMarketplaceAvenue
+                        ? 'text-[#e14a5c] text-xl font-bold'
+                        : 'text-primary'
               }`}
             >
               {formatStorefrontCurrency(total, currency)}

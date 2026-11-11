@@ -39,6 +39,7 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
   const isZenOrganic = theme.id === 'zen-organic';
   const isBiteRush = theme.id === 'restaurant-demo';
   const isKhemetLuxe = isKhemetLuxeTheme(theme.id);
+  const isMarketplaceAvenue = theme.id === 'marketplace-avenue';
   const navigate = useNavigate();
   const location = useLocation();
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -147,10 +148,13 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
     isCommandPayment || isBoutiquePayment || isMarketPayment || isNaturePayment;
 
   const title =
-    sectionSettings?.title || (isBiteRush ? 'الدفع الأخير' : 'طريقة الدفع');
+    sectionSettings?.title ||
+    (isMarketplaceAvenue ? 'طلبك' : isBiteRush ? 'الدفع الأخير' : 'طريقة الدفع');
   const subtitle =
     sectionSettings?.subtitle ||
-    (isBiteRush
+    (isMarketplaceAvenue
+      ? ''
+      : isBiteRush
       ? 'اختَر وسيلة الدفع، راجع الإجمالي النهائي، ثم اقفل الطلب بخطوة واحدة.'
       : isMarketPayment
         ? 'اختر وسيلة الدفع الأنسب ثم راجع الإجمالي والشحن بخطوة أخيرة واضحة وسريعة.'
@@ -162,7 +166,8 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
         ? 'اختاري الطريقة الأنسب، ثم نكمل الطلب بهدوء مع مراجعة أخيرة واضحة.'
       : 'اختر طريقة الدفع المناسبة وأكمل الطلب بعد مراجعة الشحن والإجمالي.');
   const summaryTitle =
-    sectionSettings?.summaryTitle || (isBiteRush ? 'آخر مراجعة قبل الإرسال' : 'ملخص الطلب');
+    sectionSettings?.summaryTitle ||
+    (isMarketplaceAvenue ? 'طلبك' : isBiteRush ? 'آخر مراجعة قبل الإرسال' : 'ملخص الطلب');
   const summaryDescription =
     sectionSettings?.summaryDescription ||
     (isBiteRush
@@ -374,22 +379,34 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
 
   const showSummaryCard =
     !isKhemetLuxe && parseBooleanSetting(sectionSettings?.showSummaryCard, true);
-  const showHeaderBadge = parseBooleanSetting(
-    sectionSettings?.showHeaderBadge,
-    hasEnhancedPaymentTone,
-  );
-  const showAssuranceCard = parseBooleanSetting(
-    sectionSettings?.showAssuranceCard,
-    hasEnhancedPaymentTone,
-  );
-  const showNextSteps = parseBooleanSetting(
-    sectionSettings?.showNextSteps,
-    hasEnhancedPaymentTone,
-  );
+  const showHeaderBadge =
+    !isMarketplaceAvenue &&
+    parseBooleanSetting(
+      sectionSettings?.showHeaderBadge,
+      hasEnhancedPaymentTone,
+    );
+  const showAssuranceCard =
+    !isMarketplaceAvenue &&
+    parseBooleanSetting(
+      sectionSettings?.showAssuranceCard,
+      hasEnhancedPaymentTone,
+    );
+  const showNextSteps =
+    !isMarketplaceAvenue &&
+    parseBooleanSetting(
+      sectionSettings?.showNextSteps,
+      hasEnhancedPaymentTone,
+    );
   const showCompactInlineSummary = isWomenFashionPayment && !showSummaryCard;
 
   const methodCardClassName = (active: boolean) =>
-    `${getMethodCardClassName(variant, active)}${
+    isMarketplaceAvenue
+      ? `w-full rounded-none border p-4 text-start transition-all cursor-pointer ${
+          active
+            ? 'border-[#242424] bg-[#fafafa]'
+            : 'border-[#e1e1e1] bg-white hover:border-[#cccccc]'
+        }`
+      : `${getMethodCardClassName(variant, active)}${
       isBiteRush
         ? ` border-[#f8c08c] ${
             active
@@ -427,7 +444,9 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
         : ''
     }`;
 
-  const summaryWrapperClassName = `${getSummaryWrapperClassName(variant)}${
+  const summaryWrapperClassName = isMarketplaceAvenue
+    ? 'border-b border-[#eaeaea] pb-5 space-y-3'
+    : `${getSummaryWrapperClassName(variant)}${
     isWomenFashionPayment
       ? ' rounded-[1.35rem] p-3.5 shadow-[0_18px_52px_-46px_rgba(107,33,49,0.12)]'
       : isBiteRush
@@ -447,7 +466,9 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
       : ''
   }`;
 
-  const confirmButtonClassName = isWomenFashionPayment
+  const confirmButtonClassName = isMarketplaceAvenue
+    ? 'h-13 w-full rounded-full border-none bg-[#e14a5c] hover:bg-[#cb394a] active:bg-[#b83343] text-base font-bold text-white uppercase tracking-wider shadow-none transition-all duration-200 cursor-pointer disabled:opacity-60'
+    : isWomenFashionPayment
     ? 'h-12 rounded-full border-none bg-[linear-gradient(135deg,#3d2a2f_0%,#8f4d41_100%)] text-sm font-black text-white shadow-[0_22px_70px_-34px_rgba(107,33,49,0.28)] transition-all hover:opacity-95 active:scale-[0.98] sm:h-13 sm:text-base'
     : isBiteRush
       ? 'h-14 rounded-full border-none bg-[linear-gradient(135deg,#f97316_0%,#ef4444_100%)] text-base font-black text-white shadow-[0_28px_90px_-34px_rgba(239,68,68,0.62)] transition-all hover:shadow-[0_34px_94px_-30px_rgba(249,115,22,0.72)] active:scale-[0.98]'
@@ -465,7 +486,9 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
           ? 'h-14 rounded-full border-none bg-[linear-gradient(135deg,#1f1f1b_0%,#725523_52%,#d5ac58_100%)] text-base font-black text-white shadow-[0_28px_90px_-36px_rgba(90,62,24,0.48)] transition-all hover:opacity-95 active:scale-[0.98]'
         : 'h-14 text-base font-bold shadow-xl shadow-primary/20 transition-all hover:shadow-primary/30 active:scale-[0.98]';
 
-  const validationBoxClassName = isWomenFashionPayment
+  const validationBoxClassName = isMarketplaceAvenue
+    ? 'space-y-1 rounded-none border border-red-300 bg-red-50 p-4'
+    : isWomenFashionPayment
     ? 'space-y-2 rounded-[1.2rem] border border-rose-200 bg-[linear-gradient(135deg,#fff9f8_0%,#fff1ee_100%)] p-3.5'
     : isBiteRush
       ? 'space-y-2 rounded-[1.4rem] border border-rose-200 bg-[linear-gradient(135deg,#fff5f5_0%,#fff0ef_100%)] p-4'
@@ -508,7 +531,9 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
           : '';
 
   const surfaceClassName = `${showCompactInlineSummary ? 'space-y-5' : 'space-y-6'}${
-    isWomenFashionPayment
+    isMarketplaceAvenue
+      ? ' rounded-none border-2 border-[#eaeaea] bg-white p-6 sm:p-7 space-y-6 shadow-none'
+      : isWomenFashionPayment
       ? ' rounded-[1.85rem] border border-[#ead8cf] bg-[linear-gradient(180deg,#fffdfc_0%,#fff8f5_52%,#ffffff_100%)] p-4 shadow-[0_28px_86px_-72px_rgba(107,33,49,0.14)] sm:p-5'
       : isBiteRush
         ? ' rounded-[2rem] border border-[#f7b77d] bg-[linear-gradient(135deg,#fff8f1_0%,#ffffff_45%,#ffe4ce_100%)] p-5 shadow-[0_34px_110px_-78px_rgba(247,115,22,0.48)] sm:p-6'
@@ -527,13 +552,17 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
               : ''
   }`;
 
-  const titleClassName = isWomenFashionPayment
+  const titleClassName = isMarketplaceAvenue
+    ? 'font-heading text-lg font-bold uppercase tracking-wider text-[#242424] border-b border-[#eaeaea] pb-3'
+    : isWomenFashionPayment
     ? 'font-heading text-base font-bold text-foreground sm:text-lg'
     : isKhemetLuxe
       ? 'font-heading text-[1.12rem] font-bold text-foreground sm:text-[1.18rem]'
     : 'font-heading text-lg font-bold text-foreground';
 
-  const subtitleClassName = isWomenFashionPayment
+  const subtitleClassName = isMarketplaceAvenue
+    ? 'hidden'
+    : isWomenFashionPayment
     ? 'text-sm leading-5 text-muted-foreground'
     : isKhemetLuxe
       ? 'text-sm leading-6 text-[#6f6455]'
@@ -923,6 +952,7 @@ export const usePaymentSectionController = (props: PaymentSectionProps) => {
     showCompactInlineSummary,
     isKhemetLuxe,
     isBiteRush,
+    isMarketplaceAvenue,
     isMarketPayment,
     isNaturePayment,
     isCommandPayment,

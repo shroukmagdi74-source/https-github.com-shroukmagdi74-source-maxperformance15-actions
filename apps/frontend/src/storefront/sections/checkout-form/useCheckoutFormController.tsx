@@ -27,6 +27,7 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
   const isZenOrganic = theme.id === 'zen-organic';
   const isBiteRush = theme.id === 'restaurant-demo';
   const isKhemetLuxe = isKhemetLuxeTheme(theme.id);
+  const isMarketplaceAvenue = theme.id === 'marketplace-avenue';
   const isMarketCheckout = variant === 'market-checkout';
   const isNatureCheckout = variant === 'nature-checkout';
   const isSoftFlow = variant === 'soft-flow';
@@ -36,7 +37,7 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
   const isWomenFashionCheckout = theme.id === 'women-fashion-eg' && isSoftFlow;
   const hasNatureCheckoutTone = isZenOrganic || isNatureCheckout || isButcherCheckout;
   const hasEnhancedCheckoutIntro =
-    isCommandCheckout || isMarketCheckout || isNatureCheckout;
+    !isMarketplaceAvenue && (isCommandCheckout || isMarketCheckout || isNatureCheckout);
 
   // Customer login (WhatsApp OTP) lives on the main app — NOT under /store.
   const loginParams = new URLSearchParams(location.search);
@@ -103,7 +104,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
   }, [detectGovernorate, formData.address, formData.city, formData.governorate, updateFormData]);
 
   const inputClassName =
-    isWomenFashionCheckout
+    isMarketplaceAvenue
+      ? 'w-full min-h-[44px] rounded-none border border-[#e1e1e1] bg-white px-3.5 py-2.5 text-sm text-[#242424] placeholder:text-[#9e9e9e] shadow-none transition-colors focus:border-[#242424] focus:outline-none focus:ring-1 focus:ring-[#242424]'
+      : isWomenFashionCheckout
       ? 'w-full min-h-[44px] rounded-[1rem] border border-[#ead9d8] bg-white px-3.5 py-2.5 text-sm text-foreground placeholder:text-[#8d6a66] shadow-[0_12px_32px_-28px_rgba(107,33,49,0.12)] transition-all focus:border-[#f08a76] focus:outline-none focus:ring-2 focus:ring-[#f08a76]/18'
       : isFittingRoomCheckout
         ? 'w-full min-h-[44px] rounded-[1rem] border border-transparent bg-[#f7f4f1] px-4 py-2.5 text-sm text-[#242220] placeholder:text-[#aaa39d] shadow-inner transition-all focus:border-[#d8cec4] focus:outline-none focus:ring-2 focus:ring-[#242220]/10'
@@ -123,7 +126,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
         ? 'w-full rounded-[1.15rem] border border-[#ead9d8] bg-white px-4 py-3 text-sm text-foreground placeholder:text-[#8d6a66] shadow-[0_14px_40px_-34px_rgba(107,33,49,0.12)] transition-all focus:border-[#f08a76] focus:outline-none focus:ring-2 focus:ring-[#f08a76]/18'
       : 'w-full rounded-[var(--radius)] border border-border bg-muted/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20';
 
-  const sectionStackClassName = isWomenFashionCheckout
+  const sectionStackClassName = isMarketplaceAvenue
+      ? 'space-y-6 bg-white'
+      : isWomenFashionCheckout
       ? 'space-y-4 rounded-[1.7rem] border border-[#ead9d8] bg-[linear-gradient(180deg,#fffdfc_0%,#fff8f5_100%)] p-3.5 shadow-[0_24px_72px_-60px_rgba(107,33,49,0.12)] sm:p-5'
       : isFittingRoomCheckout
         ? 'mx-auto w-full max-w-[25.5rem] space-y-4 rounded-[2.2rem] border border-[#efe5dd] bg-white p-5 shadow-[0_28px_90px_-52px_rgba(42,38,35,0.2)]'
@@ -161,7 +166,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
         ? 'flex h-7 w-7 items-center justify-center rounded-full bg-[linear-gradient(135deg,#8b3d33_0%,#f08a76_100%)] text-xs font-black text-white shadow-[0_16px_40px_-24px_rgba(107,33,49,0.28)]'
         : 'flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs text-primary';
 
-  const labelClassName = isBiteRush
+  const labelClassName = isMarketplaceAvenue
+      ? 'mb-1.5 block text-[13px] font-semibold text-[#242424]'
+      : isBiteRush
       ? 'ms-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#a14a14]'
       : isAirlume
       ? 'ms-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500'
@@ -180,7 +187,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
         : 'ms-1 text-xs font-bold tracking-wider text-muted-foreground';
 
   const stepWrapperClassName = (stepVariant: typeof variant) =>
-    `${getStepWrapperClassName(stepVariant)}${
+    isMarketplaceAvenue
+      ? 'bg-transparent p-0 shadow-none border-none space-y-4'
+      : `${getStepWrapperClassName(stepVariant)}${
       isWomenFashionCheckout
         ? ' rounded-[1.4rem] border border-[#ead9d8] bg-[linear-gradient(135deg,#ffffff_0%,#fff9f7_100%)] p-4 shadow-[0_16px_44px_-38px_rgba(107,33,49,0.1)]'
       : isFittingRoomCheckout
@@ -202,7 +211,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
           : ''
     }`;
 
-  const autoHintClassName = isBiteRush
+  const autoHintClassName = isMarketplaceAvenue
+    ? 'mb-2 text-xs text-[#777777]'
+    : isBiteRush
     ? 'mb-2 rounded-[1rem] border border-[#fde0bf] bg-[#fff7ee] px-3 py-2 text-xs text-[#9a5a24] shadow-sm'
       : isFittingRoomCheckout
       ? 'mb-2 rounded-[1rem] border border-[#efe5dd] bg-[#fbf8f5] px-3 py-2 text-xs text-[#8a837c] shadow-sm'
@@ -218,7 +229,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
           ? 'mb-2 rounded-[1rem] border border-[#ead8b1] bg-[#fff8ec] px-3 py-2 text-xs text-[#7c6430] shadow-sm'
         : 'mb-2 text-xs text-muted-foreground';
 
-  const autoSuccessClassName = isBiteRush
+  const autoSuccessClassName = isMarketplaceAvenue
+    ? 'mt-1 text-xs font-medium text-emerald-600'
+    : isBiteRush
     ? 'mt-2 rounded-[1rem] border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700'
       : isFittingRoomCheckout
       ? 'mt-2 rounded-[1rem] border border-[#cfe8e1] bg-[#f1fbf8] px-3 py-2 text-xs font-medium text-[#4b8a7c]'
@@ -366,7 +379,7 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
       : 'Click here to login';
 
   const renderStepNumber = (num: number, color: string) => {
-    if (isKhemetLuxe) {
+    if (isKhemetLuxe || isMarketplaceAvenue) {
       return null;
     }
 
@@ -384,8 +397,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
     );
   };
 
-  const stepHeadingClassName =
-    variant === 'safe-adventure'
+  const stepHeadingClassName = isMarketplaceAvenue
+    ? 'font-heading text-lg font-bold text-[#242424] border-b border-[#eaeaea] pb-3 mb-4 flex items-center gap-2'
+    : variant === 'safe-adventure'
       ? 'flex items-center gap-4 font-heading text-xl font-black text-foreground'
       : isKhemetLuxe
         ? 'font-heading text-[1.08rem] font-bold text-[#111111]'
@@ -393,7 +407,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
         ? 'flex items-center gap-3 font-heading text-[1.1rem] font-black text-foreground'
       : 'flex items-center gap-2 font-heading text-lg font-bold text-foreground';
 
-  const loginLinkClassName = isBiteRush
+  const loginLinkClassName = isMarketplaceAvenue
+    ? 'inline-flex items-center gap-1 font-semibold text-[#e14a5c] hover:underline text-sm'
+    : isBiteRush
     ? 'inline-flex w-fit items-center justify-center rounded-full border border-[#111111] bg-[#111111] px-5 py-2.5 text-sm font-black text-white transition-all hover:-translate-y-0.5 hover:bg-[#f97316] hover:border-[#f97316]'
     : isKhemetLuxe
       ? 'inline-flex w-fit items-center justify-center rounded-[0.75rem] border border-[#e7ddd0] bg-white px-4 py-2.5 text-sm font-semibold text-[#725523] transition-colors hover:border-[#b89255] hover:bg-[#fcf8f2]'
@@ -433,7 +449,9 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
     isWomenFashionCheckout || isFittingRoomCheckout ? 'h-20 resize-none' : 'h-24 resize-none'
   }`;
 
-  const loginStripClassName = isKhemetLuxe
+  const loginStripClassName = isMarketplaceAvenue
+    ? 'flex flex-wrap items-center justify-between gap-3 border border-[#e1e1e1] bg-[#f9f9f9] px-4 py-3 rounded-none text-sm text-[#555555]'
+    : isKhemetLuxe
     ? 'flex flex-col gap-4 rounded-[0.95rem] border border-[#e7ddd0] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between'
     : stepWrapperClassName(variant);
 
@@ -447,6 +465,7 @@ export const useCheckoutFormController = ({ section, settings }: CheckoutFormPro
     isZenOrganic,
     isBiteRush,
     isKhemetLuxe,
+    isMarketplaceAvenue,
     isMarketCheckout,
     isNatureCheckout,
     isSoftFlow,

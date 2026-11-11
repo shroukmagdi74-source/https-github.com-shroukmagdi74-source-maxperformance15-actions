@@ -20,6 +20,7 @@ interface PaymentMethodListProps {
   isBoutiquePayment: boolean;
   isMarketPayment: boolean;
   hasNaturePaymentTone: boolean;
+  isMarketplaceAvenue?: boolean;
   walletPaymentSettings: any;
   walletDiscountActive: boolean;
   walletFileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -53,6 +54,7 @@ export const PaymentMethodList: React.FC<PaymentMethodListProps> = ({
   isBoutiquePayment,
   isMarketPayment,
   hasNaturePaymentTone,
+  isMarketplaceAvenue,
   walletPaymentSettings,
   walletDiscountActive,
   walletFileInputRef,
@@ -155,11 +157,19 @@ export const PaymentMethodList: React.FC<PaymentMethodListProps> = ({
               </div>
               <div
                 className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-                  paymentMethod === method.id ? 'border-primary' : 'border-border'
+                  paymentMethod === method.id
+                    ? isMarketplaceAvenue
+                      ? 'border-[#e14a5c]'
+                      : 'border-primary'
+                    : 'border-border'
                 }`}
               >
                 {paymentMethod === method.id ? (
-                  <div className="h-2.5 w-2.5 rounded-full bg-primary" />
+                  <div
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      isMarketplaceAvenue ? 'bg-[#e14a5c]' : 'bg-primary'
+                    }`}
+                  />
                 ) : null}
               </div>
             </div>

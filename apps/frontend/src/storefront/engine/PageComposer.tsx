@@ -825,7 +825,7 @@ export const PageComposer: React.FC<PageComposerProps> = ({
     const checkoutGridClassName =
       surfaceTone === 'flat-checkout'
         ? 'grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_440px] xl:gap-7'
-        : 'grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]';
+        : 'grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1.38fr)_1fr] xl:gap-10';
     const mainColumnClassName = [
       'flex flex-col w-full',
       prioritizeSidebarOnMobile ? 'order-2 lg:order-1' : '',
@@ -833,7 +833,7 @@ export const PageComposer: React.FC<PageComposerProps> = ({
       .filter(Boolean)
       .join(' ');
     const sidebarAsideClassName = [
-      surfaceTone === 'flat-checkout' ? 'self-start lg:sticky lg:top-0 lg:h-screen lg:pt-32 lg:pb-10 lg:px-8 bg-[#faf9f8] lg:border-s border-[#e5dacb]' : '',
+      surfaceTone === 'flat-checkout' ? 'self-start lg:sticky lg:top-0 lg:h-screen lg:pt-32 lg:pb-10 lg:px-8 bg-[#faf9f8] lg:border-s border-[#e5dacb]' : 'self-start lg:sticky lg:top-24',
       prioritizeSidebarOnMobile ? 'order-1 lg:order-2' : '',
     ]
       .filter(Boolean)
