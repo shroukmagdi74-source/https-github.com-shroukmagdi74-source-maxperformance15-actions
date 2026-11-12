@@ -378,4 +378,77 @@ describe("QuantityOffersPanel", () => {
 
     unsubscribe();
   });
+
+  it("regenerates stale buyText (600 -> 552) for discounted quantityOffers", () => {
+    render(
+      <QuantityOffersPanel
+        currency="EGP"
+        product={{
+          id: "swan-sneaker-11",
+          name: "Swan Sneaker 11",
+          description: "",
+          price: 300,
+          comparePrice: 350,
+          images: ["/sneaker.jpg"],
+          slug: "swan-sneaker-11",
+          metadata: {
+            quantityOffers: [
+              {
+                id: "qo-2",
+                quantity: 2,
+                unitPrice: 276,
+                buyText: "اشتري 2 بـ600",
+                isActive: true,
+              },
+            ],
+          },
+          productVariants: [],
+        }}
+      />,
+    );
+
+    expect(screen.queryByText(/اشتري 2 بـ600$/)).not.toBeInTheDocument();
+    expect(screen.getByText(/اشتري 2 بـ.*552.*بدل.*600/)).toBeInTheDocument();
+  });
+
+  it("prefers discounted volumeDiscounts over non-discounted quantityOffers", () => {
+    render(
+      <QuantityOffersPanel
+        currency="EGP"
+        product={{
+          id: "swan-sneaker-11",
+          name: "Swan Sneaker 11",
+          description: "",
+          price: 300,
+          comparePrice: 350,
+          images: ["/sneaker.jpg"],
+          slug: "swan-sneaker-11",
+          metadata: {
+            quantityOffers: [
+              {
+                id: "qo-stale",
+                quantity: 2,
+                unitPrice: 300,
+                buyText: "اشتري 2 بـ600",
+                isActive: true,
+              },
+            ],
+            volumeDiscounts: [
+              {
+                id: "vd-2",
+                minQuantity: 2,
+                discountType: "percentage",
+                discountValue: 8,
+                isActive: true,
+              },
+            ],
+          },
+          productVariants: [],
+        }}
+      />,
+    );
+
+    expect(screen.queryByText(/اشتري 2 بـ600$/)).not.toBeInTheDocument();
+    expect(screen.getByText(/اشتري 2 بـ.*552.*بدل.*600/)).toBeInTheDocument();
+  });
 });

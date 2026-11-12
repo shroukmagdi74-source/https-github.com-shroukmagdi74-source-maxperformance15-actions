@@ -4,7 +4,7 @@ import { formatStorefrontCurrency } from '../../utils/currency';
 import { getCartItemImageCandidates } from '../../utils/productImages';
 import type { getCartDisplayEntries } from '../../utils/cartQuantityOffers';
 
-type BundleCartEntry = Extract<ReturnType<typeof getCartDisplayEntries>[number], { type: 'bundle' }>;
+type BundleCartEntry = Extract<ReturnType<typeof getCartDisplayEntries>[number], { type: 'quantity-offer' }>;
 
 export interface CartItemOfferGroupRowProps {
   entry: BundleCartEntry;

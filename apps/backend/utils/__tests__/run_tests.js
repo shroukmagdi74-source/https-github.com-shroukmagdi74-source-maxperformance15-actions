@@ -164,6 +164,18 @@ assert.strictEqual(normalizedArrayRes.effectiveUnitPrice, 276);
 assert.strictEqual(normalizedArrayRes.lineSubtotal, 552);
 console.log('✓ applyVolumeDiscount filters inactive tiers and normalizes discountType passed');
 
+const staleOfferWithVolumeDiscount = applyVolumeDiscount({
+  unitPrice: 300,
+  quantity: 2,
+  metadata: {
+    quantityOffers: [{ id: 'qo-stale', quantity: 2, unitPrice: 300, isActive: true }],
+    volumeDiscounts: [{ id: 'vd-2', minQuantity: 2, discountType: 'percentage', discountValue: 8, isActive: true }],
+  },
+});
+assert.strictEqual(staleOfferWithVolumeDiscount.effectiveUnitPrice, 276);
+assert.strictEqual(staleOfferWithVolumeDiscount.lineSubtotal, 552);
+console.log('✓ fallback to volumeDiscounts when quantityOffers has zero-discount tier passed');
+
 console.log('\n=========================================');
 console.log('ALL UNIT TESTS PASSED SUCCESSFULLY! (100%)');
 console.log('=========================================');

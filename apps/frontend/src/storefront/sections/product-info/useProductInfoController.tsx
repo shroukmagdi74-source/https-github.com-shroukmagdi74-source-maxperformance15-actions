@@ -290,7 +290,7 @@ export const useProductInfoController = ({
     quantityOffersEnabled &&
     quantityOffersModules['renderOnProductPage'] !== false &&
     hasConfiguredQuantityOffers &&
-    (!hideWhenSingleOffer || explicitQuantityOffers.length > 1);
+    (!hideWhenSingleOffer || explicitQuantityOffers.length > 1 || productVolumeDiscounts.length > 0);
 
   const shouldRenderInlineQuantityOffers =
     canRenderQuantityOffers &&

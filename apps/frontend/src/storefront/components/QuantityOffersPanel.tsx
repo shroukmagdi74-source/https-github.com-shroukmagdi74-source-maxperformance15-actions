@@ -263,13 +263,19 @@ const QuantityOffersPanel: React.FC<QuantityOffersPanelProps> = ({
   );
   const offers = React.useMemo(() => {
     const explicitOffers = getActiveQuantityOffers(product?.metadata);
-    const hasMultiUnitExplicitOffers = explicitOffers.some((offer) => offer.quantity > 1);
-    const baseOffers = hasMultiUnitExplicitOffers
+    const referenceUnitPrice = resolveQuantityOfferReferenceUnitPrice(product);
+    const hasEffectiveMultiUnitExplicitOffers = explicitOffers.some(
+      (offer) =>
+        offer.quantity > 1 &&
+        offer.unitPrice > 0 &&
+        (referenceUnitPrice <= 0 || offer.unitPrice < referenceUnitPrice),
+    );
+    const fallbackOffers = buildFallbackQuantityOffers(product);
+    const baseOffers = hasEffectiveMultiUnitExplicitOffers
       ? explicitOffers
-      : (() => {
-          const fallback = buildFallbackQuantityOffers(product);
-          return fallback.length > 0 ? fallback : explicitOffers;
-        })();
+      : fallbackOffers.length > 0
+        ? fallbackOffers
+        : explicitOffers;
     if (baseOffers.length === 0) {
       return [];
     }
