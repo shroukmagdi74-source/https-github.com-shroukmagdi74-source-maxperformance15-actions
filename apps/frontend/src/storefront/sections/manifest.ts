@@ -1764,6 +1764,24 @@ export const STOREFRONT_SECTION_MANIFEST = {
         ],
       },
       {
+        key: "showTrustBadges",
+        label: "إظهار شريط الثقة (الشحن والاستبدال)",
+        type: "select",
+        options: [
+          { label: "نعم", value: "true" },
+          { label: "لا", value: "false" },
+        ],
+      },
+      {
+        key: "showSizeGuide",
+        label: "إظهار دليل المقاسات",
+        type: "select",
+        options: [
+          { label: "نعم", value: "true" },
+          { label: "لا", value: "false" },
+        ],
+      },
+      {
         key: "sizeGuideText",
         label: "نص رابط المقاسات",
         type: "text",

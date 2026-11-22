@@ -1,6 +1,6 @@
 import React from 'react';
-import type { Product } from '../hooks/useProduct';
-import type { StorefrontTheme } from '../types/theme.types';
+import type { Product } from '../../hooks/useProduct';
+import type { StorefrontTheme } from '../../types/theme.types';
 
 export interface ProductInfoProps {
   section?: {
@@ -19,6 +19,8 @@ export interface ProductInfoProps {
     sizeGuideInteraction?: string;
     sizeGuideModalTitle?: string;
     showGuarantees?: boolean | string;
+    showTrustBadges?: boolean | string;
+    showSizeGuide?: boolean | string;
     guaranteesTitle?: string;
     guaranteesSubtitle?: string;
     guaranteeItems?: string;
@@ -89,6 +91,8 @@ export interface ProductInfoController {
   guaranteeItems: any[];
   guaranteeStyle: 'strip' | 'grid' | 'minimal';
   showGuarantees: boolean;
+  showTrustBadges: boolean;
+  showSizeGuide: boolean;
   canOpenSizeGuide: boolean;
   sizeGuideText: string;
   rawSizeGuideHref: string;

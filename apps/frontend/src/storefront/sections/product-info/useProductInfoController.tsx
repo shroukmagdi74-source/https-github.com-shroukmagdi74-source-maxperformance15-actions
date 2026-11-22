@@ -39,6 +39,7 @@ import {
   parseMetadataArray,
   parseMetadataStringList,
   parseVariantSettings,
+  parseBooleanSetting,
   resolveExternalProductConfig,
   STOREFRONT_BUYBOX_ID,
   PDP_CHECKOUT_SECTION_ID,
@@ -843,11 +844,14 @@ export const useProductInfoController = ({
   const guaranteeItems = parseMetadataArray(sectionSettings?.guaranteeItems);
   const guaranteeStyle = (sectionSettings?.guaranteeStyle as any) || 'minimal';
   const showGuarantees = sectionSettings?.showGuarantees !== false;
+  const showTrustBadges = parseBooleanSetting(sectionSettings?.showTrustBadges, true);
+  const showSizeGuide = parseBooleanSetting(sectionSettings?.showSizeGuide, true);
 
   const rawSizeGuideHref = sectionSettings?.sizeGuideLink || '';
   const isExternalSizeGuideHref = isExternalHref(rawSizeGuideHref);
   const sizeGuideText = sectionSettings?.sizeGuideText || (prefersArabicCopy ? 'دليل المقاسات' : 'Size guide');
-  const canOpenSizeGuide = Boolean(rawSizeGuideHref || product?.['sizeGuide']);
+  const canOpenSizeGuide =
+    showSizeGuide !== false && Boolean(rawSizeGuideHref || product?.['sizeGuide']);
 
   const variantSettings = parseVariantSettings(product?.metadata);
   const externalProductConfig = resolveExternalProductConfig(product as any);
@@ -1077,6 +1081,8 @@ export const useProductInfoController = ({
     guaranteeItems,
     guaranteeStyle,
     showGuarantees,
+    showTrustBadges,
+    showSizeGuide,
     canOpenSizeGuide,
     sizeGuideText,
     rawSizeGuideHref,
