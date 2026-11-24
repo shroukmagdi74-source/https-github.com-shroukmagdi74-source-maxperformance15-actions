@@ -543,8 +543,16 @@ class CompetitorService {
     const competitor = await getPrisma().competitor.findFirst({
       where: { id: competitorId, companyId },
       include: {
-        products: { orderBy: { lastSeen: 'desc' }, take: 50 },
-        ads: { orderBy: { lastSeen: 'desc' }, take: 20 },
+        products: {
+          orderBy: { lastSeen: 'desc' },
+          take: 100,
+          include: {
+            priceHistory: { orderBy: { recordedAt: 'desc' } },
+          },
+        },
+        ads: { orderBy: { lastSeen: 'desc' }, take: 100 },
+        features: { orderBy: { createdAt: 'desc' } },
+        socialProfiles: { select: { id: true, platform: true, profileUrl: true, username: true, followersCount: true } },
       },
     });
     if (!competitor) return null;
@@ -552,44 +560,153 @@ class CompetitorService {
     const periodStart = new Date();
     periodStart.setDate(periodStart.getDate() - 7);
 
-    const newProducts = competitor.products.filter(p => p.firstSeen >= periodStart).length;
-    const priceChanges = competitor.products.filter(p =>
-      p.priceHistory && p.priceHistory.length > 1
-    ).length;
+    const products = competitor.products || [];
+    const ads = competitor.ads || [];
+    const features = competitor.features || [];
+    const socialProfiles = competitor.socialProfiles || [];
 
-    const summary = t('competitor.report_summary', 'ar', {
-      products: competitor.products.length,
-      ads: competitor.ads.length,
-      newProducts,
-      priceChanges,
-    });
+    // Filter packages: products with category 'باقة'
+    const packages = products.filter(p => p.category === 'باقة');
+
+    // Ads segmentation
+    const newAds = ads.filter(a => a.firstSeen >= periodStart || a.createdAt >= periodStart);
+    const activeAds = ads.filter(a => a.status === 'active');
+    const inactiveAds = ads.filter(a => a.status === 'inactive' || a.status === 'stopped');
+
+    // Tech segmentation from metadata.tech
+    const metaObj = (competitor.metadata && typeof competitor.metadata === 'object') ? competitor.metadata : {};
+    const techList = Array.isArray(metaObj.tech) ? metaObj.tech : [];
+
+    // Price changes from priceHistory
+    const priceChanges = products
+      .filter(p => p.priceHistory && p.priceHistory.length > 1)
+      .map(p => ({
+        productId: p.id,
+        productName: p.name,
+        currentPrice: p.price,
+        currency: p.currency,
+        history: p.priceHistory,
+        changeCount: p.priceHistory.length - 1,
+      }));
+
+    // Arabic summary: «X إعلان (Y جديد) · Z باقة · W ميزة · تغيّر سعر N»
+    const summary = `${ads.length} إعلان (${newAds.length} جديد) · ${packages.length} باقة · ${features.length} ميزة · تغيّر سعر ${priceChanges.length}`;
+
     const title = t('competitor.report_title', 'ar', {
       type: type === 'weekly' ? t('competitor.report_type_weekly') : t('competitor.report_type_full'),
       name: competitor.name,
-    });
+    }) || `${type === 'weekly' ? 'تقرير أسبوعي' : 'تقرير شامل'} - ${competitor.name}`;
 
-    const report = await getPrisma().competitorReport.create({
-      data: {
-        type,
-        title,
-        summary,
-        insights: JSON.stringify({
-          newProducts,
-          priceChanges,
-          totalProducts: competitor.products.length,
-          totalAds: competitor.ads.length,
-        }),
-        data: JSON.stringify({
-          products: competitor.products,
-          ads: competitor.ads,
-        }),
-        periodStart,
-        periodEnd: new Date(),
+    const reportData = {
+      sections: {
+        ads: {
+          total: ads.length,
+          newCount: newAds.length,
+          activeCount: activeAds.length,
+          inactiveCount: inactiveAds.length,
+          items: ads,
+        },
+        products: {
+          total: products.length,
+          packagesCount: packages.length,
+          packages,
+          items: products,
+        },
+        features: {
+          total: features.length,
+          items: features,
+        },
+        social: {
+          total: socialProfiles.length,
+          items: socialProfiles,
+        },
+        tech: {
+          total: techList.length,
+          items: techList,
+          scannedAt: metaObj.tech_scanned || null,
+        },
+        priceChanges: {
+          total: priceChanges.length,
+          items: priceChanges,
+        },
+      },
+      products,
+      ads,
+      features,
+      social: socialProfiles,
+      tech: techList,
+      priceChanges,
+    };
+
+    const insights = {
+      totalAds: ads.length,
+      newAds: newAds.length,
+      activeAds: activeAds.length,
+      totalProducts: products.length,
+      totalPackages: packages.length,
+      totalFeatures: features.length,
+      totalSocial: socialProfiles.length,
+      priceChangesCount: priceChanges.length,
+    };
+
+    // Upsert by today's date: prevent duplicates on same day
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingToday = await getPrisma().competitorReport.findFirst({
+      where: {
         competitorId,
         companyId,
+        type,
+        generatedAt: { gte: startOfDay, lte: endOfDay },
       },
     });
+
+    let report;
+    if (existingToday) {
+      report = await getPrisma().competitorReport.update({
+        where: { id: existingToday.id },
+        data: {
+          title,
+          summary,
+          insights: JSON.stringify(insights),
+          data: JSON.stringify(reportData),
+          periodStart,
+          periodEnd: new Date(),
+          generatedAt: new Date(),
+        },
+      });
+    } else {
+      report = await getPrisma().competitorReport.create({
+        data: {
+          type,
+          title,
+          summary,
+          insights: JSON.stringify(insights),
+          data: JSON.stringify(reportData),
+          periodStart,
+          periodEnd: new Date(),
+          competitorId,
+          companyId,
+        },
+      });
+    }
     return report;
+  }
+
+  static async generateAllReports(companyId, type = 'weekly') {
+    const competitors = await getPrisma().competitor.findMany({
+      where: { companyId },
+      select: { id: true, name: true },
+    });
+    const reports = [];
+    for (const comp of competitors) {
+      const rep = await this.generateReport(companyId, comp.id, type);
+      if (rep) reports.push(rep);
+    }
+    return reports;
   }
 
   static async listReports(companyId, competitorId, { page = 1, limit = 10 } = {}) {

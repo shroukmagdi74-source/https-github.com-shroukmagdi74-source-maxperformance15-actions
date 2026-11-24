@@ -1,7 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, FileText, TrendingUp, Eye, RefreshCw, Download } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  FileText,
+  TrendingUp,
+  Eye,
+  RefreshCw,
+  Download,
+  Megaphone,
+  Package,
+  Award,
+  Share2,
+  Cpu,
+  History,
+  AlertCircle,
+  ExternalLink,
+  CheckCircle2,
+} from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
 import CompetitorStatusBar, { type CompetitorStatus } from './CompetitorStatusBar';
 import { updateCompetitorStatus } from './useCompetitorStatus';
@@ -20,13 +37,18 @@ interface Report {
   competitor: { id: string; name: string; status: CompetitorStatus };
 }
 
+type SectionKey = 'all' | 'ads' | 'products' | 'features' | 'social' | 'tech' | 'priceChanges';
+
 export const Reports: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [isRegeneratingSingle, setIsRegeneratingSingle] = useState(false);
   const [filter, setFilter] = useState<'all' | 'weekly' | 'comprehensive'>('all');
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [activeSection, setActiveSection] = useState<SectionKey>('all');
 
   useEffect(() => {
     fetchReports();
@@ -35,12 +57,15 @@ export const Reports: React.FC = () => {
   const fetchReports = async () => {
     setIsLoading(true);
     try {
-      const res = await apiClient.get('/competitors/reports/all');
+      const res = await apiClient.get('/competitors/reports/all?limit=100');
       if (res.data?.success) {
         const list = res.data.data || [];
         setReports(list);
         if (list.length > 0 && !selectedReport) {
           setSelectedReport(list[0]);
+        } else if (selectedReport) {
+          const updated = list.find((r: Report) => r.id === selectedReport.id);
+          if (updated) setSelectedReport(updated);
         }
       }
     } catch {
@@ -50,7 +75,38 @@ export const Reports: React.FC = () => {
     }
   };
 
-  const filteredReports = filter === 'all' ? reports : reports.filter(r => r.type === filter);
+  const handleGenerateAll = async () => {
+    setIsGeneratingAll(true);
+    try {
+      await apiClient.post('/competitors/reports/generate-all', { type: 'weekly' });
+      await fetchReports();
+    } catch {
+      // fallback
+    } finally {
+      setIsGeneratingAll(false);
+    }
+  };
+
+  const handleRegenerateSingle = async (competitorId?: string) => {
+    if (!competitorId) return;
+    setIsRegeneratingSingle(true);
+    try {
+      const res = await apiClient.post(`/competitors/${competitorId}/reports/generate`, { type: 'weekly' });
+      if (res.data?.success && res.data?.data) {
+        setSelectedReport(res.data.data);
+      }
+      await fetchReports();
+    } catch {
+      // fallback
+    } finally {
+      setIsRegeneratingSingle(false);
+    }
+  };
+
+  const filteredReports = useMemo(() => {
+    if (filter === 'all') return reports;
+    return reports.filter(r => r.type === filter);
+  }, [filter, reports]);
 
   const reportTypeLabel = (type?: string) => {
     if (!type) return 'GENERAL';
@@ -60,6 +116,56 @@ export const Reports: React.FC = () => {
       default: return String(type).toUpperCase();
     }
   };
+
+  // Safe parsed data and insights
+  const parsedData = useMemo(() => {
+    if (!selectedReport?.data) return {};
+    if (typeof selectedReport.data === 'string') {
+      try { return JSON.parse(selectedReport.data); } catch { return {}; }
+    }
+    return selectedReport.data;
+  }, [selectedReport]);
+
+  const parsedInsights = useMemo(() => {
+    if (!selectedReport?.insights) return {};
+    if (typeof selectedReport.insights === 'string') {
+      try { return JSON.parse(selectedReport.insights); } catch { return {}; }
+    }
+    return selectedReport.insights;
+  }, [selectedReport]);
+
+  const sections = useMemo(() => {
+    const rawSec = parsedData?.sections;
+    if (rawSec) return rawSec;
+
+    // Fallback extraction
+    const adsItems = Array.isArray(parsedData?.ads) ? parsedData.ads : [];
+    const prodItems = Array.isArray(parsedData?.products) ? parsedData.products : [];
+    const featItems = Array.isArray(parsedData?.features) ? parsedData.features : [];
+    const socItems = Array.isArray(parsedData?.social) ? parsedData.social : [];
+    const techItems = Array.isArray(parsedData?.tech) ? parsedData.tech : [];
+    const priceItems = Array.isArray(parsedData?.priceChanges) ? parsedData.priceChanges : [];
+
+    return {
+      ads: { total: adsItems.length, items: adsItems, newCount: 0, activeCount: adsItems.length },
+      products: { total: prodItems.length, items: prodItems, packagesCount: prodItems.filter((p: any) => p.category === 'باقة').length, packages: prodItems.filter((p: any) => p.category === 'باقة') },
+      features: { total: featItems.length, items: featItems },
+      social: { total: socItems.length, items: socItems },
+      tech: { total: techItems.length, items: techItems, scannedAt: null },
+      priceChanges: { total: priceItems.length, items: priceItems },
+    };
+  }, [parsedData]);
+
+  const hasAnyData = useMemo(() => {
+    return (
+      (sections.ads?.total || 0) > 0 ||
+      (sections.products?.total || 0) > 0 ||
+      (sections.features?.total || 0) > 0 ||
+      (sections.social?.total || 0) > 0 ||
+      (sections.tech?.total || 0) > 0 ||
+      (sections.priceChanges?.total || 0) > 0
+    );
+  }, [sections]);
 
   return (
     <div className="w-full min-h-screen bg-background text-foreground space-y-4 p-3 sm:p-5" dir={i18n.dir()}>
@@ -86,7 +192,7 @@ export const Reports: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-center">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
           {/* Filter Pills */}
           <div className="flex items-center bg-muted/30 border border-border/70 rounded-lg p-0.5">
             {(['all', 'weekly', 'comprehensive'] as const).map(f => (
@@ -107,6 +213,17 @@ export const Reports: React.FC = () => {
 
           <button
             type="button"
+            onClick={handleGenerateAll}
+            disabled={isGeneratingAll}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50"
+            title="توليد وتحديث تقارير جميع المنافسين الآن"
+          >
+            <RefreshCw size={13} className={isGeneratingAll ? 'animate-spin' : ''} />
+            <span>تحديث كل التقارير</span>
+          </button>
+
+          <button
+            type="button"
             onClick={fetchReports}
             className="h-8 w-8 rounded-lg border border-border/70 bg-card hover:bg-muted/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             title={t('common.refresh')}
@@ -123,12 +240,21 @@ export const Reports: React.FC = () => {
           جاري استرجاع تقارير المنافسين...
         </div>
       ) : filteredReports.length === 0 ? (
-        <div className="py-16 text-center border border-dashed border-border/70 rounded-xl bg-card space-y-2">
+        <div className="py-16 text-center border border-dashed border-border/70 rounded-xl bg-card space-y-3 p-6">
           <FileText size={32} className="mx-auto text-muted-foreground/40 mb-1" />
-          <h3 className="text-xs font-bold text-foreground">{t('competitors.noReports')}</h3>
+          <h3 className="text-sm font-bold text-foreground">{t('competitors.noReports')}</h3>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            سيتم إدراج تقارير الذكاء التنافسي آلياً عند تشغيل دورات الفحص المجدولة
+            مفيش تقارير مسجلة حالياً — اضغط على زر التحديث لتوليد التقارير من بيانات الرادار
           </p>
+          <button
+            type="button"
+            onClick={handleGenerateAll}
+            disabled={isGeneratingAll}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium cursor-pointer"
+          >
+            <RefreshCw size={13} className={isGeneratingAll ? 'animate-spin' : ''} />
+            <span>توليد تقارير المنافسين الآن</span>
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -188,7 +314,7 @@ export const Reports: React.FC = () => {
           {/* Right Detail Pane (8 Cols) */}
           <div className="lg:col-span-8">
             {selectedReport ? (
-              <div className="bg-card border border-border/70 rounded-xl p-5 space-y-4 shadow-xs">
+              <div className="bg-card border border-border/70 rounded-xl p-4 sm:p-5 space-y-4 shadow-xs">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-border/70">
                   <div>
                     <div className="flex items-center gap-2">
@@ -212,42 +338,55 @@ export const Reports: React.FC = () => {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-card hover:bg-muted/30 text-xs font-medium text-foreground transition-colors shrink-0 cursor-pointer active:scale-[0.98]"
-                    title={t('common.export')}
-                  >
-                    <Download size={13} />
-                    <span>تصدير التقرير</span>
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleRegenerateSingle(selectedReport.competitor?.id)}
+                      disabled={isRegeneratingSingle}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-card hover:bg-muted/30 text-xs font-medium text-foreground transition-colors cursor-pointer"
+                      title="إعادة فحص وتوليد تقرير اليوم"
+                    >
+                      <RefreshCw size={13} className={isRegeneratingSingle ? 'animate-spin' : ''} />
+                      <span>تحديث</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-card hover:bg-muted/30 text-xs font-medium text-foreground transition-colors cursor-pointer active:scale-[0.98]"
+                      title={t('common.export')}
+                    >
+                      <Download size={13} />
+                      <span>تصدير</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Executive Summary */}
+                {/* Executive Summary Line */}
                 {selectedReport.summary && (
-                  <div className="rounded-lg bg-muted/20 border border-border/60 p-3.5 space-y-1">
-                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
+                  <div className="rounded-lg bg-primary/5 border border-primary/20 p-3.5 space-y-1">
+                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary">
                       {t('competitors.summary')}
                     </div>
-                    <p className="text-xs text-foreground leading-relaxed">
+                    <p className="text-xs text-foreground font-semibold leading-relaxed">
                       {selectedReport.summary}
                     </p>
                   </div>
                 )}
 
-                {/* Telemetry Metric Insights */}
-                {selectedReport.insights && typeof selectedReport.insights === 'object' && (
+                {/* Metric Insights Grid (Safe against missing/empty insights) */}
+                {parsedInsights && Object.keys(parsedInsights).length > 0 && (
                   <div className="space-y-2">
                     <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
                       <TrendingUp size={13} className="text-primary" />
                       <span>{t('competitors.insights')}</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      {Object.entries(selectedReport.insights).map(([key, value]) => (
-                        <div key={key} className="bg-muted/15 border border-border/60 rounded-lg p-3">
+                      {Object.entries(parsedInsights).map(([key, value]) => (
+                        <div key={key} className="bg-muted/15 border border-border/60 rounded-lg p-2.5 sm:p-3">
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono truncate">
                             {key.replace(/([A-Z])/g, ' $1').trim()}
                           </div>
-                          <div className="text-lg font-bold font-mono tabular-nums text-foreground mt-1">
+                          <div className="text-base sm:text-lg font-bold font-mono tabular-nums text-foreground mt-0.5">
                             {String(value)}
                           </div>
                         </div>
@@ -256,15 +395,311 @@ export const Reports: React.FC = () => {
                   </div>
                 )}
 
-                {/* Payload Inspection */}
-                {selectedReport.data && typeof selectedReport.data === 'object' && (
-                  <div className="space-y-2 pt-2 border-t border-border/60">
-                    <div className="text-xs font-bold text-foreground">
-                      {t('competitors.details')}
+                {/* Structured Sections View */}
+                {!hasAnyData ? (
+                  <div className="py-8 text-center border border-dashed border-border/70 rounded-xl bg-card space-y-3 p-6">
+                    <AlertCircle className="mx-auto text-amber-500 h-8 w-8" />
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-foreground">مفيش بيانات كافية — شغّل تحديث</h4>
+                      <p className="text-xs text-muted-foreground">لم يتم ربط أو استخراج بيانات إعلانات أو باقات كافية لهذا المنافس</p>
                     </div>
-                    <pre className="bg-muted/30 border border-border/60 rounded-lg p-3 text-[11px] font-mono text-muted-foreground overflow-x-auto max-h-56">
-                      {JSON.stringify(selectedReport.data, null, 2)}
-                    </pre>
+                    <button
+                      type="button"
+                      onClick={() => handleRegenerateSingle(selectedReport.competitor?.id)}
+                      disabled={isRegeneratingSingle}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium cursor-pointer"
+                    >
+                      <RefreshCw size={12} className={isRegeneratingSingle ? 'animate-spin' : ''} />
+                      <span>توليد تقرير محدّث</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 pt-2 border-t border-border/60">
+                    {/* Section Switcher Tabs */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border/50 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('all')}
+                        className={`px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                          activeSection === 'all'
+                            ? 'bg-muted text-foreground font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        كل الأقسام
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('ads')}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                          activeSection === 'ads'
+                            ? 'bg-muted text-foreground font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <Megaphone size={12} />
+                        <span>الإعلانات ({sections.ads?.total || 0})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('products')}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                          activeSection === 'products'
+                            ? 'bg-muted text-foreground font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <Package size={12} />
+                        <span>الباقات والمنتجات ({sections.products?.total || 0})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('features')}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                          activeSection === 'features'
+                            ? 'bg-muted text-foreground font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <Award size={12} />
+                        <span>المزايا ({sections.features?.total || 0})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('social')}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                          activeSection === 'social'
+                            ? 'bg-muted text-foreground font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <Share2 size={12} />
+                        <span>السوشيال ({sections.social?.total || 0})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('tech')}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                          activeSection === 'tech'
+                            ? 'bg-muted text-foreground font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <Cpu size={12} />
+                        <span>التقنيات ({sections.tech?.total || 0})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('priceChanges')}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                          activeSection === 'priceChanges'
+                            ? 'bg-muted text-foreground font-bold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <History size={12} />
+                        <span>تغيرات الأسعار ({sections.priceChanges?.total || 0})</span>
+                      </button>
+                    </div>
+
+                    {/* 1. Ads Section */}
+                    {(activeSection === 'all' || activeSection === 'ads') && (
+                      <div className="space-y-2 p-3 bg-muted/10 rounded-xl border border-border/50">
+                        <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                          <span className="flex items-center gap-1.5">
+                            <Megaphone size={13} className="text-primary" />
+                            <span>الإعلانات المرصودة ({sections.ads?.total || 0})</span>
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {sections.ads?.newCount || 0} جديد · {sections.ads?.activeCount || 0} نشط
+                          </span>
+                        </div>
+                        {(!sections.ads?.items || sections.ads.items.length === 0) ? (
+                          <p className="text-xs text-muted-foreground py-2 text-center">لا توجد إعلانات مسجلة</p>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                            {sections.ads.items.map((ad: any, i: number) => (
+                              <div key={ad.id || i} className="p-3 bg-card border border-border/60 rounded-lg text-xs space-y-1.5">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase">
+                                    {ad.platform || 'facebook'}
+                                  </span>
+                                  <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
+                                    ad.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-muted text-muted-foreground'
+                                  }`}>
+                                    {ad.status === 'active' ? 'نشط' : 'متوقف'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-foreground line-clamp-3 leading-relaxed font-sans">
+                                  {ad.copy || ad.headline || 'بدون نص إعلاني'}
+                                </p>
+                                {ad.cta && (
+                                  <div className="text-[10px] font-medium text-primary">
+                                    زر الإجراء: {ad.cta}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 2. Products & Packages Section */}
+                    {(activeSection === 'all' || activeSection === 'products') && (
+                      <div className="space-y-2 p-3 bg-muted/10 rounded-xl border border-border/50">
+                        <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                          <span className="flex items-center gap-1.5">
+                            <Package size={13} className="text-primary" />
+                            <span>الباقات والمنتجات ({sections.products?.total || 0})</span>
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {sections.products?.packagesCount || 0} باقة
+                          </span>
+                        </div>
+                        {(!sections.products?.items || sections.products.items.length === 0) ? (
+                          <p className="text-xs text-muted-foreground py-2 text-center">لا توجد منتجات أو باقات مسجلة</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
+                            {sections.products.items.map((prod: any, i: number) => (
+                              <div key={prod.id || i} className="p-3 bg-card border border-border/60 rounded-lg text-xs space-y-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="font-semibold text-foreground line-clamp-1">{prod.name}</span>
+                                  {prod.category === 'باقة' && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                      باقة
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm font-bold font-mono text-primary tabular-nums">
+                                  {prod.price ? `${prod.price} ${prod.currency || 'EGP'}` : 'غير محدد'}
+                                </div>
+                                {prod.description && (
+                                  <p className="text-[11px] text-muted-foreground line-clamp-2">
+                                    {prod.description}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 3. Features Section */}
+                    {(activeSection === 'all' || activeSection === 'features') && (
+                      <div className="space-y-2 p-3 bg-muted/10 rounded-xl border border-border/50">
+                        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <Award size={13} className="text-primary" />
+                          <span>المزايا التنافسية المسجلة ({sections.features?.total || 0})</span>
+                        </div>
+                        {(!sections.features?.items || sections.features.items.length === 0) ? (
+                          <p className="text-xs text-muted-foreground py-2 text-center">لا توجد مزايا مسجلة</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
+                            {sections.features.items.map((feat: any, i: number) => (
+                              <div key={feat.id || i} className="p-2.5 bg-card border border-border/60 rounded-lg text-xs space-y-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="font-semibold text-foreground">{feat.title}</span>
+                                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase">
+                                    {feat.priority || 'medium'}
+                                  </span>
+                                </div>
+                                {feat.description && (
+                                  <p className="text-[11px] text-muted-foreground line-clamp-2">
+                                    {feat.description}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 4. Social & Tech Stack Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {(activeSection === 'all' || activeSection === 'social') && (
+                        <div className="space-y-2 p-3 bg-muted/10 rounded-xl border border-border/50">
+                          <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <Share2 size={13} className="text-primary" />
+                            <span>بروفايلات السوشيال ({sections.social?.total || 0})</span>
+                          </div>
+                          {(!sections.social?.items || sections.social.items.length === 0) ? (
+                            <p className="text-xs text-muted-foreground py-2 text-center">لا توجد روابط تواصل</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {sections.social.items.map((soc: any, i: number) => (
+                                <a
+                                  key={soc.id || i}
+                                  href={soc.profileUrl || '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/60 text-xs font-medium text-foreground hover:border-primary transition-colors"
+                                >
+                                  <span className="capitalize">{soc.platform}</span>
+                                  <ExternalLink size={10} className="text-muted-foreground" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {(activeSection === 'all' || activeSection === 'tech') && (
+                        <div className="space-y-2 p-3 bg-muted/10 rounded-xl border border-border/50">
+                          <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                            <span className="flex items-center gap-1.5">
+                              <Cpu size={13} className="text-primary" />
+                              <span>التقنيات المرصودة ({sections.tech?.total || 0})</span>
+                            </span>
+                            {sections.tech?.scannedAt && (
+                              <span className="text-[10px] font-mono text-muted-foreground">
+                                فحص {sections.tech.scannedAt}
+                              </span>
+                            )}
+                          </div>
+                          {(!sections.tech?.items || sections.tech.items.length === 0) ? (
+                            <p className="text-xs text-muted-foreground py-2 text-center">لا توجد تقنيات مكتشفة</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {sections.tech.items.map((tech: string, i: number) => (
+                                <span
+                                  key={i}
+                                  className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-card border border-border/60 text-foreground"
+                                >
+                                  {tech}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 5. Price Changes Section */}
+                    {(activeSection === 'all' || activeSection === 'priceChanges') && (
+                      <div className="space-y-2 p-3 bg-muted/10 rounded-xl border border-border/50">
+                        <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <History size={13} className="text-primary" />
+                          <span>سجل تغيّر الأسعار ({sections.priceChanges?.total || 0})</span>
+                        </div>
+                        {(!sections.priceChanges?.items || sections.priceChanges.items.length === 0) ? (
+                          <p className="text-xs text-muted-foreground py-2 text-center">لا توجد تغيرات أسعار مسجلة في هذه الفترة</p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {sections.priceChanges.items.map((change: any, i: number) => (
+                              <div key={i} className="p-2.5 bg-card border border-border/60 rounded-lg text-xs flex items-center justify-between">
+                                <span className="font-semibold text-foreground">{change.productName}</span>
+                                <span className="font-mono text-primary font-bold">
+                                  {change.currentPrice} {change.currency || 'EGP'} ({change.changeCount} تغييرات)
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

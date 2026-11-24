@@ -242,6 +242,17 @@ exports.generateReport = async (req, res) => {
   }
 };
 
+exports.generateAllReports = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const reports = await CompetitorService.generateAllReports(companyId, req.body.type || 'weekly');
+    res.json({ success: true, count: reports.length, data: reports });
+  } catch (error) {
+    console.error('Error generating all reports:', error);
+    res.status(500).json({ success: false, error: t('competitor.report_create_failed') });
+  }
+};
+
 exports.listReports = async (req, res) => {
   try {
     const { companyId } = req.user;
@@ -256,17 +267,36 @@ exports.listReports = async (req, res) => {
 exports.getAllReports = async (req, res) => {
   try {
     const { companyId } = req.user;
+    const limit = parseInt(req.query.limit, 10) || 100;
     const where = { companyId };
     const [data, total] = await Promise.all([
       getPrisma().competitorReport.findMany({
         where,
         include: { competitor: { select: { id: true, name: true, status: true } } },
         orderBy: { generatedAt: 'desc' },
-        take: 20,
+        take: limit,
       }),
       getPrisma().competitorReport.count({ where }),
     ]);
-    res.json({ success: true, data, pagination: { total } });
+
+    // Parse data and insights safely so frontend receives clean objects
+    const sanitizedData = data.map(r => {
+      let parsedInsights = r.insights;
+      if (typeof parsedInsights === 'string') {
+        try { parsedInsights = JSON.parse(parsedInsights); } catch { parsedInsights = {}; }
+      }
+      let parsedData = r.data;
+      if (typeof parsedData === 'string') {
+        try { parsedData = JSON.parse(parsedData); } catch { parsedData = {}; }
+      }
+      return {
+        ...r,
+        insights: parsedInsights || {},
+        data: parsedData || {},
+      };
+    });
+
+    res.json({ success: true, data: sanitizedData, pagination: { total } });
   } catch (error) {
     res.status(500).json({ success: false, error: t('competitor.reports_list_failed') });
   }

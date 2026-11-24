@@ -8,6 +8,7 @@ router.use(verifyToken.authenticateToken);
 router.get('/', controller.list);
 router.post('/', controller.create);
 router.get('/reports/all', controller.getAllReports);
+router.post('/reports/generate-all', controller.generateAllReports);
 router.get('/auto-discover', controller.autoDiscover);
 router.get('/summary', controller.summary);
 router.get('/status-counts', controller.getStatusCounts);
