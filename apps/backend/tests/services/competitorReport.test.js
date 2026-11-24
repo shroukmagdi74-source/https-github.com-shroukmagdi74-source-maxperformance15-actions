@@ -140,4 +140,20 @@ describe('CompetitorService.generateReport (Package A)', () => {
     );
     expect(mockPrisma.competitorReport.create).not.toHaveBeenCalled();
   });
+
+  it('INVARIANT: reports with null/empty insights are handled safely and never throw', async () => {
+    const rawReports = [
+      { id: 'rep-null-insights', insights: null, data: { sections: {} } },
+      { id: 'rep-empty-insights', insights: '', data: null },
+      { id: 'rep-invalid-json', insights: '{invalid json}', data: '{invalid json}' },
+    ];
+
+    mockPrisma.competitorReport.findMany.mockResolvedValue(rawReports);
+    mockPrisma.competitorReport.count.mockResolvedValue(3);
+
+    const result = await CompetitorService.listReports('company-1', 'comp-1', { page: 1, limit: 10 });
+    expect(result.data).toHaveLength(3);
+    // Verifies service processes all records without throwing any JSON parse error
+    expect(result.data[0].insights).toBeNull();
+  });
 });
