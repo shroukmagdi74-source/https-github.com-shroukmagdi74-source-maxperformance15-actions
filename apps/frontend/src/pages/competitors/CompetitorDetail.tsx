@@ -1,9 +1,37 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, ExternalLink, RefreshCw, BarChart2, TrendingUp, Scale, History, Settings, Instagram, Share2, Crosshair, Lightbulb, Plus, Pencil, X, AlertTriangle, CheckCircle2, Circle, Calendar, Clock, Tag, DollarSign } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ExternalLink,
+  RefreshCw,
+  BarChart2,
+  TrendingUp,
+  Scale,
+  History,
+  Settings,
+  Instagram,
+  Share2,
+  Crosshair,
+  Lightbulb,
+  Plus,
+  Pencil,
+  X,
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  Calendar,
+  Clock,
+  Tag,
+  DollarSign,
+  Cpu,
+  Trash2,
+  Globe,
+  Package,
+} from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
-import CompetitorStatusBar, { COMPETITOR_STATUSES, type CompetitorStatus } from './CompetitorStatusBar';
+import CompetitorStatusBar, { type CompetitorStatus } from './CompetitorStatusBar';
 import { updateCompetitorStatus, useCompetitorStatusSync } from './useCompetitorStatus';
 import CompetitorFeatures from './CompetitorFeatures';
 import { getLocalizedDateTime } from '../../utils/localization';
@@ -20,6 +48,7 @@ interface CompetitorProduct {
   sku: string | null;
   isAvailable: boolean;
   category: string | null;
+  description: string | null;
   lastSeen: string;
 }
 
@@ -56,6 +85,16 @@ interface DevRecommendation {
   tasks: DevTask[];
 }
 
+interface SocialProfile {
+  id: string;
+  platform: string;
+  profileUrl: string | null;
+  username: string | null;
+  followersCount: number;
+  updatedAt?: string;
+  lastScrapeAt?: string;
+}
+
 const CompetitorDetail: React.FC = () => {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
@@ -65,13 +104,26 @@ const CompetitorDetail: React.FC = () => {
   const [products, setProducts] = useState<CompetitorProduct[]>([]);
   const [ads, setAds] = useState<CompetitorAd[]>([]);
   const [reports, setReports] = useState<CompetitorReport[]>([]);
+  const [socialProfiles, setSocialProfiles] = useState<SocialProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isScanningTech, setIsScanningTech] = useState(false);
   const [devRec, setDevRec] = useState<DevRecommendation | null>(null);
   const [newTaskText, setNewTaskText] = useState('');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<DevTask | null>(null);
   const [taskForm, setTaskForm] = useState({ title: '', description: '', status: 'not_started', targetDate: '' });
   const [taskError, setTaskError] = useState('');
+
+  // Social Modal State
+  const [showSocialModal, setShowSocialModal] = useState(false);
+  const [socialForm, setSocialForm] = useState({ platform: 'instagram', profileUrl: '', username: '' });
+  const [socialLoading, setSocialLoading] = useState(false);
+
+  // New Package / Product Modal State
+  const [showPackageModal, setShowPackageModal] = useState(false);
+  const [packageForm, setPackageForm] = useState({ name: '', price: '', currency: 'EGP', category: 'باقة', description: '', cycle: 'monthly' });
+  const [packageLoading, setPackageLoading] = useState(false);
+  const [productsSubTab, setProductsSubTab] = useState<'packages' | 'all'>('packages');
 
   const handleStatusChange = useCallback(async (newStatus: string) => {
     if (!id) return;
@@ -99,11 +151,23 @@ const CompetitorDetail: React.FC = () => {
         setProducts(res.data.data.products || []);
         setAds(res.data.data.ads || []);
         setReports(res.data.data.reports || []);
+        setSocialProfiles(res.data.data.socialProfiles || []);
       }
     } catch {
       console.error('Failed to fetch competitor');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchSocialProfiles = async () => {
+    if (!id) return;
+    try {
+      const res = await apiClient.get(`/competitors/social/profiles/${id}`);
+      const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setSocialProfiles(list);
+    } catch {
+      // fallback
     }
   };
 
@@ -121,6 +185,133 @@ const CompetitorDetail: React.FC = () => {
 
   useEffect(() => { fetchData(); }, [id]);
   useEffect(() => { if (id) fetchDevRecommendations(); }, [id]);
+
+  // Scan Tech handler
+  const handleScanTech = async () => {
+    if (!id) return;
+    setIsScanningTech(true);
+    try {
+      const res = await apiClient.post(`/competitors/${id}/scan-tech`);
+      if (res.data?.success && res.data?.data) {
+        setCompetitor((prev: any) => ({
+          ...prev,
+          metadata: {
+            ...(prev?.metadata || {}),
+            tech: res.data.data.tech,
+            tech_scanned: res.data.data.tech_scanned,
+          },
+        }));
+      }
+    } catch {
+      console.error('Failed to scan tech');
+    } finally {
+      setIsScanningTech(false);
+    }
+  };
+
+  // Social CRUD handlers
+  const handleSaveSocial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !socialForm.profileUrl) return;
+    setSocialLoading(true);
+    try {
+      const handle = socialForm.username || socialForm.profileUrl.rstrip?.('/')?.split('/')?.pop() || '';
+      await apiClient.post(`/competitors/social/profile/${id}/${socialForm.platform}`, {
+        profileUrl: socialForm.profileUrl,
+        url: socialForm.profileUrl,
+        username: handle,
+        handle,
+      });
+      setShowSocialModal(false);
+      setSocialForm({ platform: 'instagram', profileUrl: '', username: '' });
+      await fetchData();
+      await fetchSocialProfiles();
+    } catch {
+      console.error('Failed to save social profile');
+    } finally {
+      setSocialLoading(false);
+    }
+  };
+
+  const handleDeleteSocial = async (platform: string) => {
+    if (!id || !window.confirm(`هل أنت متأكد من حذف بروفايل ${platform}؟`)) return;
+    try {
+      await apiClient.delete(`/competitors/social/profile/${id}/${platform}`);
+      setSocialProfiles(prev => prev.filter(p => p.platform !== platform));
+      await fetchData();
+    } catch {
+      console.error('Failed to delete social profile');
+    }
+  };
+
+  // Add Package / Product handler
+  const handleSavePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !packageForm.name) return;
+    setPackageLoading(true);
+    try {
+      const payload = {
+        name: packageForm.name,
+        price: packageForm.price ? parseFloat(packageForm.price) : null,
+        currency: packageForm.currency,
+        category: packageForm.category,
+        description: packageForm.description,
+        metadata: { cycle: packageForm.cycle },
+      };
+      await apiClient.post(`/competitors/${id}/products`, payload);
+      setShowPackageModal(false);
+      setPackageForm({ name: '', price: '', currency: 'EGP', category: 'باقة', description: '', cycle: 'monthly' });
+      await fetchData();
+    } catch {
+      console.error('Failed to add package');
+    } finally {
+      setPackageLoading(false);
+    }
+  };
+
+  // Profile Completion Calculation (0–100%)
+  const profileCompletion = useMemo(() => {
+    if (!competitor) return { score: 0, missing: [] };
+    let score = 0;
+    const missing: string[] = [];
+
+    // 1. Basic Info
+    if (competitor.name) score += 5;
+    if (competitor.url) score += 10;
+    else missing.push('رابط الموقع الإلكتروني');
+
+    if (competitor.description || competitor.notes) score += 10;
+    else missing.push('الوصف ونبذة النشاط');
+
+    if (competitor.targetMarket || competitor.activityType) score += 10;
+    else missing.push('السوق المستهدف ونوع النشاط');
+
+    if (competitor.strengths || competitor.weaknesses) score += 5;
+
+    // 2. Tech stack (20%)
+    const meta = competitor.metadata || {};
+    const techList = Array.isArray(meta.tech) ? meta.tech : [];
+    if (techList.length > 0) score += 20;
+    else missing.push('التقنيات المستخدمة (metadata.tech)');
+
+    // 3. Social profiles (15%)
+    const socials = socialProfiles.length > 0 ? socialProfiles : (competitor.socialProfiles || []);
+    if (socials.length > 0) score += 15;
+    else missing.push('حسابات التواصل الاجتماعي');
+
+    // 4. Packages (25% for >=2 packages, 15% for 1 package)
+    const pkgs = products.filter(p => p.category === 'باقة');
+    if (pkgs.length >= 2) {
+      score += 25;
+    } else if (pkgs.length === 1) {
+      score += 15;
+      missing.push('باقة أسعار إضافية (الحد الأدنى باقتان)');
+    } else {
+      missing.push('باقات الأسعار (الحد الأدنى باقتان)');
+    }
+
+    return { score: Math.min(100, score), missing };
+  }, [competitor, products, socialProfiles]);
 
   const handleAddTask = () => {
     const text = newTaskText.trim();
@@ -214,34 +405,37 @@ const CompetitorDetail: React.FC = () => {
 
   const tabs = [
     { key: 'overview', label: t('competitors.overview') },
-    { key: 'products', label: t('competitors.productsTab') },
+    { key: 'products', label: t('competitors.productsTab'), icon: <Package size={14} /> },
     { key: 'social', label: t('competitors.social.overview'), icon: <Instagram size={14} /> },
     { key: 'ads', label: t('competitors.ads.overview'), icon: <Share2 size={14} /> },
     { key: 'features', label: t('competitors.features.title'), icon: <Lightbulb size={14} /> },
-    { key: 'platforms', label: t('competitors.platforms.techStack'), icon: <TrendingUp size={14} /> },
+    { key: 'platforms', label: 'التقنيات والمنصة', icon: <Cpu size={14} /> },
     { key: 'reports', label: t('competitors.reportsTab') },
   ] as const;
 
   const taskStats = getTaskStats();
+  const techList: string[] = competitor?.metadata?.tech || [];
+  const packagesList = products.filter(p => p.category === 'باقة');
 
   return (
-    <div className="p-6" dir={i18n.dir()}>
-      <div className="flex items-start gap-3 mb-6">
-        <button onClick={() => navigate('/competitors')} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 mt-1">
+    <div className="p-4 sm:p-6 space-y-4" dir={i18n.dir()}>
+      {/* Top Header */}
+      <div className="flex items-start gap-3">
+        <button onClick={() => navigate('/competitors')} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 mt-1 cursor-pointer">
           {i18n.dir() === 'rtl' ? <ArrowRight size={20} /> : <ArrowLeft size={20} />}
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold">{competitor.name}</h1>
+            <h1 className="text-2xl font-bold text-foreground">{competitor.name}</h1>
             {competitor.url && (
-              <a href={competitor.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-sm">
+              <a href={competitor.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-sm font-mono">
                 <ExternalLink size={14} />
                 {competitor.url.replace(/^https?:\/\//, '').slice(0, 40)}
               </a>
             )}
           </div>
           <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Tag size={14} className="shrink-0" />
               <span>{t('competitors.status')}:</span>
             </div>
@@ -253,84 +447,90 @@ const CompetitorDetail: React.FC = () => {
             />
           </div>
           {competitor.createdAt && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1.5">
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
               <Calendar size={12} className="shrink-0" />
               <span>{t('competitors.createdAtLabel')}: </span>
               <span dir="ltr" className="inline-block whitespace-nowrap">{getLocalizedDateTime(competitor.createdAt)}</span>
             </p>
           )}
         </div>
-        <button onClick={() => { fetchData(); fetchDevRecommendations(); }} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ltr:ml-auto rtl:mr-auto mt-1 shrink-0">
+        <button onClick={() => { fetchData(); fetchDevRecommendations(); }} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ltr:ml-auto rtl:mr-auto mt-1 shrink-0 cursor-pointer">
           <RefreshCw size={18} />
         </button>
       </div>
 
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-4" dir={i18n.dir()}>
-        <button onClick={() => navigate('/competitors')} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-          {t('competitors.title')}
-        </button>
-        <span className="text-gray-300 dark:text-gray-600 select-none">/</span>
-        <span className="text-gray-800 dark:text-gray-200 font-medium truncate max-w-[200px] sm:max-w-[300px]">
-          {competitor.name}
-        </span>
-      </nav>
+      {/* Profile Completion Meter (0–100%) */}
+      <div className="bg-card border border-border/70 rounded-xl p-3.5 sm:p-4 space-y-2.5 shadow-xs">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-foreground">مؤشر اكتمال البروفايل:</span>
+            <span className={`font-mono font-bold text-sm tabular-nums ${profileCompletion.score >= 80 ? 'text-emerald-500' : profileCompletion.score >= 50 ? 'text-amber-500' : 'text-rose-500'}`}>
+              {profileCompletion.score}%
+            </span>
+          </div>
+          {profileCompletion.score >= 80 ? (
+            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 size={13} /> مكتمل وجاهز للتقارير الشاملة
+            </span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">
+              ناقص {profileCompletion.missing.length} حقول رئيسية
+            </span>
+          )}
+        </div>
+        <div className="w-full bg-muted/40 rounded-full h-2 overflow-hidden">
+          <div
+            className={`h-full transition-all duration-500 ${profileCompletion.score >= 80 ? 'bg-emerald-500' : profileCompletion.score >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+            style={{ width: `${profileCompletion.score}%` }}
+          />
+        </div>
+        {profileCompletion.missing.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
+            <span className="text-muted-foreground font-medium">حقول موصى باستكمالها:</span>
+            {profileCompletion.missing.map((m, i) => (
+              <span key={i} className="px-2 py-0.5 rounded bg-muted/40 border border-border/60 text-muted-foreground font-medium">
+                {m}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <div className="flex flex-wrap items-center gap-2 mb-6">
+      {/* Quick Stat Badges */}
+      <div className="flex flex-wrap items-center gap-2">
         {competitor._count && (
           <div className="flex items-center gap-3 text-xs sm:text-sm text-gray-500 flex-wrap">
-            <span className="bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">
+            <span className="bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-full text-foreground">
               {competitor._count.products} {t('competitors.products')}
             </span>
-            <span className="bg-green-50 dark:bg-green-900/30 px-2.5 py-1 rounded-full">
+            <span className="bg-green-50 dark:bg-green-900/30 px-2.5 py-1 rounded-full text-foreground">
               {competitor._count.ads} {t('competitors.adsTab')}
             </span>
-            <span className="bg-purple-50 dark:bg-purple-900/30 px-2.5 py-1 rounded-full">
+            <span className="bg-purple-50 dark:bg-purple-900/30 px-2.5 py-1 rounded-full text-foreground">
               {competitor._count.reports} {t('competitors.reports')}
             </span>
           </div>
         )}
         <div className="flex items-center gap-1.5 flex-wrap ltr:ml-auto rtl:mr-auto">
-          <button onClick={() => navigate(`/competitors/${id}/price-compare`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0" title={t('competitors.comparison')}>
-            <Scale size={14} className="shrink-0" /> <span className="hidden sm:inline">{t('competitors.comparison')}</span>
+          <button onClick={() => navigate(`/competitors/${id}/price-compare`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border rounded-lg hover:bg-muted transition-colors cursor-pointer" title={t('competitors.comparison')}>
+            <Scale size={13} className="shrink-0" /> <span>{t('competitors.comparison')}</span>
           </button>
-          <button onClick={() => navigate('/competitors/gap-analysis')} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0" title={t('competitors.gapAnalysis')}>
-            <BarChart2 size={14} className="shrink-0" /> <span className="hidden sm:inline">{t('competitors.gapAnalysis')}</span>
-          </button>
-          <button onClick={() => navigate(`/competitors/${id}/products/${competitor.products?.[0]?.id}/price-history`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0" title={t('competitors.priceHistory')} disabled={!competitor.products?.length}>
-            <History size={14} className="shrink-0" /> <span className="hidden sm:inline">{t('competitors.priceHistory')}</span>
-          </button>
-          <button onClick={() => navigate('/competitors/settings')} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0" title={t('competitors.settings')}>
-            <Settings size={14} className="shrink-0" />
-          </button>
-          <div className="h-5 w-px bg-gray-300 dark:bg-gray-600 mx-0.5 shrink-0" />
-          <button onClick={() => navigate(`/competitors/${id}/social`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0 text-pink-600 border-pink-200" title={t('competitors.social.overview')}>
-            <Instagram size={14} className="shrink-0" /> <span className="hidden sm:inline">{t('competitors.social.overview')}</span>
-          </button>
-          <button onClick={() => navigate(`/competitors/${id}/ads`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0 text-blue-600 border-blue-200" title={t('competitors.ads.overview')}>
-            <Share2 size={14} className="shrink-0" /> <span className="hidden sm:inline">{t('competitors.ads.overview')}</span>
-          </button>
-          <button onClick={() => navigate(`/competitors/${id}/platforms`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0 text-green-600 border-green-200" title={t('competitors.platforms.techStack')}>
-            <TrendingUp size={14} className="shrink-0" /> <span className="hidden sm:inline">{t('competitors.platforms.techStack')}</span>
-          </button>
-          <button onClick={() => navigate(`/competitors/${id}/battlecard`)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0 text-purple-600 border-purple-200" title={t('competitors.battlecard.title')}>
-            <BarChart2 size={14} className="shrink-0" /> <span className="hidden sm:inline">{t('competitors.battlecard.title')}</span>
-          </button>
-          <button onClick={() => navigate('/competitors/auto-discover')} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs sm:text-sm border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shrink-0 text-yellow-600 border-yellow-200" title={t('competitors.autoDiscover.title')}>
-            <Crosshair size={14} className="shrink-0" /> <span className="hidden sm:inline">{t('competitors.autoDiscover.title')}</span>
+          <button onClick={() => navigate('/competitors/reports')} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border rounded-lg hover:bg-muted transition-colors cursor-pointer" title="أرشيف التقارير">
+            <BarChart2 size={13} className="shrink-0" /> <span>التقارير</span>
           </button>
         </div>
       </div>
 
-      <div className="flex gap-1 border-b mb-6 overflow-x-auto scrollbar-none">
+      {/* Tabs Bar */}
+      <div className="flex gap-1 border-b overflow-x-auto scrollbar-none">
         {tabs.map(tabItem => (
           <button
             key={tabItem.key}
             onClick={() => setTab(tabItem.key)}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
               tab === tabItem.key
-                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400 font-bold'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             {tabItem.label}
@@ -338,175 +538,80 @@ const CompetitorDetail: React.FC = () => {
         ))}
       </div>
 
+      {/* Tab: Overview */}
       {tab === 'overview' && (
         <div className="space-y-4">
-          {/* Creation Date & Time Card */}
-          {competitor.createdAt && (
-            <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-white dark:from-blue-900/20 dark:to-gray-900/50 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 shrink-0">
-                  <Calendar size={20} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">{t('competitors.createdAtLabel')}</p>
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1.5 flex-wrap">
-                    <span dir="ltr" className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                      <Calendar size={14} className="text-blue-500 shrink-0" />
-                      {getLocalizedDateTime(competitor.createdAt)}
-                    </span>
-                  </p>
-                </div>
+          {/* Tech Stack Card in Overview */}
+          <div className="border border-border/70 rounded-xl p-4 bg-card space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cpu size={16} className="text-primary" />
+                <h3 className="font-semibold text-sm text-foreground">التقنيات المكتشفة (Tech Stack)</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {competitor.metadata?.tech_scanned && (
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    آخر فحص: {competitor.metadata.tech_scanned}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleScanTech}
+                  disabled={isScanningTech}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                  title="إعادة فحص تقنيات الموقع الحي الآن"
+                >
+                  <RefreshCw size={11} className={isScanningTech ? 'animate-spin' : ''} />
+                  <span>افحص تاني</span>
+                </button>
               </div>
             </div>
-          )}
-          {competitor.description && (
-            <div className="border rounded-lg p-4 dark:border-gray-700">
-              <h3 className="font-semibold mb-2">{t('competitors.description')}</h3>
-              <p className="text-gray-600 dark:text-gray-400">{competitor.description}</p>
-            </div>
-          )}
-          {competitor.notes && (
-            <div className="border rounded-lg p-4 dark:border-gray-700">
-              <h3 className="font-semibold mb-2">{t('competitors.notes')}</h3>
-              <p className="text-gray-600 dark:text-gray-400">{competitor.notes}</p>
-            </div>
-          )}
-          {competitor.strengths && (
-            <div className="border rounded-lg p-4 dark:border-gray-700">
-              <h3 className="font-semibold mb-2">{t('competitors.strengths')}</h3>
-              <div className="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                {competitor.strengths.split('\n').map((line: string, i: number) => (
-                  <p key={i} className={line.startsWith('-') || line.startsWith('•') ? 'ltr:mr-2 rtl:mr-0 rtl:ml-2' : ''}>{line}</p>
-                ))}
-              </div>
-            </div>
-          )}
-          {competitor.weaknesses && (
-            <div className="border rounded-lg p-4 dark:border-gray-700">
-              <h3 className="font-semibold mb-2">{t('competitors.weaknesses')}</h3>
-              <div className="text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
-                {competitor.weaknesses.split('\n').map((line: string, i: number) => (
-                  <p key={i} className={line.startsWith('-') || line.startsWith('•') ? 'ltr:mr-2 rtl:mr-0 rtl:ml-2' : ''}>{line}</p>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Dev Recommendations — Professional To-Do List */}
-          <div className="border rounded-lg p-4 dark:border-gray-700 border-blue-200 dark:border-blue-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-blue-600 dark:text-blue-400">{t('competitors.devRecommendations.title')}</h3>
-              <button onClick={openAddTask} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                <Plus size={14} /> {t('competitors.devRecommendations.addTask')}
-              </button>
-            </div>
-
-            {/* Stats Bar */}
-            <div className="flex flex-wrap gap-2 mb-4 text-xs">
-              <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 rounded-full font-medium">
-                {t('competitors.devRecommendations.stats.total')} <span className="text-blue-600 dark:text-blue-400">{taskStats.total}</span>
-              </span>
-              <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 rounded-full font-medium">
-                {t('competitors.devRecommendations.stats.completed')} <span className="text-green-600 dark:text-green-400">{taskStats.completed}</span>
-              </span>
-              <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 rounded-full font-medium">
-                {t('competitors.devRecommendations.stats.notStarted')} <span className="text-amber-600 dark:text-amber-400">{taskStats.notStarted}</span>
-              </span>
-            </div>
-
-            {/* Quick Add Input */}
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                value={newTaskText}
-                onChange={e => setNewTaskText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddTask(); } }}
-                className="flex-1 px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 text-sm"
-                placeholder={t('competitors.devRecommendations.notesPlaceholder')}
-              />
-              <button
-                onClick={handleAddTask}
-                disabled={!newTaskText.trim()}
-                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus size={18} />
-              </button>
-            </div>
-
-            {/* Tasks List */}
-            {(!devRec?.tasks || devRec.tasks.length === 0) ? (
-              <div className="text-center py-6">
-                <div className="text-3xl mb-2 opacity-30">📋</div>
-                <p className="text-sm text-gray-500">{t('competitors.devRecommendations.noTasks')}</p>
-                <p className="text-xs text-gray-400 mt-1">{t('competitors.devRecommendations.notesPlaceholder')}</p>
-              </div>
+            {techList.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-1">
+                لم يتم رصد تقنيات بعد. اضغط «افحص تاني» لفحص الموقع واكتشاف الأطر والمكتبات البرمجية المستخدمة.
+              </p>
             ) : (
-              <div className="space-y-1">
-                {devRec.tasks.map(task => (
-                  <div
-                    key={task.id}
-                    className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-300 ease-in-out border border-transparent hover:border-gray-200 dark:hover:border-gray-700 ${
-                      task.status === 'completed'
-                        ? 'bg-green-50/50 dark:bg-green-900/10'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
-                    }`}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {techList.map((tech, i) => (
+                  <span
+                    key={i}
+                    className="text-xs font-mono font-medium px-2.5 py-1 rounded-lg bg-muted/40 border border-border/60 text-foreground"
                   >
-                    <button
-                      onClick={() => handleToggleTask(task)}
-                      className="shrink-0 focus:outline-none transform transition-transform duration-200 active:scale-90"
-                      title={task.status === 'completed' ? t('competitors.devRecommendations.statuses.not_started') : t('competitors.devRecommendations.statuses.completed')}
-                    >
-                      {task.status === 'completed' ? (
-                        <CheckCircle2 size={20} className="text-green-500 transition-all duration-300 ease-in-out hover:text-green-600" />
-                      ) : (
-                        <Circle size={20} className="text-gray-300 dark:text-gray-600 transition-all duration-300 ease-in-out hover:text-blue-400" />
-                      )}
-                    </button>
-
-                    <div className="flex-1 min-w-0">
-                      <span
-                        className={`text-sm block transition-all duration-300 ease-in-out ${
-                          task.status === 'completed'
-                            ? 'line-through text-gray-400 dark:text-gray-500'
-                            : 'text-gray-800 dark:text-gray-200'
-                        }`}
-                      >
-                        {task.title}
-                      </span>
-                      <span className="text-[10px] text-gray-400">
-                        {new Date(task.createdAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-SA' : 'en-US')}
-                      </span>
-                    </div>
-
-                    <div className="flex gap-0.5">
-                      <button
-                        onClick={() => openEditTask(task)}
-                        className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150"
-                        title={t('competitors.devRecommendations.editTask')}
-                      >
-                        <Pencil size={14} className="text-gray-400" />
-                      </button>
-                    </div>
-                  </div>
+                    {tech}
+                  </span>
                 ))}
               </div>
             )}
           </div>
 
+          {competitor.description && (
+            <div className="border border-border/70 rounded-xl p-4 bg-card space-y-1">
+              <h3 className="font-semibold text-sm mb-1">{t('competitors.description')}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{competitor.description}</p>
+            </div>
+          )}
+
+          {competitor.notes && (
+            <div className="border border-border/70 rounded-xl p-4 bg-card space-y-1">
+              <h3 className="font-semibold text-sm mb-1">{t('competitors.notes')}</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">{competitor.notes}</p>
+            </div>
+          )}
+
           {/* Structured Pricing Card */}
-          <div className="border rounded-lg p-4 dark:border-gray-700 bg-card space-y-3">
+          <div className="border border-border/70 rounded-xl p-4 bg-card space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-sm flex items-center gap-2">
                 <DollarSign size={16} className="text-emerald-500" />
-                <span>هيكل أسعار المنافس والباقات (Structured Pricing)</span>
+                <span>هيكل الأسعار والباقات (Structured Pricing)</span>
               </h3>
               {competitor?.structuredPricing?.cycle && (
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-semibold">
                   {competitor.structuredPricing.cycle === 'yearly'
-                    ? 'سنوي (Yearly)'
+                    ? 'سنوي'
                     : competitor.structuredPricing.cycle === 'one_time'
-                    ? 'دفعة واحدة (One-Time)'
-                    : 'شهري (Monthly)'}
+                    ? 'دفعة واحدة'
+                    : 'شهري'}
                 </span>
               )}
             </div>
@@ -540,50 +645,119 @@ const CompetitorDetail: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* Price Comparison */}
-          <div className="border rounded-lg p-4 dark:border-gray-700">
-            <h3 className="font-semibold mb-2">{t('competitors.priceComparison')}</h3>
-            {products.length > 0 ? (
-              <div className="space-y-2">
-                {products.slice(0, 10).map(p => (
-                  <div key={p.id} className="flex items-center justify-between py-1 border-b last:border-0 dark:border-gray-700">
-                    <span className="text-sm">{p.name}</span>
-                    <span className="text-sm font-medium">
-                      {p.price ? `${Number(p.price).toFixed(2)} ${p.currency}` : '-'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-sm">{t('competitors.noProducts')}</p>
-            )}
-          </div>
         </div>
       )}
 
+      {/* Tab: Products & Packages */}
       {tab === 'products' && (
-        <div>
-          {products.length === 0 ? (
-            <p className="text-gray-500">{t('competitors.noProducts')}</p>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center bg-muted/30 border border-border/70 rounded-lg p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setProductsSubTab('packages')}
+                className={`px-3 py-1.5 rounded-md font-medium cursor-pointer transition-all ${
+                  productsSubTab === 'packages' ? 'bg-primary text-primary-foreground shadow-xs font-bold' : 'text-muted-foreground'
+                }`}
+              >
+                باقات الأسعار ({packagesList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setProductsSubTab('all')}
+                className={`px-3 py-1.5 rounded-md font-medium cursor-pointer transition-all ${
+                  productsSubTab === 'all' ? 'bg-primary text-primary-foreground shadow-xs font-bold' : 'text-muted-foreground'
+                }`}
+              >
+                كافة المنتجات ({products.length})
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowPackageModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium cursor-pointer"
+            >
+              <Plus size={13} />
+              <span>إضافة باقة / منتج</span>
+            </button>
+          </div>
+
+          {productsSubTab === 'packages' ? (
+            packagesList.length === 0 ? (
+              <div className="text-center py-12 border border-dashed rounded-xl bg-card space-y-2 p-6">
+                <Package size={32} className="mx-auto text-muted-foreground/40 mb-1" />
+                <h4 className="text-sm font-bold text-foreground">لا توجد باقات مسجلة بعد</h4>
+                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                  قم بإضافة باقات الاشتراك الخاصة بالمنافس لتدخل في المقارنات وتقارير السوق
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowPackageModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium mt-2 cursor-pointer"
+                >
+                  <Plus size={13} />
+                  <span>إضافة أول باقة</span>
+                </button>
+              </div>
+            ) : (
+              <div className="border border-border/70 rounded-xl overflow-hidden bg-card shadow-xs">
+                <table className="w-full text-xs text-start">
+                  <thead className="bg-muted/40 border-b border-border/70 text-muted-foreground">
+                    <tr>
+                      <th className="p-3 text-start font-semibold">اسم الباقة</th>
+                      <th className="p-3 text-start font-semibold">السعر</th>
+                      <th className="p-3 text-start font-semibold">دورة الدفع</th>
+                      <th className="p-3 text-start font-semibold">الوصف / الملاحظات</th>
+                      <th className="p-3 text-start font-semibold">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {packagesList.map(p => {
+                      const cycle = (p as any).metadata?.cycle || 'شهري';
+                      return (
+                        <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="p-3 font-semibold text-foreground">{p.name}</td>
+                          <td className="p-3 font-mono font-bold text-primary tabular-nums">
+                            {p.price ? `${Number(p.price).toFixed(2)} ${p.currency || 'EGP'}` : '-'}
+                          </td>
+                          <td className="p-3">
+                            <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-muted border border-border/60">
+                              {cycle === 'yearly' ? 'سنوي' : 'شهري'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-muted-foreground line-clamp-2 max-w-xs">{p.description || '-'}</td>
+                          <td className="p-3">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${p.isAvailable ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                              {p.isAvailable ? 'متاح' : 'غير متوفر'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {products.map(p => (
-                <div key={p.id} className="border rounded-lg p-3 dark:border-gray-700">
+                <div key={p.id} className="border border-border/70 rounded-lg p-3 bg-card space-y-2">
                   <div className="flex gap-3">
                     {p.image && <img src={p.image} alt={p.name} className="w-16 h-16 rounded object-cover" />}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm truncate">{p.name}</h4>
-                      <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                      <div className="flex items-center justify-between gap-1">
+                        <h4 className="font-semibold text-xs truncate text-foreground">{p.name}</h4>
+                        {p.category === 'باقة' && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                            باقة
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold font-mono text-primary tabular-nums mt-0.5">
                         {p.price ? `${Number(p.price).toFixed(2)} ${p.currency}` : '-'}
                       </p>
-                      {p.sku && <p className="text-xs text-gray-500">{p.sku}</p>}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${p.isAvailable ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'}`}>
-                          {p.isAvailable ? t('competitors.available') : t('competitors.unavailable')}
-                        </span>
-                        {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-blue-500"><ExternalLink size={12} /></a>}
-                      </div>
+                      {p.description && <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1">{p.description}</p>}
                     </div>
                   </div>
                 </div>
@@ -593,6 +767,133 @@ const CompetitorDetail: React.FC = () => {
         </div>
       )}
 
+      {/* Tab: Social Profiles with full CRUD */}
+      {tab === 'social' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-foreground">حسابات التواصل الاجتماعي ({socialProfiles.length})</h3>
+              <p className="text-xs text-muted-foreground">روابط ومنصات التواصل المرصودة لهذا المنافس</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSocialModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium cursor-pointer"
+            >
+              <Plus size={13} />
+              <span>إضافة منصة</span>
+            </button>
+          </div>
+
+          {socialProfiles.length === 0 ? (
+            <div className="text-center py-12 border border-dashed rounded-xl bg-card space-y-2 p-6">
+              <Share2 size={32} className="mx-auto text-muted-foreground/40 mb-1" />
+              <h4 className="text-sm font-bold text-foreground">لا توجد حسابات تواصل مسجلة</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                أضف روابط إنستجرام، فيسبوك، لينكدإن أو تيك توك لتتبع نشاط المنافس
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowSocialModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium mt-2 cursor-pointer"
+              >
+                <Plus size={13} />
+                <span>إضافة أول منصة</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {socialProfiles.map(sp => (
+                <div key={sp.id || sp.platform} className="p-3.5 border border-border/70 rounded-xl bg-card space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold capitalize text-foreground px-2 py-0.5 rounded bg-muted">
+                      {sp.platform}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSocial(sp.platform)}
+                      className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                      title="حذف المنصة"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    {sp.profileUrl && (
+                      <a
+                        href={sp.profileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline flex items-center gap-1 truncate font-mono"
+                      >
+                        <ExternalLink size={11} className="shrink-0" />
+                        <span className="truncate">{sp.profileUrl}</span>
+                      </a>
+                    )}
+                    {sp.username && (
+                      <div className="text-[11px] text-muted-foreground font-mono">
+                        المعرّف: @{sp.username}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Platforms & Tech Stack */}
+      {tab === 'platforms' && (
+        <div className="space-y-4">
+          <div className="border border-border/70 rounded-xl p-4 bg-card space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-sm text-foreground flex items-center gap-2">
+                  <Cpu size={16} className="text-primary" />
+                  <span>التقنيات والمنصات المستخدمة (metadata.tech)</span>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  رصد أطر العمل، خوادم الويب، منصات التجارة الإلكترونية، وأدوات التتبع
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {competitor.metadata?.tech_scanned && (
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    آخر فحص: {competitor.metadata.tech_scanned}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleScanTech}
+                  disabled={isScanningTech}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={isScanningTech ? 'animate-spin' : ''} />
+                  <span>افحص تاني</span>
+                </button>
+              </div>
+            </div>
+
+            {techList.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2 text-center border border-dashed rounded-lg p-4">
+                لا توجد تقنيات مسجلة بعد. اضغط «افحص تاني» لتحليل موقع المنافس الحي واستخراج التقنيات.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {techList.map((t, i) => (
+                  <div key={i} className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-muted/30 border border-border/60 text-xs font-mono font-medium text-foreground">
+                    <CheckCircle2 size={12} className="text-emerald-500" />
+                    <span>{t}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Ads */}
       {tab === 'ads' && (
         <div>
           {ads.length === 0 ? (
@@ -603,39 +904,22 @@ const CompetitorDetail: React.FC = () => {
                 </div>
                 <h3 className="text-sm font-bold text-foreground">رصد إعلانات المنافس عبر Meta Ad Library</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  لم يتم تسجيل إعلانات بعد. يتم فحص الحملات الإعلانية على فيسبوك وإنستجرام دورياً (يومياً وأسبوعياً) عبر مكتبة إعلانات ميتا ووكيل «زياد رادار».
+                  لم يتم تسجيل إعلانات بعد. يتم فحص الحملات الإعلانية على فيسبوك دورياً عبر رادار MaxP.
                 </p>
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => navigate(`/competitors/${id}/ads`)}
-                  className="px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
-                >
-                  فتح مركز رصد الإعلانات (Ad Intelligence)
-                </button>
-                <a
-                  href={`https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q=${encodeURIComponent(competitor?.name || '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg border border-border/70 text-xs font-medium hover:bg-muted text-foreground transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span>بحث مباشر في Meta Ad Library</span>
-                  <ExternalLink size={12} />
-                </a>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {ads.map(a => (
-                <div key={a.id} className="border rounded-lg p-3 dark:border-gray-700">
-                  {a.creativeUrl && <img src={a.creativeUrl} alt={t('competitors.ads.overview')} className="w-full h-40 object-cover rounded mb-2" />}
-                  {a.headline && <h4 className="font-semibold text-sm">{a.headline}</h4>}
-                  {a.copy && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-3">{a.copy}</p>}
-                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                    <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">{a.platform}</span>
-                    <span>{a.status}</span>
-                    {a.destinationUrl && <a href={a.destinationUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 flex items-center gap-1"><ExternalLink size={12} /></a>}
+                <div key={a.id} className="border border-border/70 rounded-xl p-3 bg-card space-y-2">
+                  {a.creativeUrl && <img src={a.creativeUrl} alt={a.headline || 'ad'} className="w-full h-40 object-cover rounded-lg mb-1" />}
+                  {a.headline && <h4 className="font-semibold text-xs text-foreground">{a.headline}</h4>}
+                  {a.copy && <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{a.copy}</p>}
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono pt-1 border-t border-border/40">
+                    <span className="uppercase">{a.platform}</span>
+                    <span className={`font-semibold ${a.status === 'active' ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                      {a.status === 'active' ? 'نشط' : 'متوقف'}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -644,59 +928,37 @@ const CompetitorDetail: React.FC = () => {
         </div>
       )}
 
-      {tab === 'social' && (
-        <div className="text-center py-12 text-gray-500">
-          <p>{t('competitors.social.noSocialProfiles')}</p>
-          <button onClick={() => navigate(`/competitors/${id}/social`)} className="mt-2 text-blue-500 hover:underline text-sm">
-            {t('competitors.social.overview')}
-          </button>
-        </div>
-      )}
-
+      {/* Tab: Features */}
       {tab === 'features' && (
         <div>
-          <p className="text-xs text-gray-500 mb-3">{t('competitors.features.derivedFrom')}</p>
+          <p className="text-xs text-muted-foreground mb-3">{t('competitors.features.derivedFrom')}</p>
           <CompetitorFeatures competitorId={id || ''} />
         </div>
       )}
 
-      {tab === 'platforms' && (
-        <div className="text-center py-12 text-gray-500">
-          <p>{t('competitors.platforms.noPlatformData')}</p>
-          <button onClick={() => navigate(`/competitors/${id}/platforms`)} className="mt-2 text-blue-500 hover:underline text-sm">
-            {t('competitors.platforms.techStack')}
-          </button>
-        </div>
-      )}
-
+      {/* Tab: Reports */}
       {tab === 'reports' && (
-        <div>
-          <div className="flex gap-2 mb-4">
-            <button onClick={() => generateReport('weekly')} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-              {t('competitors.generateReport')} ({t('competitors.weeklyReport')})
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <button onClick={() => generateReport('weekly')} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium cursor-pointer">
+              {t('competitors.generateReport')} (أسبوعي)
             </button>
-            <button onClick={() => generateReport('comprehensive')} className="px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
-              {t('competitors.generateReport')} ({t('competitors.comprehensiveReport')})
+            <button onClick={() => generateReport('comprehensive')} className="px-3 py-1.5 border border-border/70 rounded-lg text-xs font-medium hover:bg-muted cursor-pointer">
+              {t('competitors.generateReport')} (شامل)
             </button>
           </div>
           {reports.length === 0 ? (
             <div className="border border-dashed border-border/70 rounded-xl p-6 text-center space-y-2 bg-card">
-              <p className="text-xs font-semibold text-foreground">{t('competitors.noReports') || 'لا توجد تقارير مولدة بعد'}</p>
-              <p className="text-[11px] text-muted-foreground max-w-md mx-auto leading-relaxed">
-                تنبيه للمستخدم: التقارير والباتل كارد التحليلي تعتمد على وجود منتجات أو إعلانات للمنافس لمقارنتها بمتجرك. اضغط أحد الأزرار بالأعلى لتوليد أول تقرير بعد تغذية المنتجات.
-              </p>
+              <p className="text-xs font-semibold text-foreground">لا توجد تقارير مولدة بعد</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {reports.map(r => (
-                <div key={r.id} className="border rounded-lg p-4 dark:border-gray-700">
-                  <h4 className="font-semibold">{r.title}</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{r.summary}</p>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                    <span className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
-                      {r.type === 'weekly' ? t('competitors.weeklyReport') : t('competitors.comprehensiveReport')}
-                    </span>
-                    <span>{new Date(r.generatedAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-SA' : 'en-US')}</span>
+                <div key={r.id} className="border border-border/70 rounded-xl p-3.5 bg-card space-y-1">
+                  <h4 className="font-semibold text-xs text-foreground">{r.title}</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{r.summary}</p>
+                  <div className="text-[10px] text-muted-foreground font-mono pt-1">
+                    {new Date(r.generatedAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-SA' : 'en-US')}
                   </div>
                 </div>
               ))}
@@ -705,50 +967,140 @@ const CompetitorDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Task Modal */}
-      {showTaskModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowTaskModal(false)}>
-          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">{editingTask ? t('competitors.devRecommendations.editTask') : t('competitors.devRecommendations.addTask')}</h2>
-              <button onClick={() => setShowTaskModal(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
-                <X size={20} />
+      {/* Social Modal */}
+      {showSocialModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowSocialModal(false)}>
+          <div className="bg-card border border-border/70 rounded-xl p-5 w-full max-w-sm space-y-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-foreground">إضافة منصة تواصل للمنافس</h3>
+              <button onClick={() => setShowSocialModal(false)} className="p-1 rounded hover:bg-muted cursor-pointer">
+                <X size={16} />
               </button>
             </div>
-            <form onSubmit={handleTaskSubmit} className="space-y-4">
+            <form onSubmit={handleSaveSocial} className="space-y-3">
               <div>
-                <label className="block text-sm font-medium mb-1">{t('competitors.devRecommendations.taskTitle')} *</label>
+                <label className="block text-xs font-medium mb-1">المنصة</label>
+                <select
+                  value={socialForm.platform}
+                  onChange={e => setSocialForm(p => ({ ...p, platform: e.target.value }))}
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs"
+                >
+                  <option value="instagram">Instagram</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="twitter">Twitter / X</option>
+                  <option value="youtube">YouTube</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">رابط البروفايل *</label>
                 <input
-                  type="text"
-                  value={taskForm.title}
-                  onChange={e => setTaskForm(p => ({ ...p, title: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
-                  placeholder={t('competitors.devRecommendations.taskTitlePlaceholder')}
+                  type="url"
+                  value={socialForm.profileUrl}
+                  onChange={e => setSocialForm(p => ({ ...p, profileUrl: e.target.value }))}
+                  placeholder="https://instagram.com/competitor"
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs font-mono"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">{t('competitors.devRecommendations.taskDescription')}</label>
-                <textarea
-                  value={taskForm.description}
-                  onChange={e => setTaskForm(p => ({ ...p, description: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 text-sm"
-                  rows={2}
-                  placeholder={t('competitors.devRecommendations.taskDescriptionPlaceholder')}
+                <label className="block text-xs font-medium mb-1">اسم المعرّف (Handle)</label>
+                <input
+                  type="text"
+                  value={socialForm.username}
+                  onChange={e => setSocialForm(p => ({ ...p, username: e.target.value }))}
+                  placeholder="competitor_handle"
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs font-mono"
                 />
               </div>
-              {taskError && (
-                <div className="flex items-center gap-2 text-red-500 text-sm">
-                  <AlertTriangle size={16} />
-                  {taskError}
-                </div>
-              )}
-              <div className="flex gap-2 ltr:justify-end rtl:justify-start pt-2 border-t">
-                <button type="button" onClick={() => setShowTaskModal(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
-                  {t('common.cancel')}
+              <div className="flex justify-end gap-2 pt-2 border-t border-border/60">
+                <button type="button" onClick={() => setShowSocialModal(false)} className="px-3 py-1.5 border border-border/70 rounded-lg text-xs cursor-pointer">
+                  إلغاء
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  {editingTask ? t('common.save') : t('common.create')}
+                <button type="submit" disabled={socialLoading} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50">
+                  {socialLoading ? 'جاري الحفظ...' : 'حفظ'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Package Modal */}
+      {showPackageModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowPackageModal(false)}>
+          <div className="bg-card border border-border/70 rounded-xl p-5 w-full max-w-sm space-y-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-foreground">إضافة باقة / منتج جديد</h3>
+              <button onClick={() => setShowPackageModal(false)} className="p-1 rounded hover:bg-muted cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSavePackage} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium mb-1">النوع</label>
+                <select
+                  value={packageForm.category}
+                  onChange={e => setPackageForm(p => ({ ...p, category: e.target.value }))}
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs"
+                >
+                  <option value="باقة">باقة اشتراك (Package)</option>
+                  <option value="منتج">منتج عادي</option>
+                  <option value="خدمة">خدمة</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">اسم الباقة / المنتج *</label>
+                <input
+                  type="text"
+                  value={packageForm.name}
+                  onChange={e => setPackageForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="مثال: الباقة الاحترافية"
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium mb-1">السعر</label>
+                  <input
+                    type="number"
+                    value={packageForm.price}
+                    onChange={e => setPackageForm(p => ({ ...p, price: e.target.value }))}
+                    placeholder="1500"
+                    className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">دورة الدفع</label>
+                  <select
+                    value={packageForm.cycle}
+                    onChange={e => setPackageForm(p => ({ ...p, cycle: e.target.value }))}
+                    className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs"
+                  >
+                    <option value="monthly">شهري</option>
+                    <option value="yearly">سنوي</option>
+                    <option value="one_time">دفعة واحدة</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">الوصف</label>
+                <textarea
+                  value={packageForm.description}
+                  onChange={e => setPackageForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="تفاصيل ومزايا الباقة..."
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs"
+                  rows={2}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-border/60">
+                <button type="button" onClick={() => setShowPackageModal(false)} className="px-3 py-1.5 border border-border/70 rounded-lg text-xs cursor-pointer">
+                  إلغاء
+                </button>
+                <button type="submit" disabled={packageLoading} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50">
+                  {packageLoading ? 'جاري الحفظ...' : 'حفظ'}
                 </button>
               </div>
             </form>

@@ -302,6 +302,18 @@ exports.getAllReports = async (req, res) => {
   }
 };
 
+exports.scanTech = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const result = await CompetitorService.scanTech(companyId, req.params.id);
+    if (!result) return res.status(404).json({ success: false, error: t('competitor.not_found') });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error scanning competitor tech:', error);
+    res.status(500).json({ success: false, error: 'Failed to scan competitor technologies' });
+  }
+};
+
 exports.priceCompare = async (req, res) => {
   try {
     const { companyId } = req.user;

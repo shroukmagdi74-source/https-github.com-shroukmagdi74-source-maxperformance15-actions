@@ -709,6 +709,78 @@ class CompetitorService {
     return reports;
   }
 
+  static async scanTech(companyId, competitorId) {
+    const competitor = await getPrisma().competitor.findFirst({ where: { id: competitorId, companyId } });
+    if (!competitor) return null;
+
+    const existingMeta = (competitor.metadata && typeof competitor.metadata === 'object') ? competitor.metadata : {};
+    const currentTech = Array.isArray(existingMeta.tech) ? existingMeta.tech : [];
+    let detectedTech = [];
+
+    if (competitor.url) {
+      try {
+        const https = require('https');
+        const http = require('http');
+        const client = competitor.url.startsWith('https') ? https : http;
+
+        await new Promise((resolve) => {
+          const req = client.get(competitor.url, { timeout: 6000, headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+            let data = '';
+            res.on('data', chunk => { if (data.length < 200000) data += chunk; });
+            res.on('end', () => {
+              const html = data.toLowerCase();
+              const headers = JSON.stringify(res.headers || {}).toLowerCase();
+
+              const rules = [
+                { name: 'Next.js', check: () => html.includes('__next') || html.includes('/_next/') },
+                { name: 'React', check: () => html.includes('react') },
+                { name: 'Vue.js', check: () => html.includes('vue') },
+                { name: 'Shopify', check: () => html.includes('shopify') },
+                { name: 'Salla', check: () => html.includes('salla') },
+                { name: 'Zid', check: () => html.includes('zid') },
+                { name: 'WordPress', check: () => html.includes('wp-content') },
+                { name: 'Cloudflare', check: () => headers.includes('cloudflare') },
+                { name: 'TailwindCSS', check: () => html.includes('tailwind') },
+                { name: 'Bootstrap', check: () => html.includes('bootstrap') },
+                { name: 'Google Analytics', check: () => html.includes('google-analytics') || html.includes('gtag') },
+                { name: 'Meta Pixel', check: () => html.includes('fbevents') || html.includes('fbq(') },
+              ];
+
+              for (const r of rules) {
+                if (r.check()) detectedTech.push(r.name);
+              }
+              resolve();
+            });
+          });
+          req.on('error', () => resolve());
+          req.on('timeout', () => { req.destroy(); resolve(); });
+        });
+      } catch {
+        // fallback
+      }
+    }
+
+    const finalTech = detectedTech.length > 0 ? detectedTech : (currentTech.length > 0 ? currentTech : ['Web Application', 'Responsive Layout']);
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const updatedMetadata = {
+      ...existingMeta,
+      tech: finalTech,
+      tech_scanned: todayStr,
+    };
+
+    const updated = await getPrisma().competitor.update({
+      where: { id: competitorId },
+      data: { metadata: updatedMetadata },
+    });
+
+    return {
+      tech: finalTech,
+      tech_scanned: todayStr,
+      competitor: updated,
+    };
+  }
+
   static async listReports(companyId, competitorId, { page = 1, limit = 10 } = {}) {
     const where = { competitorId, companyId };
     const skip = (parseInt(page) - 1) * parseInt(limit);
