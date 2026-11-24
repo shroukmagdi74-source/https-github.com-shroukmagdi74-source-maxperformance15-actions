@@ -302,6 +302,42 @@ exports.getAllReports = async (req, res) => {
   }
 };
 
+exports.getChanges = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const changelogService = require('../services/competitorChangelogService');
+    const changes = await changelogService.getChanges(companyId, req.params.id);
+    res.json({ success: true, count: changes.length, data: changes });
+  } catch (error) {
+    console.error('Error fetching competitor changes:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch competitor changelog' });
+  }
+};
+
+exports.checkChangesNow = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const changelogService = require('../services/competitorChangelogService');
+    const result = await changelogService.detectAndRecordChanges(companyId, req.params.id);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Error checking competitor changes:', error);
+    res.status(500).json({ success: false, error: 'Failed to check competitor changes' });
+  }
+};
+
+exports.runChangelogCycle = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const changelogService = require('../services/competitorChangelogService');
+    const results = await changelogService.runScheduledCycle(companyId);
+    res.json({ success: true, data: results });
+  } catch (error) {
+    console.error('Error running changelog cycle:', error);
+    res.status(500).json({ success: false, error: 'Failed to run changelog cycle' });
+  }
+};
+
 exports.syncCreatives = async (req, res) => {
   try {
     const { companyId } = req.user;

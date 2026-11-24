@@ -433,8 +433,12 @@ class CompetitorService {
   static async updateProductPrice(companyId, productId, price, currency = 'EGP') {
     const product = await getPrisma().competitorProduct.findFirst({
       where: { id: productId, competitor: { companyId } },
+      include: { competitor: true },
     });
     if (!product) return null;
+
+    const oldPrice = Number(product.price);
+    const newPrice = Number(price);
 
     const [updated] = await Promise.all([
       getPrisma().competitorProduct.update({
@@ -445,6 +449,36 @@ class CompetitorService {
         data: { price, currency, productId },
       }),
     ]);
+
+    // Record changelog entry if price changed
+    if (oldPrice !== newPrice && product.competitorId) {
+      try {
+        const changelogService = require('./competitorChangelogService');
+        const diffAmount = newPrice - oldPrice;
+        const diffPercent = oldPrice > 0 ? (((diffAmount) / oldPrice) * 100).toFixed(1) : '0';
+        const sign = diffAmount > 0 ? '+' : '';
+        const isPackage = product.category === 'باقة';
+
+        await changelogService.recordChange(companyId, product.competitorId, {
+          type: isPackage ? 'PACKAGE_CHANGE' : 'PRICE_CHANGE',
+          title: isPackage ? `تعديل سعر باقة: ${product.name}` : `تغير سعر منتج: ${product.name}`,
+          description: `تغير السعر من ${oldPrice} ${currency} إلى ${newPrice} ${currency} (${sign}${diffPercent}%)`,
+          diff: {
+            productId,
+            productName: product.name,
+            oldPrice,
+            newPrice,
+            currency,
+            diffAmount,
+            percentChange: `${sign}${diffPercent}%`,
+          },
+          severity: Math.abs(diffAmount) > 500 ? 'high' : 'medium',
+        });
+      } catch (err) {
+        console.warn('[CHANGELOG] Failed to record price change:', err.message);
+      }
+    }
+
     return updated;
   }
 

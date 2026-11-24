@@ -246,6 +246,20 @@ const CompetitorDetail: React.FC = () => {
 
   // Add Package / Product handler
   const [isSyncingAds, setIsSyncingAds] = useState(false);
+  const [isCheckingChanges, setIsCheckingChanges] = useState(false);
+
+  const handleCheckChanges = async () => {
+    if (!id) return;
+    setIsCheckingChanges(true);
+    try {
+      await apiClient.post(`/competitors/${id}/changes/check-now`);
+      await fetchData();
+    } catch {
+      console.error('Failed to check changes');
+    } finally {
+      setIsCheckingChanges(false);
+    }
+  };
   const handleSyncCreatives = async () => {
     if (!id) return;
     setIsSyncingAds(true);
@@ -422,6 +436,7 @@ const CompetitorDetail: React.FC = () => {
     { key: 'social', label: t('competitors.social.overview'), icon: <Instagram size={14} /> },
     { key: 'ads', label: t('competitors.ads.overview'), icon: <Share2 size={14} /> },
     { key: 'features', label: t('competitors.features.title'), icon: <Lightbulb size={14} /> },
+    { key: 'changelog', label: 'تطويراتهم (Changelog)', icon: <TrendingUp size={14} /> },
     { key: 'platforms', label: 'التقنيات والمنصة', icon: <Cpu size={14} /> },
     { key: 'reports', label: t('competitors.reportsTab') },
   ] as const;
@@ -987,6 +1002,99 @@ const CompetitorDetail: React.FC = () => {
         <div>
           <p className="text-xs text-muted-foreground mb-3">{t('competitors.features.derivedFrom')}</p>
           <CompetitorFeatures competitorId={id || ''} />
+        </div>
+      )}
+
+      {/* Tab: Changelog (تطويراتهم) */}
+      {tab === 'changelog' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-foreground">سجل تطويرات وتحديثات المنافس (Changelog)</h3>
+              <p className="text-xs text-muted-foreground">رصد تغيرات الأسعار، الباقات، والمزايا الدورية</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCheckChanges}
+              disabled={isCheckingChanges}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={isCheckingChanges ? 'animate-spin' : ''} />
+              <span>فحص التغييرات الآن</span>
+            </button>
+          </div>
+
+          {(!competitor.metadata?.changes || competitor.metadata.changes.length === 0) ? (
+            <div className="text-center py-12 border border-dashed rounded-xl bg-card space-y-2 p-6">
+              <History size={32} className="mx-auto text-muted-foreground/40 mb-1" />
+              <h4 className="text-sm font-bold text-foreground">لم يتم رصد أي تغييرات جديدة حتى الآن</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                يقوم النظام بمقارنة الأسعار والمزايا تلقائياً وتسجيل أي تغيير يطرأ على صفحة المنافس
+              </p>
+              <button
+                type="button"
+                onClick={handleCheckChanges}
+                disabled={isCheckingChanges}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium mt-2 cursor-pointer"
+              >
+                <RefreshCw size={12} className={isCheckingChanges ? 'animate-spin' : ''} />
+                <span>تشغيل دورة فحص فورية</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {competitor.metadata.changes.map((chg: any, i: number) => {
+                const isPackage = chg.type === 'PACKAGE_CHANGE';
+                const isFeature = chg.type === 'FEATURE_CHANGE';
+
+                return (
+                  <div key={chg.id || i} className="border border-border/70 rounded-xl p-3.5 bg-card space-y-2 shadow-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                          isPackage ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' :
+                          isFeature ? 'bg-blue-500/10 text-blue-600 border border-blue-500/20' :
+                          'bg-amber-500/10 text-amber-600 border border-amber-500/20'
+                        }`}>
+                          {isPackage ? 'باقة أسعار' : isFeature ? 'ميزة تنافسية' : 'تغيير سعر'}
+                        </span>
+                        <h4 className="font-semibold text-xs text-foreground">{chg.title}</h4>
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {new Date(chg.detectedAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-SA' : 'en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground leading-relaxed">{chg.description}</p>
+
+                    {chg.diff && chg.diff.oldPrice != null && (
+                      <div className="flex items-center gap-2 pt-1 border-t border-border/40 text-xs">
+                        <span className="text-[11px] text-muted-foreground font-mono">
+                          السعر السابق: <span className="line-through">{chg.diff.oldPrice} {chg.diff.currency || 'EGP'}</span>
+                        </span>
+                        <span>→</span>
+                        <span className="font-mono font-bold text-primary">
+                          {chg.diff.newPrice} {chg.diff.currency || 'EGP'}
+                        </span>
+                        {chg.diff.percentChange && (
+                          <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${
+                            chg.diff.diffAmount > 0 ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600'
+                          }`}>
+                            {chg.diff.percentChange}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
