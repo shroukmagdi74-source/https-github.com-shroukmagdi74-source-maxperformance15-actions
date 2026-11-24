@@ -368,6 +368,55 @@ exports.markCredentialsUsed = async (req, res) => {
   }
 };
 
+exports.exportCompetitor = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const { format } = req.query;
+    const result = await CompetitorService.exportCompetitorData(companyId, req.params.id, {
+      format,
+    });
+    if (!result) {
+      return res.status(404).json({ success: false, error: t('competitor.not_found') });
+    }
+
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.filename)}"`);
+
+    if (result.format === 'pdf') {
+      return res.send(result.buffer);
+    }
+    return res.send(result.content);
+  } catch (error) {
+    console.error('Error exporting competitor data:', error);
+    res.status(500).json({ success: false, error: 'Failed to export competitor data' });
+  }
+};
+
+exports.exportReport = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const { format } = req.query;
+    const result = await CompetitorService.exportCompetitorData(companyId, req.params.id, {
+      reportId: req.params.reportId,
+      format,
+    });
+    if (!result) {
+      return res.status(404).json({ success: false, error: t('competitor.not_found') });
+    }
+
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.filename)}"`);
+
+    if (result.format === 'pdf') {
+      return res.send(result.buffer);
+    }
+    return res.send(result.content);
+  } catch (error) {
+    console.error('Error exporting report:', error);
+    res.status(500).json({ success: false, error: 'Failed to export report' });
+  }
+};
+
 exports.getChanges = async (req, res) => {
   try {
     const { companyId } = req.user;

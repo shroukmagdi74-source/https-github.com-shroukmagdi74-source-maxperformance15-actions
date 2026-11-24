@@ -46,6 +46,7 @@ export const Reports: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [isRegeneratingSingle, setIsRegeneratingSingle] = useState(false);
+  const [isExporting, setIsExporting] = useState<'csv' | 'pdf' | null>(null);
   const [filter, setFilter] = useState<'all' | 'weekly' | 'comprehensive'>('all');
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [activeSection, setActiveSection] = useState<SectionKey>('all');
@@ -100,6 +101,32 @@ export const Reports: React.FC = () => {
       // fallback
     } finally {
       setIsRegeneratingSingle(false);
+    }
+  };
+
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    if (!selectedReport?.competitor?.id) return;
+    setIsExporting(format);
+    try {
+      const endpoint = `/competitors/${selectedReport.competitor.id}/reports/${selectedReport.id}/export?format=${format}`;
+      const response = await apiClient.get(endpoint, { responseType: 'blob' });
+      const blob = new Blob([response.data], {
+        type: format === 'pdf' ? 'application/pdf' : 'text/csv; charset=utf-8',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const compName = selectedReport.competitor.name ? selectedReport.competitor.name.replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, '_') : 'competitor';
+      link.setAttribute('download', `report-${compName}-${new Date().toISOString().slice(0, 10)}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // fallback to window.print if pdf fails
+      if (format === 'pdf') window.print();
+    } finally {
+      setIsExporting(null);
     }
   };
 
@@ -351,12 +378,23 @@ export const Reports: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => window.print()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/70 bg-card hover:bg-muted/30 text-xs font-medium text-foreground transition-colors cursor-pointer active:scale-[0.98]"
-                      title={t('common.export')}
+                      onClick={() => handleExport('csv')}
+                      disabled={isExporting !== null}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/70 bg-card hover:bg-muted/30 text-xs font-medium text-foreground transition-colors cursor-pointer active:scale-[0.98]"
+                      title="تصدير بيانات التقرير بتنسيق CSV (Excel)"
                     >
-                      <Download size={13} />
-                      <span>تصدير</span>
+                      <Download size={13} className={isExporting === 'csv' ? 'animate-spin' : ''} />
+                      <span>CSV</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExport('pdf')}
+                      disabled={isExporting !== null}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/70 bg-card hover:bg-muted/30 text-xs font-medium text-foreground transition-colors cursor-pointer active:scale-[0.98]"
+                      title="تصدير التقرير الرسمي بتنسيق PDF"
+                    >
+                      <FileText size={13} className={isExporting === 'pdf' ? 'animate-spin' : ''} />
+                      <span>PDF</span>
                     </button>
                   </div>
                 </div>

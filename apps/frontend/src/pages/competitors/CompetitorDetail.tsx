@@ -32,6 +32,8 @@ import {
   Lock,
   ShieldCheck,
   Key,
+  Download,
+  FileText,
 } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
 import CompetitorStatusBar, { type CompetitorStatus } from './CompetitorStatusBar';
@@ -133,6 +135,32 @@ const CompetitorDetail: React.FC = () => {
   const [showCredModal, setShowCredModal] = useState(false);
   const [credForm, setCredForm] = useState({ username: '', password: '', notes: '' });
   const [credLoading, setCredLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState<'csv' | 'pdf' | null>(null);
+
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    if (!id) return;
+    setIsExporting(format);
+    try {
+      const endpoint = `/competitors/${id}/export?format=${format}`;
+      const response = await apiClient.get(endpoint, { responseType: 'blob' });
+      const blob = new Blob([response.data], {
+        type: format === 'pdf' ? 'application/pdf' : 'text/csv; charset=utf-8',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const compName = competitor?.name ? competitor.name.replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, '_') : 'competitor';
+      link.setAttribute('download', `competitor-${compName}-${new Date().toISOString().slice(0, 10)}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      if (format === 'pdf') window.print();
+    } finally {
+      setIsExporting(null);
+    }
+  };
 
   const fetchCredentials = async () => {
     if (!id) return;
@@ -594,6 +622,22 @@ const CompetitorDetail: React.FC = () => {
           </button>
           <button onClick={() => navigate('/competitors/reports')} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border rounded-lg hover:bg-muted transition-colors cursor-pointer" title="أرشيف التقارير">
             <BarChart2 size={13} className="shrink-0" /> <span>التقارير</span>
+          </button>
+          <button
+            onClick={() => handleExport('csv')}
+            disabled={isExporting !== null}
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border rounded-lg hover:bg-muted transition-colors cursor-pointer active:scale-[0.98]"
+            title="تصدير ملف المنافس كاملاً بتنسيق CSV"
+          >
+            <Download size={13} className={isExporting === 'csv' ? 'animate-spin' : ''} /> <span>CSV</span>
+          </button>
+          <button
+            onClick={() => handleExport('pdf')}
+            disabled={isExporting !== null}
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border rounded-lg hover:bg-muted transition-colors cursor-pointer active:scale-[0.98]"
+            title="تصدير ملف المنافس كاملاً بتنسيق PDF رسمي"
+          >
+            <FileText size={13} className={isExporting === 'pdf' ? 'animate-spin' : ''} /> <span>PDF</span>
           </button>
         </div>
       </div>

@@ -1056,6 +1056,75 @@ class CompetitorService {
       pagination: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / parseInt(limit)) },
     };
   }
+
+  static async exportCompetitorData(companyId, competitorId, { reportId, format = 'csv' } = {}) {
+    const competitor = await getPrisma().competitor.findFirst({
+      where: { id: competitorId, companyId },
+    });
+    if (!competitor) return null;
+
+    let report = null;
+    if (reportId) {
+      report = await getPrisma().competitorReport.findFirst({
+        where: { id: reportId, competitorId, companyId },
+      });
+    } else {
+      report = await getPrisma().competitorReport.findFirst({
+        where: { competitorId, companyId },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    const [ads, products, features] = await Promise.all([
+      getPrisma().competitorAd.findMany({
+        where: { competitorId, companyId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      getPrisma().competitorProduct.findMany({
+        where: { competitorId, companyId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      getPrisma().competitorFeature.findMany({
+        where: { competitorId, companyId },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const exportService = require('./competitorExportService');
+    const safeFormat = String(format).toLowerCase() === 'pdf' ? 'pdf' : 'csv';
+
+    if (safeFormat === 'pdf') {
+      const buffer = await exportService.generatePdf({
+        competitor,
+        report,
+        ads,
+        products,
+        features,
+      });
+      const safeName = competitor.name ? competitor.name.replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, '_') : 'competitor';
+      return {
+        buffer,
+        format: 'pdf',
+        mimeType: 'application/pdf',
+        filename: `competitor-${safeName}-${new Date().toISOString().slice(0, 10)}.pdf`,
+      };
+    }
+
+    const csvContent = exportService.generateCsv({
+      competitor,
+      report,
+      ads,
+      products,
+      features,
+    });
+    const safeName = competitor.name ? competitor.name.replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, '_') : 'competitor';
+    return {
+      content: csvContent,
+      format: 'csv',
+      mimeType: 'text/csv; charset=utf-8',
+      filename: `competitor-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`,
+    };
+  }
 }
 
 module.exports = CompetitorService;

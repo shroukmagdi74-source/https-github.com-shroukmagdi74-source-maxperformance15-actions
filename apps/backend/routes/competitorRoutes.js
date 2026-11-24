@@ -36,6 +36,8 @@ router.post('/:id/credentials', controller.setCredentials);
 router.delete('/:id/credentials', controller.deleteCredentials);
 router.post('/:id/credentials/mark-used', controller.markCredentialsUsed);
 router.post('/:id/scan-tech', controller.scanTech);
+router.get('/:id/export', controller.exportCompetitor);
+router.get('/:id/reports/:reportId/export', controller.exportReport);
 router.get('/:id/reports', controller.listReports);
 router.get('/:id/features', controller.listFeatures);
 router.post('/:id/features', controller.createFeature);
