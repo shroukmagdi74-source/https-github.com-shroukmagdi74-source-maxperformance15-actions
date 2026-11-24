@@ -28,6 +28,13 @@ router.post('/ads/sync-all-creatives', controller.syncCreatives);
 router.post('/:id/reports/generate', controller.generateReport);
 router.get('/:id/changes', controller.getChanges);
 router.post('/:id/changes/check-now', controller.checkChangesNow);
+
+// ---- Competitor Site Credentials (Encrypted AES-GCM) ----
+router.get('/:id/credentials', controller.getCredentials);
+router.put('/:id/credentials', controller.setCredentials);
+router.post('/:id/credentials', controller.setCredentials);
+router.delete('/:id/credentials', controller.deleteCredentials);
+router.post('/:id/credentials/mark-used', controller.markCredentialsUsed);
 router.post('/:id/scan-tech', controller.scanTech);
 router.get('/:id/reports', controller.listReports);
 router.get('/:id/features', controller.listFeatures);

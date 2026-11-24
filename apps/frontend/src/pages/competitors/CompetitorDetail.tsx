@@ -29,6 +29,9 @@ import {
   Trash2,
   Globe,
   Package,
+  Lock,
+  ShieldCheck,
+  Key,
 } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
 import CompetitorStatusBar, { type CompetitorStatus } from './CompetitorStatusBar';
@@ -125,6 +128,52 @@ const CompetitorDetail: React.FC = () => {
   const [packageLoading, setPackageLoading] = useState(false);
   const [productsSubTab, setProductsSubTab] = useState<'packages' | 'all'>('packages');
 
+  // Credentials State (Encrypted AES-GCM)
+  const [credentials, setCredentials] = useState<any>(null);
+  const [showCredModal, setShowCredModal] = useState(false);
+  const [credForm, setCredForm] = useState({ username: '', password: '', notes: '' });
+  const [credLoading, setCredLoading] = useState(false);
+
+  const fetchCredentials = async () => {
+    if (!id) return;
+    try {
+      const res = await apiClient.get(`/competitors/${id}/credentials`);
+      if (res.data?.success) {
+        setCredentials(res.data.data);
+      }
+    } catch {
+      // 403 or error
+    }
+  };
+
+  const handleSaveCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setCredLoading(true);
+    try {
+      const res = await apiClient.put(`/competitors/${id}/credentials`, credForm);
+      if (res.data?.success) {
+        setCredentials(res.data.data);
+        setShowCredModal(false);
+        setCredForm({ username: '', password: '', notes: '' });
+      }
+    } catch {
+      console.error('Failed to save credentials');
+    } finally {
+      setCredLoading(false);
+    }
+  };
+
+  const handleDeleteCredentials = async () => {
+    if (!id || !window.confirm('هل أنت متأكد من حذف بيانات الاعتماد المشفرة؟')) return;
+    try {
+      await apiClient.delete(`/competitors/${id}/credentials`);
+      setCredentials(null);
+    } catch {
+      console.error('Failed to delete credentials');
+    }
+  };
+
   const handleStatusChange = useCallback(async (newStatus: string) => {
     if (!id) return;
     const prevStatus = competitor?.status;
@@ -183,7 +232,7 @@ const CompetitorDetail: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [id]);
+  useEffect(() => { fetchData(); fetchCredentials(); }, [id]);
   useEffect(() => { if (id) fetchDevRecommendations(); }, [id]);
 
   // Scan Tech handler
@@ -671,6 +720,83 @@ const CompetitorDetail: React.FC = () => {
                 <span className="font-semibold text-foreground">ملاحظات التسعير: </span>
                 {competitor.pricingNotes || competitor.structuredPricing?.notes}
               </div>
+            )}
+          </div>
+
+          {/* Secure Credentials Card (AES-256-GCM - COMPANY_ADMIN only) */}
+          <div className="border border-border/70 rounded-xl p-4 bg-card space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Lock size={16} className="text-amber-500" />
+                <h3 className="font-semibold text-sm text-foreground">بيانات الدخول لموقع المنافس (مشفرة آمنة)</h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20 font-bold">
+                  AES-256-GCM
+                </span>
+              </div>
+              {credentials?.hasCredentials ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCredForm({ username: credentials.username || '', password: '', notes: credentials.notes || '' });
+                      setShowCredModal(true);
+                    }}
+                    className="px-2.5 py-1 text-xs border border-border/70 rounded-lg hover:bg-muted text-foreground cursor-pointer"
+                  >
+                    تعديل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteCredentials}
+                    className="px-2.5 py-1 text-xs border border-rose-500/30 text-rose-600 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                  >
+                    حذف البيانات
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCredForm({ username: '', password: '', notes: '' });
+                    setShowCredModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-lg cursor-pointer"
+                >
+                  <Plus size={12} />
+                  <span>إدخال بيانات اعتماد</span>
+                </button>
+              )}
+            </div>
+
+            {credentials?.hasCredentials ? (
+              <div className="space-y-2.5 pt-1 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border/60">
+                    <span className="text-[10px] text-muted-foreground uppercase font-mono block">اسم المستخدم / الإيميل</span>
+                    <span className="font-mono font-semibold text-foreground text-xs mt-0.5 block">{credentials.username || 'غير محدد'}</span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border/60">
+                    <span className="text-[10px] text-muted-foreground uppercase font-mono block">كلمة المرور</span>
+                    <span className="font-mono text-muted-foreground text-xs mt-0.5 block">•••••••••••• (مشفّر على السيرفر)</span>
+                  </div>
+                </div>
+
+                {credentials.notes && (
+                  <p className="text-xs text-muted-foreground bg-muted/10 p-2.5 rounded-lg border border-border/40">
+                    <span className="font-semibold text-foreground">ملاحظات: </span>
+                    {credentials.notes}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono pt-1">
+                  <span>آخر استخدام: {credentials.lastUsedAt ? new Date(credentials.lastUsedAt).toLocaleString(i18n.language === 'ar' ? 'ar-SA' : 'en-US') : 'لم يتم الاستخدام بعد'}</span>
+                  <span>سجل الوصول: {credentials.auditLog?.length || 0} عملية مدققة</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                لم يتم إدخال بيانات اعتماد لهذا المنافس. البيانات مشفرة بالكامل بمفتاح سري على السيرفر ومخصصة فقط لأدمن الشركة (COMPANY_ADMIN) لأغراض فحص السوق.
+              </p>
             )}
           </div>
         </div>
@@ -1263,6 +1389,66 @@ const CompetitorDetail: React.FC = () => {
                 </button>
                 <button type="submit" disabled={packageLoading} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50">
                   {packageLoading ? 'جاري الحفظ...' : 'حفظ'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Credentials Modal */}
+      {showCredModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowCredModal(false)}>
+          <div className="bg-card border border-border/70 rounded-xl p-5 w-full max-w-sm space-y-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Lock size={15} className="text-amber-500" />
+                <h3 className="text-sm font-bold text-foreground">بيانات اعتماد الموقع (تشفير AES-GCM)</h3>
+              </div>
+              <button onClick={() => setShowCredModal(false)} className="p-1 rounded hover:bg-muted cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveCredentials} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium mb-1">اسم الحساب / الإيميل</label>
+                <input
+                  type="text"
+                  value={credForm.username}
+                  onChange={e => setCredForm(p => ({ ...p, username: e.target.value }))}
+                  placeholder="admin@competitor.com"
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">كلمة المرور السرية *</label>
+                <input
+                  type="password"
+                  value={credForm.password}
+                  onChange={e => setCredForm(p => ({ ...p, password: e.target.value }))}
+                  placeholder="••••••••••••"
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs font-mono"
+                  required
+                />
+                <span className="text-[10px] text-muted-foreground block mt-0.5">
+                  تُشفّر فورياً بمفتاح السيرفر ولن تظهر كنص صريح في أي استجابة برمجية
+                </span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">ملاحظات سرية</label>
+                <textarea
+                  value={credForm.notes}
+                  onChange={e => setCredForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="مثال: حساب مخصص لاختبار باقة المحترفين..."
+                  className="w-full px-3 py-1.5 border border-border/70 rounded-lg bg-card text-xs"
+                  rows={2}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-border/60">
+                <button type="button" onClick={() => setShowCredModal(false)} className="px-3 py-1.5 border border-border/70 rounded-lg text-xs cursor-pointer">
+                  إلغاء
+                </button>
+                <button type="submit" disabled={credLoading} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium cursor-pointer disabled:opacity-50">
+                  {credLoading ? 'جاري التشفير والحفظ...' : 'تشفير وحفظ'}
                 </button>
               </div>
             </form>

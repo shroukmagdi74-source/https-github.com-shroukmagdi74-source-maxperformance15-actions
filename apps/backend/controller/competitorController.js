@@ -302,6 +302,72 @@ exports.getAllReports = async (req, res) => {
   }
 };
 
+function checkCompanyAdmin(req, res) {
+  const role = req.user?.role;
+  const isSuper = req.user?.isSuperAdmin;
+  if (role === 'COMPANY_ADMIN' || role === 'SUPER_ADMIN' || isSuper === true) {
+    return true;
+  }
+  res.status(403).json({
+    success: false,
+    error: 'صلاحية أدمن الشركة COMPANY_ADMIN مطلوبة فقط لإدارة بيانات الاعتماد',
+  });
+  return false;
+}
+
+exports.getCredentials = async (req, res) => {
+  try {
+    if (!checkCompanyAdmin(req, res)) return;
+    const { companyId } = req.user;
+    const creds = await CompetitorService.getCredentials(companyId, req.params.id, req.user);
+    if (!creds) return res.status(404).json({ success: false, error: t('competitor.not_found') });
+    res.json({ success: true, data: creds });
+  } catch (error) {
+    console.error('Error getting credentials:', error);
+    res.status(500).json({ success: false, error: 'Failed to get competitor credentials' });
+  }
+};
+
+exports.setCredentials = async (req, res) => {
+  try {
+    if (!checkCompanyAdmin(req, res)) return;
+    const { companyId } = req.user;
+    const { username, password, notes } = req.body;
+    const result = await CompetitorService.setCredentials(companyId, req.params.id, { username, password, notes }, req.user);
+    if (!result) return res.status(404).json({ success: false, error: t('competitor.not_found') });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error setting credentials:', error);
+    res.status(500).json({ success: false, error: 'Failed to set competitor credentials' });
+  }
+};
+
+exports.deleteCredentials = async (req, res) => {
+  try {
+    if (!checkCompanyAdmin(req, res)) return;
+    const { companyId } = req.user;
+    const ok = await CompetitorService.deleteCredentials(companyId, req.params.id, req.user);
+    if (!ok) return res.status(404).json({ success: false, error: t('competitor.not_found') });
+    res.json({ success: true, message: 'تم حذف بيانات الاعتماد بنجاح' });
+  } catch (error) {
+    console.error('Error deleting credentials:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete competitor credentials' });
+  }
+};
+
+exports.markCredentialsUsed = async (req, res) => {
+  try {
+    if (!checkCompanyAdmin(req, res)) return;
+    const { companyId } = req.user;
+    const result = await CompetitorService.markCredentialsUsed(companyId, req.params.id, req.user);
+    if (!result) return res.status(404).json({ success: false, error: t('competitor.not_found') });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error marking credentials used:', error);
+    res.status(500).json({ success: false, error: 'Failed to update credentials usage' });
+  }
+};
+
 exports.getChanges = async (req, res) => {
   try {
     const { companyId } = req.user;

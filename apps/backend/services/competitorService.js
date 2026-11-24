@@ -861,6 +861,181 @@ class CompetitorService {
     };
   }
 
+  static async getCredentials(companyId, competitorId, user) {
+    const competitor = await getPrisma().competitor.findFirst({
+      where: { id: competitorId, companyId },
+    });
+    if (!competitor) return null;
+
+    const meta = (competitor.metadata && typeof competitor.metadata === 'object') ? competitor.metadata : {};
+    const creds = meta.credentials || null;
+
+    if (!creds || !creds.encryptedPassword) {
+      return {
+        hasCredentials: false,
+        username: creds?.username || null,
+        notes: creds?.notes || null,
+        lastUsedAt: creds?.lastUsedAt || null,
+        auditLog: creds?.auditLog || [],
+      };
+    }
+
+    // Append access audit entry
+    const auditLog = Array.isArray(creds.auditLog) ? creds.auditLog : [];
+    auditLog.push({
+      action: 'ACCESS',
+      userId: user?.id || 'unknown',
+      userEmail: user?.email || 'unknown',
+      timestamp: new Date().toISOString(),
+    });
+
+    await getPrisma().competitor.update({
+      where: { id: competitorId },
+      data: {
+        metadata: {
+          ...meta,
+          credentials: {
+            ...creds,
+            auditLog: auditLog.slice(-50),
+          },
+        },
+      },
+    });
+
+    // CRITICAL: NEVER return the password or encrypted string in GET
+    return {
+      hasCredentials: true,
+      username: creds.username || null,
+      notes: creds.notes || null,
+      lastUsedAt: creds.lastUsedAt || null,
+      updatedAt: creds.updatedAt || null,
+      auditLog: auditLog.slice(-50),
+    };
+  }
+
+  static async setCredentials(companyId, competitorId, data, user) {
+    const competitor = await getPrisma().competitor.findFirst({
+      where: { id: competitorId, companyId },
+    });
+    if (!competitor) return null;
+
+    const encryptionService = require('./competitorEncryptionService');
+    const encryptedPassword = data.password ? encryptionService.encryptField(data.password) : null;
+
+    const meta = (competitor.metadata && typeof competitor.metadata === 'object') ? competitor.metadata : {};
+    const existingCreds = meta.credentials || {};
+    const auditLog = Array.isArray(existingCreds.auditLog) ? existingCreds.auditLog : [];
+
+    auditLog.push({
+      action: 'SET',
+      userId: user?.id || 'unknown',
+      userEmail: user?.email || 'unknown',
+      timestamp: new Date().toISOString(),
+    });
+
+    const newCreds = {
+      username: data.username || existingCreds.username || '',
+      encryptedPassword: encryptedPassword || existingCreds.encryptedPassword || null,
+      notes: data.notes !== undefined ? data.notes : (existingCreds.notes || ''),
+      lastUsedAt: existingCreds.lastUsedAt || null,
+      updatedAt: new Date().toISOString(),
+      auditLog: auditLog.slice(-50),
+    };
+
+    await getPrisma().competitor.update({
+      where: { id: competitorId },
+      data: {
+        metadata: {
+          ...meta,
+          credentials: newCreds,
+        },
+      },
+    });
+
+    return {
+      success: true,
+      hasCredentials: Boolean(newCreds.encryptedPassword),
+      username: newCreds.username,
+      notes: newCreds.notes,
+      lastUsedAt: newCreds.lastUsedAt,
+      updatedAt: newCreds.updatedAt,
+      auditLog: newCreds.auditLog,
+    };
+  }
+
+  static async deleteCredentials(companyId, competitorId, user) {
+    const competitor = await getPrisma().competitor.findFirst({
+      where: { id: competitorId, companyId },
+    });
+    if (!competitor) return false;
+
+    const meta = (competitor.metadata && typeof competitor.metadata === 'object') ? competitor.metadata : {};
+    const existingCreds = meta.credentials || {};
+    const auditLog = Array.isArray(existingCreds.auditLog) ? existingCreds.auditLog : [];
+
+    auditLog.push({
+      action: 'DELETE',
+      userId: user?.id || 'unknown',
+      userEmail: user?.email || 'unknown',
+      timestamp: new Date().toISOString(),
+    });
+
+    await getPrisma().competitor.update({
+      where: { id: competitorId },
+      data: {
+        metadata: {
+          ...meta,
+          credentials: {
+            hasCredentials: false,
+            deletedAt: new Date().toISOString(),
+            auditLog: auditLog.slice(-50),
+          },
+        },
+      },
+    });
+
+    return true;
+  }
+
+  static async markCredentialsUsed(companyId, competitorId, user) {
+    const competitor = await getPrisma().competitor.findFirst({
+      where: { id: competitorId, companyId },
+    });
+    if (!competitor) return null;
+
+    const meta = (competitor.metadata && typeof competitor.metadata === 'object') ? competitor.metadata : {};
+    const creds = meta.credentials || {};
+    if (!creds.encryptedPassword) return null;
+
+    const nowIso = new Date().toISOString();
+    const auditLog = Array.isArray(creds.auditLog) ? creds.auditLog : [];
+    auditLog.push({
+      action: 'USE',
+      userId: user?.id || 'unknown',
+      userEmail: user?.email || 'unknown',
+      timestamp: nowIso,
+    });
+
+    await getPrisma().competitor.update({
+      where: { id: competitorId },
+      data: {
+        metadata: {
+          ...meta,
+          credentials: {
+            ...creds,
+            lastUsedAt: nowIso,
+            auditLog: auditLog.slice(-50),
+          },
+        },
+      },
+    });
+
+    return {
+      hasCredentials: true,
+      lastUsedAt: nowIso,
+    };
+  }
+
   static async listReports(companyId, competitorId, { page = 1, limit = 10 } = {}) {
     const where = { competitorId, companyId };
     const skip = (parseInt(page) - 1) * parseInt(limit);
