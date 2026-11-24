@@ -22,6 +22,8 @@ router.post('/:id/products', controller.addProduct);
 router.get('/:id/products/:productId/price-history', controller.getPriceHistory);
 router.get('/:id/ads', controller.listAds);
 router.post('/:id/ads', controller.addAd);
+router.post('/:id/ads/sync-creatives', controller.syncCreatives);
+router.post('/ads/sync-all-creatives', controller.syncCreatives);
 router.post('/:id/reports/generate', controller.generateReport);
 router.post('/:id/scan-tech', controller.scanTech);
 router.get('/:id/reports', controller.listReports);

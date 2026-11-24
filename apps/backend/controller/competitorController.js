@@ -302,6 +302,18 @@ exports.getAllReports = async (req, res) => {
   }
 };
 
+exports.syncCreatives = async (req, res) => {
+  try {
+    const { companyId } = req.user;
+    const competitorId = req.params.id || null;
+    const result = await CompetitorService.syncCreatives(companyId, competitorId);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error syncing creatives:', error);
+    res.status(500).json({ success: false, error: 'Failed to sync creatives' });
+  }
+};
+
 exports.scanTech = async (req, res) => {
   try {
     const { companyId } = req.user;

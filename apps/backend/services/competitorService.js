@@ -464,11 +464,11 @@ class CompetitorService {
     const competitor = await getPrisma().competitor.findFirst({ where: { id: competitorId, companyId } });
     if (!competitor) return null;
 
-    return getPrisma().competitorAd.create({
+    const ad = await getPrisma().competitorAd.create({
       data: {
         platform: data.platform || 'facebook',
         adId: data.adId,
-        creativeUrl: data.creativeUrl,
+        creativeUrl: data.creativeUrl || null,
         copy: data.copy,
         headline: data.headline,
         cta: data.cta,
@@ -478,6 +478,52 @@ class CompetitorService {
         competitorId,
       },
     });
+
+    // Auto-download or generate creative image and store locally
+    try {
+      const creativeService = require('./competitorCreativeService');
+      const creativeUrl = await creativeService.processAdCreative(ad, competitor.name);
+      if (creativeUrl) {
+        return await getPrisma().competitorAd.update({
+          where: { id: ad.id },
+          data: { creativeUrl },
+        });
+      }
+    } catch (err) {
+      console.warn('[CREATIVE] Processing failed:', err.message);
+    }
+
+    return ad;
+  }
+
+  static async syncCreatives(companyId, competitorId = null) {
+    const where = competitorId ? { competitor: { companyId, id: competitorId } } : { competitor: { companyId } };
+    const ads = await getPrisma().competitorAd.findMany({
+      where,
+      include: { competitor: { select: { name: true } } },
+      take: 200,
+    });
+
+    const creativeService = require('./competitorCreativeService');
+    const updatedAds = [];
+
+    for (const ad of ads) {
+      if (!ad.creativeUrl || ad.creativeUrl.startsWith('http')) {
+        try {
+          const compName = ad.competitor?.name || '';
+          const localUrl = await creativeService.processAdCreative(ad, compName);
+          const updated = await getPrisma().competitorAd.update({
+            where: { id: ad.id },
+            data: { creativeUrl: localUrl },
+          });
+          updatedAds.push(updated);
+        } catch (e) {
+          console.warn(`[CREATIVE] Sync failed for ad ${ad.id}:`, e.message);
+        }
+      }
+    }
+
+    return { totalChecked: ads.length, totalUpdated: updatedAds.length, ads: updatedAds };
   }
 
   static async listProducts(companyId, competitorId, { page = 1, limit = 20, isAvailable } = {}) {

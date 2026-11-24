@@ -245,6 +245,19 @@ const CompetitorDetail: React.FC = () => {
   };
 
   // Add Package / Product handler
+  const [isSyncingAds, setIsSyncingAds] = useState(false);
+  const handleSyncCreatives = async () => {
+    if (!id) return;
+    setIsSyncingAds(true);
+    try {
+      await apiClient.post(`/competitors/${id}/ads/sync-creatives`);
+      await fetchData();
+    } catch {
+      console.error('Failed to sync creatives');
+    } finally {
+      setIsSyncingAds(false);
+    }
+  };
   const handleSavePackage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !packageForm.name) return;
@@ -895,7 +908,23 @@ const CompetitorDetail: React.FC = () => {
 
       {/* Tab: Ads */}
       {tab === 'ads' && (
-        <div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-foreground">الحملات الإعلانية المرصودة ({ads.length})</h3>
+              <p className="text-xs text-muted-foreground">الكريتيف والصور الإعلانية المحفوظة محلياً</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSyncCreatives}
+              disabled={isSyncingAds}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={isSyncingAds ? 'animate-spin' : ''} />
+              <span>مزامنة صور الكريتف</span>
+            </button>
+          </div>
+
           {ads.length === 0 ? (
             <div className="border border-dashed border-border/70 rounded-xl p-6 text-center space-y-4 bg-card">
               <div className="max-w-md mx-auto space-y-2">
@@ -911,8 +940,33 @@ const CompetitorDetail: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {ads.map(a => (
-                <div key={a.id} className="border border-border/70 rounded-xl p-3 bg-card space-y-2">
-                  {a.creativeUrl && <img src={a.creativeUrl} alt={a.headline || 'ad'} className="w-full h-40 object-cover rounded-lg mb-1" />}
+                <div key={a.id} className="border border-border/70 rounded-xl p-3 bg-card space-y-2 shadow-xs">
+                  {a.creativeUrl ? (
+                    <div className="relative group rounded-lg overflow-hidden border border-border/50">
+                      <img
+                        src={a.creativeUrl}
+                        alt={a.headline || 'ad creative'}
+                        className="w-full h-44 object-cover rounded-lg bg-slate-900"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                      <a
+                        href={a.creativeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={`creative-${a.id}.svg`}
+                        className="absolute bottom-2 left-2 px-2.5 py-1 rounded bg-black/75 hover:bg-black text-white text-[10px] font-mono flex items-center gap-1 backdrop-blur-xs transition-opacity opacity-90 group-hover:opacity-100"
+                      >
+                        <span>تحميل</span>
+                        <ExternalLink size={10} />
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="w-full h-24 rounded-lg bg-muted/30 border border-dashed border-border/60 flex items-center justify-center text-xs text-muted-foreground font-mono">
+                      <span>لا توجد صورة محفوظة</span>
+                    </div>
+                  )}
                   {a.headline && <h4 className="font-semibold text-xs text-foreground">{a.headline}</h4>}
                   {a.copy && <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{a.copy}</p>}
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono pt-1 border-t border-border/40">
