@@ -222,6 +222,53 @@ const cleanLeadText = (value, maxLength = 500) => {
   return value.trim().replace(/\s+/g, ' ').slice(0, maxLength);
 };
 
+const VALID_LEAD_SOURCES = [
+  'WHATSAPP',
+  'FACEBOOK',
+  'INSTAGRAM',
+  'TIKTOK',
+  'CALL',
+  'WEBSITE',
+  'REFERRAL',
+  'WALK_IN',
+  'OTHER',
+];
+
+const LEAD_SOURCE_PATTERNS = [
+  { pattern: /facebook|(?:^|[^a-z0-9])(?:fb|meta)(?:$|[^a-z0-9])/i, value: 'FACEBOOK' },
+  { pattern: /whatsapp|(?:^|[^a-z0-9])wa(?:$|[^a-z0-9])/i, value: 'WHATSAPP' },
+  { pattern: /instagram|(?:^|[^a-z0-9])ig(?:$|[^a-z0-9])/i, value: 'INSTAGRAM' },
+  { pattern: /tiktok/i, value: 'TIKTOK' },
+  { pattern: /call|phone/i, value: 'CALL' },
+  { pattern: /referral/i, value: 'REFERRAL' },
+  { pattern: /walk/i, value: 'WALK_IN' },
+  { pattern: /website|web|landing|site|store/i, value: 'WEBSITE' },
+];
+
+const deriveLeadSource = (body = {}) => {
+  const explicitLeadSource = cleanLeadText(body?.leadSource, 40).toUpperCase();
+  if (explicitLeadSource && VALID_LEAD_SOURCES.includes(explicitLeadSource)) {
+    return explicitLeadSource;
+  }
+
+  const candidates = [
+    cleanLeadText(body?.source, 120),
+    cleanLeadText(body?.referrer, 500),
+    cleanLeadText(body?.landingPath, 240),
+    cleanLeadText(body?.pageSlug, 120),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    for (const { pattern, value } of LEAD_SOURCE_PATTERNS) {
+      if (pattern.test(candidate)) {
+        return value;
+      }
+    }
+  }
+
+  return 'WEBSITE';
+};
+
 const buildLeadNote = ({
   service,
   companyName,
@@ -644,6 +691,8 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
       landingPath,
     });
 
+    const leadSource = deriveLeadSource(req.body);
+
     let customer = null;
     let createdNewCustomer = false;
     if (duplicateFilters.length > 0) {
@@ -658,6 +707,7 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
           lastName: true,
           email: true,
           phone: true,
+          leadSource: true,
           notes: true,
           metadata: true,
           tags: true,
@@ -669,6 +719,7 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
       const mergedNotes = [customer.notes, leadNote, notes].filter(Boolean).join('\n\n');
       const mergedMetadata = mergeLeadMetadata(customer.metadata, leadMetadata);
       const mergedTags = mergeLeadTags(customer.tags, ['landing', source, pageSlug].filter(Boolean));
+      const shouldUpdateLeadSource = !customer.leadSource || customer.leadSource === 'OTHER';
 
       customer = await prisma.customer.update({
         where: { id: customer.id },
@@ -678,6 +729,7 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
           email: customer.email || email,
           phone: customer.phone || phone,
           status: 'LEAD',
+          ...(shouldUpdateLeadSource ? { leadSource } : {}),
           notes: mergedNotes || null,
           tags: JSON.stringify(mergedTags),
           metadata: JSON.stringify(mergedMetadata),
@@ -689,6 +741,7 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
           lastName: true,
           email: true,
           phone: true,
+          leadSource: true,
           companyId: true,
         }
       });
@@ -708,6 +761,7 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
             phone,
             phoneNormalized: phone ? toCanonicalE164(phone) : null,
             status: 'LEAD',
+            leadSource,
             notes: [leadNote, notes].filter(Boolean).join('\n\n') || null,
             tags: JSON.stringify(createdTags),
             metadata: JSON.stringify(createdMetadata),
@@ -718,6 +772,7 @@ router.post('/lead-capture', getCompanyFromSubdomain, async (req, res) => {
             lastName: true,
             email: true,
             phone: true,
+            leadSource: true,
             companyId: true,
           }
         },

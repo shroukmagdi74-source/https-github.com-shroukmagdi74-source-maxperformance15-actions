@@ -86,6 +86,7 @@ describe('publicCustomerRoutes - lead-capture & platform company fallback', () =
         phone: data.phone,
         companyId,
         status: data.status,
+        leadSource: data.leadSource || 'OTHER',
         tags: data.tags,
         metadata: data.metadata,
       });
@@ -99,6 +100,7 @@ describe('publicCustomerRoutes - lead-capture & platform company fallback', () =
         phone: data.phone,
         companyId: 'company-platform-1',
         status: data.status,
+        ...(data.leadSource ? { leadSource: data.leadSource } : {}),
         tags: data.tags,
         metadata: data.metadata,
       });
@@ -411,6 +413,144 @@ describe('publicCustomerRoutes - lead-capture & platform company fallback', () =
           }),
         })
       );
+    });
+  });
+
+  describe('leadSource derivation and persistence', () => {
+    beforeEach(() => {
+      process.env.PLATFORM_COMPANY_ID = 'company-platform-1';
+      mockPrisma.company.findFirst.mockResolvedValue({ id: 'company-platform-1', isActive: true });
+    });
+
+    test('sets leadSource=FACEBOOK when source is "facebook" and keeps metadata.source/tags intact', async () => {
+      const res = await request(app)
+        .post('/api/v1/public/customers/lead-capture')
+        .send({
+          firstName: 'نور',
+          phone: '01099990001',
+          source: 'facebook',
+          pageSlug: 'spring-offer',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      const createData = mockPrisma.customer.create.mock.calls[0][0].data;
+      expect(createData.leadSource).toBe('FACEBOOK');
+      expect(JSON.parse(createData.metadata).source).toBe('facebook');
+      expect(JSON.parse(createData.tags)).toEqual(['landing', 'facebook', 'spring-offer']);
+    });
+
+    test('sets leadSource=WEBSITE when source is "landing-page"', async () => {
+      const res = await request(app)
+        .post('/api/v1/public/customers/lead-capture')
+        .send({
+          firstName: 'هند',
+          phone: '01099990002',
+          source: 'landing-page',
+        });
+
+      expect(res.status).toBe(200);
+      expect(mockPrisma.customer.create.mock.calls[0][0].data.leadSource).toBe('WEBSITE');
+    });
+
+    test('uses valid explicit req.body.leadSource over derived source, and ignores invalid leadSource', async () => {
+      await request(app)
+        .post('/api/v1/public/customers/lead-capture')
+        .send({
+          firstName: 'يوسف',
+          phone: '01099990003',
+          leadSource: 'whatsapp',
+          source: 'facebook',
+        });
+
+      expect(mockPrisma.customer.create.mock.calls[0][0].data.leadSource).toBe('WHATSAPP');
+
+      mockPrisma.customer.create.mockClear();
+
+      await request(app)
+        .post('/api/v1/public/customers/lead-capture')
+        .send({
+          firstName: 'يوسف',
+          phone: '01099990004',
+          leadSource: 'BOGUS_SOURCE',
+          referrer: 'https://l.instagram.com/link',
+        });
+
+      expect(mockPrisma.customer.create.mock.calls[0][0].data.leadSource).toBe('INSTAGRAM');
+    });
+
+    test('derives leadSource in order: source -> referrer -> landingPath -> pageSlug -> WEBSITE fallback', async () => {
+      const cases = [
+        { payload: { source: 'fb_campaign' }, expected: 'FACEBOOK' },
+        { payload: { source: 'meta-ads' }, expected: 'FACEBOOK' },
+        { payload: { referrer: 'https://wa.me/20100000000' }, expected: 'WHATSAPP' },
+        { payload: { landingPath: '/tiktok-launch' }, expected: 'TIKTOK' },
+        { payload: { pageSlug: 'cold-call-vip' }, expected: 'CALL' },
+        { payload: { source: 'referral-partner' }, expected: 'REFERRAL' },
+        { payload: { source: 'walk-in-branch' }, expected: 'WALK_IN' },
+        { payload: { landingPath: '/signup' }, expected: 'WEBSITE' },
+        { payload: {}, expected: 'WEBSITE' },
+      ];
+
+      for (const [idx, c] of cases.entries()) {
+        mockPrisma.customer.create.mockClear();
+        const res = await request(app)
+          .post('/api/v1/public/customers/lead-capture')
+          .send({
+            firstName: `Lead${idx}`,
+            phone: `0108888000${idx}`,
+            ...c.payload,
+          });
+        expect(res.status).toBe(200);
+        expect(mockPrisma.customer.create.mock.calls[0][0].data.leadSource).toBe(c.expected);
+      }
+    });
+
+    test('update branch updates leadSource when existing leadSource is OTHER or null, but preserves non-OTHER', async () => {
+      mockPrisma.customer.findFirst.mockResolvedValueOnce({
+        id: 'cust-other-1',
+        firstName: 'عمرو',
+        lastName: '',
+        email: null,
+        phone: '01077770001',
+        leadSource: 'OTHER',
+        notes: null,
+        metadata: null,
+        tags: null,
+      });
+
+      await request(app)
+        .post('/api/v1/public/customers/lead-capture')
+        .send({
+          firstName: 'عمرو',
+          phone: '01077770001',
+          source: 'facebook',
+        });
+
+      expect(mockPrisma.customer.update.mock.calls[0][0].data.leadSource).toBe('FACEBOOK');
+
+      mockPrisma.customer.update.mockClear();
+      mockPrisma.customer.findFirst.mockResolvedValueOnce({
+        id: 'cust-wa-1',
+        firstName: 'مها',
+        lastName: '',
+        email: null,
+        phone: '01077770002',
+        leadSource: 'WHATSAPP',
+        notes: null,
+        metadata: null,
+        tags: null,
+      });
+
+      await request(app)
+        .post('/api/v1/public/customers/lead-capture')
+        .send({
+          firstName: 'مها',
+          phone: '01077770002',
+          source: 'facebook',
+        });
+
+      expect(mockPrisma.customer.update.mock.calls[0][0].data.leadSource).toBeUndefined();
     });
   });
 });

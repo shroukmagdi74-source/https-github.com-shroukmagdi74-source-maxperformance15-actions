@@ -120,6 +120,48 @@ const getAllCustomer = async (req, res) => {
       where.tags = { contains: `"${tagFilter}"` };
     }
 
+    // 🎯 فلاتر الليدز (المصدر / المرحلة / الأولوية / المسؤول / التاريخ)
+    const leadSourceFilter = normalizeLeadEnum(req.query.leadSource, LEAD_SOURCE_VALUES);
+    if (leadSourceFilter) {
+      where.leadSource = leadSourceFilter;
+    }
+
+    const leadStageFilter = normalizeLeadEnum(req.query.leadStage, LEAD_STAGE_VALUES);
+    if (leadStageFilter) {
+      where.leadStage = leadStageFilter;
+    }
+
+    const leadPriorityFilter = normalizeLeadEnum(req.query.leadPriority, LEAD_PRIORITY_VALUES);
+    if (leadPriorityFilter) {
+      where.leadPriority = leadPriorityFilter;
+    }
+
+    const rawAssignedToId = req.query.assignedToId;
+    if (typeof rawAssignedToId === 'string') {
+      const trimmedAssignedToId = rawAssignedToId.trim();
+      if (trimmedAssignedToId) {
+        const lowerAssignedToId = trimmedAssignedToId.toLowerCase();
+        if (lowerAssignedToId === 'unassigned' || lowerAssignedToId === 'null') {
+          where.assignedToId = null;
+        } else if (lowerAssignedToId !== 'all') {
+          where.assignedToId = trimmedAssignedToId;
+        }
+      }
+    }
+
+    const dateFromFilter = parseLeadDate(req.query.dateFrom);
+    const dateToRaw = typeof req.query.dateTo === 'string' ? req.query.dateTo.trim() : req.query.dateTo;
+    const dateToFilter = parseLeadDate(dateToRaw);
+    if (dateToFilter && typeof dateToRaw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateToRaw)) {
+      dateToFilter.setUTCHours(23, 59, 59, 999);
+    }
+    if (dateFromFilter || dateToFilter) {
+      where.createdAt = {
+        ...(dateFromFilter ? { gte: dateFromFilter } : {}),
+        ...(dateToFilter ? { lte: dateToFilter } : {}),
+      };
+    }
+
     // Filter by auto-discount status: AVAILABLE / PRE_ACTIVATION
     const autoDiscountFilter = req.query.autoDiscountStatus;
     if (autoDiscountFilter) {
